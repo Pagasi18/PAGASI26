@@ -1,0 +1,394 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // == Identidad ==
+    // "Staff" = sesion REAL (no anonima) que YA tiene su ficha en /usuarios.
+    // Antes se usaba solo request.auth != null ("logueado"), lo que dejaba
+    // entrar a cualquier sesion anonima (las que crea el formulario publico).
+    function noAnonimo() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function fichaUsuario() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    // Un empleado suspendido (o su ficha marcada como eliminada) deja de ser staff aqui
+    // mismo: antes suspender era solo un cartel de la pantalla y su sesion seguia
+    // entrando a toda la base (revisado el 22-sep-2026).
+    function esStaff() {
+      return noAnonimo()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && fichaUsuario().get('suspendido', false) != true
+        && fichaUsuario().get('eliminado', false) != true;
+    }
+    function esAdmin() {
+      return esStaff()
+        && ( get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'Administrador'
+          || get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin' );
+    }
+    // == Lead del formulario publico (punto 1, 19-sep-2026) ==
+    // Cualquiera en internet (sesion anonima) puede crear un lead, asi que aqui se
+    // fija EXACTAMENTE que trae: estos campos y ninguno mas, textos y numeros de su
+    // tipo, y SIN los caracteres con los que se mete codigo en el panel
+    // (< > " ' ` \ &). El formulario ya los quita; quien escriba directo en la base
+    // con otra cosa queda rechazado. La lista sale de buildClientePayload()
+    // (assets/public/request.js): si el formulario gana un campo, hay que sumarlo aqui.
+    // Los textos se revisan JUNTOS (una sola cadena): uno por uno pasaba el limite de
+    // 1.000 expresiones por pedido de Firebase y rechazaba hasta el lead bueno.
+    function esLeadWeb(id) {
+      let d = request.resource.data;
+      let r1 = d.get('ref1', {});
+      let r2 = d.get('ref2', {});
+      let textos = d.nombre
+          + d.get('cedula', '') + d.get('rif', '') + d.get('nacionalidad', '') + d.get('tel', '') +
+          d.get('wa', '') + d.get('email', '') + d.get('ciudad', '') + d.get('estado_ubi', '') +
+          d.get('dir', '') + d.get('tiempo_dir', '') + d.get('vivienda', '') +
+          d.get('terremoto_afectado', '') + d.get('terremoto_danos', '') + d.get('trabajo', '') +
+          d.get('empresa', '') + d.get('cargo', '') + d.get('dir_trabajo', '') +
+          d.get('tel_trabajo', '') + d.get('antiguedad', '') + d.get('remesas', '') +
+          d.get('historial', '') + d.get('deudas', '') + d.get('banco_estado', '') +
+          d.get('banco_nombre', '') + d.get('banco_cobro', '') + d.get('cuenta_digitos', '') +
+          d.get('ahorro', '') + d.get('cashea', '') + d.get('cashea_nivel', '') +
+          d.get('cashea_pago', '') + d.get('cashea_estado', '') + d.get('cashea_deuda', '') +
+          d.get('cashea_ultimo_art', '') + d.get('cashea_ultima_fecha', '') +
+          d.get('cashea_total_compras', '') + d.get('cashea_obs', '') + d.get('fiador', '') +
+          d.get('fiador_nom', '') + d.get('fiador_tel', '') + d.get('fiador_ci', '') +
+          d.get('fiador_rif', '') + d.get('fiador_dir', '') + d.get('fiador_email', '') +
+          d.get('fiador_rel', '') + d.get('impresion', '') + d.get('notas', '') +
+          d.get('conocio', '') + d.get('moto_interes_modelo', '') +
+          d.get('moto_interes_sede', '') + d.get('creado', '') + d.get('editadoEn', '') +
+          d.get('editadoPor', '') + r1.get('nom', '') + r1.get('ci', '') + r1.get('tel', '') +
+          r1.get('rel', '') + r1.get('obs', '') + r2.get('nom', '') + r2.get('ci', '') +
+          r2.get('tel', '') + r2.get('rel', '') + r2.get('obs', '');
+      return request.auth != null
+        && d.estado == 'lead'
+        && d.origen == 'web'
+        // WEB-<cedula> (nuevo, para que la misma persona no quede dos veces) o
+        // WEB-<hora> (como venia). Punto 21, 21-sep-2026.
+        && id.matches('WEB-[0-9]{6,16}') && d.id == id
+        && d.keys().hasOnly([
+          'id', 'nombre', 'cedula', 'rif', 'nacionalidad', 'tel', 'wa', 'email', 'ciudad',
+          'estado_ubi', 'dir', 'tiempo_dir', 'vivienda', 'terremoto_afectado', 'terremoto_danos',
+          'trabajo', 'empresa', 'cargo', 'dir_trabajo', 'tel_trabajo', 'antiguedad', 'ingreso',
+          'ingreso_familiar', 'remesas', 'dependientes', 'historial', 'deudas', 'banco_estado',
+          'banco_nombre', 'banco_cobro', 'cuenta_digitos', 'ahorro', 'cashea', 'cashea_nivel',
+          'cashea_pago', 'cashea_estado', 'cashea_deuda', 'cashea_monto', 'cashea_cuotas_pend',
+          'cashea_ultimo_art', 'cashea_ultimo_monto', 'cashea_ultima_fecha',
+          'cashea_total_compras', 'cashea_obs', 'fiador', 'fiador_nom', 'fiador_tel', 'fiador_ci',
+          'fiador_rif', 'fiador_dir', 'fiador_email', 'fiador_rel', 'ref1', 'ref2', 'docs_count',
+          'documentos', 'impresion', 'notas', 'conocio', 'score_indexa', 'f1', 'f2', 'f3', 'f4',
+          'f5', 'moto_interes_id', 'moto_interes_modelo', 'moto_interes_precio',
+          'moto_interes_sede', 'estado', 'origen', 'creado', 'editadoEn', 'editadoPor'
+        ])
+        && r1.keys().hasOnly(['nom','ci','tel','rel','obs'])
+        && r2.keys().hasOnly(['nom','ci','tel','rel','obs'])
+        && d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 120
+        && textos.size() <= 4000
+        && textos.matches("[^<>\"'`&\\\\]*")
+        && d.get('ingreso', 0) is number && d.get('ingreso_familiar', 0) is number
+        && d.get('dependientes', 0) is number && d.get('cashea_monto', 0) is number
+        && d.get('cashea_cuotas_pend', 0) is number && d.get('cashea_ultimo_monto', 0) is number
+        && d.get('docs_count', 0) is number && d.get('score_indexa', 0) is number
+        && d.get('f1', 0) is number && d.get('f2', 0) is number && d.get('f3', 0) is number
+        && d.get('f4', 0) is number && d.get('f5', 0) is number
+        && d.get('moto_interes_precio', 0) is number
+        && (d.get('moto_interes_id', null) == null || d.get('moto_interes_id', null) is int)
+        && d.get('documentos', []).size() == 0;
+    }
+
+    // == Identidad del CLIENTE (portal micuenta.html) ==
+    // El cliente entra con un link que lleva un token secreto + su cedula.
+    // A diferencia de las invitaciones de empleados, el doc de acceso NO es
+    // legible por el cliente: asi la cedula es un segundo factor REAL (un link
+    // filtrado no sirve sin la cedula correcta). La sesion se guarda en
+    // sesiones_cliente/{uid} y es la unica fuente de "de quien soy".
+    function esCliente() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/sesiones_cliente/$(request.auth.uid));
+    }
+    function miClienteId() {
+      return get(/databases/$(database)/documents/sesiones_cliente/$(request.auth.uid)).data.clienteId;
+    }
+    function esClienteDe(cid) {
+      return esCliente() && cid != null && miClienteId() == cid;
+    }
+    // El credito indicado pertenece al cliente de la sesion (para leer sus pagos)
+    function esMiCredito(credId) {
+      return esCliente()
+        && credId != null
+        && exists(/databases/$(database)/documents/creditos/$(credId))
+        && get(/databases/$(database)/documents/creditos/$(credId)).data.clienteId == miClienteId();
+    }
+
+    // == Usuarios ==
+    // Campos de la ficha que dan acceso o dinero: solo los pone un admin.
+    function camposDeAcceso() {
+      return ['rol','permisos','concesionarios','comisiones','suspendido','eliminado','isDemo','demoExpira','demoHoras'];
+    }
+    // Crear la ficha propia SOLO al aceptar una invitacion valida (el email del
+    // doc debe coincidir con el de la cuenta, y debe existir una invitacion
+    // para ese email). Asi, aunque el registro email/clave este abierto, nadie
+    // puede auto-asignarse acceso sin haber sido invitado por un admin.
+    match /usuarios/{uid} {
+      // Su propia ficha se lee siempre (aunque este suspendido): de ahi se entera la
+      // pantalla y lo saca. Antes el aviso se caia en silencio (revisado el 22-sep-2026).
+      allow get: if esStaff() || (noAnonimo() && request.auth.uid == uid);
+      allow list: if esStaff();
+      // Comparaciones de email en minusculas: Firebase Auth normaliza el email
+      // del token, pero la invitacion pudo guardarse con mayusculas. Sin .lower()
+      // la creacion se denegaba y la cuenta quedaba en Auth sin ficha.
+      allow create: if esAdmin()
+        || ( noAnonimo()
+             && request.auth.uid == uid
+             && request.resource.data.email.lower() == request.auth.token.email.lower()
+             && request.resource.data.inviteToken is string
+             && exists(/databases/$(database)/documents/invitaciones/$(request.resource.data.inviteToken))
+             && get(/databases/$(database)/documents/invitaciones/$(request.resource.data.inviteToken)).data.email.lower() == request.auth.token.email.lower()
+             // Punto 2 (19-sep-2026): la invitacion no puede estar usada (un exempleado
+             // con su link viejo ya no entra), y el rol y los permisos son los que puso
+             // el admin en la invitacion, no los que mande quien la acepta.
+             && get(/databases/$(database)/documents/invitaciones/$(request.resource.data.inviteToken)).data.get('usado', false) != true
+             && request.resource.data.rol == get(/databases/$(database)/documents/invitaciones/$(request.resource.data.inviteToken)).data.rol
+             && request.resource.data.permisos == get(/databases/$(database)/documents/invitaciones/$(request.resource.data.inviteToken)).data.get('permisos', [])
+             && !request.resource.data.keys().hasAny(camposDeAcceso().removeAll(['rol','permisos'])) );
+      // Editar la ficha propia (perfil, ultimo acceso), pero SIN tocar nada que dé
+      // acceso: antes solo el rol estaba protegido y cada uno podia darse permisos,
+      // sedes o comisiones, o quitarse la suspension (punto 2).
+      allow update: if esAdmin()
+        || ( noAnonimo()
+             && request.auth.uid == uid
+             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(camposDeAcceso()) );
+      allow delete: if esAdmin();
+    }
+
+    // == Invitaciones ==
+    // get(): el invitado abre su link (el token es un secreto en la URL).
+    // list(): solo staff puede enumerarlas. Crear/borrar: solo admin.
+    // update: admin, o el propio invitado SOLO para marcarla como usada al
+    // activarse (sin esto la escritura se denegaba, la invitacion quedaba
+    // usado:false para siempre y el link seguia siendo reutilizable).
+    match /invitaciones/{token} {
+      allow get: if true;
+      allow list: if esStaff();
+      allow create, delete: if esAdmin();
+      allow update: if esAdmin()
+        || ( noAnonimo()
+             && request.auth.token.email.lower() == resource.data.email.lower()
+             && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['usado','uid','fechaUso'])
+             && request.resource.data.usado == true
+             && request.resource.data.uid == request.auth.uid );
+    }
+
+    // == Que puede hacer cada quien (punto 9, 21-sep-2026) ==
+    // Hasta ahora "solo el administrador" era un cartel de la pantalla: las Reglas
+    // dejaban a CUALQUIER empleado cambiar el plan, la tasa, las cuentas bancarias y
+    // anular gastos, movimientos y pagos. Aqui se pide el mismo permiso que muestra
+    // la app: 'config' para la configuracion y 'perm_delete' para anular.
+    function permisos() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('permisos', []);
+    }
+    function permiso(p) { return esStaff() && permisos().hasAny([p]); }
+    function puedeAnular() { return esAdmin() || permiso('perm_delete'); }
+    // true si esta escritura anula un registro o lo revive
+    function cambiaAnulacion() {
+      return request.resource.data.get('eliminado', false) != resource.data.get('eliminado', false);
+    }
+
+    // == Configuracion ==
+    // La tasa del dia la actualiza sola la pantalla (cualquier empleado). Los ajustes
+    // contables de Coromoto, quien ve Reportes. Lo demas (plan, factor, dias de gracia,
+    // cuentas bancarias, empresa, roles, catalogo), solo el modulo Configuracion.
+    match /config/{id} {
+      allow read: if esStaff();
+      // El catalogo de modelos y los planes guardados los usa el vendedor desde el wizard
+      // y desde Motocicletas: si se piden permisos de Configuracion, esos botones quedan
+      // rotos y el error se traga (revisado el 22-sep-2026).
+      allow write: if (id == 'tasa' || id == 'catalogo' || id == 'planes') ? esStaff()
+        : ( id == 'coromoto' ? (esAdmin() || permiso('reportes'))
+        : ( id == 'gps'
+            // config/gps lo escribe el boton "Actualizar ahora" de la pantalla GPS: quien
+            // tenga ese modulo puede tocar SOLO las banderas del pedido; el resto (workerUrl,
+            // horario) sigue siendo de Configuracion (revisado el 22-sep-2026).
+            ? ( esAdmin() || permiso('config')
+                || ( permiso('gps') && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['refrescoPedido','refrescoPedidoPor','refrescoPedidoEn']) ) )
+        : ( id in ['plan','cuentasBanc','empresa','rolesPermisos','score','cobradores','avisosTelegram','avisosChats']
+            ? (esAdmin() || permiso('config'))
+            : esStaff() ) ) );
+    }
+
+    // == Portal del cliente: accesos y sesiones ==
+    // accesos_cliente/{token}: lo crea un empleado desde la ficha del cliente.
+    // Guarda clienteId + cedulaNorm (solo digitos). NUNCA legible por el cliente.
+    match /accesos_cliente/{token} {
+      allow read: if esStaff();
+      allow create, update, delete: if esStaff();
+    }
+
+    // indice_clientes/{telE164}: permite que el portal encuentre al cliente ANTES
+    // de tener sesion (sin poder listar /clientes). Se lee solo con el numero
+    // exacto y contiene apenas un id interno opaco: sin ese id no se accede a
+    // nada, porque igual hace falta el codigo SMS.
+    match /indice_clientes/{telE164} {
+      allow get: if true;
+      allow list: if esStaff();
+      allow create, update, delete: if esStaff();
+    }
+
+    // sesiones_cliente/{uid}: dos formas de abrir sesion, ambas validadas aqui.
+    //  (a) SMS  - Firebase ya verifico el telefono y lo pone en el token; debe
+    //      coincidir con el telefono registrado del cliente. Es autoservicio.
+    //  (b) LINK - respaldo cuando el SMS no llega: token secreto + cedula +
+    //      clienteId, validados contra el doc de acceso.
+    match /sesiones_cliente/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if esStaff();
+      allow create, update: if sesionClienteValida(uid);
+      allow delete: if esStaff();
+    }
+    // Reabrir la sesion pasa por el MISMO candado que abrirla: Firebase da siempre el
+    // mismo uid para el mismo telefono, y el doc no se borra, asi que con "update: false"
+    // el cliente no podia volver a entrar (revisado el 22-sep-2026).
+    function sesionClienteValida(uid) {
+      return request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.clienteId is string
+        && (
+          // (a) via SMS
+          ( request.resource.data.keys().hasOnly(['clienteId','via','telE164','creadoEn'])
+            && request.resource.data.via == 'sms'
+            && request.auth.token.phone_number != null
+            && request.resource.data.telE164 == request.auth.token.phone_number
+            && get(/databases/$(database)/documents/clientes/$(request.resource.data.clienteId)).data.telE164 == request.auth.token.phone_number )
+          ||
+          // (b) via enlace personal
+          ( request.resource.data.keys().hasOnly(['clienteId','token','cedulaNorm','creadoEn'])
+            && request.resource.data.token is string
+            && exists(/databases/$(database)/documents/accesos_cliente/$(request.resource.data.token))
+            && get(/databases/$(database)/documents/accesos_cliente/$(request.resource.data.token)).data.activo == true
+            && get(/databases/$(database)/documents/accesos_cliente/$(request.resource.data.token)).data.clienteId == request.resource.data.clienteId
+            && get(/databases/$(database)/documents/accesos_cliente/$(request.resource.data.token)).data.cedulaNorm == request.resource.data.cedulaNorm )
+        );
+    }
+
+    // == Comprobantes que sube el cliente ==
+    // NO son pagos. Entran a una cola en estado 'pendiente' y un empleado los
+    // confirma desde el admin (ahi si se crea el pago real). El cliente jamas
+    // escribe en /pagos ni puede cambiar el estado de su propio comprobante.
+    match /comprobantes/{id} {
+      allow read: if esStaff() || esClienteDe(resource.data.clienteId);
+      allow create: if esClienteDe(request.resource.data.clienteId)
+        && esMiCredito(request.resource.data.credId)   // no puede reportar sobre el credito de otro
+        // Solo estos campos: el cliente NO puede inyectar otros (ej. una "fecha"
+        // con HTML que se ejecutaria en la sesion del staff = XSS almacenado).
+        && request.resource.data.keys().hasOnly(['clienteId','clienteNombre','credId','monto','fecha','metodo','referencia','fotoUrl','fotoPath','estado','origen','creadoEn'])
+        && request.resource.data.estado == 'pendiente'
+        && request.resource.data.origen == 'portal'
+        && request.resource.data.monto is number
+        && request.resource.data.monto > 0
+        && request.resource.data.monto <= 100000
+        && request.resource.data.clienteNombre is string && request.resource.data.clienteNombre.size() < 120
+        && request.resource.data.fecha is string && request.resource.data.fecha.size() < 40
+        && request.resource.data.metodo is string && request.resource.data.metodo.size() < 60
+        && request.resource.data.referencia is string && request.resource.data.referencia.size() < 200
+        && request.resource.data.fotoUrl is string && request.resource.data.fotoUrl.size() < 2000
+        && request.resource.data.fotoPath is string && request.resource.data.fotoPath.size() < 500
+        && request.resource.data.creadoEn is string;
+      allow update, delete: if esStaff();
+    }
+
+    // == Clientes ==
+    // Staff ve todo. El cliente lee UNICAMENTE su propia ficha (nunca list).
+    // El formulario publico puede CREAR un lead (no leer, no editar, no borrar).
+    match /clientes/{id} {
+      allow get:    if esStaff() || esClienteDe(id);
+      allow list:   if esStaff();
+      allow create: if esStaff() || esLeadWeb(id);
+      allow update: if esStaff();
+      allow delete: if esAdmin();
+    }
+
+    // == Resto de colecciones internas: solo staff ==
+    // creditos/pagos: el cliente puede LEER solo lo suyo (creditos con su
+    // clienteId, y los pagos de esos creditos). Escribir: solo staff.
+    match /creditos/{id}          { allow read: if esStaff() || esClienteDe(resource.data.clienteId); allow create, update: if esStaff(); allow delete: if esAdmin(); }
+    match /pagos/{id}             { allow read: if esStaff() || esMiCredito(resource.data.cred); allow create: if esStaff();
+                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
+    // Borrar o restaurar una moto mueve su compra: mismo permiso que anular un gasto
+    match /motos/{id}             { allow read, create: if esStaff();
+                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
+    match /facturas/{id}          { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
+    match /cuentas/{id}           { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
+    match /cuentasPendientes/{id} { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
+    // Anular (o revivir) un movimiento o un gasto mueve el saldo de una cuenta: pide el
+    // permiso de eliminar, el mismo que muestra la app (punto 9).
+    match /movimientos/{id}       { allow read, create: if esStaff();
+                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
+    match /egresos/{id}           { allow read, create: if esStaff();
+                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
+    match /concesionarios/{id}    { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
+    match /tareas/{id}            { allow read, create, update, delete: if esStaff(); }
+    match /recursos/{id}          { allow read, create, update, delete: if esStaff(); }
+    match /notas_cobranza/{id}    { allow read, create: if esStaff(); allow update, delete: if esAdmin(); }
+
+    // Equipos de rastreo (modulo GPS). Mismo trato que motos y concesionarios.
+    // Ojo: el doc guarda la password del equipo y, cuando se conecte MiCODUS,
+    // su ubicacion. Quien pueda leer aqui puede ver donde esta cada moto, asi
+    // que el acceso al modulo se controla ademas por permiso en la app.
+    match /gps/{id}               { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
+
+    // == GPS en Mi cuenta (Adam, 14-sep-2026) ==
+    // ubicacion_cliente/{credId}: la ficha que ve el CLIENTE en Mi cuenta. Trae
+    // solo donde esta la moto y la hora de la ultima senal: nunca la clave del
+    // equipo, el IMEI ni la linea (esos viven en /gps, que sigue siendo solo
+    // staff). Existe solo para los creditos a los que un admin le activo el GPS
+    // en el modulo; la escriben el admin (al activar) y el robot de GPS.
+    match /ubicacion_cliente/{credId} {
+      allow get: if esStaff() || esMiCredito(credId);
+      allow list: if esStaff();
+      allow create, update, delete: if esStaff();
+    }
+    // pedidos_gps/{credId}: el boton "Actualizar ubicacion" del cliente. Solo el
+    // dueno del credito, solo si su GPS esta activo, y como maximo UNA vez por
+    // hora: lo controla esta regla, no la pagina. El robot lo lee y busca la
+    // posicion. Solo guarda la hora del pedido.
+    match /pedidos_gps/{credId} {
+      allow get: if esStaff() || esMiCredito(credId);
+      allow list: if esStaff();
+      allow create: if request.resource.data.keys().hasOnly(['pedidoEn'])
+        && request.resource.data.pedidoEn == request.time
+        && (esStaff() || (esMiCredito(credId)
+              && exists(/databases/$(database)/documents/ubicacion_cliente/$(credId))));
+      allow update: if request.resource.data.keys().hasOnly(['pedidoEn'])
+        && request.resource.data.pedidoEn == request.time
+        && (esStaff() || (esMiCredito(credId)
+              && exists(/databases/$(database)/documents/ubicacion_cliente/$(credId))
+              && request.time > resource.data.pedidoEn + duration.value(1, 'h')));
+      allow delete: if esAdmin();
+    }
+
+    // Contadores de numeracion (creditos, motos, clientes). El numero se reserva
+    // dentro de una transaccion para que dos vendedores nunca reciban el mismo.
+    // Solo pueden SUBIR: un contador que retrocede vuelve a entregar numeros ya
+    // usados, que es exactamente lo que borro los creditos 271 y 313.
+    match /contadores/{id} {
+      allow read: if esStaff();
+      allow create: if esStaff() && request.resource.data.ultimo is number;
+      allow update: if esStaff()
+        && request.resource.data.ultimo is number
+        && request.resource.data.ultimo > resource.data.ultimo;
+      allow delete: if false;
+    }
+
+    match /logs/{id} {
+      allow read: if esAdmin();
+      allow create: if esStaff();
+      allow update, delete: if false;
+    }
+
+    // Todo lo demas, bloqueado.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

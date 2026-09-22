@@ -1,0 +1,93 @@
+/* Homepage motorcycle wall. All motion is presentation-only. */
+.pg-motion-hero{--wall-gap:20px;position:relative;isolation:isolate;overflow:hidden;background:#065cff;color:#fff}
+.pg-motion-hero:before{content:'';position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at 80% 40%,#428aff 0,transparent 57%),linear-gradient(115deg,#034fdf,transparent 60%)}
+.pg-motion-inner{min-height:690px;display:flex;align-items:center;position:relative;z-index:2;pointer-events:none;padding-block:70px}
+.pg-motion-copy{width:540px;max-width:45%;pointer-events:auto}
+.pg-motion-kicker{display:flex;align-items:center;gap:9px;margin:0 0 26px;color:#d1e4ff;font-size:11px;font-weight:800;letter-spacing:.15em;text-transform:uppercase}
+.pg-motion-kicker:before{content:'';width:7px;height:7px;background:#a7d5ff;box-shadow:0 0 0 5px #ffffff12;border-radius:50%}
+.pg-motion-copy h1{font-size:clamp(44px,4.5vw,66px);line-height:1.12;letter-spacing:-.055em;font-weight:800;margin:0}
+.pg-motion-copy h1 span{display:block;color:#b8d8ff;font-weight:600}
+.pg-motion-description{max-width:365px;margin:24px 0 0;font-size:16px;line-height:1.8;color:#e0ecff}
+.pg-motion-actions{display:flex;align-items:center;gap:13px;margin-top:30px;flex-wrap:wrap}
+.pg-motion-actions .pg-button{min-height:54px;border-radius:10px;padding:16px 21px;font-size:13px}
+.pg-motion-secondary{border:1px solid #ffffff66;background:#0758ed;color:white}
+.pg-motion-secondary:hover{background:#ffffff1c;box-shadow:none}
+.pg-motion-terms{display:flex;gap:25px;margin:36px 0 0;padding:25px 0 0;border-top:1px solid #ffffff30;width:fit-content}
+.pg-motion-terms>div+div{border-left:1px solid #ffffff30;padding-left:25px}
+.pg-motion-terms dt{font-weight:800;font-size:24px;letter-spacing:-.04em;line-height:1.2}
+.pg-motion-terms dd{margin:5px 0 0;font-size:11px;color:#d1e4ff}
+.pg-motion-note{font-size:10px;color:#c4dcff;margin:18px 0 0}
+.pg-motion-wall{position:absolute;inset:0 0 0 auto;width:64%;overflow:hidden;pointer-events:none;mask-image:linear-gradient(90deg,transparent,#000 16%),linear-gradient(0deg,transparent,#000 12%,#000 90%,transparent);mask-composite:intersect;-webkit-mask-composite:source-in}
+.pg-motion-wall:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#065cff70,transparent 27%);pointer-events:none}
+.pg-motion-perspective{position:absolute;left:9%;top:50%;width:100%;transform:translateY(-50%) perspective(1600px) rotateX(12deg) rotateY(-18deg) rotateZ(12deg);transform-origin:center center}
+.pg-motion-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--wall-gap);align-items:start;height:1200px}
+.pg-motion-column{min-width:0}
+.pg-motion-track{animation:pg-wall-up 52s linear infinite;will-change:transform}
+.pg-motion-column:nth-child(1) .pg-motion-track{animation-delay:-21s}
+.pg-motion-column:nth-child(2) .pg-motion-track{animation-name:pg-wall-down;animation-duration:62s;animation-delay:-37s}
+.pg-motion-column:nth-child(3) .pg-motion-track{animation-duration:57s;animation-delay:-9s}
+.pg-motion-group{display:grid;gap:var(--wall-gap);padding-bottom:var(--wall-gap)}
+.pg-motion-card{background:#fff;color:#101a35;border:1px solid #ffffff;border-radius:17px;overflow:hidden;padding:14px 14px 0;box-shadow:0 15px 36px #003bab29;backface-visibility:hidden}
+.pg-motion-card-top{display:flex;align-items:center;justify-content:space-between;color:#6d7e9e;font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;gap:8px}
+.pg-motion-card-top span:last-child{border:1px solid #dfe7f3;border-radius:5px;padding:2px 5px;color:#1761da;letter-spacing:0;font-size:9px;white-space:nowrap}
+.pg-motion-photo{display:block;height:185px;background:#fff;margin:5px -5px 0}
+.pg-motion-photo img{width:100%;height:100%;object-fit:contain;display:block}
+.pg-motion-card-bottom{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 0 16px;border-top:1px solid #e9eef7}
+.pg-motion-card-bottom strong{font-size:14px;font-weight:800;letter-spacing:-.025em;line-height:1.35}
+.pg-motion-card-bottom small{display:block;font-size:9px;color:#6b7a94;margin-top:3px}
+.pg-motion-card-mark{width:25px;height:25px;border-radius:50%;background:#edf4ff;color:#065cff;display:grid;place-items:center;flex-shrink:0}
+.pg-motion-card-mark .pg-icon{width:13px;height:13px}
+.pg-motion-column:nth-child(2) .pg-motion-photo{height:218px}
+.pg-motion-control{position:absolute;right:32px;bottom:23px;z-index:3;display:flex;align-items:center;gap:7px;min-height:40px;padding:9px 13px;border:1px solid #ffffff52;background:#0453df;color:#fff;border-radius:24px;font-size:10px;font-weight:700;cursor:pointer;box-shadow:0 4px 18px #0046b026}
+.pg-motion-control:hover{background:#0349c6}
+.pg-motion-control svg{width:12px;height:12px;fill:currentColor}
+.pg-motion-hero[data-motion-running=false] .pg-motion-track{animation-play-state:paused;will-change:auto}
+@keyframes pg-wall-up{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+@keyframes pg-wall-down{from{transform:translateY(-50%)}to{transform:translateY(0)}}
+@media(min-width:1700px){.pg-motion-wall{width:calc(50% + 160px)}.pg-motion-perspective{width:1000px;left:4%}}
+@media(max-width:1150px){.pg-motion-copy{max-width:48%}.pg-motion-inner{min-height:650px;padding-block:58px}.pg-motion-copy h1{font-size:clamp(42px,4.6vw,54px)}.pg-motion-description{font-size:14px;max-width:315px}.pg-motion-wall{width:63%}.pg-motion-perspective{width:870px;left:10%}.pg-motion-actions{gap:10px}.pg-motion-actions .pg-button{padding:14px 16px;font-size:12px}.pg-motion-terms{gap:20px}.pg-motion-terms>div+div{padding-left:20px}}
+@media(max-width:800px){
+ .pg-motion-inner{min-height:0;padding-top:44px;padding-bottom:0;display:block}
+ .pg-motion-copy{width:100%;max-width:100%;position:relative}
+ .pg-motion-kicker{font-size:10px;margin-bottom:19px}
+ .pg-motion-copy h1{font-size:clamp(36px,6.8vw,54px);line-height:1.12;letter-spacing:-.05em}
+ .pg-motion-copy h1 span{display:inline;color:#b8d8ff}
+ .pg-motion-description{font-size:14px;line-height:1.75;max-width:440px;margin-top:18px}
+ .pg-motion-actions{margin-top:23px;gap:10px}
+ .pg-motion-actions .pg-button{min-height:49px;font-size:12px;padding:14px 18px}
+ .pg-motion-terms{margin-top:27px;padding-top:20px;gap:24px}
+ .pg-motion-terms>div+div{padding-left:24px}
+ .pg-motion-terms dt{font-size:22px}
+ .pg-motion-terms dd{font-size:10px}
+ .pg-motion-note{margin-top:13px;font-size:9px}
+ .pg-motion-wall{position:relative;width:100%;height:360px;margin-top:8px;mask-image:linear-gradient(0deg,transparent,#000 18%,#000 87%,transparent);-webkit-mask-composite:source-over}
+ .pg-motion-wall:after{display:none}
+ .pg-motion-perspective{width:780px;left:50%;transform:translate(-50%,-50%) perspective(1300px) rotateX(10deg) rotateY(-15deg) rotateZ(12deg)}
+ .pg-motion-photo{height:165px}
+ .pg-motion-column:nth-child(2) .pg-motion-photo{height:190px}
+ .pg-motion-control{right:20px;bottom:16px;min-height:38px}
+}
+@media(max-width:450px){
+ .pg-motion-inner{padding-top:31px}
+ .pg-motion-copy h1{font-size:42px;max-width:360px}
+ .pg-motion-copy h1 span{display:block}
+ .pg-motion-description{max-width:320px;font-size:13px;margin-top:16px}
+ .pg-motion-kicker{font-size:9px;letter-spacing:.12em;margin-bottom:18px}
+ .pg-motion-actions{margin-top:21px}
+ .pg-motion-actions .pg-button{padding:13px 14px;font-size:11px;gap:9px}
+ .pg-motion-actions .pg-icon{width:18px;height:18px}
+ .pg-motion-terms{margin-top:24px;padding-top:18px;gap:20px}
+ .pg-motion-terms>div+div{padding-left:20px}
+ .pg-motion-terms dt{font-size:21px}
+ .pg-motion-wall{height:300px;margin-top:3px}
+ .pg-motion-perspective{width:660px;left:47%}
+ .pg-motion-card{padding:11px 11px 0;border-radius:13px}
+ .pg-motion-photo{height:140px}
+ .pg-motion-column:nth-child(2) .pg-motion-photo{height:165px}
+ .pg-motion-card-bottom strong{font-size:12px}
+ .pg-motion-card-bottom{padding:10px 0 12px}
+ .pg-motion-card-top{font-size:7px}
+ .pg-motion-card-top span:last-child{font-size:8px}
+}
+@media(max-width:360px){.pg-motion-copy h1{font-size:36px}.pg-motion-actions{gap:8px}.pg-motion-actions .pg-button{padding:13px 11px;font-size:10px}.pg-motion-terms{gap:17px}.pg-motion-terms>div+div{padding-left:17px}}
+@media(prefers-reduced-motion:reduce){.pg-motion-track{animation-play-state:paused;will-change:auto}}

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><!-- PAGASI-BUILD-REDISENO-LIMPIO-26MAY -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#2563EB">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Pagasi — Sistema de Crédito</title>
+<link rel="icon" type="image/png" href="assets/pegaso.png">
+<link rel="apple-touch-icon" href="assets/pegaso-icon.png">
+<!-- Firebase SDK embebido — funciona sin internet y sin servidor -->
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Nunito+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/pagasi.css?v=20260922-1628">
+<script charset="utf-8" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="login-wrap" id="login-screen">
+  <div class="amb1" style="pointer-events:none"></div>
+
+
+  <div class="amb2" style="pointer-events:none"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <img src="assets/pagasi-logo.png" alt="Pagasi">
+    </div>
+    <div class="login-title">Sistema de Gestión</div>
+    <div class="login-sub">Ingresa tus credenciales para continuar</div>
+    <div class="login-fg">
+      <span class="login-lbl">Email</span>
+      <input class="login-inp" id="l_user" type="email" placeholder="correo@ejemplo.com" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-fg">
+      <span class="login-lbl">Contraseña</span>
+      <input class="login-inp" id="l_pass" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Ingresar →</button>
+    <div class="login-err" id="login-err">Usuario o contraseña incorrectos</div>
+    <button type="button" onclick="resetPasswordLogin()" style="display:block;width:100%;text-align:center;background:none;border:none;color:#2563EB;font-size:11.5px;font-weight:700;cursor:pointer;margin-top:12px;text-decoration:underline">¿Olvidaste tu contraseña?</button>
+    <div class="login-footer"><span id="login-mode" style="font-size:9px;opacity:0.5">Firebase Auth</span><br><span style="display:inline-block;margin-top:6px;font-size:9px;font-weight:800;color:#2563EB;background:rgba(37,99,235,0.1);padding:3px 9px;border-radius:20px;letter-spacing:0.5px">Versión 2.18</span></div>
+  </div>
+</div>
+
+
+<!-- ══ PANTALLA DE ACEPTAR INVITACIÓN ══ -->
+<div class="login-wrap" id="invite-screen" style="display:none">
+  <div class="amb1" style="pointer-events:none"></div>
+  <div class="amb2" style="pointer-events:none"></div>
+  <div class="login-card" style="max-width:440px">
+    <div class="login-logo">
+      <img src="assets/pagasi-logo.png" alt="Pagasi" id="inv-logo" style="height:40px;object-fit:contain;">
+    </div>
+    <div id="inv-info" style="background:var(--gs);border:1px solid var(--rim2);border-radius:var(--r8);padding:11px 14px;margin-bottom:20px;font-size:12px;color:var(--ink2);text-align:center"></div>
+    <div class="login-fg">
+      <span class="login-lbl">Nombre completo</span>
+      <input class="login-inp" id="inv_nombre" type="text" placeholder="Tu nombre y apellido" onkeydown="if(event.key==='Enter')aceptarInvitacion()">
+    </div>
+    <div class="login-fg">
+      <span class="login-lbl">Contraseña</span>
+      <input class="login-inp" id="inv_pass" type="password" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter')aceptarInvitacion()">
+    </div>
+    <div class="login-fg">
+      <span class="login-lbl">Confirmar contraseña</span>
+      <input class="login-inp" id="inv_pass2" type="password" placeholder="Repite tu contraseña" onkeydown="if(event.key==='Enter')aceptarInvitacion()">
+    </div>
+    <button class="login-btn" id="inv-btn" onclick="aceptarInvitacion()">Crear mi cuenta →</button>
+    <div class="login-err" id="invite-err" style="display:none"></div>
+    <div class="login-footer" id="inv-footer" style="margin-top:18px">Pagasi · Sistema interno</div>
+  </div>
+</div>
+
+<div id="ld-wrap" class="ld-wrap" style="display:none">
+  <div class="ld-spin"></div>
+  <div class="ld-msg" id="ld-msg">Conectando con la base de datos...</div>
+  <div class="ld-sub" id="ld-sub"></div>
+</div>
+<div class="amb1"></div><div class="amb2"></div>
+<!-- Overlay para cerrar sidebar en mobile -->
+<div class="sb-overlay" id="sb-overlay" onclick="closeMobileMenu()"></div>
+
+<div class="app" id="app-root" style="display:none">
+<nav class="sb" id="main-sidebar" ontouchstart="">
+  <div class="sb-logo">
+    <img src="assets/pagasi-logo.png" alt="Pagasi">
+  </div>
+
+  <div class="sb-nav">
+    <div class="sb-grp">
+      <div class="sb-lbl">Principal</div>
+      <button type="button" class="si" data-nav="dash" onclick="nav('dash')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></span><span>Dashboard</span></button>
+      <button type="button" class="si" data-nav="centro" onclick="nav('centro')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg></span><span>Centro de trabajo</span><span class="si-bx" id="sb-badge-wt"></span></button>
+    </div>
+    <div class="sb-grp">
+      <div class="sb-lbl">Gestión</div>
+      <button type="button" class="si" data-nav="clientes" onclick="nav('clientes')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><path d="M16 3.5a3 3 0 0 1 0 6"/><path d="M21 20v-1a5 5 0 0 0-3-4.5"/></svg></span><span>Clientes</span></button>
+      <button type="button" class="si" data-nav="motos" onclick="nav('motos')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17h3l3-5h6l2 5"/><path d="M14 12l-2-4h-3"/><path d="M16 8h3"/></svg></span><span>Motocicletas</span></button>
+      <button type="button" class="si" data-nav="creditos" onclick="nav('creditos')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h3"/></svg></span><span>Créditos</span></button>
+      <button type="button" class="si" data-nav="pagos" onclick="nav('pagos')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 12h.01M18 12h.01"/></svg></span><span>Cobranza</span><span class="si-bx" id="sb-badge-cob"></span></button>
+    </div>
+    <div class="sb-grp">
+      <div class="sb-lbl">Operaciones</div>
+      <button type="button" class="si" data-nav="contratos" onclick="nav('contratos')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span><span>Contratos</span></button>
+      <button type="button" class="si" data-nav="notif" onclick="nav('notif')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg></span><span>Notificaciones</span></button>
+      <button type="button" class="si" data-nav="calculadora" onclick="nav('calculadora')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="10" height="3" rx="0.5"/><circle cx="8" cy="13" r="0.6" fill="currentColor"/><circle cx="12" cy="13" r="0.6" fill="currentColor"/><circle cx="16" cy="13" r="0.6" fill="currentColor"/><circle cx="8" cy="17" r="0.6" fill="currentColor"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/><circle cx="16" cy="17" r="0.6" fill="currentColor"/></svg></span><span>Calculadora</span></button>
+    </div>
+    <div class="sb-grp">
+      <div class="sb-lbl">Análisis</div>
+      <button type="button" class="si" data-nav="reportes" onclick="nav('reportes')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-6"/></svg></span><span>Finanzas</span></button>
+      <button type="button" class="si" data-nav="proyeccion" onclick="nav('proyeccion')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-5"/><circle cx="20" cy="5" r="1.5" fill="currentColor"/></svg></span><span>Proyección</span></button>
+      <button type="button" class="si" data-nav="cuentas" onclick="nav('cuentas')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a9 3 0 0 0 18 0a9 3 0 0 0-18 0"/><path d="M3 7v5a9 3 0 0 0 18 0V7"/><path d="M3 12v5a9 3 0 0 0 18 0v-5"/></svg></span><span>Cuentas</span></button>
+    </div>
+    <div class="sb-grp">
+      <div class="sb-lbl">Sistema</div>
+      <button type="button" class="si" data-nav="plan" onclick="nav('plan')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span>Plan &amp; Precios</span></button>
+      <button type="button" class="si" data-nav="config" onclick="nav('config')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>Configuración</span></button>
+      <button type="button" class="si" data-nav="scores" onclick="nav('scores')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></svg></span><span>Scores</span></button>
+      <button type="button" class="si" data-nav="users" onclick="nav('users')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21v-1a7 7 0 0 1 14 0v1"/></svg></span><span>Usuarios</span></button>
+    </div>
+  </div>
+  <div class="sb-foot">
+<div class="sb-usr" onclick="showAdminProfile()" title="Perfil de administrador">
+      <div class="sb-av">JA</div>
+      <div><div class="sb-un">Juan Admin</div><div class="sb-ur">Administrador</div></div>
+    </div>
+  </div>
+</nav>
+
+
+
+<div class="main">
+  <!-- Mobile topbar (solo visible en móvil) -->
+  <div class="topbar" id="mobile-topbar" style="display:none">
+    <button type="button" class="mob-menu-btn" onclick="openMobileMenu()">☰</button>
+    <span id="pgT-mob" style="font-size:14px;font-weight:700;flex:1;color:var(--ink);letter-spacing:-0.3px">Dashboard</span>
+    <div id="mob-actions" style="display:flex;align-items:center;gap:6px">
+      <button onclick="openMobSearch()" style="width:34px;height:34px;border-radius:50%;border:1px solid var(--rim2);background:var(--surf2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--ink3);font-family:var(--fm)">◆</button>
+      <button onclick="toggleDark()" id="darkToggleMob" style="width:34px;height:34px;border-radius:50%;border:1px solid var(--rim2);background:var(--surf2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px">☀</button>
+      <div id="mob-av" style="width:32px;height:32px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;cursor:pointer" onclick="showAdminProfile()">A</div>
+    </div>
+  </div>
+  <!-- Hidden elements kept for JS compatibility -->
+  <span id="pgT" style="display:none">Dashboard</span>
+  <span id="topNewBtn" style="display:none"></span>
+  <span id="topNewLabel" style="display:none"></span>
+  <span id="notif-dot" style="display:none"></span>
+
+  <div id="desktop-topbar" style="display:flex;align-items:center;padding:10px 20px 0 20px;flex-shrink:0;gap:14px">
+    <div class="tb-search-wrap" id="gs-wrap" style="width:100%;max-width:480px;margin:0 auto;position:relative">
+      <div class="srch" style="width:100%">
+        <span class="srch-i">◆</span>
+        <input type="text" id="globalSearch" class="srch-input" style="width:100%;box-sizing:border-box"
+          placeholder="Buscar clientes, créditos, motos, placa..."
+          oninput="globalSearch(this.value)"
+          onfocus="if(this.value.trim()) globalSearch(this.value)"
+          onblur="setTimeout(closeGlobalSearch,220)"
+          onkeydown="gsKeyNav(event)">
+        <button id="gs-clear" class="gs-clear-btn" onclick="document.getElementById('globalSearch').value='';closeGlobalSearch()" style="display:none">✕</button>
+      </div>
+      <div id="gs-panel" class="gs-dropdown"></div>
+    </div>
+    <div id="conc-switcher" style="display:none;flex-shrink:0">
+      <!-- Switcher de concesionario · se rellena con _renderConcSwitcher() -->
+    </div>
+  </div>
+  <div class="content" id="cnt"></div>
+</div>
+</div><!-- /app-root -->
+
+<!-- ── MOBILE BOTTOM NAV BAR ── -->
+<div id="mob-bottom-bar">
+  <button class="mbb-btn on" id="mbb-dash" onclick="nav('dash');mbbSelect('dash')">
+    <span class="mbb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></span>
+    <span>Inicio</span>
+  </button>
+  <button class="mbb-btn" id="mbb-clientes" onclick="nav('clientes');mbbSelect('clientes')">
+    <span class="mbb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><path d="M16 3.5a3 3 0 0 1 0 6"/><path d="M21 20v-1a5 5 0 0 0-3-4.5"/></svg></span>
+    <span>Clientes</span>
+  </button>
+  <div class="mbb-add">
+    <button onclick="openAddCred()" title="Nueva Solicitud">＋</button>
+  </div>
+  <button class="mbb-btn" id="mbb-creditos" onclick="nav('creditos');mbbSelect('creditos')">
+    <span class="mbb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h3"/></svg></span>
+    <span>Créditos</span>
+  </button>
+  <button class="mbb-btn" id="mbb-more" onclick="openMobileMenu()">
+    <span class="mbb-ic">≡</span>
+    <span>Más</span>
+  </button>
+</div>
+
+<!-- ── MOBILE SEARCH OVERLAY ── -->
+<div id="mob-search-overlay">
+  <div class="mob-srch-bar">
+    <button onclick="closeMobSearch()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink3);padding:4px 6px">←</button>
+    <input class="mob-srch-input" id="mob-srch-input" type="text" placeholder="Buscar clientes, créditos, motos, placa..."
+      oninput="mobSearch(this.value)"
+      onkeydown="if(event.key==='Escape')closeMobSearch()">
+    <button onclick="document.getElementById('mob-srch-input').value='';mobSearch('')"
+      style="background:none;border:none;color:var(--ink3);font-size:13px;cursor:pointer;padding:4px 6px">✕</button>
+  </div>
+  <div id="mob-srch-results">
+    <div style="padding:40px 20px;text-align:center;color:var(--ink3);font-size:13px">
+      Escribe para buscar en todo el sistema
+    </div>
+  </div>
+</div>
+<div class="ov" id="ov" style="display:none" onclick="if(event.target===this)closeM()">
+  <div class="modal" id="modal-box">
+    <div class="m-hd">
+      <div class="m-ic" id="mic" style="font-family:var(--fm);font-size:10px;font-weight:700;color:var(--p1)">···</div>
+      <div><div class="m-tt" id="mtt">Modal</div><div class="m-sb" id="msb"></div></div>
+      <button class="m-x" onclick="closeM()">✕</button>
+    </div>
+    <div class="m-bd" id="mbd"></div>
+    <div class="m-ft" id="mft">
+      <button class="btn btn-g" onclick="closeM()">Cancelar</button>
+      <button class="btn btn-p" onclick="saveM()">Guardar</button>
+    </div>
+  </div>
+</div>
+<div class="toasts" id="toasts"></div>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script charset="utf-8" src="assets/pagasi-app.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/financiero.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/centro.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/usuarios.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/documentos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/clientes.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/motos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/moto-pagos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/configuracion.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/bcv-auto.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/scores.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/creditos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/credito-ledger.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/gamificacion.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/pagos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/contratos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/gps.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/contratos-dra.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/contratos-protect.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/egresos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/facturacion.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/comisiones.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/reportes.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/coromoto.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/cuentas.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/charts.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/backups.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/notificaciones.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/concesionarios.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/concesionarios-chart.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/aprobaciones.js?v=20260922-1628"></script>
+<script charset="utf-8" src="logic/portal.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/centro.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/comisiones.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/aprobaciones.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/concesionarios.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/dash.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/clientes.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/motos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/creditos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/pagos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/cobranza.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/plan.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/contratos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/gps.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/notif.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/calculadora.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/reportes.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/proyeccion.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/recursos.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/conta.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/scores.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/config.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/cuentas.js?v=20260922-1628"></script>
+<script charset="utf-8" src="modules/users.js?v=20260922-1628"></script>
+
+</body>
+</html>

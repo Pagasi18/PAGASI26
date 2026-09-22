@@ -1,0 +1,1908 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#2563EB">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<title>Mi Cuenta — Pagasi</title>
+<link rel="icon" type="image/png" href="assets/pegaso.png">
+<link rel="apple-touch-icon" href="assets/pegaso-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p:#2563EB;--p-d:#1D4ED8;--p-l:#3B82F6;
+  --ink:#0A0A0F;--ink-2:#3D3D4E;--ink-3:#7A7A8C;--ink-4:#ADADBC;
+  --line:rgba(0,0,0,.08);--white:#fff;--off:#F5F6FA;--off-2:#EEF0F7;
+  --green:#00A854;--green-bg:#E6F7EE;
+  --red:#E8335A;--red-bg:#FDECF0;
+  --amber:#E08700;--amber-bg:#FFF6E5;
+  --r:14px;--rl:20px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'Manrope',-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(--off);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:15px;line-height:1.5}
+/* Cifras: sans geometrica con numeros tabulares (nada de serif — en movil se
+   ve anticuado y desalinea las columnas). El tracking negativo les da peso. */
+.money{font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1;font-weight:800;letter-spacing:-.6px}
+.wrap{max-width:520px;margin:0 auto;padding:0 16px 40px}
+.hide{display:none!important}
+
+/* ── Topbar ── */
+.top{background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+.top-in{max-width:520px;margin:0 auto;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.top img{height:32px;width:auto;display:block}
+/* Avatar con iniciales: abre el menu de la cuenta (patron de apps de banco) */
+.av{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;font-family:inherit;
+  font-size:14px;font-weight:800;letter-spacing:.3px;color:#fff;
+  background:linear-gradient(145deg,#4C8DFF,#1D4ED8);box-shadow:0 2px 8px rgba(37,99,235,.28);
+  display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
+.av:active{transform:scale(.94)}
+.umenu{position:absolute;top:62px;right:16px;background:var(--white);border:1px solid var(--line);
+  border-radius:20px;padding:8px;min-width:232px;box-shadow:0 16px 44px rgba(11,11,30,.16);z-index:60}
+.um-h{display:flex;align-items:center;gap:11px;padding:10px 11px 13px}
+.um-a{width:42px;height:42px;border-radius:50%;background:linear-gradient(145deg,#4C8DFF,#1D4ED8);
+  color:#fff;font-size:14.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.um-n{font-size:15px;font-weight:800;letter-spacing:-.3px;line-height:1.25}
+.um-s{font-size:12px;font-weight:600;color:var(--ink-4);margin-top:2px}
+.um-b{width:100%;background:var(--off);border:none;border-radius:14px;font-family:inherit;font-size:14px;
+  font-weight:700;color:var(--ink-2);cursor:pointer;padding:13px;display:flex;align-items:center;justify-content:center;gap:8px}
+.um-b:active{background:var(--off-2)}
+
+/* ── Modo Pagasi (cuenta master) ──
+   Barra oscura arriba del topbar: tiene que ser IMPOSIBLE confundir la vista
+   del equipo con la sesion real de un cliente. */
+.mbar{background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff}
+.mbar-in{max-width:520px;margin:0 auto;padding:9px 16px;display:flex;align-items:center;gap:10px}
+.mbar-tag{font-size:9.5px;font-weight:900;letter-spacing:.9px;text-transform:uppercase;
+  background:rgba(255,255,255,.15);padding:4px 8px;border-radius:6px;flex-shrink:0}
+.mbar-n{font-size:13px;font-weight:800;letter-spacing:-.2px;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbar-b{background:#fff;color:#0F172A;border:none;border-radius:9px;font-family:inherit;
+  font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer;flex-shrink:0}
+.mbar-b:active{transform:scale(.96)}
+/* Selector de cliente: hoja inferior con buscador (una lista de cientos de
+   clientes es inusable en movil sin filtrar). */
+.psheet{position:fixed;inset:0;background:rgba(10,10,20,.55);z-index:200;
+  display:flex;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.psheet-in{background:var(--white);width:100%;max-width:520px;border-radius:24px 24px 0 0;
+  max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.ps-h{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+.ps-t{font-size:17px;font-weight:900;letter-spacing:-.4px;margin-bottom:13px;
+  display:flex;align-items:center;justify-content:space-between}
+.ps-x{background:var(--off);border:none;width:30px;height:30px;border-radius:50%;
+  cursor:pointer;font-size:18px;color:var(--ink-3);line-height:1;font-family:inherit}
+.ps-s{width:100%;font-family:inherit;font-size:15px;font-weight:600;padding:12px 14px;
+  border:1.5px solid var(--off-2);border-radius:12px;background:var(--off);outline:none;color:var(--ink)}
+.ps-s:focus{border-color:var(--p);background:var(--white)}
+.ps-l{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 6px 18px}
+.ps-i{width:100%;background:none;border:none;font-family:inherit;text-align:left;cursor:pointer;
+  padding:11px 12px;border-radius:12px;display:flex;align-items:center;gap:11px}
+.ps-i:active{background:var(--off)}
+.ps-i.on{background:#EAF1FF}
+.ps-av{width:36px;height:36px;border-radius:50%;background:var(--off-2);color:var(--ink-2);
+  font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ps-i.on .ps-av{background:var(--p);color:#fff}
+.ps-txt{min-width:0;overflow:hidden}
+.ps-n{display:block;font-size:14.5px;font-weight:700;letter-spacing:-.2px;line-height:1.3;
+  color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-m{display:block;font-size:11.5px;font-weight:600;color:var(--ink-4);margin-top:1px}
+.ps-c{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--p);background:#EAF1FF;
+  padding:3px 7px;border-radius:6px;flex-shrink:0;white-space:nowrap}
+.lnk{background:none;border:none;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--p);cursor:pointer;padding:0;text-decoration:underline}
+
+/* ── Login ── */
+.lg{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px 20px;background:linear-gradient(165deg,#2563EB,#1D4ED8)}
+.lg-card{background:var(--white);border-radius:24px;padding:30px 24px;width:100%;max-width:400px;box-shadow:0 20px 50px rgba(0,0,0,.22)}
+.lg-card img{height:34px;margin:0 auto 20px;display:block}
+.lg-t{font-size:20px;font-weight:800;letter-spacing:-.5px;text-align:center;margin-bottom:6px}
+.lg-s{font-size:13.5px;color:var(--ink-3);text-align:center;margin-bottom:22px;line-height:1.5}
+label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-3);margin-bottom:7px}
+input,select,textarea{width:100%;font-family:inherit;font-size:16px;font-weight:600;color:var(--ink);background:var(--off);border:1.5px solid var(--line);border-radius:var(--r);padding:14px 15px;outline:none;transition:.15s}
+input:focus,select,textarea:focus{border-color:var(--p);background:var(--white)}
+input::placeholder{color:var(--ink-4);font-weight:500}
+.btn{width:100%;font-family:inherit;font-size:15.5px;font-weight:800;border:none;border-radius:var(--r);padding:15px;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-p{background:var(--p);color:#fff}
+.btn-p:active{background:var(--p-d)}
+.btn-p:disabled{opacity:.55;cursor:default}
+.btn-g{background:var(--off-2);color:var(--ink-2)}
+.btn-wa{background:#25D366;color:#fff}
+.err{background:var(--red-bg);color:#B3123B;font-size:13px;font-weight:600;padding:11px 13px;border-radius:11px;margin-bottom:14px;line-height:1.45}
+.ok{background:var(--green-bg);color:#00713A;font-size:13px;font-weight:600;padding:11px 13px;border-radius:11px;margin-bottom:14px;line-height:1.45}
+
+/* ── Cards ── */
+.card{background:var(--white);border:1px solid var(--line);border-radius:24px;padding:20px;margin-top:14px;box-shadow:0 1px 2px rgba(11,11,30,.04)}
+.ct{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-3);margin-bottom:14px}
+
+/* ── HERO: la cifra protagonista ── */
+.hero{position:relative;overflow:hidden;border:none;padding:24px 22px 22px;color:#fff;
+  background:radial-gradient(120% 100% at 15% 0%,#4C8DFF 0%,#2563EB 45%,#1B45C4 100%)}
+/* En atraso el hero cambia de color: con 5 cuotas vencidas la tarjeta se veia
+   igual de celebratoria que la de un cliente al dia. */
+.hero.late{background:radial-gradient(120% 100% at 15% 0%,#F2547A 0%,#D81E4A 45%,#A8123A 100%)}
+.hero::after{content:'';position:absolute;right:-38px;bottom:-30px;width:200px;height:209px;
+  background:url('assets/pegaso.png') no-repeat center/contain;filter:brightness(0) invert(1);opacity:.07;pointer-events:none}
+.hero .lb{position:relative;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.1px;opacity:.8}
+.hero .big{position:relative;font-size:52px;line-height:1;margin:8px 0 6px;letter-spacing:-2.4px;font-weight:800}
+.hero .sm{position:relative;font-size:14px;font-weight:600;opacity:.92;line-height:1.45}
+.hero .note{position:relative;font-size:12.5px;font-weight:600;opacity:.72;margin-top:5px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:6px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.pill-ok{background:rgba(255,255,255,.2);color:#fff;backdrop-filter:blur(6px)}
+.pill-bad{background:#fff;color:var(--red)}
+
+/* Barra segmentada: un tramo por cuota (patron de apps de cuotas) */
+.segs{position:relative;display:flex;gap:3px;margin:18px 0 9px}
+.segs i{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.26)}
+.segs i.on{background:#fff}
+.segs i.now{background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.3)}
+.bar{position:relative;height:7px;background:rgba(255,255,255,.26);border-radius:4px;overflow:hidden;margin:18px 0 9px}
+.bar i{display:block;height:100%;background:#fff;border-radius:4px}
+.pmeta{position:relative;display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;opacity:.92}
+
+/* ── 3 datos grandes ── */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.tile{background:var(--white);border:1px solid var(--line);border-radius:20px;padding:15px 12px;text-align:center;box-shadow:0 1px 2px rgba(11,11,30,.04)}
+.tile .tv{font-size:19px;font-weight:800;letter-spacing:-.7px;line-height:1.15}
+.tile .tl{font-size:11px;font-weight:700;color:var(--ink-4);margin-top:5px;line-height:1.3}
+
+/* ── Titulos de seccion FUERA de las tarjetas ──
+   Antes todo era una etiqueta gris diminuta dentro de otra tarjeta blanca
+   igual a la anterior: la pagina no tenia ritmo, se leia como una lista. */
+.sec{font-size:16px;font-weight:900;letter-spacing:-.45px;color:var(--ink);margin:28px 3px 11px}
+.sec span{display:block;font-size:12.5px;font-weight:650;color:var(--ink-4);letter-spacing:-.1px;margin-top:3px}
+
+/* ── "Tu moto": el centro emocional de la pagina ──
+   El cliente no esta pagando una deuda, esta comprando SU moto. El anillo
+   dice cuanto de la moto ya es suyo, que es la cifra que de verdad motiva. */
+.mcard{position:relative;overflow:hidden;border:none;color:#fff;padding:22px 20px;
+  background:radial-gradient(125% 120% at 100% 0%,#2A3A52 0%,#151E2E 55%,#0A0F1A 100%)}
+.mcard::after{content:'';position:absolute;left:-34px;bottom:-44px;width:176px;height:184px;
+  background:url('assets/pegaso.png') no-repeat center/contain;filter:brightness(0) invert(1);opacity:.055;pointer-events:none}
+.mrow{position:relative;display:flex;align-items:center;gap:16px}
+.mtxt{flex:1;min-width:0}
+.mlb{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.1px;opacity:.5}
+.mnom{font-size:21px;font-weight:900;letter-spacing:-.65px;line-height:1.15;margin-top:7px}
+.msede{font-size:12.5px;font-weight:600;opacity:.55;margin-top:6px}
+.mpag{font-size:12.5px;font-weight:700;opacity:.8;margin-top:13px;line-height:1.45}
+.mpag b{color:#5EE9A0}
+.rwrap{position:relative;width:96px;height:96px;flex-shrink:0}
+.ring{width:96px;height:96px;transform:rotate(-90deg);display:block}
+.ring circle{fill:none;stroke-width:9;stroke-linecap:round}
+.ring .rbg{stroke:rgba(255,255,255,.12)}
+.ring .rfg{transition:stroke-dashoffset 1.2s cubic-bezier(.22,1,.36,1)}
+.rpct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.rpct b{font-size:23px;font-weight:900;letter-spacing:-1.1px;line-height:1;font-variant-numeric:tabular-nums}
+.rpct i{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;opacity:.5;margin-top:3px;font-style:normal}
+
+/* ── Camino de niveles: Bronce -> Plata -> Oro -> Platino ── */
+.ntrack{display:flex;align-items:flex-start;margin:20px 0 2px}
+.ntk{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;position:relative}
+.ntk::before{content:'';position:absolute;top:8px;right:50%;width:100%;height:3px;background:var(--off-2);z-index:0}
+.ntk:first-child::before{display:none}
+.ntk.done::before{background:var(--p)}
+.ntd{position:relative;z-index:1;width:19px;height:19px;border-radius:50%;background:var(--off-2);
+  box-shadow:0 0 0 3px var(--white);transition:.3s}
+.ntk.done .ntd{background:var(--p)}
+.ntk.cur .ntd{background:var(--p);box-shadow:0 0 0 3px var(--white),0 0 0 7px rgba(37,99,235,.16)}
+.ntl{font-size:10.5px;font-weight:800;color:var(--ink-4);letter-spacing:.1px;text-align:center}
+.ntk.done .ntl{color:var(--ink-3)}
+.ntk.cur .ntl{color:var(--p);font-weight:900}
+
+/* ── Entrada escalonada: la pagina "aparece" en vez de estar ahi de golpe ── */
+.rev{opacity:0;transform:translateY(15px)}
+.rev.in{opacity:1;transform:none;transition:opacity .55s ease,transform .55s cubic-bezier(.22,1,.36,1)}
+@media (prefers-reduced-motion:reduce){
+  .rev,.rev.in{opacity:1;transform:none;transition:none}
+  .ring .rfg,.nbar i,.rc-meta i{transition:none}
+}
+
+/* ══ PANTALLA "MI RACHA" ══
+   Pantalla propia, no una tarjeta mas: la racha es el gancho para que el
+   cliente pague a tiempo. Adaptada de los patrones de racha DIARIA, pero
+   medida en QUINCENAS, que es como cobra Pagasi. */
+.rcs{position:fixed;inset:0;background:var(--white);z-index:150;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.rc-top{position:relative;overflow:hidden;padding:16px 16px 74px;
+  background:radial-gradient(120% 100% at 20% 0%,#4C8DFF 0%,#2563EB 48%,#1B45C4 100%)}
+/* Anillos concentricos: profundidad sin usar imagenes */
+.rc-top::before{content:'';position:absolute;left:50%;top:-200px;width:640px;height:640px;
+  transform:translateX(-50%);border-radius:50%;pointer-events:none;
+  background:repeating-radial-gradient(circle at center,
+    rgba(255,255,255,.10) 0 1px, rgba(255,255,255,0) 1px 46px)}
+.rc-bar{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.rc-t{font-size:19px;font-weight:900;letter-spacing:-.5px;color:#fff}
+.rc-x{width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;
+  background:rgba(255,255,255,.94);color:#1B45C4;display:flex;align-items:center;justify-content:center}
+.rc-x:active{transform:scale(.94)}
+/* El pegaso monta el borde entre el azul y el blanco, como la mascota del patron */
+.rc-hero{position:relative;margin-top:-64px;text-align:center;padding:0 16px}
+.rc-peg{position:relative;width:118px;height:118px;margin:0 auto;border-radius:50%;
+  background:var(--white);box-shadow:0 10px 30px rgba(27,69,196,.22);
+  display:flex;align-items:center;justify-content:center}
+.rc-peg img{width:72px;height:72px;object-fit:contain;display:block}
+.rc-peg.off img{filter:grayscale(1);opacity:.3}
+.rc-halo{position:absolute;inset:-13px;border-radius:50%;border:2px solid rgba(37,99,235,.16)}
+.rc-n{font-size:66px;font-weight:900;letter-spacing:-3.5px;line-height:1;color:var(--p);
+  margin-top:15px;font-variant-numeric:tabular-nums}
+.rc-n.off{color:var(--ink-4)}
+.rc-l{font-size:15.5px;font-weight:800;color:var(--p);letter-spacing:-.3px;margin-top:3px}
+.rc-l.off{color:var(--ink-3)}
+.rc-sub{font-size:13px;font-weight:600;color:var(--ink-3);margin-top:10px;line-height:1.5}
+
+/* Tira de quincenas: el equivalente a los dias de la semana del patron */
+.rc-strip{display:flex;gap:7px;justify-content:flex-start;margin:24px 0 0;overflow-x:auto;
+  padding-bottom:4px;scrollbar-width:none}
+.rc-strip::-webkit-scrollbar{display:none}
+.rc-q{flex:0 0 52px;border:1.5px solid var(--off-2);border-radius:26px;padding:9px 0 10px;
+  text-align:center;background:var(--white)}
+.rc-q .d{font-size:10.5px;font-weight:800;color:var(--ink-4);letter-spacing:.2px}
+.rc-q .b{width:30px;height:30px;margin:6px auto 0;border-radius:50%;background:var(--off);
+  display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:900;color:var(--ink-4)}
+.rc-q.ok{border-color:rgba(37,99,235,.3);background:#F4F8FF}
+.rc-q.ok .d{color:var(--p)}
+.rc-q.ok .b{background:var(--p);color:#fff}
+.rc-q.late{border-color:rgba(232,51,90,.3);background:var(--red-bg)}
+.rc-q.late .d{color:var(--red)}
+.rc-q.late .b{background:var(--red);color:#fff}
+.rc-q.now{border-color:var(--p);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.rc-q.now .d{color:var(--p)}
+
+/* Barra de meta con hitos, como el reto de dias del patron */
+.rc-meta{position:relative;height:10px;background:var(--off-2);border-radius:6px;margin:18px 4px 34px}
+.rc-meta i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#4C8DFF,#2563EB);
+  border-radius:6px;width:0;transition:width 1s cubic-bezier(.22,1,.36,1)}
+.rc-hito{position:absolute;top:-9px;width:28px;height:28px;border-radius:50%;background:var(--white);
+  border:2px solid var(--off-2);transform:translateX(-50%);display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:900;color:var(--ink-4)}
+.rc-hito.done{border-color:var(--p);background:var(--p);color:#fff}
+.rc-hito.cur{border-color:var(--p);color:var(--p);box-shadow:0 0 0 4px rgba(37,99,235,.14)}
+.rc-hl{position:absolute;top:31px;left:50%;transform:translateX(-50%);font-size:10px;
+  font-weight:800;color:var(--ink-4);white-space:nowrap;letter-spacing:.2px}
+.rc-hito.done .rc-hl,.rc-hito.cur .rc-hl{color:var(--p)}
+/* Dos datos: desde cuando y el record a superar */
+.rc-2{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.rc-2 > div{padding:16px 14px;text-align:center}
+.rc-2 > div + div{border-left:1px solid var(--line)}
+.rc-2 .v{font-size:17px;font-weight:900;letter-spacing:-.5px}
+.rc-2 .k{font-size:11.5px;font-weight:700;color:var(--ink-4);margin-top:4px}
+/* Metas por nivel */
+.rc-goal{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid var(--line)}
+.rc-goal:last-child{border-bottom:none}
+.rc-gi{width:42px;height:42px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.rc-gi img{width:24px;height:24px;object-fit:contain}
+.rc-gi.lock img{filter:grayscale(1);opacity:.32}
+.rc-gn{font-size:14.5px;font-weight:800;letter-spacing:-.25px}
+.rc-gs{font-size:12px;font-weight:600;color:var(--ink-3);margin-top:2px}
+.rc-gt{margin-left:auto;font-size:10.5px;font-weight:800;padding:5px 10px;border-radius:20px;white-space:nowrap}
+
+/* ── Linea de tiempo de cuotas ── */
+.tl-i{position:relative;display:flex;align-items:center;gap:14px;padding:11px 0 11px 2px}
+.tl-i::before{content:'';position:absolute;left:8px;top:0;bottom:0;width:2px;background:#E1E6F0}
+.tl-i:first-child::before{top:50%}
+.tl-i:last-child::before{bottom:50%}
+.tl-d{position:relative;z-index:1;width:18px;height:18px;border-radius:50%;background:var(--off-2);border:3px solid var(--white);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.tl-d.paid{background:var(--green)}
+.tl-d.now{background:var(--p);box-shadow:0 0 0 4px rgba(37,99,235,.16)}
+.tl-d.late{background:var(--red)}
+.tl-b{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tl-n{font-size:14.5px;font-weight:700;color:var(--ink)}
+.tl-f{font-size:12.5px;font-weight:600;color:var(--ink-3);margin-top:2px}
+.tl-v{font-size:15px;font-weight:800;letter-spacing:-.4px;text-align:right;white-space:nowrap}
+.tl-i.is-now .tl-n{color:var(--p)}
+
+/* ── Filas de detalle / pagos ── */
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none;padding-bottom:0}
+.row:first-of-type{padding-top:0}
+.rl{font-size:14.5px;font-weight:700;color:var(--ink)}
+.rl small{display:block;font-size:12.5px;color:var(--ink-3);font-weight:600;margin-top:3px}
+.rv{font-size:16px;font-weight:800;letter-spacing:-.4px;white-space:nowrap}
+.pay{display:flex;align-items:center;gap:12px}
+.pay .pc{width:34px;height:34px;border-radius:11px;background:var(--green-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tag{font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.t-ok{background:var(--green-bg);color:var(--green)}
+.t-bad{background:var(--red-bg);color:var(--red)}
+.t-wait{background:var(--amber-bg);color:var(--amber)}
+.t-gray{background:var(--off-2);color:var(--ink-3)}
+.empty{text-align:center;color:var(--ink-4);font-size:13.5px;font-weight:600;padding:16px 0}
+.foot{text-align:center;font-size:11.5px;color:var(--ink-4);font-weight:600;margin-top:26px;line-height:1.6}
+.more{width:100%;background:none;border:none;font-family:inherit;font-size:13.5px;font-weight:800;color:var(--p);cursor:pointer;padding:12px 0 2px}
+.tl-wrap:not(.open) .tl-hid{display:none}
+
+/* ── Racha y niveles ── */
+/* Azul Pagasi, no naranja: el icono es el pegaso, no una llama genérica */
+.fuego{width:52px;height:52px;border-radius:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:linear-gradient(150deg,#EAF1FF,#D3E3FF)}
+.fuego.off{background:var(--off-2)}
+.fuego.off img{filter:grayscale(1);opacity:.34}
+.rnum{font-size:34px;line-height:1;letter-spacing:-1.4px}
+.rlbl{font-size:12.5px;font-weight:700;color:var(--ink-3);margin-top:3px;line-height:1.3}
+.nbadge{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;padding:8px 14px;border-radius:20px;white-space:nowrap}
+.nbar{height:8px;background:var(--off-2);border-radius:5px;overflow:hidden}
+.nbar i{display:block;height:100%;border-radius:5px;transition:width .4s ease}
+.nsub{font-size:13px;font-weight:600;color:var(--ink-2);margin-top:9px;line-height:1.45}
+.nstats{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;font-weight:700;color:var(--ink-4);margin-top:13px}
+.nprem{background:var(--off);border-radius:18px;padding:15px 16px;margin-top:15px}
+.nprem-t{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--ink-4)}
+.nprem-v{font-size:23px;letter-spacing:-.8px;color:var(--p-d);margin-top:5px;line-height:1.1}
+.nprem-s{font-size:12.5px;font-weight:600;color:var(--ink-3);margin-top:7px;line-height:1.5}
+
+/* ── Catálogo de premios ── */
+/* Tira deslizable, no rejilla: son 5 premios y en 3 columnas la segunda fila
+   quedaba con un hueco vacio. Deslizar ademas invita a verlos todos. Los
+   margenes negativos hacen que la tira sangre hasta el borde de la tarjeta. */
+.pgrid{display:flex;gap:9px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;margin:0 -20px;padding:0 20px 4px;scrollbar-width:none}
+.pgrid::-webkit-scrollbar{display:none}
+/* Cada premio con su color: en gris todos se leian como "bloqueado" aunque
+   el cliente ya los tuviera desbloqueados. */
+.pcard{flex:0 0 106px;scroll-snap-align:start;background:var(--pbg,var(--off));border-radius:16px;
+  padding:14px 10px;text-align:center;transition:.15s}
+.pcard.plock{background:var(--off)}
+.pico{width:40px;height:40px;margin:0 auto 9px;border-radius:13px;background:var(--white);
+  color:var(--pc,var(--p));display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(11,11,30,.08)}
+.pcard.plock .pico{color:var(--ink-4);box-shadow:none;background:var(--off-2)}
+.pcard.plock .pnom{color:var(--ink-3)}
+.pnom{font-size:13px;font-weight:800;letter-spacing:-.2px;line-height:1.2}
+.pdesc{font-size:10.5px;font-weight:600;color:var(--ink-3);margin-top:4px;line-height:1.35}
+.pnota{font-size:12.5px;font-weight:600;color:var(--ink-3);margin-top:14px;line-height:1.55}
+.tiny{font-size:11.5px;color:var(--ink-4);font-weight:600;line-height:1.5;margin-top:11px;text-align:center}
+details summary{cursor:pointer;font-size:13px;font-weight:800;color:var(--p);list-style:none;padding:4px 0}
+details summary::-webkit-details-marker{display:none}
+
+/* ── Modal ── */
+.ov{position:fixed;inset:0;background:rgba(10,10,15,.55);z-index:100;display:flex;align-items:flex-end;justify-content:center;padding:0}
+.md{background:var(--white);border-radius:24px 24px 0 0;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;padding:22px 18px 28px}
+.md-t{font-size:18px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px}
+.md-s{font-size:13px;color:var(--ink-3);margin-bottom:18px;line-height:1.5}
+.fg{margin-bottom:14px}
+.fgr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:22px 14px;text-align:center;cursor:pointer;background:var(--off)}
+.drop.on{border-color:var(--p);background:rgba(37,99,235,.05)}
+.drop .dt{font-size:13.5px;font-weight:700;color:var(--p);margin-top:6px}
+.drop .ds{font-size:11.5px;color:var(--ink-4);font-weight:600;margin-top:3px}
+.prev{max-width:100%;max-height:170px;border-radius:11px;margin-top:10px;display:block}
+.spin{width:17px;height:17px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(min-width:521px){.ov{align-items:center}.md{border-radius:24px}}
+/* GPS en Mi cuenta */
+.gps-map{height:230px;border-radius:18px;overflow:hidden;margin-bottom:12px;background:var(--off-2);position:relative;z-index:0}
+.gps-meta{font-size:13.5px;font-weight:700;color:var(--ink-2);margin-bottom:12px;line-height:1.45}
+.gps-meta small{display:block;font-size:12px;font-weight:600;color:var(--ink-4);margin-top:2px}
+</style>
+<link rel="stylesheet" href="assets/public/site.css?v=20260922-1628"><link rel="stylesheet" href="assets/public/account.css?v=20260922-1628"></head>
+<body class="pg-site pg-account"><a class="pg-skip" href="#main">Ir al contenido</a><header class="pg-header" id="nav"><nav class="pg-nav pg-container" aria-label="Navegación principal"><a class="pg-brand" href="index.html" aria-label="Pagasi, inicio"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><div class="pg-nav-links" id="pg-navigation"><a href="index.html" class="">Inicio</a><a href="simulador.html" class="">Simulador</a><a href="catalogo.html" class="">Catálogo</a><a href="nosotros.html" class="">Nosotros</a><a href="micuenta.html" class="pg-button pg-button-outline" aria-current="page"><span data-icon="user" aria-hidden="true"></span> Mi cuenta</a><a href="solicitar.html" class="pg-button">Solicitar</a></div><button type="button" class="pg-menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="pg-navigation"><span data-icon="menu" aria-hidden="true"></span></button></nav></header>
+
+<!-- ══ LOGIN ══ -->
+<div id="scLogin" class="lg" role="main"><div class="pg-login-story"><h1>Tu moto <i>contigo.</i><br>Tu cuenta también.</h1><p>Consulta tus cuotas, revisa tus pagos y mantén tu plan al día.</p><div class="pg-login-benefits"><span><span data-icon="calculator" aria-hidden="true"></span> Consulta tus cuotas</span><span><span data-icon="wallet" aria-hidden="true"></span> Reporta tus pagos</span><span><span data-icon="clock" aria-hidden="true"></span> Revisa tu historial</span></div><div class="pg-login-moto"><img src="assets/public/ek-xpress-scene-v2.webp" width="1254" height="1254" alt="Vista ilustrativa de una EK Xpress 150 Lite"></div></div><div class="pg-login-panel" id="main">
+  <div class="lg-card"><div class="pg-login-icon"><span data-icon="phone" aria-hidden="true"></span></div>
+    <img id="lgLogo" alt="Pagasi">
+    <div class="lg-t" id="lgT">Entra a tu cuenta</div>
+    <div class="lg-s" id="lgSub">Consulta tu crédito y envía tus pagos.</div>
+    <div id="lgErr" class="err hide" role="alert"></div>
+
+    <!-- Paso 1: teléfono -->
+    <div id="stepTel">
+      <div class="fg">
+        <label for="tel">Tu número de teléfono</label>
+        <input id="tel" type="tel" inputmode="numeric" placeholder="Tu número de celular" autocomplete="tel">
+      </div>
+      <button id="btnCodigo" class="btn btn-p" onclick="pedirCodigo()">Enviar código</button>
+      <div class="tiny">Te llega un mensaje de texto con un código. Usa el mismo número que tienes registrado con Pagasi.</div>
+    </div>
+
+    <!-- Paso 2: código -->
+    <div id="stepCod" class="hide">
+      <div class="fg">
+        <label for="cod">Código que recibiste</label>
+        <input id="cod" type="tel" inputmode="numeric" placeholder="123456" autocomplete="one-time-code" maxlength="6">
+      </div>
+      <button id="btnVerificar" class="btn btn-p" onclick="verificarCodigo()">Entrar</button>
+      <div style="display:flex;gap:8px;margin-top:9px">
+        <button class="btn btn-g" onclick="volverATel()">Cambiar número</button>
+        <button class="btn btn-g" id="btnReenviar" onclick="pedirCodigo()">Reenviar</button>
+      </div>
+    </div>
+
+    <!-- Paso alterno: enlace personal (respaldo, solo si viene ?t= en el URL) -->
+    <div id="stepCed" class="hide">
+      <div class="fg">
+        <label for="ced">Cédula de identidad</label>
+        <input id="ced" type="tel" inputmode="numeric" placeholder="Ej: 18456789" autocomplete="off">
+      </div>
+      <button id="btnEntrar" class="btn btn-p" onclick="entrarConEnlace()">Entrar</button>
+    </div>
+
+    <!-- Paso alterno: cuenta Pagasi (equipo). Mismo correo y clave del admin. -->
+    <div id="stepStaff" class="hide">
+      <div class="fg">
+        <label for="stEmail">Correo Pagasi</label>
+        <input id="stEmail" type="email" inputmode="email" placeholder="tu@pagasi.io" autocomplete="username">
+      </div>
+      <div class="fg">
+        <label for="stPass">Contraseña</label>
+        <input id="stPass" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button id="btnStaff" class="btn btn-p" onclick="loginStaff()">Entrar</button>
+      <div class="tiny">Entras con el mismo correo y clave del panel de administración. Podrás ver la cuenta de cualquier cliente.</div>
+    </div>
+
+    <div style="text-align:center;margin-top:16px">
+      <a class="lnk" id="lgWa" href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20para%20entrar%20a%20Mi%20Cuenta%20Pagasi" target="_blank" rel="noopener">¿Problemas para entrar? Escríbenos</a>
+      <div style="margin-top:12px">
+        <button class="lnk" id="lgStaff" onclick="toggleStaff()" style="color:var(--ink-4);text-decoration:none">Pagasi</button>
+      </div>
+    </div>
+    <a class="pg-login-back" href="index.html">← Volver al inicio</a><div id="recaptcha-container"></div>
+  </div>
+</div>
+
+</div><!-- ══ PORTAL ══ -->
+<div id="scApp" class="hide">
+  <!-- Solo visible con cuenta Pagasi: deja claro que NO es la sesion del cliente -->
+  <div class="mbar hide" id="mBar">
+    <div class="mbar-in">
+      <span class="mbar-tag">Modo Pagasi</span>
+      <span class="mbar-n" id="mBarN">Elige un cliente</span>
+      <button class="mbar-b" onclick="abrirSelector()">Cambiar</button>
+    </div>
+  </div>
+  <div class="top">
+    <div class="top-in">
+      <img id="apLogo" alt="Pagasi">
+      <button class="av" id="avBtn" onclick="toggleMenu(event)" aria-label="Mi cuenta"><span id="avIni"></span></button>
+    </div>
+    <div class="umenu hide" id="uMenu">
+      <div class="um-h">
+        <div class="um-a" id="umAv"></div>
+        <div><div class="um-n" id="umN"></div><div class="um-s" id="umS">Cliente Pagasi</div></div>
+      </div>
+      <button class="um-b hide" id="umCambiar" onclick="abrirSelector()" style="margin-bottom:7px">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+        Cambiar cliente
+      </button>
+      <button class="um-b" onclick="salir()">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </div>
+  <div class="wrap" id="apBody"></div>
+</div>
+
+<!-- ══ PANTALLA MI RACHA ══ -->
+<div id="scRacha" class="rcs hide">
+  <div class="rc-top">
+    <div class="rc-bar">
+      <div class="rc-t">Mi racha</div>
+      <button class="rc-x" onclick="cerrarRacha()" aria-label="Volver">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="rc-hero">
+    <div class="rc-peg" id="rcPeg"><div class="rc-halo"></div><img id="rcPegImg" alt=""></div>
+    <div class="rc-n" id="rcN">0</div>
+    <div class="rc-l" id="rcL">quincenas al día seguidas</div>
+    <div class="rc-sub" id="rcSub"></div>
+  </div>
+  <div class="wrap" id="rcBody" style="padding-top:4px"></div>
+</div>
+
+<!-- ══ SELECTOR DE CLIENTE (solo cuenta Pagasi) ══ -->
+<div id="psheet" class="psheet hide" onclick="if(event.target===this)cerrarSelector()">
+  <div class="psheet-in">
+    <div class="ps-h">
+      <div class="ps-t"><span>Ver la cuenta de…</span><button class="ps-x" onclick="cerrarSelector()" aria-label="Cerrar">&times;</button></div>
+      <input id="psQ" class="ps-s" type="search" placeholder="Buscar por nombre, cédula o teléfono" autocomplete="off">
+    </div>
+    <div class="ps-l" id="psL"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL REPORTAR PAGO ══ -->
+<div id="ovPago" class="ov hide">
+  <div class="md">
+    <div class="md-t">Reportar mi pago</div>
+    <div class="md-s">Sube la foto del comprobante. Nuestro equipo lo revisa y lo aplica a tu crédito.</div>
+    <div id="pgErr" class="err hide"></div>
+    <div class="fgr">
+      <div class="fg"><label for="pMonto">Monto pagado (USD)</label><input id="pMonto" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+      <div class="fg"><label for="pFecha">Fecha del pago</label><input id="pFecha" type="date"></div>
+    </div>
+    <div class="fg">
+      <label for="pMetodo">¿Cómo pagaste?</label>
+      <select id="pMetodo">
+        <option value="Binance">Binance</option>
+        <option value="Transferencia USD">Transferencia o depósito en dólares</option>
+        <option value="Efectivo">Efectivo</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div class="fg"><label for="pRef">N° de referencia (opcional)</label><input id="pRef" type="text" placeholder="Referencia del banco o Binance"></div>
+    <div class="fg">
+      <label>Foto del comprobante</label>
+      <div class="drop" id="pDrop" onclick="document.getElementById('pFile').click()">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round"><path d="M12 16V4m0 0L8 8m4-4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <div class="dt" id="pDropT">Toca para subir la foto</div>
+        <div class="ds">Imagen o PDF, máximo 8 MB</div>
+      </div>
+      <input id="pFile" type="file" accept="image/*,application/pdf" class="hide" onchange="prevFile(this)">
+      <img id="pPrev" class="prev hide" alt="">
+    </div>
+    <button id="btnEnviar" class="btn btn-p" onclick="enviarComprobante()">Enviar comprobante</button>
+    <button class="btn btn-g" style="margin-top:9px" onclick="cerrarPago()">Cancelar</button>
+  </div>
+</div>
+
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<!-- Mismo motor de calculo que usa el admin: el cliente ve exactamente las
+     mismas cifras que el cobrador, sin posibilidad de divergencia. -->
+<script src="logic/credito-ledger.js?v=20260922-1628"></script>
+<script src="logic/gamificacion.js?v=20260922-1628"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   PORTAL DEL CLIENTE — Pagasi
+   Acceso: link con token (?t=) + clienteId (?c=) + cedula como 2do factor.
+   El doc accesos_cliente NO es legible por el cliente: la validacion de
+   token+cedula+clienteId la hacen las reglas de Firestore (server-side).
+   Disenado para que el codigo por WhatsApp reemplace el link sin rehacer nada:
+   solo cambia como llega el token (ver enviarCodigoWhatsApp()).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var FIREBASE_CONFIG = {
+  // Firebase de PAGASI 26 (proyecto pagasi26-65ced). Esta llave va dentro de la
+  // pagina y la ve cualquiera: no es un secreto, lo que protege la base son las
+  // Reglas. La guarda de mas abajo impide abrir el sistema si queda sin poner.
+  apiKey: 'AIzaSyD6IznQjzF7Tdq7UJMXT4rSBdbCNpsmij4',
+  authDomain: 'pagasi26-65ced.firebaseapp.com',
+  projectId: 'pagasi26-65ced',
+  storageBucket: 'pagasi26-65ced.firebasestorage.app',
+  messagingSenderId: '415041001199',
+  appId: '1:415041001199:web:9844b2b6835fea0e84ad1a'
+};
+var DIAS_GRACIA = 5;          // igual que PLAN.diasGracia del admin
+// WhatsApp de COBRANZA (0422-2285526, linea preventiva) — este portal es de
+// clientes que YA tienen credito, por eso no va al numero de ventas.
+// La otra linea de cobranza es la critica: 0424-2285526 -> '584242285526'.
+// El sitio publico (index, catalogo, simulador, solicitar, nosotros) sigue
+// con ventas 0424-2177798, que es lo correcto para prospectos.
+var WA_PAGASI = '584222285526';
+var LOGO = 'assets/pagasi-logo.png';
+
+var app=null, auth=null, db=null, storage=null;
+var S = { clienteId:'', token:'', cliente:null, creditos:[], pagosPorCred:{}, comprobantes:[], credSel:'',
+          master:false, staff:null, clientes:[], credsPorCliente:{}, gpsPorCred:{}, gpsPedidoPorCred:{} };
+
+function $(id){ return document.getElementById(id); }
+function soloDigitos(s){ return String(s||'').replace(/\D/g,''); }
+function fmt(n){ return '$' + (parseFloat(n)||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function hoyISO(){ var d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+function fechaLarga(iso){
+  if(!iso) return '';
+  // Estas funciones se concatenan directo en innerHTML. Si la fecha no tiene el
+  // formato esperado, devolvemos el valor ESCAPADO: un comprobante del cliente
+  // con una "fecha" tipo <img onerror=...> podia ejecutar codigo en la sesion
+  // del staff (XSS almacenado). esc() lo neutraliza.
+  var p=String(iso).slice(0,10).split('-'); if(p.length!==3) return esc(String(iso));
+  return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString('es-VE',{day:'numeric',month:'long',year:'numeric'});
+}
+function fechaCorta(iso){
+  if(!iso) return '';
+  var p=String(iso).slice(0,10).split('-'); if(p.length!==3) return esc(String(iso));
+  return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString('es-VE',{day:'2-digit',month:'short'});
+}
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// Dias que faltan para una fecha (negativo si ya paso). Sin horas: comparamos
+// dias calendario, que es como lo cuenta el cliente.
+function diasHasta(iso){
+  var p = String(iso||'').split('-'); if(p.length !== 3) return null;
+  var meta = new Date(+p[0], +p[1]-1, +p[2]);
+  var h = hoyISO().split('-');
+  var hoy = new Date(+h[0], +h[1]-1, +h[2]);
+  return Math.round((meta - hoy) / 86400000);
+}
+function showErr(id,msg){ var e=$(id); e.textContent=msg; e.classList.remove('hide'); }
+function hideErr(id){ $(id).classList.add('hide'); }
+
+/* Quien firma el portal sale de config/empresa, no del codigo: con dos companias,
+   el portal de una decia el nombre y el RIF de la otra (22-sep-2026). Mientras no
+   cargue, se usa lo de PAGASI 18, que es lo que decia antes. */
+var EMP_PORTAL = { nombre:'PAGASI 18, C.A.', rif:'J-50829589-7' };
+function cargarEmpresaPortal(){
+  if(!db) return;
+  db.collection('config').doc('empresa').get().then(function(d){
+    if(!d.exists) return;
+    var x = d.data()||{};
+    var nom = String(x.nombre||'').trim(), rif = String(x.rif||'').trim();
+    // "Pagasi" y J-00000000-0 son lo que trae el sistema de fabrica: no es una compania
+    if(nom && nom!=='Pagasi') EMP_PORTAL.nombre = nom;
+    if(rif && rif!=='J-00000000-0') EMP_PORTAL.rif = rif;
+    try{ document.querySelectorAll('.foot').forEach(function(el){ el.innerHTML = pieTexto(); }); }catch(e){}
+  }).catch(function(){});
+}
+
+function initFB(){
+  try{
+    // Sin llave no se conecta a nada: mas vale decirlo que mostrar un portal vacio
+    if(String((FIREBASE_CONFIG||{}).apiKey||'').indexOf('FALTA_LA_LLAVE')===0){
+      document.addEventListener('DOMContentLoaded', function(){
+        document.body.innerHTML = '<div style="font-family:system-ui,sans-serif;max-width:520px;margin:14vh auto;padding:26px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;text-align:center">'
+          + '<div style="font-size:17px;font-weight:800;margin-bottom:8px">Portal fuera de servicio</div>'
+          + '<div style="font-size:14px;color:#374151">Todavía no está conectado a la base de datos.</div></div>';
+      });
+      return false;
+    }
+    if(typeof firebase==='undefined') return false;
+    app = (firebase.apps && firebase.apps.length) ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+    auth = firebase.auth(app); db = firebase.firestore(app);
+    try{ storage = firebase.storage(app); }catch(e){ storage=null; }
+    cargarEmpresaPortal();
+    return true;
+  }catch(e){ console.error('init:',e); return false; }
+}
+
+/* ── Telefono venezolano -> E.164 (+584141234567) ─────────────────────── */
+var PREFIJOS = ['412','414','416','424','426'];
+function telE164(v){
+  var d = soloDigitos(v);
+  if(d.indexOf('58')===0 && d.length===12) d = d.slice(2);
+  else if(d.indexOf('0')===0) d = d.slice(1);
+  if(d.length !== 10) return '';
+  if(PREFIJOS.indexOf(d.slice(0,3)) === -1) return '';   // fijo: no recibe SMS
+  return '+58' + d;
+}
+
+/* ── Arranque ─────────────────────────────────────────────────────────── */
+(function boot(){
+  $('lgLogo').src = LOGO; $('apLogo').src = LOGO;
+  $('pFecha').value = hoyISO();
+  var qs = new URLSearchParams(location.search);
+  S.token = qs.get('t') || '';
+  S.clienteId = qs.get('c') || '';
+  // micuenta.html?equipo=1 -> entrada directa del equipo. Sirve para cuando el
+  // navegador tiene guardada la sesion de un cliente (soporte, pruebas).
+  S.equipo = qs.get('equipo') === '1' || location.hash === '#equipo';
+
+  $('cod').addEventListener('keydown', function(e){ if(e.key==='Enter') verificarCodigo(); });
+  $('tel').addEventListener('keydown', function(e){ if(e.key==='Enter') pedirCodigo(); });
+  $('stPass').addEventListener('keydown', function(e){ if(e.key==='Enter') loginStaff(); });
+  $('stEmail').addEventListener('keydown', function(e){ if(e.key==='Enter') $('stPass').focus(); });
+  $('psQ').addEventListener('input', function(){ pintarSelector(this.value); });
+  // Red de seguridad del anillo: si la pestaña estaba dormida cuando toco
+  // animar, al volver a primer plano ponemos los valores. Se registra una sola
+  // vez aqui (dentro de render se acumularia un listener por cada cliente).
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') aplicarValores();
+  });
+
+  if(!initFB()){ showErr('lgErr','No se pudo conectar. Revisa tu internet e intenta de nuevo.'); return; }
+
+  auth.onAuthStateChanged(function(u){
+    if(!u){ prepararLogin(); return; }
+
+    // El equipo va PRIMERO. Una cuenta con correo nunca es un cliente (los
+    // clientes entran por telefono o por enlace anonimo), asi que si hay correo
+    // mandamos a modo Pagasi sin mirar sesiones_cliente. Al reves, una sesion de
+    // cliente guardada en el navegador se quedaba con el control y el equipo
+    // terminaba dentro de la cuenta de ese cliente.
+    if(u.email){ return verificarStaff(u); }
+
+    // Pidieron entrar como equipo pero lo que hay guardado es un cliente:
+    // cerramos esa sesion y mostramos el formulario del equipo.
+    if(S.equipo){ return auth.signOut().then(prepararLogin).catch(prepararLogin); }
+
+    db.collection('sesiones_cliente').doc(u.uid).get().then(function(d){
+      if(d.exists && d.data().clienteId){
+        var ses = d.data();
+        // Si el enlace del URL es de OTRO cliente, cerramos y volvemos a pedir
+        if(S.token && S.clienteId && String(ses.clienteId)!==String(S.clienteId)){
+          return auth.signOut().then(prepararLogin);
+        }
+        S.clienteId = ses.clienteId; S.token = ses.token || S.token;
+        cargarPortal();
+        return;
+      }
+      // Autenticado por SMS pero sin sesion: la rearmamos sin gastar otro codigo
+      if(u.phoneNumber){ return abrirSesionPorTelefono(u.phoneNumber); }
+      prepararLogin();
+    }).catch(function(){ prepararLogin(); });
+  });
+})();
+
+function prepararLogin(){
+  $('scApp').classList.add('hide');
+  $('scLogin').classList.remove('hide');
+  $('mBar').classList.add('hide');
+  // S.equipo manda: si pidieron entrar como equipo, el formulario del equipo
+  // sigue abierto aunque el cierre de la sesion anterior vuelva a pasar por aqui.
+  mostrarPaso(S.equipo);
+}
+
+// Un solo lugar decide que paso del login se ve. Antes estaba repartido y al
+// cerrar una sesion de cliente el formulario del equipo se cerraba solo.
+function mostrarPaso(equipo){
+  hideErr('lgErr');
+  $('stepCod').classList.add('hide');
+  $('stepStaff').classList.toggle('hide', !equipo);
+  $('lgStaff').textContent = equipo ? 'Cliente' : 'Pagasi';
+  if(equipo){
+    $('stepTel').classList.add('hide');
+    $('stepCed').classList.add('hide');
+    $('lgSub').textContent = 'Entra con tu cuenta Pagasi para ver a cualquier cliente.';
+    setTimeout(function(){ if(!$('stEmail').value) $('stEmail').focus(); }, 150);
+    return;
+  }
+  // Con enlace personal: pedimos la cedula. Sin enlace: telefono + codigo SMS.
+  var conEnlace = !!(S.token && S.clienteId);
+  $('stepCed').classList.toggle('hide', !conEnlace);
+  $('stepTel').classList.toggle('hide', conEnlace);
+  $('lgSub').textContent = conEnlace
+    ? 'Escribe tu cédula para entrar.'
+    : 'Consulta tu crédito y envía tus pagos.';
+  setTimeout(function(){ var f = conEnlace ? $('ced') : $('tel'); if(f) f.focus(); }, 200);
+}
+
+function volverATel(){
+  hideErr('lgErr');
+  $('stepCod').classList.add('hide');
+  $('stepTel').classList.remove('hide');
+  $('lgT').textContent = 'Mi Cuenta';
+  $('btnCodigo').disabled = false; $('btnCodigo').textContent = 'Enviar código';
+  setTimeout(function(){ $('tel').focus(); }, 150);
+}
+
+/* ── Entrar con teléfono + código SMS (autoservicio) ──────────────────── */
+var _confirm = null, _verifier = null, _telPend = '';
+
+function pedirCodigo(){
+  hideErr('lgErr');
+  var e164 = telE164($('tel').value || _telPend);
+  if(!e164){ showErr('lgErr','Escribe tu número de celular completo (por ejemplo 04143081617).'); return; }
+  _telPend = e164;
+  var b = $('btnCodigo'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Verificando...';
+
+  // Buscamos primero si el número está registrado: así no gastamos un SMS
+  // en alguien que no es cliente, y le damos un mensaje claro.
+  db.collection('indice_clientes').doc(e164).get().then(function(d){
+    if(!d.exists || !d.data().clienteId){
+      b.disabled = false; b.textContent = 'Enviar código';
+      showErr('lgErr','No encontramos ese número entre nuestros clientes. Puede estar registrado con otro número: escríbenos por WhatsApp y lo revisamos.');
+      return null;
+    }
+    S.clienteId = String(d.data().clienteId);
+    try{
+      if(!_verifier) _verifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {size:'invisible'});
+    }catch(e){ console.warn('recaptcha:', e); }
+    return auth.signInWithPhoneNumber(e164, _verifier);
+  }).then(function(res){
+    if(!res) return;
+    _confirm = res;
+    $('stepTel').classList.add('hide');
+    $('stepCod').classList.remove('hide');
+    $('lgT').textContent = 'Escribe tu código';
+    $('lgSub').textContent = 'Te enviamos un mensaje de texto al ' + e164.replace('+58','0') + '.';
+    setTimeout(function(){ $('cod').focus(); }, 200);
+  }).catch(function(e){
+    b.disabled = false; b.textContent = 'Enviar código';
+    console.error('pedirCodigo:', e);
+    var c = String((e && e.code) || '');
+    if(c.indexOf('too-many-requests')>-1) showErr('lgErr','Demasiados intentos desde este teléfono. Espera unos minutos e intenta de nuevo.');
+    else if(c.indexOf('invalid-phone-number')>-1) showErr('lgErr','El número no tiene un formato válido. Revísalo e intenta de nuevo.');
+    else if(c.indexOf('quota')>-1) showErr('lgErr','No pudimos enviar el mensaje en este momento. Escríbenos por WhatsApp y te ayudamos.');
+    else showErr('lgErr','No pudimos enviar el código. Revisa tu internet o escríbenos por WhatsApp.');
+  });
+}
+
+function verificarCodigo(){
+  hideErr('lgErr');
+  var c = soloDigitos($('cod').value);
+  if(c.length < 4){ showErr('lgErr','Escribe el código completo que te llegó.'); return; }
+  if(!_confirm){ showErr('lgErr','Pide el código de nuevo, por favor.'); return; }
+  var b = $('btnVerificar'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Entrando...';
+
+  _confirm.confirm(c).then(function(r){
+    return abrirSesionPorTelefono((r.user && r.user.phoneNumber) || _telPend);
+  }).catch(function(e){
+    b.disabled = false; b.textContent = 'Entrar';
+    console.error('verificarCodigo:', e);
+    var cd = String((e && e.code) || '');
+    if(cd.indexOf('invalid-verification-code')>-1) showErr('lgErr','Ese código no es correcto. Revísalo o toca "Reenviar".');
+    else if(cd.indexOf('code-expired')>-1) showErr('lgErr','El código venció. Toca "Reenviar" para recibir uno nuevo.');
+    else showErr('lgErr','No pudimos verificar el código. Intenta de nuevo.');
+  });
+}
+
+// Con el telefono ya verificado por Firebase, abrimos la sesion. Las reglas
+// comprueban que ese telefono sea el registrado en la ficha del cliente.
+function abrirSesionPorTelefono(phone){
+  var e164 = String(phone||'');
+  var seguir = S.clienteId
+    ? Promise.resolve(S.clienteId)
+    : db.collection('indice_clientes').doc(e164).get().then(function(d){
+        if(!d.exists || !d.data().clienteId) throw new Error('sin-indice');
+        return String(d.data().clienteId);
+      });
+
+  return seguir.then(function(cid){
+    S.clienteId = cid;
+    return db.collection('sesiones_cliente').doc(auth.currentUser.uid).set({
+      clienteId: cid,
+      via: 'sms',
+      telE164: e164,
+      creadoEn: new Date().toISOString()
+    });
+  }).then(function(){
+    cargarPortal();
+  }).catch(function(e){
+    console.error('abrirSesion:', e);
+    var b = $('btnVerificar'); if(b){ b.disabled=false; b.textContent='Entrar'; }
+    prepararLogin();
+    if(String(e.message)==='sin-indice'){
+      showErr('lgErr','No encontramos ese número entre nuestros clientes. Escríbenos por WhatsApp y lo revisamos.');
+    } else if((e && e.code)==='permission-denied'){
+      showErr('lgErr','Ese número no coincide con el que tenemos registrado en tu ficha. Escríbenos por WhatsApp para actualizarlo.');
+    } else {
+      showErr('lgErr','No pudimos abrir tu cuenta. Intenta de nuevo o escríbenos por WhatsApp.');
+    }
+  });
+}
+
+/* ── Entrar con enlace personal (respaldo si el SMS no llega) ─────────── */
+function entrarConEnlace(){
+  hideErr('lgErr');
+  var ced = soloDigitos($('ced').value);
+  if(ced.length < 5){ showErr('lgErr','Escribe tu cédula completa, solo los números.'); return; }
+  var b=$('btnEntrar'); b.disabled=true; b.innerHTML='<span class="spin"></span> Verificando...';
+
+  var doSignIn = auth.currentUser ? Promise.resolve(auth.currentUser) : auth.signInAnonymously().then(function(r){ return r.user; });
+  doSignIn.then(function(u){
+    // Las reglas validan token + clienteId + cedula. Si algo no cuadra -> denegado.
+    return db.collection('sesiones_cliente').doc(u.uid).set({
+      clienteId: String(S.clienteId),
+      token: String(S.token),
+      cedulaNorm: ced,
+      creadoEn: new Date().toISOString()
+    });
+  }).then(function(){
+    cargarPortal();
+  }).catch(function(e){
+    b.disabled=false; b.textContent='Entrar';
+    var code = (e && e.code) || '';
+    if(code==='permission-denied'){
+      showErr('lgErr','La cédula no coincide con este enlace, o el enlace ya no está activo. Verifica e intenta de nuevo.');
+    } else {
+      showErr('lgErr','No pudimos verificarte. Intenta de nuevo o escríbenos por WhatsApp.');
+    }
+    console.error('entrarConEnlace:',e);
+  });
+}
+
+/* ══ CUENTA PAGASI (master) ════════════════════════════════════════════════
+   El equipo entra con el MISMO correo y clave del panel de administracion y
+   puede abrir la cuenta de cualquier cliente, tal cual la ve el cliente.
+   No hace falta tocar las reglas: esStaff() ya da lectura sobre clientes,
+   creditos, pagos y comprobantes. Es de SOLO LECTURA a proposito — registrar
+   pagos o subir comprobantes en nombre de un cliente se hace desde el admin,
+   donde queda el rastro de quien lo hizo.
+   ════════════════════════════════════════════════════════════════════════ */
+
+function toggleStaff(){
+  S.equipo = $('stepStaff').classList.contains('hide');
+  mostrarPaso(S.equipo);
+}
+
+function loginStaff(){
+  hideErr('lgErr');
+  var em = String($('stEmail').value||'').trim(), pw = $('stPass').value||'';
+  if(!em || !pw){ showErr('lgErr','Escribe tu correo y tu contraseña.'); return; }
+  var b = $('btnStaff'); b.disabled = true; b.textContent = 'Entrando...';
+  S.equipo = true;   // que el cierre de la sesion anterior no cambie de paso
+  // Si el navegador trae guardada la sesion de un cliente, la cerramos antes:
+  // si no, quedan dos identidades peleandose y gana la vieja.
+  var limpiar = auth.currentUser ? auth.signOut().catch(function(){}) : Promise.resolve();
+  limpiar.then(function(){
+    return auth.signInWithEmailAndPassword(em, pw);
+  }).catch(function(e){
+    b.disabled = false; b.textContent = 'Entrar';
+    var c = e && e.code;
+    showErr('lgErr',
+      (c==='auth/wrong-password' || c==='auth/invalid-credential') ? 'Correo o contraseña incorrectos.'
+      : c==='auth/user-not-found' ? 'Ese correo no tiene cuenta Pagasi.'
+      : c==='auth/too-many-requests' ? 'Demasiados intentos. Espera unos minutos.'
+      : 'No pudimos entrar. Revisa tus datos.');
+  });
+  // El exito lo recoge onAuthStateChanged -> verificarStaff()
+}
+
+// La cuenta de correo solo es "del equipo" si tiene ficha en /usuarios
+function verificarStaff(u){
+  return db.collection('usuarios').doc(u.uid).get().then(function(d){
+    var _f = d.exists ? (d.data()||{}) : null;
+    // Suspendido o eliminado vale lo mismo que no tener ficha: las Reglas ya no lo dejan
+    // ver nada y sin esto quedaba en una pantalla de errores (revisado el 22-sep-2026).
+    if(!_f || _f.suspendido === true || _f.eliminado === true){
+      return auth.signOut().then(function(){
+        prepararLogin();
+        showErr('lgErr', _f ? 'Tu cuenta está suspendida. Habla con el administrador.' : 'Esa cuenta no tiene acceso al equipo Pagasi.');
+      });
+    }
+    S.master = true;
+    S.staff = Object.assign({id:d.id}, d.data());
+    return entrarModoMaster();
+  }).catch(function(e){ console.error('staff:',e); prepararLogin(); });
+}
+
+function entrarModoMaster(){
+  S.equipo = true;
+  // Un ?t=/?c= viejo en la barra de direcciones no debe elegir el cliente por
+  // nosotros: en modo Pagasi el cliente se elige siempre en el selector.
+  S.token = ''; S.clienteId = '';
+  $('scLogin').classList.add('hide');
+  $('scApp').classList.remove('hide');
+  $('mBar').classList.remove('hide');
+  $('umCambiar').classList.remove('hide');
+  $('apBody').innerHTML = '<div class="card" style="margin-top:18px"><div class="empty">Cargando clientes...</div></div>';
+  return cargarClientesMaster().then(function(){
+    // Volvemos al ultimo cliente visto: al recargar no hay que buscarlo de nuevo
+    var ult = '';
+    try{ ult = localStorage.getItem('pagasi_master_cliente') || ''; }catch(e){}
+    var existe = ult && S.clientes.some(function(c){ return String(c.id) === String(ult); });
+    if(existe) elegirCliente(ult); else abrirSelector();
+  }).catch(function(e){
+    console.error('clientes:',e);
+    $('apBody').innerHTML = '<div class="card" style="margin-top:18px"><div class="err">No pudimos cargar la lista de clientes.</div></div>';
+  });
+}
+
+function cargarClientesMaster(){
+  // Primero los creditos: nos dice quien tiene algo que ver en el portal
+  return db.collection('creditos').get().then(function(s){
+    var por = {};
+    s.docs.forEach(function(x){
+      var c = x.data();
+      if(c && c.eliminado) return;
+      var k = String((c && c.clienteId) || '');
+      if(k) por[k] = (por[k]||0) + 1;
+    });
+    S.credsPorCliente = por;
+    return db.collection('clientes').get();
+  }).then(function(s){
+    S.clientes = s.docs.map(function(x){
+      var d = x.data() || {};
+      return {
+        id: x.id,
+        nombre: String(d.nombre||'').trim(),
+        cedula: String(d.cedula||''),
+        tel: String(d.telefono || d.tel || d.telE164 || ''),
+        n: S.credsPorCliente[String(x.id)] || 0
+      };
+    }).sort(function(a,b){
+      var ha = a.n>0?1:0, hb = b.n>0?1:0;
+      if(ha !== hb) return hb - ha;                          // con credito primero
+      return a.nombre.localeCompare(b.nombre, 'es');
+    });
+  });
+}
+
+function abrirSelector(){
+  if(!S.master) return;
+  $('uMenu').classList.add('hide');
+  $('psheet').classList.remove('hide');
+  document.body.style.overflow = 'hidden';
+  $('psQ').value = '';
+  pintarSelector('');
+  // En movil no enfocamos: el teclado taparia la lista antes de verla
+  if(window.innerWidth > 720) setTimeout(function(){ $('psQ').focus(); }, 120);
+}
+
+function cerrarSelector(){
+  $('psheet').classList.add('hide');
+  document.body.style.overflow = '';
+}
+
+function pintarSelector(q){
+  var t = String(q||'').toLowerCase().trim();
+  var dig = soloDigitos(t);
+  var todos = S.clientes.filter(function(c){
+    if(!t) return true;
+    if(c.nombre.toLowerCase().indexOf(t) > -1) return true;
+    if(dig && soloDigitos(c.cedula).indexOf(dig) > -1) return true;
+    if(dig && soloDigitos(c.tel).indexOf(dig) > -1) return true;
+    return false;
+  });
+  var lista = todos.slice(0, 200);
+  var h = '';
+  lista.forEach(function(c){
+    var id = String(c.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    h += '<button class="ps-i' + (String(c.id)===String(S.clienteId) ? ' on' : '') + '" onclick="elegirCliente(\'' + esc(id) + '\')">'
+      +   '<span class="ps-av">' + esc(iniciales(c.nombre)) + '</span>'
+      +   '<span class="ps-txt">'
+      +     '<span class="ps-n">' + esc(c.nombre || 'Sin nombre') + '</span>'
+      +     '<span class="ps-m">' + esc(c.cedula || 'sin cédula') + '</span>'
+      +   '</span>'
+      +   (c.n ? '<span class="ps-c">' + c.n + (c.n===1?' créd.':' créds.') + '</span>' : '')
+      + '</button>';
+  });
+  if(!h) h = '<div class="empty" style="padding:28px 0">Ningún cliente coincide con esa búsqueda.</div>';
+  else if(todos.length > lista.length)
+    h += '<div class="ps-m" style="text-align:center;padding:12px">Y ' + (todos.length - lista.length) + ' más. Escribe para filtrar.</div>';
+  $('psL').innerHTML = h;
+}
+
+function elegirCliente(id){
+  cerrarSelector();
+  S.clienteId = String(id);
+  try{ localStorage.setItem('pagasi_master_cliente', S.clienteId); }catch(e){}
+  S.cliente = null; S.creditos = []; S.pagosPorCred = {}; S.comprobantes = []; S.credSel = '';
+  var c = S.clientes.filter(function(x){ return String(x.id)===S.clienteId; })[0];
+  $('mBarN').textContent = (c && c.nombre) || S.clienteId;
+  window.scrollTo(0,0);
+  cargarPortal();
+}
+
+function salir(){
+  var u = auth.currentUser;
+  try{ localStorage.removeItem('pagasi_master_cliente'); }catch(e){}
+  // Al salir del modo Pagasi volvemos a la entrada del equipo, no a la del cliente
+  var destino = S.master ? 'micuenta.html?equipo=1' : 'micuenta.html';
+  var fin = function(){ location.href = destino; };
+  if(u){ auth.signOut().then(fin).catch(fin); } else { fin(); }
+}
+
+/* ── Cargar datos del cliente ─────────────────────────────────────────── */
+function cargarPortal(){
+  $('scLogin').classList.add('hide');
+  $('scApp').classList.remove('hide');
+  $('apBody').innerHTML = '<div class="card"><div class="empty">Cargando tu información...</div></div>';
+
+  db.collection('clientes').doc(String(S.clienteId)).get().then(function(d){
+    S.cliente = d.exists ? Object.assign({id:d.id}, d.data()) : {id:S.clienteId, nombre:'Cliente'};
+    return db.collection('creditos').where('clienteId','==',String(S.clienteId)).get();
+  }).then(function(snap){
+    S.creditos = snap.docs.map(function(x){ return Object.assign({id:x.id}, x.data()); })
+      .filter(function(c){ return !c.eliminado; })
+      .sort(function(a,b){ return String(b.fecha||'').localeCompare(String(a.fecha||'')); });
+    // Pagos de cada credito (consulta por credito: pocas y acotadas)
+    return Promise.all(S.creditos.map(function(c){
+      return db.collection('pagos').where('cred','==',c.id).get()
+        .then(function(s){
+          S.pagosPorCred[c.id] = s.docs.map(function(x){ return Object.assign({id:x.id}, x.data()); })
+            .filter(function(p){ return !p.eliminado; });
+        })
+        .catch(function(){ S.pagosPorCred[c.id] = []; });
+    }));
+  }).then(function(){
+    return db.collection('comprobantes').where('clienteId','==',String(S.clienteId)).get()
+      .then(function(s){ S.comprobantes = s.docs.map(function(x){ return Object.assign({id:x.id}, x.data()); }); })
+      .catch(function(){ S.comprobantes = []; });
+  }).then(cargarGpsCliente).then(render)
+  .catch(function(e){
+    console.error('cargar:',e);
+    $('apBody').innerHTML = '<div class="card"><div class="err">No pudimos cargar tu información. Cierra y vuelve a entrar, o escríbenos por WhatsApp.</div>'
+      + '<a class="btn btn-wa" href="https://wa.me/'+WA_PAGASI+'" target="_blank" rel="noopener">Escribir a Pagasi</a></div>';
+  });
+}
+
+/* ── GPS en Mi cuenta (Adam, 14-sep-2026) ────────────────────────────────
+   Solo aparece si Pagasi le activo el GPS a ese credito: entonces existe la
+   ficha ubicacion_cliente/{credito}, con la posicion y la hora de la ultima
+   senal (nada mas). El boton "Actualizar" deja un pedido que las reglas de
+   Firebase aceptan como maximo UNA vez por hora, y despierta al robot de GPS.
+   Nada automatico: la ubicacion cambia en pantalla solo cuando el cliente
+   entra o toca el boton. */
+var GPS_ESPERA_MS = 60 * 60 * 1000;
+var GPS_MIRADAS = 60;          // hasta 5 minutos esperando al robot (una mirada cada 5 s)
+var LEAFLET_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/';
+var _gpsMapas = {};
+var _leafletPromesa = null;
+
+function cargarGpsCliente(){
+  S.gpsPorCred = {}; S.gpsPedidoPorCred = {};
+  return Promise.all((S.creditos||[]).map(function(c){
+    return db.collection('ubicacion_cliente').doc(String(c.id)).get().then(function(d){
+      if(!d.exists) return;
+      S.gpsPorCred[c.id] = d.data();
+      return db.collection('pedidos_gps').doc(String(c.id)).get().then(function(p){
+        var ms = p.exists ? msDeFecha(p.data().pedidoEn) : 0;
+        if(ms) S.gpsPedidoPorCred[c.id] = ms;
+      }).catch(function(){});
+    }).catch(function(){ /* sin ficha o sin permiso: no se muestra nada */ });
+  }));
+}
+function msDeFecha(v){
+  if(!v) return 0;
+  if(typeof v.toMillis === 'function') return v.toMillis();
+  var t = new Date(v).getTime();
+  return isFinite(t) ? t : 0;
+}
+// La hora de MiCODUS viene en UTC como "2026-09-14 16:02:11". Una revision a
+// mano guarda solo el dia ("2026-09-14").
+function msSenal(s){
+  if(!s) return 0;
+  var txt = String(s).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(txt)) txt += ' 12:00:00';
+  var t = new Date(txt.replace(' ', 'T') + (/(z|[+-]\d\d:?\d\d)$/i.test(txt) ? '' : 'Z')).getTime();
+  return isFinite(t) ? t : 0;
+}
+function haceCuanto(ms){
+  var min = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if(min < 1) return 'hace un momento';
+  if(min < 60) return 'hace ' + min + (min === 1 ? ' minuto' : ' minutos');
+  var h = Math.floor(min / 60);
+  if(h < 48) return 'hace ' + h + (h === 1 ? ' hora' : ' horas');
+  return 'hace ' + Math.floor(h / 24) + ' días';
+}
+function gpsIdDom(credId){ return 'gps-' + String(credId).replace(/[^A-Za-z0-9_-]/g, ''); }
+function gpsMetaHTML(f){
+  var txt = String((f && f.ultimaSenal) || '').trim();
+  var ms = msSenal(txt);
+  if(!ms) return 'Tu GPS todavía no ha enviado su ubicación.';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(txt)) return 'Última señal: el ' + txt.slice(8, 10) + '/' + txt.slice(5, 7);
+  return 'Última señal: ' + haceCuanto(ms)
+    + '<small>' + esc(new Date(ms).toLocaleString('es-VE', {day:'2-digit', month:'2-digit', hour:'numeric', minute:'2-digit'})) + '</small>';
+}
+function gpsNotaBoton(credId){
+  var libre = ((S.gpsPedidoPorCred||{})[credId] || 0) + GPS_ESPERA_MS;
+  if(Date.now() >= libre) return 'Puedes actualizar una vez por hora.';
+  var hora = new Date(libre).toLocaleTimeString('es-VE', {hour:'numeric', minute:'2-digit'});
+  return 'Podrás actualizar de nuevo a las ' + hora + (/\.$/.test(hora) ? '' : '.');   // "7:24 p. m." ya trae su punto
+}
+function gpsHTML(c){
+  var f = (S.gpsPorCred||{})[c.id];
+  if(!f) return '';
+  var id = gpsIdDom(c.id);
+  var tienePos = typeof f.lat === 'number' && typeof f.lng === 'number';
+  var espera = Date.now() < ((S.gpsPedidoPorCred||{})[c.id] || 0) + GPS_ESPERA_MS;
+  return '<div class="sec">📍 Dónde está tu moto<span>Según el GPS de tu moto</span></div>'
+    + '<div class="card rev">'
+    +   '<div id="' + id + '-mapa" class="gps-map' + (tienePos ? '' : ' hide') + '" role="img" aria-label="Mapa con la ubicación de tu moto"></div>'
+    +   '<div class="gps-meta" id="' + id + '-meta">' + gpsMetaHTML(f) + '</div>'
+    +   '<button class="btn btn-p" id="' + id + '-btn"' + ((espera || S.master) ? ' disabled' : '') + ' onclick="actualizarGps(\'' + esc(c.id) + '\')">Actualizar ubicación</button>'
+    +   '<div class="tiny" id="' + id + '-nota">' + esc(S.master ? 'Modo Pagasi: solo lectura. Para buscar la moto usa el módulo GPS del panel.' : gpsNotaBoton(c.id)) + '</div>'
+    + '</div>';
+}
+function cargarLeaflet(){
+  if(window.L && window.L.map) return Promise.resolve();
+  if(_leafletPromesa) return _leafletPromesa;
+  // Se esperan los estilos Y el script: sin los estilos el mapa sale roto
+  var cargar = function(el){
+    return new Promise(function(ok, mal){
+      el.onload = function(){ ok(); };
+      el.onerror = function(){ mal(new Error('No cargo el mapa')); };
+      document.head.appendChild(el);
+    });
+  };
+  var css = document.createElement('link');
+  css.rel = 'stylesheet';
+  css.href = LEAFLET_CDN + 'leaflet.min.css';
+  var js = document.createElement('script');
+  js.src = LEAFLET_CDN + 'leaflet.min.js';
+  _leafletPromesa = Promise.all([cargar(css), cargar(js)]).catch(function(e){ _leafletPromesa = null; throw e; });
+  return _leafletPromesa;
+}
+function pintarMapasGps(){
+  var ids = Object.keys(S.gpsPorCred||{});
+  if(!ids.length) return;
+  cargarLeaflet().then(function(){
+    ids.forEach(pintarMapaGps);
+  }).catch(function(){
+    ids.forEach(function(credId){ var el = $(gpsIdDom(credId) + '-mapa'); if(el) el.classList.add('hide'); });
+  });
+}
+function pintarMapaGps(credId){
+  var f = (S.gpsPorCred||{})[credId];
+  var el = $(gpsIdDom(credId) + '-mapa');
+  if(!f || !el || typeof f.lat !== 'number' || typeof f.lng !== 'number' || !window.L) return;
+  el.classList.remove('hide');
+  var m = _gpsMapas[credId];
+  if(m && m.el === el){
+    m.marca.setLatLng([f.lat, f.lng]);
+    m.mapa.setView([f.lat, f.lng], m.mapa.getZoom());
+    return;
+  }
+  if(m){ try{ m.mapa.remove(); }catch(e){} }
+  // El pin sale del mismo CDN: cargado aparte, Leaflet no adivina la ruta de sus imagenes
+  if(L.Icon && L.Icon.Default) L.Icon.Default.imagePath = LEAFLET_CDN + 'images/';
+  var mapa = L.map(el).setView([f.lat, f.lng], 16);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
+  var marca = L.marker([f.lat, f.lng]).addTo(mapa);
+  _gpsMapas[credId] = { mapa: mapa, marca: marca, el: el };
+  setTimeout(function(){ try{ mapa.invalidateSize(); }catch(e){} }, 300);
+}
+function actualizarGps(credId){
+  var f = (S.gpsPorCred||{})[credId];
+  if(!f || S.master) return;   // modo Pagasi: solo lectura (no gasta la hora del cliente)
+  var id = gpsIdDom(credId), btn = $(id + '-btn'), nota = $(id + '-nota');
+  if(Date.now() < ((S.gpsPedidoPorCred||{})[credId] || 0) + GPS_ESPERA_MS){
+    if(btn) btn.disabled = true;
+    if(nota) nota.textContent = gpsNotaBoton(credId);
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = 'Buscando tu moto...'; }
+  if(nota) nota.textContent = 'Pidiendo la ubicación...';
+  var ref = db.collection('pedidos_gps').doc(String(credId));
+  ref.set({ pedidoEn: firebase.firestore.FieldValue.serverTimestamp() })
+    .then(function(){ return ref.get(); })
+    .then(function(p){
+      var ms = (p && p.exists) ? msDeFecha(p.data().pedidoEn) : 0;
+      S.gpsPedidoPorCred[credId] = ms || Date.now();
+      if(!f.workerUrl){
+        // Sin el Worker el robot no se despierta al momento: toma el pedido en su proxima vuelta
+        if(btn){ btn.textContent = 'Actualizar ubicación'; btn.disabled = true; }
+        if(nota) nota.textContent = 'Listo, tu pedido quedó anotado. La ubicación se revisa una vez al día en la mañana: vuelve a mirar mañana.';
+        return;
+      }
+      if(nota) nota.textContent = 'Esto tarda más o menos un minuto. Deja esta página abierta.';
+      var sinRobot = function(){
+        // El Worker no pudo despertar al robot: se dice de una vez, sin hacer esperar
+        if(btn){ btn.textContent = 'Actualizar ubicación'; btn.disabled = true; }
+        if(nota) nota.textContent = 'No pudimos buscarla ahora. Tu pedido quedó anotado y se revisa en la próxima vuelta del GPS (cada mañana). ' + gpsNotaBoton(credId);
+      };
+      fetch(String(f.workerUrl).replace(/\/+$/, '') + '/gps-refresco', { method: 'POST' })
+        .then(function(r){ if(!r || !r.ok) throw new Error('worker'); esperarGps(credId, S.gpsPedidoPorCred[credId]); })
+        .catch(sinRobot);
+    })
+    .catch(function(e){
+      var denegado = !!(e && (e.code === 'permission-denied' || /permission/i.test(e.message || '')));
+      if(btn){ btn.textContent = 'Actualizar ubicación'; btn.disabled = denegado; }
+      if(nota) nota.textContent = denegado
+        ? 'Ya pediste una actualización en la última hora. Intenta más tarde.'
+        : 'No pudimos pedir la ubicación. Revisa tu conexión e intenta de nuevo.';
+    });
+}
+function esperarGps(credId, desdeMs){
+  var id = gpsIdDom(credId), intentos = 0;
+  (function mirar(){
+    intentos++;
+    db.collection('ubicacion_cliente').doc(String(credId)).get().then(function(d){
+      var f = d.exists ? d.data() : null;
+      var listo = !!(f && msDeFecha(f.revisado) >= desdeMs - 5000);
+      if(!listo && intentos < GPS_MIRADAS){ setTimeout(mirar, 5000); return; }
+      if(f) S.gpsPorCred[credId] = f;
+      var meta = $(id + '-meta'), btn = $(id + '-btn'), nota = $(id + '-nota');
+      if(meta && f) meta.innerHTML = gpsMetaHTML(f);
+      if(f) pintarMapaGps(credId);
+      if(btn){ btn.textContent = 'Actualizar ubicación'; btn.disabled = true; }
+      if(nota) nota.textContent = (listo ? 'Listo, ubicación actualizada. ' : 'No pudimos traer la ubicación esta vez. Se vuelve a revisar en la próxima vuelta del GPS (cada mañana). ')
+        + gpsNotaBoton(credId);
+    }).catch(function(){ if(intentos < GPS_MIRADAS) setTimeout(mirar, 5000); });
+  })();
+}
+
+/* ── Estado de un credito (mismo motor que el admin) ──────────────────── */
+function estadoDe(c){
+  var pagos = S.pagosPorCred[c.id] || [];
+  var est = null;
+  try{
+    est = CreditoLedger.generarEstadoCredito(c, pagos, {diasGracia:DIAS_GRACIA, today:hoyISO()});
+  }catch(e){ est = null; }
+  if(!est) return null;
+  var hoy = hoyISO(), vencido=0, nVenc=0;
+  (est.cuotas||[]).forEach(function(q){
+    if(q && q.saldo>0.001 && q.fechaVence && q.fechaVence <= hoy){ vencido += q.saldo; nVenc++; }
+  });
+  est._vencido = Math.round(vencido*100)/100;
+  est._nVencidas = nVenc;
+  est._prox = (est.cuotas||[])[est.cuotasPagadas] || null;
+  return est;
+}
+
+// Iniciales para el avatar: "Carlos López" -> "CL"
+function iniciales(nombre){
+  var p = String(nombre||'').trim().split(/\s+/).filter(Boolean);
+  if(!p.length) return '·';
+  if(p.length === 1) return p[0].slice(0,2).toUpperCase();
+  return (p[0][0] + p[1][0]).toUpperCase();
+}
+
+function toggleMenu(ev){
+  if(ev) ev.stopPropagation();
+  var m = $('uMenu');
+  var abierto = m.classList.toggle('hide') === false;
+  if(abierto){
+    setTimeout(function(){
+      function cerrar(e){
+        if(e.target.closest && (e.target.closest('#uMenu') || e.target.closest('#avBtn'))) return;
+        m.classList.add('hide');
+        document.removeEventListener('click', cerrar);
+      }
+      document.addEventListener('click', cerrar);
+    }, 40);
+  }
+}
+
+function render(){
+  var cli = S.cliente || {};
+  var nom = String(cli.nombre||'').trim();
+  var ini = iniciales(nom);
+  $('avIni').textContent = ini;
+  $('umAv').textContent = ini;
+  $('umN').textContent = nom || 'Mi cuenta';
+  $('umS').textContent = cli.cedula ? String(cli.cedula) : 'Cliente Pagasi';
+
+  if(S.master){
+    $('mBar').classList.remove('hide');
+    $('umCambiar').classList.remove('hide');
+    $('mBarN').textContent = nom || ('Cliente ' + S.clienteId);
+    $('umS').textContent = 'Viendo como ' + (nom || S.clienteId);
+  }
+
+  if(!S.creditos.length){
+    $('apBody').innerHTML = '<div class="card" style="margin-top:18px"><div class="ct">Mi cuenta</div>'
+      + '<div class="empty" style="padding:22px 0">Todavía no tienes créditos activos registrados a tu nombre.</div>'
+      + '<a class="btn btn-wa" href="https://wa.me/'+WA_PAGASI+'" target="_blank" rel="noopener">Escribir a Pagasi</a></div>' + pieHTML();
+    return;
+  }
+
+  var html = '';
+  S.creditos.forEach(function(c){ html += creditoHTML(c); });
+  html += comprobantesHTML();
+  html += '<div class="card"><div class="ct">¿Necesitas ayuda?</div>'
+    + '<a class="btn btn-wa" href="https://wa.me/'+WA_PAGASI+'?text=Hola%2C%20soy%20'+encodeURIComponent(cli.nombre||'')+'%20y%20tengo%20una%20consulta%20sobre%20mi%20crédito" target="_blank" rel="noopener">'
+    + 'Escribir a Pagasi por WhatsApp</a></div>';
+  html += pieHTML();
+  $('apBody').innerHTML = html;
+  animarEntrada();
+  pintarMapasGps();
+}
+
+/* La pagina se arma sola al entrar: las tarjetas suben escalonadas, el anillo
+   de la moto se llena y las barras crecen. Es lo que separa "una lista de
+   datos" de "una app". Respeta prefers-reduced-motion via CSS. */
+function animarEntrada(cont){
+  var raiz = cont || $('apBody');
+  var bloques = raiz.querySelectorAll('.rev');
+  [].forEach.call(bloques, function(el, i){
+    setTimeout(function(){ el.classList.add('in'); }, 60 + i * 70);
+  });
+  if(cont) return;   // la pantalla de racha anima sus propias barras
+  // Anillo y barras: arrancan en 0 y van al valor real una vez pintado.
+  // Con setTimeout y NO requestAnimationFrame: rAF no corre en pestañas en
+  // segundo plano, asi que si el cliente abria la pagina y se iba a otra app,
+  // volvia y encontraba el anillo vacio para siempre.
+  setTimeout(aplicarValores, 240);
+}
+
+function aplicarValores(){
+  [].forEach.call($('apBody').querySelectorAll('.ring .rfg'), function(el){
+    el.style.strokeDashoffset = el.getAttribute('data-off');
+  });
+  [].forEach.call($('apBody').querySelectorAll('.nbar i[data-w]'), function(el){
+    el.style.width = el.getAttribute('data-w') + '%';
+  });
+}
+
+var ICO_MOTO = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 17h3l3-5h6l2 5"/><path d="M14 12l-2-4h-3"/><path d="M16 8h3"/></svg>';
+var ICO_CHECK = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#00A854" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+
+// Iconos del catálogo de premios (SVG: sin emojis en la UI del producto)
+var ICO_PREMIO = {
+  casco:    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14a9 9 0 0118 0v3a2 2 0 01-2 2h-4l-1-3H8a5 5 0 01-5-5z"/><path d="M3.5 13h11"/></svg>',
+  caucho:   '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3v5M12 16v5M3 12h5M16 12h5"/></svg>',
+  aceite:   '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s5.5 6 5.5 10a5.5 5.5 0 11-11 0C6.5 9 12 3 12 3z"/></svg>',
+  repuesto: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.2 2.2M17.6 17.6l2.2 2.2M2 12h3M19 12h3M4.2 19.8l2.2-2.2M17.6 6.4l2.2-2.2"/></svg>',
+  servicio: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 105 5L21 21H3l9.7-9.7z"/><path d="M15 9l-3-3 3-3 3 3-3 3z"/></svg>'
+};
+
+// El catálogo se muestra SIEMPRE, incluso en Bronce: ver el premio antes de
+// ganarlo es justamente lo que motiva.
+// Color propio por premio: en gris todos parecian bloqueados
+var COL_PREMIO = {
+  casco:    {c:'#2563EB', bg:'#EAF1FF'},
+  caucho:   {c:'#0F172A', bg:'#EEF0F7'},
+  aceite:   {c:'#E08700', bg:'#FFF6E5'},
+  repuesto: {c:'#8B3FD9', bg:'#F5EDFF'},
+  servicio: {c:'#00A854', bg:'#E6F7EE'}
+};
+
+function premiosHTML(g){
+  var nv = g.nivel;
+  var abierto = nv.cupo > 0;
+  var h = '<div class="card rev"><div class="ct">Qué puedes pedir con tu vale</div><div class="pgrid">';
+  ((typeof Gamificacion!=='undefined' && Gamificacion.PREMIOS) || []).forEach(function(p){
+    var col = COL_PREMIO[p.ico] || {c:'#2563EB', bg:'#EAF1FF'};
+    h += '<div class="pcard' + (abierto ? '' : ' plock') + '" style="--pc:' + col.c + ';--pbg:' + col.bg + '">'
+      + '<div class="pico">' + (ICO_PREMIO[p.ico] || '') + '</div>'
+      + '<div class="pnom">' + esc(p.nom) + '</div>'
+      + '<div class="pdesc">' + esc(p.desc) + '</div>'
+      + '</div>';
+  });
+  h += '</div><div class="pnota">'
+    + (abierto
+        ? 'Tienes <b>hasta $' + nv.cupo + '</b> disponibles. Lo pides en tu concesionario y lo financiamos en tus cuotas; el precio final lo confirma el concesionario.'
+        : 'Con <b>' + Gamificacion.NIVELES[1].min + ' pagos al día</b> desbloqueas tu primer vale y puedes pedir cualquiera de estos.')
+    + '</div></div>';
+  return h;
+}
+
+function nivelHTML(g, c){
+  var nv = g.nivel, sig = g.siguiente;
+  var h = '<div class="card rev">';
+
+  // El pegaso reemplaza la llama naranja: la racha es de Pagasi, no un icono
+  // genérico. Toda la fila abre la pantalla completa de racha.
+  h += '<div onclick="abrirRacha(\'' + esc(c.id) + '\')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px">'
+    + '<div style="display:flex;align-items:center;gap:13px">'
+    + '<div class="fuego' + (g.racha>0?'':' off') + '"><img src="assets/pegaso.png" alt="" style="width:30px;height:30px;object-fit:contain"></div>'
+    + '<div><div class="rnum money">' + g.racha + '</div>'
+    + '<div class="rlbl">' + (g.racha===1 ? 'quincena al día' : 'quincenas al día seguidas') + '</div></div>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:9px">'
+    +   '<div class="nbadge" style="color:' + nv.col + ';background:' + nv.bg + '">' + nv.nom + '</div>'
+    +   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ADADBC" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>'
+    + '</div>'
+    + '</div>';
+
+  // El camino completo Bronce -> Platino: ver los cuatro escalones de un vistazo
+  // motiva mucho mas que una barra suelta hacia el siguiente.
+  h += '<div class="ntrack">';
+  (Gamificacion.NIVELES || []).forEach(function(n){
+    var cls = n.id === nv.id ? 'cur' : (g.puntuales >= n.min ? 'done' : '');
+    h += '<div class="ntk ' + cls + '"><div class="ntd"></div><div class="ntl">' + esc(n.nom) + '</div></div>';
+  });
+  h += '</div>';
+
+  if(sig){
+    // Sin barra: el camino de niveles de arriba ya muestra el avance, y una
+    // barra recien empezada (0%) se lee como si la pagina estuviera rota.
+    h += '<div class="nsub" style="margin-top:15px">Te ' + (g.faltan===1?'falta':'faltan') + ' <b>' + g.faltan + '</b> '
+      + (g.faltan===1?'pago puntual':'pagos puntuales') + ' para <b style="color:'+sig.col+'">' + sig.nom + '</b></div>';
+  } else {
+    h += '<div style="margin-top:14px" class="nsub">Llegaste al nivel más alto. Eres cliente <b style="color:'+nv.col+'">Platino</b>.</div>';
+  }
+
+  h += '<div class="nstats"><span><b>' + g.puntos + '</b> puntos</span><span>·</span><span>'
+    + g.puntuales + ' de ' + g.cortes + ' pagos al día</span>'
+    + (g.adelantadas ? '<span>·</span><span>' + g.adelantadas + ' adelantados</span>' : '') + '</div>';
+
+  if(nv.cupo > 0){
+    var msg = 'Hola, soy ' + ((S.cliente&&S.cliente.nombre)||'') + ' (credito ' + c.id + '). '
+      + 'Soy cliente nivel ' + nv.nom + ' y quiero usar mi vale de hasta $' + nv.cupo + ' en el concesionario.';
+    h += '<div class="nprem">'
+      + '<div class="nprem-t">Ya desbloqueaste</div>'
+      + '<div class="nprem-v money">Vale de hasta $' + nv.cupo + '</div>'
+      + '<div class="nprem-s">Para usar en tu concesionario: cauchos, cascos, aceite, repuestos o mantenimiento. Lo financiamos en tus cuotas.</div>'
+      + '<a class="btn btn-wa" style="margin-top:13px" href="https://wa.me/' + WA_PAGASI + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">Pedir mi vale</a>'
+      + (nv.id==='platino' ? '<div class="nprem-s" style="margin-top:11px">También estás <b>precalificado para tu segunda moto</b> con mejor inicial.</div>' : '')
+      + '</div>';
+  } else {
+    h += '<div class="nprem"><div class="nprem-t">Tu próximo premio</div>'
+      + '<div class="nprem-v money" style="color:var(--ink-3)">Vale de hasta $' + Gamificacion.NIVELES[1].cupo + '</div>'
+      + '<div class="nprem-s">Con <b>' + Gamificacion.NIVELES[1].min + ' pagos al día</b> llegas a <b>Plata</b> y puedes pedir cauchos, casco, aceite o mantenimiento financiados en tu concesionario.</div>'
+      + '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* La moto, no la deuda. El anillo mide cuanto del valor total ya pago el
+   cliente: es la cifra que da ganas de seguir pagando. Se anima al entrar
+   (ver animarEntrada), por eso arranca en dashoffset = circunferencia. */
+var RING_R = 43, RING_C = 2 * Math.PI * RING_R;
+
+function motoHTML(c, est, moto, completado){
+  var totalMoto = (parseFloat(c.ini)||0) + (parseFloat(c.total)||0);
+  var pagadoMoto = (parseFloat(c.ini)||0) + (parseFloat(est.totalPagado)||0);
+  var pct = totalMoto > 0 ? Math.min(100, Math.round(pagadoMoto / totalMoto * 100)) : 0;
+  // Solo dos datos: mas se parte en dos lineas y empuja el anillo
+  var meta = [ (c.placa && c.placa !== '—' ? 'Placa ' + c.placa : c.sede), c.id ]
+               .filter(Boolean).map(esc).join(' · ');
+  // Id unico por credito: con dos motos, dos <defs> con el mismo id y el
+  // navegador pinta ambos anillos con el primero.
+  var gid = 'gring-' + String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
+
+  return '<div class="card mcard rev"><div class="mrow">'
+    + '<div class="mtxt">'
+    +   '<div class="mlb">' + (completado ? 'Tu moto es 100% tuya' : 'Tu moto') + '</div>'
+    +   '<div class="mnom">' + esc(moto) + '</div>'
+    +   '<div class="msede">' + meta + '</div>'
+    +   '<div class="mpag">Ya pagaste <b>' + fmt(pagadoMoto) + '</b> de ' + fmt(totalMoto) + '</div>'
+    + '</div>'
+    + '<div class="rwrap">'
+    +   '<svg class="ring" viewBox="0 0 100 100" aria-hidden="true">'
+    // Verde -> cian: los dos extremos brillan sobre la tarjeta oscura. Con el
+    // azul original, el tramo del arco que caia en esa zona casi desaparecia.
+    +     '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">'
+    +       '<stop offset="0%" stop-color="#5EE9A0"/><stop offset="100%" stop-color="#38BDF8"/>'
+    +     '</linearGradient></defs>'
+    +     '<circle class="rbg" cx="50" cy="50" r="' + RING_R + '"/>'
+    +     '<circle class="rfg" cx="50" cy="50" r="' + RING_R + '" stroke="url(#' + gid + ')"'
+    +       ' stroke-dasharray="' + RING_C.toFixed(1) + '"'
+    +       ' stroke-dashoffset="' + RING_C.toFixed(1) + '"'
+    +       ' data-off="' + (RING_C * (1 - pct/100)).toFixed(1) + '"/>'
+    +   '</svg>'
+    +   '<div class="rpct"><b>' + pct + '%</b><i>tuya</i></div>'
+    + '</div>'
+    + '</div></div>';
+}
+
+/* ══ PANTALLA "MI RACHA" ═══════════════════════════════════════════════════
+   El patron de "racha" de las apps cuenta DIAS seguidos. Aqui la unidad es la
+   QUINCENA, porque es cuando Pagasi cobra: la tira muestra cuotas, no lunes a
+   domingo, y los hitos son los niveles (4 / 12 / 20 pagos puntuales).
+   ═════════════════════════════════════════════════════════════════════════ */
+function abrirRacha(credId){
+  var c = S.creditos.filter(function(x){ return String(x.id) === String(credId); })[0];
+  if(!c) return;
+  var est = estadoDe(c);
+  if(!est) return;
+  var g;
+  try{ g = Gamificacion.calcularRacha(est, S.pagosPorCred[c.id]||[], DIAS_GRACIA, hoyISO()); }
+  catch(e){ return; }
+
+  var activa = g.racha > 0;
+  $('rcPegImg').src = 'assets/pegaso.png';
+  $('rcPeg').classList.toggle('off', !activa);
+  $('rcN').textContent = g.racha;
+  $('rcN').classList.toggle('off', !activa);
+  $('rcL').textContent = g.racha === 1 ? 'quincena al día' : 'quincenas al día seguidas';
+  $('rcL').classList.toggle('off', !activa);
+  $('rcSub').innerHTML = activa
+    ? 'Sigue así y en tu próxima meta desbloqueas un vale para tu moto.'
+    : 'Paga tu próxima cuota a tiempo y arrancas tu racha.';
+
+  $('rcBody').innerHTML = rachaStripHTML(est, g) + rachaMetaHTML(g) + rachaGoalsHTML(g);
+  $('scRacha').classList.remove('hide');
+  $('scRacha').scrollTop = 0;
+  document.body.style.overflow = 'hidden';
+  // Las tarjetas de esta pantalla tambien llevan .rev (opacidad 0): sin esto
+  // quedaban invisibles, porque animarEntrada solo recorria #apBody.
+  animarEntrada($('rcBody'));
+  // La barra de meta crece al entrar (arranca en 0 por CSS)
+  setTimeout(function(){
+    var b = $('rcBody').querySelector('.rc-meta i');
+    if(b) b.style.width = b.getAttribute('data-w') + '%';
+  }, 240);
+}
+
+function cerrarRacha(){
+  $('scRacha').classList.add('hide');
+  document.body.style.overflow = '';
+}
+
+// Tira de quincenas: las 3 ya evaluadas antes de la actual y las que vienen
+function rachaStripHTML(est, g){
+  var estadoDeCorte = {};
+  (g.evs||[]).forEach(function(e){ estadoDeCorte[String(e.numero)] = e.puntual ? 'ok' : 'late'; });
+  var cuotas = est.cuotas || [];
+  var evaluadas = (g.evs||[]).length;
+  var desde = Math.max(0, evaluadas - 4);
+  var ventana = cuotas.slice(desde, desde + 7);
+
+  var h = '<div class="sec" style="margin-top:26px">Tus quincenas</div><div class="rc-strip">';
+  ventana.forEach(function(q, i){
+    var st = estadoDeCorte[String(q.numero)] || '';
+    var esProxima = !st && (desde + i) === evaluadas;
+    var cls = st + (esProxima ? ' now' : '');
+    var marca = st === 'ok' ? '&#10003;' : st === 'late' ? '&times;' : q.numero;
+    h += '<div class="rc-q ' + cls + '">'
+      +   '<div class="d">' + esc(fechaCorta(q.fechaVence)) + '</div>'
+      +   '<div class="b">' + marca + '</div>'
+      + '</div>';
+  });
+  h += '</div>';
+  if(!ventana.length) h = '';
+  return h;
+}
+
+// Barra con hitos: mismos numeros que los niveles, no dias inventados
+function rachaMetaHTML(g){
+  var niveles = (Gamificacion.NIVELES || []).filter(function(n){ return n.min > 0; });
+  if(!niveles.length) return '';
+  var tope = niveles[niveles.length - 1].min;
+  var logrados = g.puntuales;
+  var pct = Math.min(100, Math.round(logrados / tope * 100));
+
+  var h = '<div class="sec">Tu próxima meta<span>'
+        + (g.siguiente
+            ? logrados + ' de ' + g.siguiente.min + ' pagos puntuales para ' + esc(g.siguiente.nom)
+            : 'Llegaste al nivel más alto')
+        + '</span></div>'
+        + '<div class="card rev"><div class="rc-meta"><i data-w="' + pct + '"></i>';
+  niveles.forEach(function(n){
+    var x = Math.min(100, Math.round(n.min / tope * 100));
+    var cls = logrados >= n.min ? 'done' : (g.siguiente && g.siguiente.id === n.id ? 'cur' : '');
+    h += '<div class="rc-hito ' + cls + '" style="left:' + x + '%">' + n.min
+      +   '<span class="rc-hl">' + esc(n.nom) + '</span></div>';
+  });
+  h += '</div>'
+    + '<div class="rc-2">'
+    +   '<div><div class="v">' + (g.rachaDesde ? esc(fechaCorta(g.rachaDesde)) : '—') + '</div>'
+    +   '<div class="k">Tu racha empezó</div></div>'
+    +   '<div><div class="v">' + g.rachaRecord + (g.rachaRecord === 1 ? ' quincena' : ' quincenas') + '</div>'
+    +   '<div class="k">Tu mejor racha</div></div>'
+    + '</div></div>';
+  return h;
+}
+
+// Metas por nivel, con el vale que desbloquea cada una
+function rachaGoalsHTML(g){
+  var h = '<div class="sec">Tus metas</div><div class="card rev">';
+  (Gamificacion.NIVELES || []).forEach(function(n){
+    var logrado = g.puntuales >= n.min;
+    var actual = g.nivel && g.nivel.id === n.id;
+    h += '<div class="rc-goal">'
+      +   '<div class="rc-gi' + (logrado ? '' : ' lock') + '" style="background:' + n.bg + '">'
+      +     '<img src="assets/pegaso.png" alt="">'
+      +   '</div>'
+      +   '<div><div class="rc-gn">' + esc(n.nom) + '</div>'
+      +   '<div class="rc-gs">' + (n.min === 0 ? 'Desde tu primer crédito'
+            : n.min + ' pagos puntuales' + (n.cupo ? ' · vale de $' + n.cupo : '')) + '</div></div>'
+      +   (actual ? '<span class="rc-gt" style="color:' + n.col + ';background:' + n.bg + '">Tu nivel</span>'
+            : logrado ? '<span class="rc-gt t-ok">Logrado</span>'
+            : '<span class="rc-gt t-gray">Faltan ' + (n.min - g.puntuales) + '</span>')
+      + '</div>';
+  });
+  return h + '</div>';
+}
+
+function creditoHTML(c){
+  var est = estadoDe(c);
+  if(!est){
+    return '<div class="card"><div class="ct">'+esc(c.id)+'</div><div class="empty">No pudimos calcular el estado de este crédito. Escríbenos.</div></div>';
+  }
+  var moto = [c.marca, c.modelo].filter(Boolean).join(' ') || c.moto || 'Motocicleta';
+  var atrasado = est._nVencidas > 0;
+  var completado = est.cuotasPagadas >= est.totalCuotas;
+  var cuotaPlena = parseFloat(c.cuotaQ||c.cuota||0);
+  var h = '';
+
+  /* ── HERO ── */
+  var monto = completado ? est.totalPagado : (atrasado ? est._vencido : (est._prox ? est._prox.saldo : 0));
+  h += '<div class="card hero rev' + (atrasado ? ' late' : '') + '">'
+    + '<div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
+    + '<div class="lb">' + (completado ? 'Crédito pagado' : (atrasado ? 'Debes ahora' : 'Tu próximo pago')) + '</div>'
+    + '<span class="pill ' + (atrasado?'pill-bad':'pill-ok') + '">' + (completado?'Completado':(atrasado?'En atraso':'Al día')) + '</span>'
+    + '</div>'
+    + '<div class="big money">' + fmt(monto) + '</div>';
+
+  if(completado){
+    h += '<div class="sm">Terminaste de pagar tu moto. ¡Gracias por tu confianza!</div>';
+  } else if(atrasado){
+    h += '<div class="sm">' + est._nVencidas + ' ' + (est._nVencidas===1?'cuota vencida':'cuotas vencidas') + '</div>'
+      + '<div class="note">Ponte al día para evitar más intereses de mora.</div>';
+  } else if(est._prox){
+    // Cuenta regresiva: "en 15 dias" mueve mas que una fecha suelta
+    var dd = diasHasta(est._prox.fechaVence);
+    var cuando = dd === 0 ? 'Vence hoy'
+               : dd === 1 ? 'Vence mañana'
+               : dd > 1   ? 'Vence en ' + dd + ' días'
+               : 'Vence el ' + fechaLarga(est._prox.fechaVence);
+    h += '<div class="sm">' + cuando + (dd > 1 ? ' · ' + fechaCorta(est._prox.fechaVence) : '') + '</div>';
+    // Si ya abonó parte de esta cuota, decirlo claro (si no, el monto confunde)
+    if(est._prox.pagado > 0.001 && cuotaPlena > 0){
+      h += '<div class="note">Ya abonaste ' + fmt(est._prox.pagado) + ' de la cuota de ' + fmt(cuotaPlena) + '.</div>';
+    }
+  }
+
+  // Progreso: un tramo por cuota (hasta 30); si son más, barra simple
+  var pct = est.totalCuotas ? Math.round(est.cuotasPagadas/est.totalCuotas*100) : 0;
+  if(est.totalCuotas && est.totalCuotas <= 30){
+    h += '<div class="segs">';
+    for(var i=0;i<est.totalCuotas;i++){
+      var cls = i < est.cuotasPagadas ? 'on' : (i === est.cuotasPagadas && !completado ? 'now' : '');
+      h += '<i class="'+cls+'"></i>';
+    }
+    h += '</div>';
+  } else {
+    h += '<div class="bar"><i style="width:'+pct+'%"></i></div>';
+  }
+  h += '<div class="pmeta"><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas pagadas</span><span>' + pct + '%</span></div>'
+    + '</div>';
+
+  if(!completado){
+    h += '<button class="btn btn-p" style="margin-top:14px" onclick="abrirPago(\''+esc(c.id)+'\')">Reportar mi pago</button>';
+  }
+
+  /* ── El relato: lo que debo -> lo que estoy construyendo -> mi premio -> el detalle ── */
+
+  /* ── Tu moto: anillo de "cuanto ya es tuya" ── */
+  h += motoHTML(c, est, moto, completado);
+  h += gpsHTML(c);   // solo si Pagasi le activo el GPS a este credito
+
+  /* ── Racha, nivel y premios ── */
+  try{
+    var g = Gamificacion.calcularRacha(est, S.pagosPorCred[c.id]||[], DIAS_GRACIA, hoyISO());
+    h += '<div class="sec">Tu constancia<span>Paga a tiempo y ganas premios</span></div>';
+    h += nivelHTML(g, c);
+    h += premiosHTML(g);
+  }catch(e){ console.warn('racha:', e); }
+
+  /* ── 3 datos grandes ── */
+  h += '<div class="sec">Tus números</div>'
+    + '<div class="tiles rev">'
+    + '<div class="tile"><div class="tv money" style="color:var(--green)">' + fmt(est.totalPagado) + '</div><div class="tl">Ya pagaste</div></div>'
+    + '<div class="tile"><div class="tv money">' + fmt(est.saldoPendiente) + '</div><div class="tl">Te falta</div></div>'
+    + '<div class="tile"><div class="tv money">' + fmt(cuotaPlena) + '</div><div class="tl">Tu cuota</div></div>'
+    + '</div>';
+
+  /* ── Línea de tiempo de cuotas ── */
+  var cuotas = est.cuotas || [];
+  var desde = Math.max(0, est.cuotasPagadas - 1);
+  var hasta = Math.min(cuotas.length, desde + 6);
+  h += '<div class="sec">Tu calendario<span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas pagadas</span></div>'
+    + '<div class="card rev">'
+    + '<div class="tl-wrap" id="tlw-'+esc(c.id)+'">';
+  cuotas.forEach(function(q, idx){
+    var pagada = q.saldo <= 0.001;
+    var vencida = !pagada && q.fechaVence <= hoyISO();
+    // "Próxima" solo si de verdad está por vencer: si ya venció, manda el rojo
+    var esProx = !pagada && !vencida && idx === est.cuotasPagadas;
+    var dot = pagada ? 'paid' : (vencida ? 'late' : (esProx ? 'now' : ''));
+    var tag = pagada ? '<span class="tag t-ok">Pagada</span>'
+            : vencida ? '<span class="tag t-bad">Vencida</span>'
+            : esProx ? '<span class="tag t-gray">Próxima</span>' : '';
+    var oculta = (idx < desde || idx >= hasta) ? ' tl-hid' : '';
+    var sub = fechaLarga(q.fechaVence);
+    if(!pagada && q.pagado > 0.001) sub += ' · abonaste ' + fmt(q.pagado);
+    h += '<div class="tl-i'+oculta+(esProx?' is-now':'')+'">'
+      + '<div class="tl-d '+dot+'"></div>'
+      + '<div class="tl-b"><div><div class="tl-n">Cuota '+q.numero+'</div><div class="tl-f">'+sub+'</div></div>'
+      + '<div><div class="tl-v money">'+fmt(pagada ? q.monto : q.saldo)+'</div>'
+      + (tag?'<div style="margin-top:4px;text-align:right">'+tag+'</div>':'')
+      + '</div></div></div>';
+  });
+  h += '</div>';
+  if(cuotas.length > (hasta - desde)){
+    h += '<button class="more" onclick="toggleCuotas(\''+esc(c.id)+'\',this)">Ver las '+cuotas.length+' cuotas</button>';
+  }
+  h += '</div>';
+
+  /* ── Mis pagos ── */
+  var pagos = (S.pagosPorCred[c.id]||[]).slice().sort(function(a,b){ return String(b.fecha||'').localeCompare(String(a.fecha||'')); });
+  h += '<div class="sec">Tus pagos<span>' + (pagos.length === 1 ? '1 pago registrado' : pagos.length + ' pagos registrados') + '</span></div>'
+    + '<div class="card rev">';
+  if(!pagos.length){ h += '<div class="empty">Aún no hay pagos registrados.</div>'; }
+  else {
+    pagos.slice(0,12).forEach(function(p){
+      h += '<div class="row"><div class="pay"><div class="pc">'+ICO_CHECK+'</div>'
+        + '<div><div class="rl">'+fechaLarga(p.fecha)+'</div>'
+        + '<div class="tl-f">'+esc(p.metodo||'')+(p.referencia?' · Ref '+esc(p.referencia):'')+'</div></div></div>'
+        + '<div class="rv money" style="color:var(--green)">'+fmt(p.monto)+'</div></div>';
+    });
+    if(pagos.length>12) h += '<div class="empty">Mostrando los 12 más recientes</div>';
+  }
+  h += '</div>';
+
+  return h;
+}
+
+function toggleCuotas(credId, btn){
+  var w = document.getElementById('tlw-'+credId);
+  if(!w) return;
+  var abierto = w.classList.toggle('open');
+  btn.textContent = abierto ? 'Ver menos' : ('Ver las ' + w.querySelectorAll('.tl-i').length + ' cuotas');
+}
+
+function comprobantesHTML(){
+  if(!S.comprobantes.length) return '';
+  var arr = S.comprobantes.slice().sort(function(a,b){ return String(b.creadoEn||'').localeCompare(String(a.creadoEn||'')); });
+  var h = '<div class="card rev"><div class="ct">Comprobantes que enviaste</div>';
+  arr.forEach(function(x){
+    var t = x.estado==='aprobado' ? '<span class="tag t-ok">Aprobado</span>'
+          : x.estado==='rechazado' ? '<span class="tag t-bad">Rechazado</span>'
+          : '<span class="tag t-wait">En revisión</span>';
+    var nota = x.estado==='rechazado' && x.notaStaff ? '<small>'+esc(x.notaStaff)+'</small>' : '';
+    h += '<div class="row"><div class="rl">'+fechaLarga(x.fecha)+'<small>'+esc(x.metodo||'')+'</small>'+nota+'</div>'
+       + '<div style="display:flex;align-items:center;gap:9px"><span class="rv money">'+fmt(x.monto)+'</span>'+t+'</div></div>';
+  });
+  h += '<div style="font-size:11.5px;color:var(--ink-4);font-weight:600;margin-top:12px;line-height:1.5">Los comprobantes en revisión se aplican a tu crédito cuando nuestro equipo los confirma.</div>';
+  h += '</div>';
+  return h;
+}
+
+function pieTexto(){
+  return EMP_PORTAL.nombre + ' · RIF ' + EMP_PORTAL.rif + '<br>Esta información es referencial. Ante cualquier diferencia, prevalece tu contrato.';
+}
+function pieHTML(){
+  return '<div class="foot">' + pieTexto() + '</div>';
+}
+
+/* ── Reportar pago ────────────────────────────────────────────────────── */
+var _file = null;
+function abrirPago(credId){
+  // En modo Pagasi la vista es de solo lectura: un comprobante subido desde
+  // aqui quedaria a nombre del cliente sin rastro de quien lo cargo.
+  if(S.master){
+    alert('Modo Pagasi: esta vista es de solo lectura.\n\nPara registrar un pago o cargar un comprobante, usa el panel de administración.');
+    return;
+  }
+  S.credSel = credId; _file = null;
+  hideErr('pgErr');
+  $('pMonto').value=''; $('pRef').value=''; $('pFecha').value=hoyISO();
+  $('pPrev').classList.add('hide'); $('pPrev').src='';
+  $('pDropT').textContent='Toca para subir la foto';
+  $('pDrop').classList.remove('on');
+  $('pFile').value='';
+  var est = estadoDe(S.creditos.find(function(c){return c.id===credId;}));
+  if(est){ $('pMonto').value = (est._nVencidas>0 ? est._vencido : (est._prox ? est._prox.saldo : '')) || ''; }
+  $('ovPago').classList.remove('hide');
+  document.body.style.overflow='hidden';
+}
+function cerrarPago(){ $('ovPago').classList.add('hide'); document.body.style.overflow=''; }
+
+function prevFile(inp){
+  var f = inp.files && inp.files[0];
+  if(!f) return;
+  if(f.size > 8*1024*1024){ showErr('pgErr','La imagen es muy grande (máximo 8 MB). Toma la foto con menos calidad.'); inp.value=''; return; }
+  hideErr('pgErr');
+  _file = f;
+  $('pDrop').classList.add('on');
+  $('pDropT').textContent = 'Archivo listo: ' + (f.name.length>28 ? f.name.slice(0,25)+'...' : f.name);
+  if(/^image\//.test(f.type)){
+    var r = new FileReader();
+    r.onload = function(e){ $('pPrev').src=e.target.result; $('pPrev').classList.remove('hide'); };
+    r.readAsDataURL(f);
+  } else {
+    $('pPrev').classList.add('hide');
+  }
+}
+
+function enviarComprobante(){
+  hideErr('pgErr');
+  if(S.master){ showErr('pgErr','Modo Pagasi: solo lectura. Registra el pago desde el panel de administración.'); return; }
+  var monto = parseFloat($('pMonto').value);
+  var fecha = $('pFecha').value;
+  if(!monto || monto<=0){ showErr('pgErr','Escribe el monto que pagaste.'); return; }
+  if(!fecha){ showErr('pgErr','Indica la fecha del pago.'); return; }
+  if(!_file){ showErr('pgErr','Sube la foto del comprobante para que podamos verificarlo.'); return; }
+
+  var b=$('btnEnviar'); b.disabled=true; b.innerHTML='<span class="spin"></span> Enviando...';
+
+  var stamp = Date.now();
+  var ext = (_file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');
+  var path = 'comprobantes/'+S.clienteId+'/'+stamp+'.'+(ext||'jpg');
+
+  var subir = storage
+    ? storage.ref().child(path).put(_file).then(function(snap){ return snap.ref.getDownloadURL(); })
+    : Promise.reject(new Error('storage-no-disponible'));
+
+  subir.then(function(url){
+    return db.collection('comprobantes').add({
+      clienteId: String(S.clienteId),
+      clienteNombre: (S.cliente&&S.cliente.nombre)||'',
+      credId: String(S.credSel),
+      monto: monto,
+      fecha: fecha,
+      metodo: $('pMetodo').value || 'Otro',
+      referencia: ($('pRef').value||'').trim(),
+      fotoUrl: url,
+      fotoPath: path,
+      estado: 'pendiente',
+      origen: 'portal',
+      creadoEn: new Date().toISOString()
+    });
+  }).then(function(){
+    cerrarPago();
+    b.disabled=false; b.textContent='Enviar comprobante';
+    // Recargar para que aparezca en "Comprobantes que enviaste"
+    $('apBody').innerHTML = '<div class="card"><div class="ok">¡Recibido! Tu comprobante quedó en revisión. Te avisamos cuando se aplique a tu crédito.</div></div>';
+    setTimeout(cargarPortal, 1400);
+  }).catch(function(e){
+    console.error('comprobante:',e);
+    b.disabled=false; b.textContent='Enviar comprobante';
+    var code=(e&&e.code)||'';
+    if(String(code).indexOf('unauthorized')>-1 || code==='permission-denied'){
+      showErr('pgErr','Tu sesión expiró. Sal y vuelve a entrar con tu enlace.');
+    } else {
+      showErr('pgErr','No se pudo enviar. Revisa tu internet e intenta de nuevo, o mándanos la foto por WhatsApp.');
+    }
+  });
+}
+
+/* ── Punto de enganche para el codigo por WhatsApp (Fase 1.5) ──────────
+   Cuando Meta apruebe la plantilla, una Cloud Function generara el token y
+   lo enviara por WhatsApp. Aqui solo cambia COMO llega el token: el resto
+   del portal (sesion, reglas, lectura de datos) queda igual.
+   ------------------------------------------------------------------- */
+function enviarCodigoWhatsApp(cedula){
+  // TODO Fase 1.5: fetch a la Cloud Function que crea accesos_cliente y
+  // manda el codigo por la WhatsApp Cloud API con la linea dedicada.
+  return Promise.reject(new Error('pendiente-aprobacion-meta'));
+}
+</script>
+<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20con%20mi%20cuenta%20Pagasi">+58 422-2285526</a><a href="mailto:info@pagasi.com.ve">info@pagasi.com.ve</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer><script src="assets/public/site.js?v=20260922-1628"></script></body>
+</html>

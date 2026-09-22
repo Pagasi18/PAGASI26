@@ -1,0 +1,26 @@
+# Worker de Cloudflare: atiende el bot de Telegram y dispara los jobs de
+# GitHub Actions. Guarda el token de GitHub para que nunca este en el
+# navegador.
+#
+# Para publicarlo:   cd bot && npx wrangler deploy
+# Secret obligatorio (GPS: barrido de las 8 am y botones Actualizar):
+#                    npx wrangler secret put GITHUB_PAT
+# GITHUB_PAT = token fine-grained solo del repositorio de PAGASI 26 con Actions: Read and write,
+# SIN vencimiento (o con la fecha anotada): cuando vence, el barrido de las 8 y
+# los botones Actualizar dejan de funcionar.
+# Solo para los botones de Telegram (webhook con secret_token): TELEGRAM_TOKEN,
+# TG_SECRET y CHAT_ID. Sin ellos, lo que llegue a la raiz se ignora.
+
+name = "pagasi26-bot"   # NO puede llamarse igual que el de PAGASI 18 ("pagasi-bot"): un deploy lo pisaria y lo dejaria sin GPS ni Telegram
+main = "telegram-worker.js"
+compatibility_date = "2026-01-01"
+
+# El barrido de posiciones de GPS: una vez al dia a las 8:00 am de Venezuela
+# (12:00 UTC: Cloudflare usa UTC). Adam, 14-sep-2026. Cloudflare si respeta la
+# hora; el cron de GitHub Actions en repos publicos se retrasa horas enteras.
+# Fuera de esa hora, el boton "Actualizar" (modulo GPS y Mi cuenta) dispara el
+# barrido al momento por /gps-refresco.
+# PAGASI 26 todavia no tiene robot de GPS: sin tareas programadas no hay barrido.
+# Cuando se monte, se descomenta y se crea su workflow en este repositorio.
+# [triggers]
+# crons = ["0 12 * * *"]

@@ -1,0 +1,13 @@
+
+# cache local de wrangler: no va al repo
+.wrangler/
+bot/.wrangler/
+
+# nada de esto va al repositorio
+node_modules/
+bot/node_modules/
+*-service-account*.json
+*serviceAccount*.json
+clave-*.json
+.DS_Store
+__prueba*.html

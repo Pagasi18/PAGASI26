@@ -1,0 +1,10 @@
+{
+  "name": "pagasi-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Resumen diario de Pagasi por Telegram",
+  "main": "resumen.js",
+  "dependencies": {
+    "@google-cloud/firestore": "^7.10.0"
+  }
+}
