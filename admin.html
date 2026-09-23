@@ -20,7 +20,7 @@
 
 
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Nunito+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/pagasi.css?v=20260922-2129">
+<link rel="stylesheet" href="assets/pagasi.css?v=20260922-2137">
 <script charset="utf-8" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -98,7 +98,6 @@
     <div class="sb-grp">
       <div class="sb-lbl">Principal</div>
       <button type="button" class="si" data-nav="dash" onclick="nav('dash')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></span><span>Dashboard</span></button>
-      <button type="button" class="si" data-nav="centro" onclick="nav('centro')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg></span><span>Centro de trabajo</span><span class="si-bx" id="sb-badge-wt"></span></button>
     </div>
     <div class="sb-grp">
       <div class="sb-lbl">Gestión</div>
@@ -123,7 +122,6 @@
       <div class="sb-lbl">Sistema</div>
       <button type="button" class="si" data-nav="plan" onclick="nav('plan')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span>Plan &amp; Precios</span></button>
       <button type="button" class="si" data-nav="config" onclick="nav('config')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>Configuración</span></button>
-      <button type="button" class="si" data-nav="scores" onclick="nav('scores')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></svg></span><span>Scores</span></button>
       <button type="button" class="si" data-nav="users" onclick="nav('users')"><span class="sic nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21v-1a7 7 0 0 1 14 0v1"/></svg></span><span>Usuarios</span></button>
     </div>
   </div>
@@ -231,61 +229,61 @@
 </div>
 <div class="toasts" id="toasts"></div>
 <script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-<script charset="utf-8" src="assets/pagasi-app.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/financiero.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/centro.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/usuarios.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/documentos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/clientes.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/motos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/moto-pagos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/configuracion.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/bcv-auto.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/scores.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/creditos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/credito-ledger.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/gamificacion.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/pagos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/contratos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/gps.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/contratos-dra.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/contratos-protect.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/egresos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/facturacion.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/comisiones.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/reportes.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/coromoto.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/cuentas.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/charts.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/backups.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/notificaciones.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/concesionarios.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/concesionarios-chart.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/aprobaciones.js?v=20260922-2129"></script>
-<script charset="utf-8" src="logic/portal.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/centro.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/comisiones.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/aprobaciones.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/concesionarios.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/dash.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/clientes.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/motos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/creditos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/pagos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/cobranza.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/plan.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/contratos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/gps.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/notif.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/calculadora.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/reportes.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/proyeccion.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/recursos.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/conta.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/scores.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/config.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/cuentas.js?v=20260922-2129"></script>
-<script charset="utf-8" src="modules/users.js?v=20260922-2129"></script>
+<script charset="utf-8" src="assets/pagasi-app.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/financiero.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/centro.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/usuarios.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/documentos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/clientes.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/motos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/moto-pagos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/configuracion.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/bcv-auto.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/scores.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/creditos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/credito-ledger.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/gamificacion.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/pagos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/contratos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/gps.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/contratos-dra.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/contratos-protect.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/egresos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/facturacion.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/comisiones.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/reportes.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/coromoto.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/cuentas.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/charts.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/backups.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/notificaciones.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/concesionarios.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/concesionarios-chart.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/aprobaciones.js?v=20260922-2137"></script>
+<script charset="utf-8" src="logic/portal.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/centro.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/comisiones.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/aprobaciones.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/concesionarios.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/dash.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/clientes.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/motos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/creditos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/pagos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/cobranza.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/plan.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/contratos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/gps.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/notif.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/calculadora.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/reportes.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/proyeccion.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/recursos.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/conta.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/scores.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/config.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/cuentas.js?v=20260922-2137"></script>
+<script charset="utf-8" src="modules/users.js?v=20260922-2137"></script>
 
 </body>
 </html>

@@ -3023,6 +3023,27 @@ var PG_NAVICONS = {
   concesionarios:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg>',
   recursos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M12 11v5M9.5 13.5h5"/></svg>'
 };
+// ── Lo que NO se ve en el menu ──────────────────────────────────────────────
+// 22-sep-2026, Adam: "centro de trabajo y files que nadie los usa... tambien
+// aprobaciones y scores... tal vez esconderlo o algo".
+// Se esconden del menu, NO se borran: la pantalla sigue existiendo y se abre por
+// su enlace (nav('scores')) el dia que haga falta. Borrarlas seria tirar trabajo
+// hecho por una temporada sin uso.
+var SIDEBAR_OCULTOS = ['centro','recursos','scores'];
+// Aprobaciones es distinto: no es que no se use, es que casi siempre esta vacia.
+// Ahi caen las solicitudes que crea un vendedor de concesionario y que alguien
+// tiene que aprobar. Si se escondiera a secas, esas solicitudes quedarian sin
+// nadie que las vea. Asi que aparece SOLA cuando hay algo esperando, con el
+// numero al lado, y desaparece cuando la cola queda en cero.
+function _sidebarAprobPendientes(){
+  try {
+    return (S.creds||[]).filter(function(c){ return c && !c.eliminado && c.estado==='pendiente_revision'; }).length;
+  } catch(e){ return 0; }
+}
+function sidebarMuestra(k){
+  if(k === 'aprobaciones') return _sidebarAprobPendientes() > 0;
+  return SIDEBAR_OCULTOS.indexOf(k) === -1;
+}
 function pgNavIcon(k){ return PG_NAVICONS[k] || ''; }
 function renderSidebar(){
   var sb = document.querySelector('.sb-nav');
@@ -3054,7 +3075,7 @@ function renderSidebar(){
       +'<span style="font-size:16px;font-weight:900;line-height:1">＋</span><span>Nueva Solicitud</span></button>'
       +'</div>'
       + grposEmp.map(function(g){
-          var items = g.keys.filter(function(k){ return k==='recursos' || permsEmp.includes(k); });
+          var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (k==='recursos' || permsEmp.includes(k)); });
           if(!items.length) return '';
           return '<div class="sb-grp"><div class="sb-lbl">'+g.label+'</div>'
             +items.map(function(k){
@@ -3083,7 +3104,6 @@ function renderSidebar(){
       +'<button type="button" class="si" data-nav="calculadora" onclick="nav(\'calculadora\')"><span class="sic nav-ic">'+pgNavIcon('calculadora')+'</span><span>Calculadora</span></button>'
       +'<button type="button" class="si" data-nav="clientes" onclick="nav(\'clientes\')"><span class="sic nav-ic">'+pgNavIcon('clientes')+'</span><span>Clientes</span></button>'
       +'<button type="button" class="si" data-nav="creditos" onclick="nav(\'creditos\')"><span class="sic nav-ic">'+pgNavIcon('creditos')+'</span><span>Solicitudes</span></button>'
-      +'<button type="button" class="si" data-nav="recursos" onclick="nav(\'recursos\')"><span class="sic nav-ic">'+pgNavIcon('recursos')+'</span><span>Files</span></button>'
       +'</div>'
       +'</div>';
     sb.innerHTML = sidebarVC;
@@ -3105,10 +3125,11 @@ function renderSidebar(){
     cobranza:'COB',contratos:'CTR',notif:'NOT',reportes:'RPT',aprobaciones:'APR',
     cuentas:'CTA',comisiones:'CMS',conta:'CNT',plan:'PLN',config:'CFG',scores:'SCR',users:'USR',concesionarios:'CNC'
   };
-  var extraMap = {pagos:'<span class="si-bx" id="sb-badge-cob"></span>', centro:'<span class="si-bx" id="sb-badge-wt"></span>'};
+  var extraMap = {pagos:'<span class="si-bx" id="sb-badge-cob"></span>', centro:'<span class="si-bx" id="sb-badge-wt"></span>',
+    aprobaciones:'<span class="si-bx">'+_sidebarAprobPendientes()+'</span>'};
 
   sb.innerHTML = grupos.map(function(g){
-    var items = g.keys.filter(function(k){ return isAdminUser() || k==='recursos' || perms.includes(k); });
+    var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (isAdminUser() || k==='recursos' || perms.includes(k)); });
     if(!items.length) return '';
     return '<div class="sb-grp"><div class="sb-lbl">'+g.label+'</div>'
       +items.map(function(k){
@@ -3161,18 +3182,11 @@ function actualizarBadgeMora(soloNumero){
     // estado==='activo', por eso el badge mostraba muchos menos de los atrasados reales.
     var enMora = _concFiltrar(S.creds||[]).filter(function(c){return !c.eliminado && c.mora>0 && (c.estado==='activo'||c.estado==='mora');}).length;
     if(enMora>0){
+      // La forma del contador la pone el CSS (.si-bx), que ahora es el mismo chip
+      // de las tarjetas del dashboard. Aqui solo va el numero: si se escribieran
+      // los colores a mano, la barra volveria a desentonar con el resto.
       cob.textContent = enMora;
       cob.style.display='flex';
-      cob.style.background='var(--red)';
-      cob.style.color='#fff';
-      cob.style.fontSize='10px';
-      cob.style.fontWeight='900';
-      cob.style.minWidth='18px';
-      cob.style.height='18px';
-      cob.style.borderRadius='9px';
-      cob.style.alignItems='center';
-      cob.style.justifyContent='center';
-      cob.style.padding='0 5px';
     } else {
       cob.textContent='';
       cob.style.display='none';
@@ -3270,7 +3284,22 @@ function getEmpresa(){
 
 // Cargar datos de empresa desde Firebase al iniciar
 
+// El menu muestra Aprobaciones solo cuando hay algo esperando. Si la cola cambio
+// (llego una solicitud de un concesionario, o se aprobo la ultima), el menu se
+// vuelve a armar solo; si no cambio, no se toca nada.
+function _sidebarSyncAprobaciones(){
+  try{
+    var sb = document.querySelector('.sb-nav');
+    if(!sb || !S.currentUser) return;
+    var hay = _sidebarAprobPendientes();
+    var btn = sb.querySelector('[data-nav="aprobaciones"]');
+    if(!hay === !btn){ renderSidebar(); return; }
+    if(btn && hay){ var bx = btn.querySelector('.si-bx'); if(bx) bx.textContent = hay; }
+  }catch(e){}
+}
+
 function updateBadge(){
+  _sidebarSyncAprobaciones();
   const b=$('mora-badge');
   if(b) b.textContent=S.creds.filter(c=>c.mora>0).length;
   var wb=$('sb-badge-wt');
