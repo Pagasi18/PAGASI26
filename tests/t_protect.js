@@ -206,5 +206,26 @@ S.clientes[0].cedula=_cedAntes; S.clientes[0].fiador_ci=_fiaAntes;
 const htmlSinV=API._htmlContratoProtect('CRED-900');
 ok('con la cedula guardada sin V- se imprime igual que antes', htmlSinV.indexOf('V-V-')===-1 && htmlSinV.includes('C.I. V-'+String(_cedAntes)));
 
+// ── Una compania con la ficha a medias (el caso de PAGASI 26) ────────────────
+// Si el telefono o el correo de la empresa estan vacios, el contrato tiene que salir
+// igual, con la raya para llenar a mano. El 22-sep-2026 no salia: reventaba con
+// "b is not defined" y PAGASI 26 se quedaba SIN PODER IMPRIMIR NI UN CONTRATO.
+// Esta prueba faltaba porque todas las demas renderizan con la ficha de PAGASI 18,
+// donde esos campos nunca estan vacios y el respaldo nunca se usa.
+var _empAntes = global._empresa;
+global._empresa = { nombre:'PAGASI 26, C.A.', rif:'J-50856275-5', ciudad:'Caracas',
+  direccion:'Av. Orinoco, Caracas', tel:'', email:'', bancoUsd:'', cuentaUsd:'', billetera:'' };
+var _reventó = null, htmlVacio = '';
+try { htmlVacio = API._htmlContratoProtect('CRED-900'); } catch(e){ _reventó = e.message; }
+ok('con el telefono y el correo vacios, el contrato NO revienta', _reventó === null);
+ok('...y sale entero', htmlVacio.length > 20000);
+ok('...con el nombre y el RIF de la compania nueva',
+  htmlVacio.indexOf('PAGASI 26, C.A.') > -1 && htmlVacio.indexOf('J-50856275-5') > -1);
+ok('...sin arrastrar el telefono ni el correo de PAGASI 18',
+  htmlVacio.indexOf('424-2177798') === -1 && htmlVacio.indexOf('info@pagasi.io') === -1);
+ok('...y con la raya para llenar a boligrafo donde falta el dato',
+  htmlVacio.indexOf('border-bottom:1px solid #94a3b8') > -1);
+global._empresa = _empAntes;
+
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;
