@@ -102,5 +102,15 @@ const enGit = execSync('git ls-files', {cwd:ROOT}).toString().split('\n');
 ok('exportar-26.html no viaja en el repositorio', enGit.indexOf('exportar-26.html') === -1);
 ok('...y está en .gitignore para que no vuelva sola', /^exportar-26\.html$/m.test(src('.gitignore')));
 
+// ── El correo que el sitio le da a los clientes tiene que existir ──────────
+// 23-sep-2026: el pie de todo el sitio publicaba info@pagasi.com.ve. Ese dominio no
+// tiene servidor de correo: cada cliente que escribiera ahí recibía un rebote, y del
+// otro lado nadie se enteraba de que había escrito.
+['index.html','nosotros.html','micuenta.html','catalogo.html','simulador.html','solicitar.html'].forEach(function(f){
+  const h = fs.existsSync(path.join(ROOT,f)) ? src(f) : '';
+  ok(f+': sin el correo que rebota', h.indexOf('pagasi.com.ve') === -1);
+});
+ok('el sitio publica el correo que sí recibe', src('index.html').indexOf('mailto:info@pagasi.io') > -1);
+
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;
