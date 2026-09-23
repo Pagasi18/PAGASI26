@@ -28,7 +28,6 @@ function _finiquitoDatos(credId){
     c:c, cli:cl, moto:moto, emp:e, version:version, venta:(version==='protect'),
     cliNom: c.cli || cl.nombre || '',
     cliCed: ced(cl.cedula || cl.ci || ''),
-    rep: real(ficha.representante), repCI: ced(real(ficha.repCI)),
     modelo: [real(c.marca)||real(moto.marca), real(c.modelo)||real(moto.modelo)].filter(Boolean).join(' '),
     color: real(c.color) || real(moto.color),
     anio: real(c.anio) || real(moto.anio),
@@ -48,9 +47,11 @@ function _htmlFiniquito(credId){
   var logo = (typeof _PAGASI_LOGO_BLUE!=='undefined' && _PAGASI_LOGO_BLUE)
     || ((document.querySelector('.sb-logo img')||{}).src||'');
   var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
-  // Dato que falta = raya para llenar a boligrafo, nunca el dato de otra compania.
-  var raya = function(ancho){ return '<span style="display:inline-block;min-width:'+(ancho||110)+'px;border-bottom:1px solid #94a3b8">&nbsp;</span>'; };
-  var V = function(v, ancho){ var t=String(v==null?'':v).trim(); return t ? esc(t) : raya(ancho); };
+  // 22-sep-2026, Adam: "no quiero que me dejes vacios en el contrato, si no hay un dato
+  // ponme N/A". Un renglon en blanco en un papel que se firma se lee como un descuido y
+  // nadie sabe si falta por error o porque no aplica. N/A lo dice. Nunca, en ningun caso,
+  // el dato de la otra compania.
+  var V = function(v, ancho){ var t=String(v==null?'':v).trim(); return t ? esc(t) : 'N/A'; };
   var dinero = function(n){ return 'US$ '+(parseFloat(n)||0).toFixed(2); };
   var fechaLarga = function(iso){
     if(!iso) return '';
@@ -103,8 +104,7 @@ function _htmlFiniquito(credId){
     + '<div style="background:'+az+';color:#fff;font-weight:800;font-size:11.5px;padding:5px 8px;border-radius:3px;margin-bottom:56px;text-align:center">'
     +   (venta ? 'POR PAGASI' : 'POR EL ARRENDADOR') + '</div>'
     + '<div style="border-top:1px solid #333;padding-top:6px;font-size:10.5px;text-align:center;line-height:1.6">'
-    +   '<strong>'+V(e.nom,140)+'</strong><br>RIF '+V(e.rif,90)+'<br>'
-    +   'Representante legal: '+V(D.rep,120)+'<br>C.I.: '+V(D.repCI,80)+'</div></div>';
+    +   '<strong>'+V(e.nom,140)+'</strong><br>RIF '+V(e.rif,90)+'</div></div>';
   var firmaCliente = '<div style="background:'+azL+';padding:14px 10px;border-radius:4px">'
     + '<div style="background:'+az+';color:#fff;font-weight:800;font-size:11.5px;padding:5px 8px;border-radius:3px;margin-bottom:10px;text-align:center">'
     +   (venta ? 'EL COMPRADOR' : 'EL EX-ARRENDATARIO / NUEVO PROPIETARIO') + '</div>'

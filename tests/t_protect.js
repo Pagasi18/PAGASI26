@@ -228,15 +228,20 @@ ok('...con el nombre y el RIF de la compania nueva',
   htmlVacio.indexOf('PAGASI 26, C.A.') > -1 && htmlVacio.indexOf('J-50856275-5') > -1);
 ok('...sin arrastrar el telefono ni el correo de PAGASI 18',
   htmlVacio.indexOf('424-2177798') === -1 && htmlVacio.indexOf('info@pagasi.io') === -1);
-ok('...y con la raya para llenar a boligrafo donde falta el dato',
-  htmlVacio.indexOf('border-bottom:1px solid #94a3b8') > -1);
-// El banco y la billetera sin cargar dejaban un hueco en medio de la frase, que en un
-// papel firmado parece un error de imprenta: "a las cuentas de PAGASI 26, C.A. en
-// (cuenta corriente...)". Ahora sale la raya, como el resto del contrato.
-ok('...los medios de pago sin cargar salen con la raya, no con un hueco',
-  htmlVacio.indexOf('cuentas de PAGASI 26, C.A. en <span style="display:inline-block;border-bottom') > -1
-  && htmlVacio.indexOf('C.A. en  (cuenta corriente') === -1);
+// Adam, 22-sep-2026: "no quiero que me dejes vacios en el contrato, si no hay un dato
+// ponme N/A". Antes salia una raya; una raya en un papel que se firma es un renglon que
+// alguien tiene que llenar, y nadie sabe si falta por error o porque no aplica.
+ok('...y el dato que falta dice N/A', htmlVacio.indexOf('<strong>N/A</strong>') > -1);
+ok('...el telefono de la empresa dice N/A', /Teléfono \/ WhatsApp: <strong>N\/A<\/strong>/.test(htmlVacio));
+ok('...el correo tambien', /E-Mail: <strong>N\/A<\/strong>/.test(htmlVacio));
+// El banco sin cargar dejaba un HUECO en medio de la frase: "a las cuentas de PAGASI 26,
+// C.A. en  (cuenta corriente...)", que parece un error de imprenta.
+ok('...los medios de pago sin cargar dicen N/A, no dejan un hueco',
+  htmlVacio.indexOf('cuentas de PAGASI 26, C.A. en <strong>N/A</strong> (cuenta corriente') > -1);
 ok('...y la billetera igual', htmlVacio.indexOf('en <strong></strong>, segun los datos') === -1);
+// La raya se queda SOLO donde el hueco es a proposito: la hora, que se escribe a mano.
+ok('la raya se queda donde se llena a boligrafo (la hora), no en los datos',
+  (htmlVacio.match(/border-bottom:1px solid #94a3b8/g)||[]).length <= 8);
 global._empresa = _empAntes;
 
 // ── La misma ficha vacia, pero en OTRA base: ni una letra de PAGASI 18 ───────

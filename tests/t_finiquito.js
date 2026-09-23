@@ -57,7 +57,13 @@ ok('...y su RIF',                          h.indexOf('J-50856275-5')>-1);
 ok('...y su domicilio',                    h.indexOf('Las Mercedes')>-1);
 ok('...y no el nombre de la otra',         h.indexOf('PAGASI 18')===-1 && h.indexOf('J-50829589-7')===-1);
 ok('el pie lleva el membrete de la compania', h.indexOf('RIF J-50856275-5')>-1 && h.indexOf('info@pagasi.io')>-1);
-ok('el representante legal sale de la ficha', h.indexOf('ADAM PRUEBA')>-1 && h.indexOf('V-11223344')>-1);
+// Adam, 22-sep-2026: "representante legal pon pagasi y el rif". Quien responde por el
+// papel es la compania, no una persona: asi no hay que mantener un nombre y una cedula
+// que cambian, ni queda una raya cuando no estan cargados.
+ok('por Pagasi firma la compania con su RIF, no una persona',
+  /POR PAGASI[\s\S]*?PAGASI 26, C\.A\.[\s\S]*?RIF J-50856275-5/.test(h));
+ok('...y ya no pide nombre ni cedula de un representante',
+  h.indexOf('Representante legal')===-1 && h.indexOf('ADAM PRUEBA')===-1);
 
 // ── El texto del contrato de HOY: venta a credito, no arrendamiento ─────────
 ok('titulo: cancelacion total y finiquito', h.indexOf('CONSTANCIA DE CANCELACIÓN TOTAL Y FINIQUITO')>-1);
@@ -95,8 +101,10 @@ delete S.creds[0].contratoVersion;
 const _antes=global._empresa;
 global._empresa={ nombre:'PAGASI 26, C.A.', rif:'J-50856275-5' };   // ficha a medias
 const medias=API._htmlFiniquito('CRED-900');
-ok('ficha a medias: el domicilio sale con raya para llenar a mano',
-  medias.indexOf('border-bottom:1px solid #94a3b8')>-1);
+ok('ficha a medias: el dato que falta dice N/A, no queda en blanco',
+  medias.indexOf('domicilio en <strong>N/A</strong>')>-1);
+ok('...y no queda ninguna raya vacia en el papel',
+  medias.indexOf('border-bottom:1px solid #94a3b8')===-1);
 ok('...y NUNCA con el domicilio de PAGASI 18', medias.indexOf('Sebucán')===-1);
 ok('...ni con su telefono ni su correo',       medias.indexOf('424-2177798')===-1);
 ok('...y el papel sale igual, no revienta',    medias.length>2000);

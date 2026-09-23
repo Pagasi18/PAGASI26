@@ -88,11 +88,13 @@ const tick = () => new Promise(r => setImmediate(r));
   ok('el contrato sale con el Registro Mercantil lleno',
     k.indexOf('inscrita en el Registro Mercantil <strong>Segundo</strong> de la Circunscripción Judicial <strong>Miranda</strong>, bajo el N° <strong>18</strong>, Tomo <strong>145-A</strong>, de fecha <strong>12/03/2024</strong>') > -1);
 
-  // Sin datos guardados, el contrato deja la raya para llenar a boligrafo (como hoy)
+  // Sin datos guardados el contrato dice N/A (Adam, 22-sep-2026: "no quiero que me dejes
+  // vacios en el contrato, si no hay un dato ponme N/A"). Antes quedaba una raya, que en
+  // un papel que se firma es un renglon que alguien tiene que llenar sin saber con que.
   ctx._empresa = { nombre:'Pagasi', rif:'J-00000000-0' };
   const vacio = ctx._htmlContratoProtect('CRED-900');
-  ok('sin datos queda la raya para llenar a boligrafo',
-    /inscrita en el Registro Mercantil <span style="display:inline-block;border-bottom:1px solid #94a3b8;min-width:[0-9.]+px">&nbsp;<\/span> de la Circunscripción Judicial <span/.test(vacio));
+  ok('sin datos, el Registro Mercantil dice N/A',
+    vacio.indexOf('inscrita en el Registro Mercantil <strong>N/A</strong> de la Circunscripción Judicial <strong>N/A</strong>, bajo el N° <strong>N/A</strong>, Tomo <strong>N/A</strong>') > -1);
   ok('nada de "undefined" en el preambulo', vacio.indexOf('undefined') === -1);
 
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas');

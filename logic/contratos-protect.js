@@ -138,8 +138,14 @@ function _protectDatos(credId){
   var num = function(x){ return (parseFloat(x)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   var letras = function(x){ return (typeof _numALetras==='function') ? _numALetras(x) : num(x); };
   var b = function(len){ return '<span style="display:inline-block;border-bottom:1px solid #94a3b8;min-width:'+((len||10)*5.5)+'px">&nbsp;</span>'; };
-  // "NA", "S/N" y compania valen como vacio: sale la raya, no el texto (punto 20)
-  var V = function(v, len){ var s=(typeof _datoReal==='function') ? _datoReal(v) : (v==null?'':String(v)).trim(); return s ? '<strong>'+s+'</strong>' : b(len||14); };
+  // 22-sep-2026, Adam: "no quiero que me dejes vacios en el contrato, si no hay un dato
+  // ponme N/A". Un renglon en blanco en un papel que se firma se lee como un descuido, y
+  // encima nadie sabe si falta por error o porque no aplica. N/A lo dice.
+  // La raya se queda SOLO donde el hueco es a proposito: los plazos que la abogada dejo
+  // por fijar y la hora, que se escribe a mano con el cliente delante.
+  var NA = '<strong>N/A</strong>';
+  // "NA", "S/N" y compania valen como vacio: sale N/A, no el texto literal (punto 20)
+  var V = function(v, len){ var s=(typeof _datoReal==='function') ? _datoReal(v) : (v==null?'':String(v)).trim(); return s ? '<strong>'+s+'</strong>' : NA; };
   var USD = function(x){ return '<strong>US$ '+num(x)+'</strong>'; };
   var T = function(v){ return (typeof _datoReal==='function') ? _datoReal(v) : (v==null?'':String(v)).trim(); };
 
@@ -153,7 +159,7 @@ function _protectDatos(credId){
   var horaDoc = hcre ? hcre.toLocaleTimeString('es-VE',{hour:'numeric',minute:'2-digit'}) : '';
   var fechaLarga = fc.toLocaleDateString('es-VE',{day:'2-digit',month:'long',year:'numeric'});
   var tasaEuro = parseFloat(window._tasaEuro||0) || 0;
-  var mtaBs = tasaEuro>0 ? '<strong>Bs. '+num(F.MTA*tasaEuro)+'</strong>' : b(16);
+  var mtaBs = tasaEuro>0 ? '<strong>Bs. '+num(F.MTA*tasaEuro)+'</strong>' : NA;
 
   var fechaProtectFin = new Date(fc.getTime()); fechaProtectFin.setFullYear(fechaProtectFin.getFullYear()+1);
   var fmt = function(d){ return d.toLocaleDateString('es-VE',{day:'2-digit',month:'2-digit',year:'numeric'}); };
@@ -229,7 +235,7 @@ function _protectDatos(credId){
     pepSi: dc.pep==='si' ? '(&nbsp;X&nbsp;)' : '(&nbsp;&nbsp;)',
     pepDetalle: V(E(dc.pepDetalle), 24),
     verFecha: V(dc.verificado && dc.verificadoFecha ? fmt(new Date(dc.verificadoFecha+'T12:00:00')) : '', 8),
-    verRes: dc.verificado ? '<strong>sin novedad</strong>' : b(10),
+    verRes: dc.verificado ? '<strong>sin novedad</strong>' : NA,
     analista: V(E(dc.analista || c.creadoPor), 16), aprobadoPor: V(E(dc.aprobadoPor || c.aprobadoPor), 14),
     recaudo: function(key){ return (dc.recaudos && dc.recaudos[key]===true) ? 'Sí (&nbsp;X&nbsp;) &nbsp; No (&nbsp;&nbsp;)' : (dc.recaudos && dc.recaudos[key]===false ? 'Sí (&nbsp;&nbsp;) &nbsp; No (&nbsp;X&nbsp;)' : 'Sí (&nbsp;&nbsp;) &nbsp; No (&nbsp;&nbsp;)'); },
     otrosTexto: V(E(dc.otrosTexto), 24)
@@ -396,7 +402,7 @@ var _PROTECT_CUERPO = [
   // El correo, el domicilio y el telefono de Pagasi salen de Configuracion -> Empresa:
   // estaban escritos a mano y el contrato de la compania nueva mandaba al cliente a
   // llamar a la vieja (revisado el 22-sep-2026).
-  function(D){ var _e=_empCtr(); return '('+(D.hayFiador?'c':'b')+')\tA Pagasi: (i) E-Mail: <strong>'+(_e.email||D.b(22))+'</strong>; (ii) Dirección: <strong>'+(_e.dir||D.b(40))+'</strong>; (iii) Teléfono / WhatsApp: <strong>'+(_e.tel||D.b(14))+'</strong>.'; },
+  function(D){ var _e=_empCtr(); return '('+(D.hayFiador?'c':'b')+')\tA Pagasi: (i) E-Mail: <strong>'+(_e.email||'N/A')+'</strong>; (ii) Dirección: <strong>'+(_e.dir||'N/A')+'</strong>; (iii) Teléfono / WhatsApp: <strong>'+(_e.tel||'N/A')+'</strong>.'; },
   function(D){ return 'Cualquier modificación de estas direcciones físicas, de E-Mail y de datos de contacto telefónicos será comunicada entre las Partes de inmediato y por escrito. Mientras no medie dicha comunicación, las notificaciones practicadas en las direcciones aquí indicadas se reputarán válidas.'; },
 
   // ── 14 ── (solo si hay fiador)
@@ -509,7 +515,7 @@ function _protectAnexoB(D, S_){
     + sub('B.3 Condiciones y Exclusiones')
     + p('Los servicios de cambio de aceite y lavado no son acumulables, transferibles ni canjeables por dinero, y caducan al vencimiento del Período Protect. El Programa no incluye repuestos, piezas, insumos distintos de los indicados, reparaciones, grúa, asistencia vial, ni cobertura o indemnización alguna. El Programa NO es un contrato de seguro y no indemniza la pérdida, robo, hurto o daño del Vehículo, conforme a la Sección 2.3 del Contrato.')
     + sub('B.4 Canales de Atención')
-    + p('Solicitud de servicios y reporte de robo o hurto: (i) Teléfono / WhatsApp: <strong>'+(_empCtr().tel||D.b(14))+'</strong>; (ii) E-Mail: <strong>'+(_empCtr().email||D.b(22))+'</strong>; (iii) Horario de atención: <strong>lunes a viernes, de 9:00 a.m. a 5:00 p.m.</strong> Tiempo objetivo de respuesta ante reporte de robo o hurto: <strong>entre una (1) y cinco (5) horas</strong>.')
+    + p('Solicitud de servicios y reporte de robo o hurto: (i) Teléfono / WhatsApp: <strong>'+(_empCtr().tel||'N/A')+'</strong>; (ii) E-Mail: <strong>'+(_empCtr().email||'N/A')+'</strong>; (iii) Horario de atención: <strong>lunes a viernes, de 9:00 a.m. a 5:00 p.m.</strong> Tiempo objetivo de respuesta ante reporte de robo o hurto: <strong>entre una (1) y cinco (5) horas</strong>.')
     + sub('B.5 Declaración del Comprador')
     + p('El Comprador declara haber recibido, leído y comprendido las condiciones del Programa; haber sido informado de que su contratación es voluntaria y de que el Programa no constituye un contrato de seguro; y haber recibido los Dispositivos instalados y en funcionamiento a su entera satisfacción, o, en su defecto, conocer la fecha y lugar de su instalación.')
     + '<div style="display:flex;gap:24px;align-items:flex-start;margin-top:14px;page-break-inside:avoid">'
@@ -570,7 +576,7 @@ function _protectAnexoD(D, S_){
     + sub('D.3 Declaración PEP')
     + p(quien+' que: NO ostenta'+(D.hayFiador?'n':'')+' '+D.pepNo+' / SÍ ostenta'+(D.hayFiador?'n':'')+' '+D.pepSi+' la condición de Persona Expuesta Políticamente, ni son cónyuge, pariente dentro del segundo grado de afinidad o cuarto de consanguinidad, ni asociado cercano de una PEP. En caso afirmativo, especificar: '+D.pepDetalle+'.')
     + sub('D.4 Verificaciones Realizadas por Pagasi')
-    + p('Consulta en listas restrictivas: fecha '+D.verFecha+' · resultado '+D.verRes+'. Verificación de identidad: fecha '+D.verFecha+' · medio '+(D.docs.verificado?'<strong>cédula y RIF</strong>':D.b(10))+'. Verificación de domicilio: fecha '+D.verFecha+' · medio '+(D.docs.verificado?'<strong>comprobante de domicilio</strong>':D.b(10))+'. Verificación del Vehículo ante el INTT: fecha '+D.verFecha+' · resultado '+D.verRes+'. Analista responsable: '+D.analista+'. Aprobación del financiamiento: fecha '+D.fechaLarga+' · hora '+D.hora+' · aprobado por '+D.aprobadoPor+'.')
+    + p('Consulta en listas restrictivas: fecha '+D.verFecha+' · resultado '+D.verRes+'. Verificación de identidad: fecha '+D.verFecha+' · medio '+(D.docs.verificado?'<strong>cédula y RIF</strong>':'<strong>N/A</strong>')+'. Verificación de domicilio: fecha '+D.verFecha+' · medio '+(D.docs.verificado?'<strong>comprobante de domicilio</strong>':'<strong>N/A</strong>')+'. Verificación del Vehículo ante el INTT: fecha '+D.verFecha+' · resultado '+D.verRes+'. Analista responsable: '+D.analista+'. Aprobación del financiamiento: fecha '+D.fechaLarga+' · hora '+D.hora+' · aprobado por '+D.aprobadoPor+'.')
     + _protectFirmas(D);
 }
 
