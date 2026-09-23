@@ -12,9 +12,17 @@ function _mpagoMetodosOpts(){
   return '<option value="" selected>— Elegir cuenta —</option>'
     + _cuentasBanc.map(function(c){return '<option value="'+c.nombre+'">'+c.nombre+'</option>';}).join('');
 }
-function _mpagoFilaHtml(prefix, idx){
+// Que dinero es cada fila. Adam, 23-sep-2026: el paso 3 le pedia repartir los $1350 de
+// la moto sin decir que $750 son la inicial que pone el cliente y $600 lo que pone
+// Pagasi. Las dos salen hacia el concesionario, pero no son la misma plata, y de eso
+// depende que el dashboard no cuente la inicial como dinero prestado.
+function _mpagoEtiqueta(txt){
+  return txt ? '<div class="mpago-tag" style="grid-column:1/-1;font-size:10.5px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:-2px">'+txt+'</div>' : '';
+}
+function _mpagoFilaHtml(prefix, idx, etiqueta){
   var opts = _mpagoMetodosOpts();
   return '<div class="mpago-row" data-idx="'+idx+'" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">'
+    + _mpagoEtiqueta(etiqueta)
     + '<div class="fg" style="margin:0"><label style="font-size:11px">Cuenta / Forma de pago</label>'
     + '<select class="fs '+prefix+'-cuenta" onchange="_mpagoMarcarTocado(this,\''+prefix+'\')">'+opts+'</select></div>'
     + '<div class="fg" style="margin:0"><label style="font-size:11px">Monto ($)</label>'
@@ -48,6 +56,27 @@ function _mpagoBloqueHtml(prefix, titulo, descripcion){
          + 'No hay cuentas cargadas. Cárgalas en Configuración → Cuentas bancarias.</div>')
     + '</div>';
 }
+// El reparto que ya sabe el sistema: la inicial que pone el cliente y lo que financia
+// Pagasi. Las dos filas salen con su monto puesto y etiquetadas; lo unico que hay que
+// decir es de que cuenta sale cada una. Si el usuario ya toco algo, no se toca nada.
+function _mpagoRepartirInicial(prefix, costo, inicial){
+  prefix = prefix || _MPAGO_PREFIX;
+  var cont = document.getElementById(prefix+'-rows');
+  if(!cont) return;
+  costo = parseFloat(costo)||0; inicial = parseFloat(inicial)||0;
+  var financiado = Math.round((costo - inicial)*100)/100;
+  var filas = cont.querySelectorAll('.mpago-row');
+  // Solo en la primera entrada al paso, con las dos partes de verdad
+  if(filas.length !== 1 || inicial <= 0.005 || financiado <= 0.005) return;
+  if(filas[0].getAttribute('data-touched') === '1') return;
+  cont.innerHTML = _mpagoFilaHtml(prefix, 0, 'Inicial del cliente')
+                 + _mpagoFilaHtml(prefix, 1, 'Lo que financia Pagasi');
+  var inps = cont.querySelectorAll('.'+prefix+'-monto');
+  if(inps[0]) inps[0].value = inicial.toFixed(2);
+  if(inps[1]) inps[1].value = financiado.toFixed(2);
+  _mpagoActualizarTotales(prefix);
+}
+
 function _mpagoAgregarFila(prefix){
   prefix = prefix || _MPAGO_PREFIX;
   var cont = document.getElementById(prefix+'-rows');

@@ -513,6 +513,8 @@ function _wzRender(motoId){
           var iniReal = 0;
           try { var pc = getWzPlanConfig(); iniReal = parseFloat(pc&&pc.ini)||0; } catch(e){}
           _mpagoSetCosto('wzmpago', costoBase, iniReal>0 ? iniReal : null);
+          // Y el resto en su propia fila: lo que financia Pagasi (23-sep-2026)
+          _mpagoRepartirInicial('wzmpago', costoBase, iniReal);
         } else {
           _mpagoSetCosto('wzmpago', costoBase);
         }

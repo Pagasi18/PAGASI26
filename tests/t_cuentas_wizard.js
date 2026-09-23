@@ -52,6 +52,60 @@ ok('...y la pantalla dice dónde cargarlas',
   ok(f.split('/')[1]+' ya no escribe "Efectivo USD" a mano', src(f).indexOf("'Efectivo USD'")===-1);
 });
 
+// ── El paso 3 dice qué dinero es cada fila ──────────────────────────────────
+// Adam, 23-sep-2026: el paso 3 le pedía repartir los $1350 de la moto sin decir que
+// $750 son la inicial que pone el cliente y $600 lo que pone Pagasi. Las dos salen
+// hacia el concesionario, pero no son la misma plata: de eso depende que el dashboard
+// no cuente la inicial del cliente como dinero prestado por Pagasi.
+(function(){
+  const filas=[];
+  function cont(n){
+    return { get innerHTML(){ return filas.join(''); },
+      set innerHTML(v){ filas.length=0; if(v) filas.push(v); },
+      querySelectorAll(sel){
+        if(sel==='.mpago-row') return n===0 ? [] : Array.from({length:n},()=>({getAttribute:()=>null}));
+        return [];
+      } };
+  }
+  function repartir(nFilas, costo, inicial, tocada){
+    const montos=[];
+    const c = { innerHTML:'',
+      querySelectorAll(sel){
+        if(sel==='.mpago-row') return Array.from({length:nFilas},()=>({getAttribute:()=> tocada?'1':null}));
+        if(sel==='.wzmpago-monto') return [{set value(v){montos[0]=v;}, get value(){return montos[0];}},
+                                           {set value(v){montos[1]=v;}, get value(){return montos[1];}}];
+        return [];
+      } };
+    const G={ console:{log(){},warn(){}}, String, Array, Object, Math, parseFloat, setTimeout:()=>0,
+      _cuentasBanc:[{nombre:'Binance 26'}], document:{ getElementById:(id)=> id==='wzmpago-rows'? c : null, querySelectorAll:()=>[] },
+      window:{} };
+    G.window=G; vm.createContext(G);
+    const mp=src('logic/moto-pagos.js');
+    vm.runInContext(mp.slice(0, mp.indexOf('function _mpagoEliminarFila')), G);
+    G._mpagoActualizarTotales=function(){};
+    G._mpagoRepartirInicial('wzmpago', costo, inicial);
+    return { html:c.innerHTML, montos:montos };
+  }
+  const r = repartir(1, 1350, 750, false);
+  ok('el paso 3 reparte solo: inicial y financiado en dos filas',
+    r.montos[0]==='750.00' && r.montos[1]==='600.00');
+  ok('...y dice cuál es cuál',
+    r.html.indexOf('Inicial del cliente')>-1 && r.html.indexOf('Lo que financia Pagasi')>-1);
+  ok('...las dos suman el costo de la moto', (parseFloat(r.montos[0])+parseFloat(r.montos[1]))===1350);
+
+  const sinIni = repartir(1, 1350, 0, false);
+  ok('sin inicial no se inventa un reparto', sinIni.montos.length===0 && sinIni.html==='');
+  const todoIni = repartir(1, 1350, 1350, false);
+  ok('si la inicial cubre la moto entera, tampoco', todoIni.montos.length===0);
+  const tocada = repartir(1, 1350, 750, true);
+  ok('si el vendedor ya escribió algo, no se le pisa', tocada.montos.length===0);
+  const dosFilas = repartir(2, 1350, 750, false);
+  ok('si ya hay dos filas (volvió al paso), se respetan', dosFilas.montos.length===0);
+})();
+
+ok('el wizard pide ese reparto al pintar el paso 3',
+  /_mpagoRepartirInicial\('wzmpago', costoBase, iniReal\);/.test(src('logic/creditos.js')));
+
 // ── La pantalla que lleva horas abierta se entera de las cuentas nuevas ─────
 const cfg=src('logic/configuracion.js');
 ok('existe la relectura para cuando la lista está vacía', /function _cuentasRecargarSiVacio\(\)/.test(cfg));
