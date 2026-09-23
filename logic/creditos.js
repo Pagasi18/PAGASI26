@@ -1112,7 +1112,13 @@ function _wzVendedorOpts(){
 function _wzSetVendedor(selEl){
   var opt = selEl.options[selEl.selectedIndex];
   WZ.vendedorUid = selEl.value || '';
-  WZ.vendedorNombre = (opt && opt.getAttribute('data-nombre')) || '';
+  var nm = (opt && opt.getAttribute('data-nombre')) || '';
+  // "Usuario" es el relleno del desplegable cuando la ficha todavia no trajo el nombre.
+  // Guardarlo como vendedor dejaba la venta a nombre de nadie (23-sep-2026).
+  if(nm === 'Usuario') nm = '';
+  if(!nm && S.currentUser && String(S.currentUser.uid)===String(WZ.vendedorUid))
+    nm = S.currentUser.nombre || S.currentUser.email || '';
+  WZ.vendedorNombre = nm;
   WZ['wz_vendedor'] = WZ.vendedorUid;
   var av = document.getElementById('wz_vendedor_aviso');
   if(av) av.innerHTML = _wzAvisoComision();

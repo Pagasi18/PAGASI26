@@ -94,10 +94,22 @@ function _comCalcGenerado(u){
   (S.creds || []).forEach(function(c){
     if(c.eliminado) return;
     if(c.estado === 'cancelado') return; // créditos cancelados no pagan comisión
-    // La comisión de venta se atribuye al VENDEDOR de la solicitud. Para créditos
-    // viejos sin vendedor asignado, se usa quien creó el crédito (compatibilidad).
-    var vendedor = (c.vendedorNombre || c.creadoPor || '').trim().toLowerCase();
-    if(vendedor !== nombreLow) return;
+    // La comisión de venta se atribuye al VENDEDOR de la solicitud, POR SU IDENTIFICADOR.
+    // 23-sep-2026: se comparaba por nombre y los dos primeros créditos de PAGASI 26
+    // quedaron con el vendedor llamado literalmente "Usuario" — un respaldo del
+    // desplegable que se coló al guardar. Ninguna de las dos ventas le contó a nadie,
+    // aunque las dos vendedoras tenían su comisión activada y el identificador bien
+    // guardado. Comparar nombres escritos a mano es frágil por definición: un acento,
+    // un segundo apellido o un cambio de ficha y la plata de alguien desaparece.
+    // El nombre sigue valiendo como respaldo para los créditos viejos, que no traen
+    // identificador.
+    if(c.vendedorUid && u.uid){
+      if(String(c.vendedorUid) !== String(u.uid)) return;
+    } else {
+      var vendedor = (c.vendedorNombre || c.creadoPor || '').trim().toLowerCase();
+      if(vendedor === 'usuario') vendedor = (c.creadoPor || '').trim().toLowerCase();
+      if(vendedor !== nombreLow) return;
+    }
     var precio = parseFloat(c.precioFinanciado || c.precio || 0) || 0;
     var monto = cfg.venta.tipo === 'porc'
       ? precio * (cfg.venta.valor/100)
