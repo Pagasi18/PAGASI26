@@ -516,6 +516,9 @@ function _concAbrirDetalle(id){
       + '<td class="tds">'+esc(a.ref||'—')+'</td>'
       + '<td class="tds" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(a.nota||'')+'">'+esc(a.nota||'—')+'</td>'
       + '<td class="tds">'+esc(a.creadoPor||'')+'</td>'
+      + '<td class="tds">'+(a.comprobante
+          ? '<a href="'+esc(a.comprobante)+'" target="_blank" rel="noopener" style="color:var(--p1);font-weight:700;text-decoration:none">Ver</a>'
+          : '<span style="color:var(--ink3)">—</span>')+'</td>'
       + '<td><button class="btn btn-d btn-xs" onclick="_concDelAnticipo(\''+id+'\',\''+a.id+'\')" title="Eliminar anticipo">✕</button></td>'
       + '</tr>';
   }).join('');
@@ -584,7 +587,7 @@ function _concAbrirDetalle(id){
     + (antF.length===0
       ? '<div style="padding:14px;text-align:center;background:var(--gs);border-radius:9px;color:var(--ink3);font-size:11.5px;margin-bottom:13px">'+(_rango?'Sin anticipos en este período.':'Sin anticipos registrados. Usa "＋ Registrar anticipo" cuando le mandes dinero a esta sede.')+'</div>'
       : '<div class="tw tw-compact" style="max-height:180px;overflow-y:auto;margin-bottom:13px"><table>'
-        + '<thead><tr><th>Fecha</th><th style="text-align:right">Monto</th><th>Método</th><th>Referencia</th><th>Nota</th><th>Por</th><th></th></tr></thead>'
+        + '<thead><tr><th>Fecha</th><th style="text-align:right">Monto</th><th>Cuenta</th><th>Referencia</th><th>Nota</th><th>Por</th><th>Comprobante</th><th></th></tr></thead>'
         + '<tbody>'+filasAnt+'</tbody></table></div>')
     // ── Motos que salieron ──
     + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Motos que salieron — contratos ('+credsF.length+')</div>'
@@ -1031,6 +1034,12 @@ function _concOpenAnticipo(cid){
     + '<div class="fg"><label>Referencia (opcional)</label><input class="fi" id="cant_ref" placeholder="N° de operación / hash"></div>'
     + '</div>'
     + '<div class="fg"><label>Nota (opcional)</label><input class="fi" id="cant_nota" placeholder="Ej: anticipo para lote de 10 motos"></div>'
+    // El comprobante: una transferencia de miles de dolares sin respaldo es la palabra
+    // de alguien contra la de la sede. Se sube aqui, junto al anticipo, que es cuando
+    // se tiene a mano (23-sep-2026).
+    + '<div class="fg"><label>Comprobante de la transferencia</label>'
+    +   '<input class="fi" id="cant_comp" type="file" accept="image/*,application/pdf" style="padding:7px">'
+    +   '<div id="cant_comp_msg" style="font-size:11px;color:var(--ink3);margin-top:4px">Foto o PDF. Queda guardado con el anticipo.</div></div>'
     + '<div style="font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.5">El anticipo <b>sale de la cuenta que elijas</b>: queda registrado como una salida y el saldo de esa cuenta baja. '
     + 'También puedes registrar un <b>monto negativo</b> como ajuste (ej: la sede nos devolvió dinero): en ese caso el dinero <b>entra</b>.</div>';
   S.saveFn = function(){
@@ -1058,6 +1067,9 @@ function _concOpenAnticipo(cid){
     c.anticipos.push(ant);
     c.updatedAt = new Date().toISOString();
     if(DB && DB.saveConcesionario) DB.saveConcesionario(c);
+    // El comprobante viaja despues, y si falla la subida el anticipo NO se pierde:
+    // vale mas el registro del dinero que la foto.
+    _concAnticipoSubirComprobante(c, ant, ($('cant_comp') && $('cant_comp').files && $('cant_comp').files[0]) || null);
     if(typeof logActividad==='function') logActividad('Anticipo a concesionario','concesionarios',c.id,fmt(monto)+' · '+ant.metodo);
     closeM();
     toast('Anticipo de '+fmt(monto)+' registrado en '+c.nombre,'success');
@@ -1067,6 +1079,46 @@ function _concOpenAnticipo(cid){
   $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cancelar</button>'
     + '<button class="btn btn-p" onclick="saveM()">Registrar anticipo</button>';
   $('ov').style.display='flex';
+}
+
+// El comprobante de la transferencia. Se sube aparte del anticipo a proposito: si
+// Storage falla o el archivo es enorme, el anticipo ya quedo registrado y solo se
+// avisa de que la foto no subio. Perder el registro del dinero por una imagen seria
+// el peor intercambio posible.
+function _concAnticipoSubirComprobante(c, ant, file){
+  if(!file) return;
+  var limite = 10 * 1024 * 1024;
+  if(file.size > limite){
+    if(typeof toast==='function') toast('El comprobante pesa más de 10 MB: el anticipo quedó registrado, pero sin la imagen','warn',6000);
+    return;
+  }
+  if(typeof storage === 'undefined' || !storage || typeof storage.ref !== 'function'){
+    if(typeof toast==='function') toast('El anticipo quedó registrado. El comprobante no se pudo subir (sin conexión al almacén de archivos)','warn',6000);
+    return;
+  }
+  var limpio = String(file.name||'comprobante').replace(/[^A-Za-z0-9._-]/g,'_').slice(-60);
+  var ruta = 'concesionarios/'+c.id+'/anticipos/'+ant.id+'_'+limpio;
+  if(typeof toast==='function') toast('Subiendo el comprobante...','info');
+  try{
+    storage.ref().child(ruta).put(file)
+      .then(function(snap){ return snap.ref.getDownloadURL(); })
+      .then(function(url){
+        ant.comprobante = url;
+        ant.comprobanteNombre = file.name || '';
+        ant.comprobanteSubidoEn = new Date().toISOString();
+        c.updatedAt = new Date().toISOString();
+        if(DB && DB.saveConcesionario) DB.saveConcesionario(c);
+        if(typeof toast==='function') toast('✓ Comprobante guardado','success');
+        if(typeof nav==='function' && S.page==='concesionarios') nav('concesionarios');
+      })
+      .catch(function(e){
+        console.warn('comprobante del anticipo:', e);
+        if(typeof toast==='function') toast('El anticipo quedó registrado, pero el comprobante no subió. Puedes volver a intentarlo editándolo.','warn',7000);
+      });
+  }catch(e){
+    console.warn('comprobante del anticipo:', e);
+    if(typeof toast==='function') toast('El anticipo quedó registrado; el comprobante no se pudo subir','warn',6000);
+  }
 }
 
 // El movimiento de caja del anticipo. Un anticipo NO es un gasto: es dinero de Pagasi
@@ -1106,14 +1158,19 @@ function _concAnticipoMovimiento(c, ant){
     if(!monto) return '';
     var entra = monto < 0;                       // devolucion de la sede
     var abs = Math.abs(monto);
+    // El dinero no desaparece: se MUEVE del banco a la cuenta donde espera mientras
+    // esta en poder del concesionario. Sale de Binance, entra a "Anticipos en
+    // concesionarios", y el total de Pagasi no cambia (23-sep-2026).
+    var destinoAnticipos = (typeof CUENTA_ANTICIPOS!=='undefined') ? CUENTA_ANTICIPOS : 'Anticipos en concesionarios';
     var mov = {
       id: 'MOV-ANT-'+ant.id,
-      tipo: entra ? 'deposito' : 'retiro',
+      tipo: 'transferencia',
       tipoOperacion: 'anticipo_concesionario',
       concepto: (entra ? 'Devolución de anticipo · ' : 'Anticipo a ') + (c.nombre||c.id),
       monto: abs,
-      cuentaOrigen: entra ? null : ant.cuenta,
-      cuentaDestino: entra ? ant.cuenta : null,
+      // Devolucion: el dinero vuelve del concesionario al banco. Anticipo: al reves.
+      cuentaOrigen: entra ? destinoAnticipos : ant.cuenta,
+      cuentaDestino: entra ? ant.cuenta : destinoAnticipos,
       fecha: ant.fecha || hoyLocalISO(),
       referencia: ant.ref || '',
       realizadoPor: (S.currentUser&&S.currentUser.nombre)||'Admin',

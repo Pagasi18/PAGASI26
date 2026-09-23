@@ -28,7 +28,14 @@ let id=G._concAnticipoMovimiento({id:'C1',nombre:'EMPIRE Bello Monte'},
   {id:'ANT-1', monto:4012, cuenta:'Binance 26', fecha:'2026-09-23', ref:'2020'});
 let mov=G.S.movimientos[0];
 ok('registrar un anticipo crea su movimiento', G.S.movimientos.length===1 && id==='MOV-ANT-ANT-1');
-ok('...es una SALIDA de la cuenta elegida', mov.tipo==='retiro' && mov.cuentaOrigen==='Binance 26' && !mov.cuentaDestino);
+// 23-sep-2026, Adam otra vez, y tenía razón: "los anticipos aparecen como un egreso de
+// la cuenta, pero en realidad siguen siendo un activo de pagasi". El dinero sale del
+// banco —eso es cierto— pero no se pierde: queda en poder del concesionario y sigue
+// siendo de Pagasi. Por eso no es una salida: es una transferencia a la cuenta donde
+// ese dinero espera hasta que salga una moto.
+ok('...sale del banco', mov.cuentaOrigen==='Binance 26');
+ok('...pero no se pierde: entra a la cuenta donde el dinero espera',
+  mov.tipo==='transferencia' && mov.cuentaDestino==='Anticipos en concesionarios');
 ok('...por el monto del anticipo', mov.monto===4012);
 ok('...y se guarda en la base', G.DB.guardados.length===1);
 ok('...dice a qué sede fue', /EMPIRE Bello Monte/.test(mov.concepto) && mov.concesionarioId==='C1');
@@ -40,7 +47,8 @@ ok('no es un gasto, es plata adelantada: no infla los egresos del mes',
 G=entorno([]);
 G._concAnticipoMovimiento({id:'C1',nombre:'TORO'}, {id:'ANT-2', monto:-500, cuenta:'Binance 26', fecha:'2026-09-23'});
 mov=G.S.movimientos[0];
-ok('una devolución de la sede entra a la cuenta', mov.tipo==='deposito' && mov.cuentaDestino==='Binance 26' && !mov.cuentaOrigen);
+ok('una devolución de la sede vuelve al banco',
+  mov.tipo==='transferencia' && mov.cuentaDestino==='Binance 26' && mov.cuentaOrigen==='Anticipos en concesionarios');
 ok('...por el monto en positivo', mov.monto===500);
 ok('...y se llama por su nombre', /Devolución de anticipo/.test(mov.concepto));
 

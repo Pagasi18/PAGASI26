@@ -19,6 +19,50 @@ function setCuentasMes(v){
 // (punto 31, 22-sep-2026). Todo el archivo suma por aqui.
 function montoMov(m){ var v = parseFloat(m && m.monto); return isNaN(v) ? 0 : Math.round(v*100)/100; }
 
+// ══════════════════════════════════════════════════════════════════
+// EL DINERO QUE ESTA EN PODER DE LOS CONCESIONARIOS
+// ══════════════════════════════════════════════════════════════════
+// 23-sep-2026, Adam: "los anticipos aparecen como un egreso de la cuenta, pero en
+// realidad siguen siendo un activo de pagasi, y solo se deduce de la cuenta cuando
+// prestamos dinero en el concesionario".
+// Tiene razon. Cuando Pagasi le manda $10.000 a una sede, el dinero SALE del banco
+// — eso es cierto y el saldo de Binance tiene que bajar — pero Pagasi no perdio
+// $10.000: los tiene en poder del concesionario y siguen siendo suyos. Registrarlo
+// como una salida a secas hacia ver a la empresa mas pobre de lo que es.
+// Por eso el anticipo no sale del sistema: se MUEVE a esta cuenta, que es donde el
+// dinero espera. De ahi se descuenta cuando sale una moto, que es el momento en que
+// deja de ser efectivo y se convierte en un credito por cobrar.
+var CUENTA_ANTICIPOS = 'Anticipos en concesionarios';
+
+// Lo que queda del anticipo de UNA sede: lo que se le mando menos lo que ya se uso
+// en motos suyas.
+function saldoAnticipoDe(concesionarioId){
+  if(!concesionarioId) return 0;
+  var s = 0;
+  (S.movimientos||[]).forEach(function(m){
+    if(!m || m.eliminado) return;
+    if(String(m.concesionarioId||'') !== String(concesionarioId)) return;
+    var v = montoMov(m);
+    if(m.cuentaDestino === CUENTA_ANTICIPOS) s += v;
+    if(m.cuentaOrigen  === CUENTA_ANTICIPOS) s -= v;
+  });
+  return Math.round(s*100)/100;
+}
+// Todas las sedes que tienen dinero de Pagasi esperando, de mayor a menor.
+function anticiposConSaldo(){
+  var por = {};
+  (S.movimientos||[]).forEach(function(m){
+    if(!m || m.eliminado || !m.concesionarioId) return;
+    if(m.cuentaDestino !== CUENTA_ANTICIPOS && m.cuentaOrigen !== CUENTA_ANTICIPOS) return;
+    por[String(m.concesionarioId)] = true;
+  });
+  return Object.keys(por).map(function(cid){
+    var c = (typeof _concGetById==='function') ? (_concGetById(cid)||{}) : {};
+    return { id: cid, nombre: c.nombre || cid, saldo: saldoAnticipoDe(cid) };
+  }).filter(function(x){ return x.saldo > 0.004; })
+    .sort(function(a,b){ return b.saldo - a.saldo; });
+}
+
 function saldoCuenta(nombre){
   var s=0;
   S.movimientos.filter(function(m){return !m.eliminado;}).forEach(function(m){
@@ -29,7 +73,11 @@ function saldoCuenta(nombre){
   return Math.round(s*100)/100;
 }
 function totalCuentas(){
-  return (_cuentasBanc||[]).reduce(function(a,c){return a+saldoCuenta(c.nombre);},0);
+  // El dinero que esta en los concesionarios SUMA: salio del banco pero sigue siendo
+  // de Pagasi. Si no se contara aqui, mandar un anticipo haria ver a la empresa mas
+  // pobre, que es justo lo que estaba mal (23-sep-2026).
+  return (_cuentasBanc||[]).reduce(function(a,c){return a+saldoCuenta(c.nombre);},0)
+       + saldoCuenta(CUENTA_ANTICIPOS);
 }
 function movsCuenta(cid){
   return S.movimientos.filter(function(m){return m.cuentaOrigen===cid||m.cuentaDestino===cid;})

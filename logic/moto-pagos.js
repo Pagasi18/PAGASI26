@@ -7,10 +7,30 @@
 // cuenta que no esta en Configuracion: no aparece en ningun saldo y nadie lo encuentra
 // despues. Ahora, si no hay cuentas, se dice y no se deja elegir nada.
 function _mpagoMetodosOpts(){
-  if(!(_cuentasBanc && _cuentasBanc.length))
+  // Los anticipos que ya se le mandaron a una sede son dinero de Pagasi que YA salio
+  // del banco y esta esperando alli. Cuando sale una moto de esa sede, lo natural es
+  // que se pague de ahi: si volviera a salir del banco, el mismo dinero saldria dos
+  // veces y el anticipo no se consumiria nunca (23-sep-2026).
+  var ant = (typeof anticiposConSaldo==='function') ? anticiposConSaldo() : [];
+  var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var opcAnt = ant.map(function(a){
+    return '<option value="ANT:'+esc(a.id)+'">Anticipo — '+esc(a.nombre)+' ('+fmt(a.saldo)+' disponible)</option>';
+  }).join('');
+  if(!(_cuentasBanc && _cuentasBanc.length) && !opcAnt)
     return '<option value="" selected>— No hay cuentas cargadas —</option>';
   return '<option value="" selected>— Elegir cuenta —</option>'
-    + _cuentasBanc.map(function(c){return '<option value="'+c.nombre+'">'+c.nombre+'</option>';}).join('');
+    + (_cuentasBanc||[]).map(function(c){return '<option value="'+esc(c.nombre)+'">'+esc(c.nombre)+'</option>';}).join('')
+    + opcAnt;
+}
+// "ANT:CONC-123" es el anticipo de esa sede, no una cuenta del banco.
+function _mpagoEsAnticipo(cuenta){ return String(cuenta||'').indexOf('ANT:') === 0; }
+function _mpagoConcDeAnticipo(cuenta){ return _mpagoEsAnticipo(cuenta) ? String(cuenta).slice(4) : ''; }
+// Como se llama esa cuenta en los movimientos y en los papeles.
+function _mpagoNombreCuenta(cuenta){
+  if(!_mpagoEsAnticipo(cuenta)) return cuenta;
+  var cid = _mpagoConcDeAnticipo(cuenta);
+  var c = (typeof _concGetById==='function') ? (_concGetById(cid)||{}) : {};
+  return 'Anticipo — ' + (c.nombre || cid);
 }
 // Que dinero es cada fila. Adam, 23-sep-2026: el paso 3 le pedia repartir los $1350 de
 // la moto sin decir que $750 son la inicial que pone el cliente y $600 lo que pone
@@ -234,7 +254,8 @@ function _mpagoCrearGastos(motoObj, pagos, opts){
       monto: p.monto,
       fecha: fecha,
       categoria: 'inventario',
-      forma: p.cuenta,
+      // En el papel del gasto se lee "Anticipo — MOTOS TORO", no un código
+      forma: _mpagoNombreCuenta(p.cuenta),
       notas: opts.notas || '',
       motoIdRef: motoObj.id,
       origenAuto: 'compra_moto',
@@ -249,7 +270,12 @@ function _mpagoCrearGastos(motoObj, pagos, opts){
       tipoOperacion: 'compra_moto',
       concepto: 'Egreso · ' + newEg.concepto,
       monto: p.monto,
-      cuentaOrigen: p.cuenta,
+      // Si se pago con el anticipo de una sede, el dinero sale de ahi — no del banco,
+      // de donde ya salio el dia que se mando el anticipo (23-sep-2026).
+      cuentaOrigen: _mpagoEsAnticipo(p.cuenta)
+        ? ((typeof CUENTA_ANTICIPOS!=='undefined') ? CUENTA_ANTICIPOS : 'Anticipos en concesionarios')
+        : p.cuenta,
+      concesionarioId: _mpagoEsAnticipo(p.cuenta) ? _mpagoConcDeAnticipo(p.cuenta) : undefined,
       cuentaDestino: null,
       fecha: fecha,
       referencia: opts.notas || '',
