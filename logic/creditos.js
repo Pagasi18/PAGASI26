@@ -27,6 +27,13 @@ function openAddCred(motoId=null){
     document.body.appendChild(overlay);
   }
   WZ = { step:1, totalSteps:4, score:0, f1:0,f2:0,f3:0,f4:0,f5:0, cuota:0,ratio:0,monto:0,precio:0,plazo:0,ini:0,ing:0 };
+  // La comisión es de quien hace la venta. Se apunta desde el primer paso, no al pintar
+  // el tercero: si alguien guardaba sin pasar por ahí, el crédito quedaba sin dueño.
+  if(S.currentUser && S.currentUser.uid){
+    WZ.vendedorUid = S.currentUser.uid;
+    WZ.vendedorNombre = S.currentUser.nombre || S.currentUser.email || '';
+    WZ['wz_vendedor'] = WZ.vendedorUid;
+  }
   // La moto que se eligio en Inventario ("Solicitud") se guarda en WZ: antes solo
   // viajaba como parametro del primer dibujo y al llegar al paso 3 se perdia, asi que
   // el wizard creaba OTRA moto del catalogo y descontaba la compra de nuevo
@@ -222,7 +229,7 @@ function _wzRender(motoId){
     + '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Vendedor (para comisión) *</label>'
     + '<select class="fs" id="wz_vendedor" onchange="_wzSetVendedor(this)">'
     + _wzVendedorOpts()
-    + '</select></div>'
+    + '</select><div id="wz_vendedor_aviso">'+_wzAvisoComision()+'</div></div>'
     + '</div>'
     + '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:12px;padding:14px;margin-top:12px">'
     + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">Plan del crédito</div>'
@@ -1107,6 +1114,29 @@ function _wzSetVendedor(selEl){
   WZ.vendedorUid = selEl.value || '';
   WZ.vendedorNombre = (opt && opt.getAttribute('data-nombre')) || '';
   WZ['wz_vendedor'] = WZ.vendedorUid;
+  var av = document.getElementById('wz_vendedor_aviso');
+  if(av) av.innerHTML = _wzAvisoComision();
+}
+
+// Un crédito puede quedar perfectamente atribuido y no generar ni un dólar de comisión:
+// basta con que esa persona no la tenga activada en su ficha. Eso no se veía por ningún
+// lado — se descubría al final de la quincena, cuando el vendedor preguntaba. Ahora se
+// dice aquí, con el crédito todavía abierto (23-sep-2026).
+function _wzAvisoComision(){
+  try{
+    var uid = WZ.vendedorUid || (S.currentUser && S.currentUser.uid) || '';
+    if(!uid) return '';
+    var u = null;
+    if(typeof _usersCache!=='undefined' && Array.isArray(_usersCache))
+      u = _usersCache.find(function(x){ return x && String(x.uid)===String(uid); });
+    if(!u && S.currentUser && String(S.currentUser.uid)===String(uid)) u = S.currentUser;
+    if(!u) return '';
+    if(u.comisiones && u.comisiones.activo) return '';
+    var quien = u.nombre || u.email || 'Esta persona';
+    return '<div style="font-size:11px;color:var(--amber);margin-top:5px;line-height:1.45">'
+      + quien + ' no tiene comisión configurada: el crédito queda a su nombre, pero no va a generar comisión. '
+      + 'Se activa en Usuarios → Comisiones.</div>';
+  }catch(e){ return ''; }
 }
 
 // Carga bajo demanda la lista completa de vendedores si el cache está vacío
@@ -2448,7 +2478,12 @@ function _wzGuardar(){
     uso_moto: WZ.uso||'',
     notas: WZ.obs||'',
     concesionarioId: (WZ.concesionarioId !== undefined ? WZ.concesionarioId : _concDefaultId()),
-    vendedorUid: WZ.vendedorUid||'',
+    // 23-sep-2026, Adam: "en el tema de las comisiones no se estan guardando... tiene
+    // que agarrar predeterminado al usuario que esta creando el credito".
+    // El nombre ya caia en quien lo creo, pero el UID no: si el vendedor no tocaba el
+    // desplegable —y nadie lo toca cuando ya sale su nombre— el credito se guardaba
+    // sin vendedor identificado. Ahora los dos caen en quien lo esta creando.
+    vendedorUid: WZ.vendedorUid || (S.currentUser&&S.currentUser.uid) || '',
     vendedorNombre: WZ.vendedorNombre || (S.currentUser&&S.currentUser.nombre) || '',
     creadoPor: (S.currentUser&&S.currentUser.nombre)||'Admin',
     creado: new Date().toISOString(),
