@@ -791,8 +791,15 @@ function _cobExpPdf(data, alcLbl, perLbl, items){
     'Mora regular':['#B45309','#FFEDD5'],
     'Al día':['#00915D','#D1FAE5']
   };
+  // La direccion del logo se arma desde la carpeta donde esta la pagina, no desde la
+  // raiz del dominio: si el sistema se sirve bajo una subcarpeta (pagasi18.github.io/
+  // PAGASI26/, por ejemplo) una ruta que empiece por "/" apunta fuera y el logo sale
+  // roto en el reporte de cobranza (23-sep-2026).
   var logoUrl='';
-  try{ if(typeof location!=='undefined' && location.origin && location.origin.indexOf('http')===0) logoUrl=location.origin+'/assets/pagasi-logo.png'; }catch(e){}
+  try{
+    if(typeof location!=='undefined' && location.origin && location.origin.indexOf('http')===0)
+      logoUrl = location.origin + location.pathname.replace(/[^\/]*$/,'') + 'assets/pagasi-logo.png';
+  }catch(e){}
   var kpi=function(lbl,val){
     return '<div style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:7px 16px;text-align:center">'
       +'<div style="font-size:15px;font-weight:900;color:#fff;white-space:nowrap">'+val+'</div>'
@@ -825,7 +832,8 @@ function _cobExpPdf(data, alcLbl, perLbl, items){
     +'</style></head><body>'
     +'<div class="top">'
     +(logoUrl?'<img src="'+logoUrl+'" alt="Pagasi">':'<div style="font-size:20px;font-weight:900;color:#2563EB">Pagasi</div>')
-    +'<div><div class="t1">Reporte de Cobranza</div><div class="t2">Generado el '+esc(hoyLocalISO())+' · www.pagasi.io</div></div>'
+    +'<div><div class="t1">Reporte de Cobranza</div><div class="t2">Generado el '+esc(hoyLocalISO())
+      +((typeof _empCtr==='function' && _empCtr().nom) ? ' · '+esc(_empCtr().nom) : '')+'</div></div>'
     +'</div>'
     +'<div class="banda">'
     +'<div><div class="bt1">'+esc(alcLbl)+'</div><div class="bt2">'+esc(perLbl)+'</div></div>'

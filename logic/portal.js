@@ -20,7 +20,10 @@ function _pBaseUrl(){
   try{
     var u = location.origin + location.pathname.replace(/[^\/]*$/,'');
     return u + 'micuenta.html';
-  }catch(e){ return 'https://pagasi.io/micuenta.html'; }
+  // Este respaldo casi nunca se usa (solo si location falla). Tiene que decir el
+  // dominio de ESTA compania: si dice el de la otra, el enlace que se le manda al
+  // cliente lo lleva a un sistema donde no existe (23-sep-2026).
+  }catch(e){ return 'https://18.pagasi.io/micuenta.html'; }
 }
 
 // ── 1. Acceso del cliente al portal ─────────────────────────────────────

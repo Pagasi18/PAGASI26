@@ -2,7 +2,9 @@
 # Bumpea la versión cache-bust de todos los scripts en admin.html
 # Para correr antes de cada git push: ./bump-version.sh
 set -e
-VERSION="$(date +%Y%m%d)-$(date +%H%M)"
+# El "26-" no es decoracion: evita que el navegador sirva de su cache el
+# archivo de la otra compania cuando las dos comparten direccion.
+VERSION="26-$(date +%Y%m%d)-$(date +%H%M)"
 echo "→ Bumpeando versión a: $VERSION"
 
 # Usa perl para reemplazar TODOS los ?v=... por la nueva versión. El separador es # y
