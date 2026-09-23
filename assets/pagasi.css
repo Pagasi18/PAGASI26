@@ -661,8 +661,10 @@ body {
 }
 
 .sb-logo {
-  padding: 20px 18px 16px;
+  padding: 18px 18px 14px;
   border-bottom: 1px solid var(--rim);
+  flex-direction: column;
+  align-items: flex-start;
 }
 .sb-logo::after { display: none; }
 
@@ -780,6 +782,46 @@ button.si span:not(.sic):not(.si-bx) {
   font-size: 12px;
 }
 .sb-un { font-size: 12.5px; font-weight: 700; }
+
+/* ─── EN QUE COMPANIA ESTOY ──────────────────────────────────────
+   23-sep-2026, Adam: "necesito que le pongas un color azul de fondo para
+   diferenciar... ya que me he confundido como 3 veces". Las dos copias son el
+   mismo codigo: mismos nombres de archivo, mismo diseno, mismo todo. Con las dos
+   abiertas no habia forma de saber en cual estabas hasta despues de guardar algo.
+   PAGASI 18 (la que cobra los creditos de antes) va sobre azul. La compania nueva
+   se queda con el fondo claro de siempre. La marca la pone el JavaScript segun la
+   BASE a la que esta conectado, no segun el dominio: asi no puede mentir.
+   El azul es suave a proposito: se mira ocho horas seguidas. */
+:root[data-empresa="18"] {
+  --bg: #DCE8FB;
+  --surf2: #EDF3FD;
+}
+:root[data-empresa="18"] .sb { background: #CFE0F9; }
+:root[data-empresa="18"] .topbar { background: rgba(232,241,254,.96); }
+/* Y una cinta en el borde de arriba, por si el fondo se confunde con el tema claro */
+:root[data-empresa="18"] .sb::after { background: linear-gradient(135deg,#1D4ED8,#3B82F6); height: 4px; }
+
+[data-theme="dark"]:root[data-empresa="18"] {
+  --bg: #0E1730;
+  --surf2: #16213C;
+}
+[data-theme="dark"]:root[data-empresa="18"] .sb { background: #101B33; }
+[data-theme="dark"]:root[data-empresa="18"] .topbar { background: rgba(16,27,51,.96); }
+
+/* El nombre de la compania debajo del logo: dos palabras que se leen sin buscar */
+.sb-empresa {
+  font-family: var(--fd);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--p1);
+  background: var(--gs);
+  border-radius: 20px;
+  padding: 3px 9px;
+  margin: 8px 0 0 2px;
+  display: inline-block;
+}
 
 /* ─── TOPBAR ─── */
 .topbar {

@@ -16,6 +16,45 @@ var FIREBASE_CONFIG = {
   appId: '1:415041001199:web:9844b2b6835fea0e84ad1a'
 };
 
+// ══════════════════════════════════════════════════════════════════
+// DE UN VISTAZO: EN QUE COMPANIA ESTOY
+// ══════════════════════════════════════════════════════════════════
+// 23-sep-2026, Adam: "necesito que le pongas un color azul de fondo para
+// diferenciar... ya que me he confundido como 3 veces". Con razon: las dos copias
+// son el MISMO codigo, con los mismos nombres de archivo y hasta el mismo titulo de
+// pestana. Con las dos abiertas, nada distingue una de otra hasta que ya registraste
+// un pago en la compania equivocada.
+// La marca sale de la BASE a la que esta conectado, no del repositorio ni del dominio:
+// asi no puede mentir. Si alguien abre una copia apuntando a otra base, se ve al
+// instante.
+var _EMPRESAS_MARCA = {
+  'pagasi-v2':      { marca:'18', nombre:'PAGASI 18', apodo:'Cobranza' },
+  'pagasi26-65ced': { marca:'26', nombre:'PAGASI 26', apodo:'' }
+};
+function _marcaEmpresa(){
+  try { return _EMPRESAS_MARCA[String((FIREBASE_CONFIG||{}).projectId||'')] || null; }
+  catch(e){ return null; }
+}
+(function _pintarLaCompania(){
+  try{
+    var e = _marcaEmpresa(); if(!e) return;
+    if(document.documentElement) document.documentElement.setAttribute('data-empresa', e.marca);
+    // El titulo de la pestana: con seis pestanas abiertas es lo unico que se lee
+    document.title = e.nombre + (e.apodo ? ' · ' + e.apodo : '') + ' — Sistema de Crédito';
+    // Y el nombre debajo del logo, que es donde se mira sin querer
+    document.addEventListener('DOMContentLoaded', function(){
+      try{
+        var caja = document.querySelector('.sb-logo');
+        if(!caja || caja.querySelector('.sb-empresa')) return;
+        var t = document.createElement('div');
+        t.className = 'sb-empresa';
+        t.textContent = e.nombre + (e.apodo ? ' · ' + e.apodo : '');
+        caja.appendChild(t);
+      }catch(_e){}
+    });
+  }catch(e){}
+})();
+
 // ── COMO SE NUMERAN LOS CREDITOS ─────────────────────────────────────────────
 // Cada compania tiene su serie. PAGASI 18 lleva CRED-001 desde siempre y no se toca;
 // PAGASI 26 arranca su propia serie con otra letra (Adam, 22-sep-2026). Cambiar esto
