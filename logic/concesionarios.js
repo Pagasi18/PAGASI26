@@ -371,8 +371,9 @@ function _concRender(){
       html += _concChartHtml();
       setTimeout(function(){ if(typeof _concChartPintar==='function') _concChartPintar(); }, 30);
     }
+    html += _concAvisoAnticiposSueltos();
     html += '<div class="card">'
-      + '<div class="ch"><div><div class="ct">Concesionarios</div><div class="cs">Saldo = anticipos enviados − costo de las motos que salieron</div></div>'
+      + '<div class="ch"><div><div class="ct">Concesionarios</div><div class="cs">Saldo = anticipos enviados − lo que puso Pagasi en las motos que salieron</div></div>'
       + '<button class="btn btn-p btn-sm" onclick="_concAbrirDetalleTotal()">Σ Detalle total</button></div>'
       + '<div class="tw"><table>'
       + '<thead><tr><th>Sede</th><th>Ciudad</th><th style="text-align:right">Motos</th><th style="text-align:right">Créditos</th><th style="text-align:right">Enviado</th><th style="text-align:right">Consumido</th><th style="text-align:right">Saldo</th><th style="text-align:right">Acciones</th></tr></thead>'
@@ -1021,25 +1022,39 @@ function _concOpenAnticipo(cid){
     + '<div class="fg"><label>Monto (USD) <span style="color:var(--red)">*</span></label><input class="fi" id="cant_monto" type="number" step="0.01" placeholder="10000"></div>'
     + '</div>'
     + '<div class="fgr" style="gap:10px">'
-    + '<div class="fg"><label>Método</label><select class="fs" id="cant_metodo"><option>Binance</option><option>Efectivo</option><option>Transferencia bancaria</option><option>Otro</option></select></div>'
+    + '<div class="fg"><label>¿De qué cuenta sale? <span style="color:var(--red)">*</span></label><select class="fs" id="cant_metodo">'
+    +   ((_cuentasBanc && _cuentasBanc.length)
+        ? '<option value="" selected>— Elegir cuenta —</option>'
+          + _cuentasBanc.map(function(x){ return '<option value="'+x.nombre+'">'+x.nombre+'</option>'; }).join('')
+        : '<option value="" selected>— No hay cuentas cargadas —</option>')
+    +   '</select></div>'
     + '<div class="fg"><label>Referencia (opcional)</label><input class="fi" id="cant_ref" placeholder="N° de operación / hash"></div>'
     + '</div>'
     + '<div class="fg"><label>Nota (opcional)</label><input class="fi" id="cant_nota" placeholder="Ej: anticipo para lote de 10 motos"></div>'
-    + '<div style="font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.5">También puedes registrar un <b>monto negativo</b> como ajuste (ej: la sede nos devolvió dinero).</div>';
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.5">El anticipo <b>sale de la cuenta que elijas</b>: queda registrado como una salida y el saldo de esa cuenta baja. '
+    + 'También puedes registrar un <b>monto negativo</b> como ajuste (ej: la sede nos devolvió dinero): en ese caso el dinero <b>entra</b>.</div>';
   S.saveFn = function(){
     var monto = parseFloat(($('cant_monto')&&$('cant_monto').value)||'');
     if(!monto || isNaN(monto)){ toast('Indica el monto del anticipo','error'); return false; }
+    // 23-sep-2026, Adam: "LOS ANTICIPOS NO SE ESTAN REGISTRANDO COMO SALIDA EN LAS
+    // CUENTAS.. ESO ES GRAVISIMO". Tenia razon: el dinero salia del banco de verdad y
+    // el sistema no lo veia, asi que el saldo de las cuentas decia mas plata de la que
+    // hay. Ahora el anticipo sale de una cuenta concreta y queda su movimiento.
+    var cuentaAnt = ($('cant_metodo')&&$('cant_metodo').value) || '';
+    if(!cuentaAnt){ toast('Elige de qué cuenta sale el anticipo','error'); return false; }
     var ant = {
       id: 'ANT-'+Date.now(),
       fecha: ($('cant_fecha')&&$('cant_fecha').value) || hoyLocalISO(),
       monto: monto,
-      metodo: ($('cant_metodo')&&$('cant_metodo').value) || 'Otro',
+      metodo: cuentaAnt,
+      cuenta: cuentaAnt,
       ref: (($('cant_ref')&&$('cant_ref').value)||'').trim(),
       nota: (($('cant_nota')&&$('cant_nota').value)||'').trim(),
       creadoPor: (S.currentUser&&S.currentUser.nombre)||'Admin',
       creadoEn: new Date().toISOString()
     };
     if(!Array.isArray(c.anticipos)) c.anticipos = [];
+    ant.movimientoId = _concAnticipoMovimiento(c, ant);
     c.anticipos.push(ant);
     c.updatedAt = new Date().toISOString();
     if(DB && DB.saveConcesionario) DB.saveConcesionario(c);
@@ -1054,6 +1069,79 @@ function _concOpenAnticipo(cid){
   $('ov').style.display='flex';
 }
 
+// El movimiento de caja del anticipo. Un anticipo NO es un gasto: es dinero de Pagasi
+// que se adelanta y que despues se consume en motos. Por eso sale como retiro de la
+// cuenta (baja el saldo) y no como egreso (no infla los gastos del mes).
+// Un anticipo negativo es una devolucion de la sede: entonces el dinero ENTRA.
+// Los anticipos que se registraron antes de que esto existiera (o los que entren por
+// una importacion) no tienen movimiento: su dinero salio del banco y el sistema no lo
+// sabe. Se avisa en la pantalla en vez de dejarlo callado.
+function _concAnticiposSinMovimiento(){
+  var fuera = [];
+  (S.concesionarios||[]).forEach(function(c){
+    if(!c || c.eliminado || !Array.isArray(c.anticipos)) return;
+    c.anticipos.forEach(function(a){
+      if(!a || a.eliminado) return;
+      var id = a.movimientoId || ('MOV-ANT-'+a.id);
+      var mov = (S.movimientos||[]).find(function(m){ return m && m.id === id && !m.eliminado; });
+      if(!mov) fuera.push({ sede: c.nombre||c.id, monto: parseFloat(a.monto)||0, fecha: a.fecha||'' });
+    });
+  });
+  return fuera;
+}
+function _concAvisoAnticiposSueltos(){
+  var f = _concAnticiposSinMovimiento();
+  if(!f.length) return '';
+  var tot = f.reduce(function(s,x){ return s + Math.abs(x.monto); }, 0);
+  return '<div style="background:var(--reds);border:1px solid var(--red);border-radius:var(--r12);padding:12px 14px;margin-bottom:14px">'
+    + '<div style="font-weight:800;font-size:13px;color:var(--red);margin-bottom:3px">'
+    +   f.length + ' anticipo' + (f.length===1?'':'s') + ' por ' + fmt(tot) + ' no está' + (f.length===1?'':'n') + ' descontado' + (f.length===1?'':'s') + ' de ninguna cuenta</div>'
+    + '<div style="font-size:11.5px;color:var(--ink2);line-height:1.5">Ese dinero salió del banco pero el saldo de las cuentas no lo refleja, así que dice tener más plata de la que hay. '
+    + 'Se registraron antes de que el sistema los descontara solo. Para arreglarlo: elimina el anticipo y vuelve a registrarlo eligiendo la cuenta.</div></div>';
+}
+
+function _concAnticipoMovimiento(c, ant){
+  try{
+    var monto = parseFloat(ant.monto)||0;
+    if(!monto) return '';
+    var entra = monto < 0;                       // devolucion de la sede
+    var abs = Math.abs(monto);
+    var mov = {
+      id: 'MOV-ANT-'+ant.id,
+      tipo: entra ? 'deposito' : 'retiro',
+      tipoOperacion: 'anticipo_concesionario',
+      concepto: (entra ? 'Devolución de anticipo · ' : 'Anticipo a ') + (c.nombre||c.id),
+      monto: abs,
+      cuentaOrigen: entra ? null : ant.cuenta,
+      cuentaDestino: entra ? ant.cuenta : null,
+      fecha: ant.fecha || hoyLocalISO(),
+      referencia: ant.ref || '',
+      realizadoPor: (S.currentUser&&S.currentUser.nombre)||'Admin',
+      tasaBs: window._tasaBsGlobal||1,
+      hora: new Date().toTimeString().slice(0,5),
+      concesionarioId: c.id,
+      anticipoId: ant.id
+    };
+    if(S.movimientos) S.movimientos.push(mov);
+    if(DB && DB.saveMovimiento) DB.saveMovimiento(mov);
+    return mov.id;
+  }catch(e){ console.warn('anticipo/movimiento:', e); return ''; }
+}
+// Al anular el anticipo, la plata vuelve a la cuenta: el movimiento se marca eliminado
+// para que el saldo lo deje de contar, pero no se borra (el rastro se queda).
+function _concAnticipoMovimientoAnular(ant){
+  try{
+    var id = ant && (ant.movimientoId || ('MOV-ANT-'+ant.id));
+    if(!id) return;
+    var mov = (S.movimientos||[]).find(function(m){ return m && m.id === id; });
+    if(!mov) return;
+    mov.eliminado = true;
+    mov.eliminadoEn = new Date().toISOString();
+    mov.eliminadoPor = (S.currentUser&&S.currentUser.nombre)||'Admin';
+    if(DB && DB.saveMovimiento) DB.saveMovimiento(mov);
+  }catch(e){ console.warn('anticipo/anular:', e); }
+}
+
 function _concDelAnticipo(cid, antId){
   var c = _concGetById(cid);
   if(!c || !Array.isArray(c.anticipos)) return;
@@ -1063,6 +1151,7 @@ function _concDelAnticipo(cid, antId){
   a.eliminado = true;
   a.eliminadoEn = new Date().toISOString();
   a.eliminadoPor = (S.currentUser&&S.currentUser.nombre)||'Admin';
+  _concAnticipoMovimientoAnular(a);
   c.updatedAt = new Date().toISOString();
   if(DB && DB.saveConcesionario) DB.saveConcesionario(c);
   toast('Anticipo eliminado','info');
