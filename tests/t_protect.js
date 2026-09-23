@@ -12,12 +12,17 @@ global.S={creds:[],clientes:[],motos:[],pagos:[],gps:[]};
 global.toast=()=>{}; global.nav=()=>{}; global.getEmpresa=()=>({nombre:'PAGASI 18, C.A.',rif:'J-50829589-7'});
 global._concGetById=id=>({nombre:'EMPIRE Bello Monte',rif:'J-11111111-1'});
 global._pintarDoc=()=>{}; global._PAGASI_LOGO_BLUE='';
+// Este contrato se imprime como PAGASI 18. Importa decirlo: desde el 22-sep-2026 el
+// respaldo con los datos de la compañia (domicilio, telefono, cuentas) SOLO vale en la
+// base de PAGASI 18. En cualquier otra, una ficha de empresa que no se pudo leer sale
+// en blanco, nunca con el nombre y la cuenta bancaria de otra empresa.
+global.FIREBASE_CONFIG={projectId:'pagasi-v2'};
 let pass=0, fail=0;
 global.ok=(l,v)=>{ if(v){pass++;console.log('OK   '+l);} else {fail++;console.log('FALLA '+l);} };
 
 const auto=new Proxy({},{has:()=>true,get:(t,k)=>{if(k===Symbol.unscopables)return undefined;if(k in t)return t[k];if(k in global)return global[k];return function(){return 0;};},set:(t,k,v)=>{t[k]=v;return true;}});
 const SRC=['logic/contratos.js','logic/contratos-dra.js','logic/contratos-protect.js'].map(f=>fs.readFileSync(path.join(ROOT,f),'utf8')).join('\n;\n');
-const API=eval('with(auto){'+SRC+'\n; ({_protectFinanzas,_protectDatos,_htmlContratoProtect,_contratoVersionDe,_CONTRATO_PROTECT_DESDE,_docsRecaudosLista,_draCedulaTxt}) }');
+const API=eval('with(auto){'+SRC+'\n; ({_protectFinanzas,_protectDatos,_htmlContratoProtect,_contratoVersionDe,_CONTRATO_PROTECT_DESDE,_docsRecaudosLista,_draCedulaTxt,_avisarEmpresaContrato}) }');
 const F=API._protectFinanzas;
 const cerca=(a,b,tol)=>Math.abs(a-b)<=(tol==null?0.02:tol);
 
@@ -226,6 +231,32 @@ ok('...sin arrastrar el telefono ni el correo de PAGASI 18',
 ok('...y con la raya para llenar a boligrafo donde falta el dato',
   htmlVacio.indexOf('border-bottom:1px solid #94a3b8') > -1);
 global._empresa = _empAntes;
+
+// ── La misma ficha vacia, pero en OTRA base: ni una letra de PAGASI 18 ───────
+// El 22-sep-2026 el contrato de PAGASI 26 salio completo y con buena pinta a nombre
+// de PAGASI 18, con su RIF y SU CUENTA BANCARIA, porque la ficha no se pudo leer (se
+// habia caido la sesion) y el respaldo no miraba en que base estaba. El cliente habria
+// pagado a la cuenta de la otra empresa.
+var _cfgAntes = global.FIREBASE_CONFIG;
+global.FIREBASE_CONFIG = { projectId:'pagasi26-65ced' };
+global._empresa = undefined;
+var htmlOtra = API._htmlContratoProtect('CRED-900');
+ok('en otra base, la ficha vacia NO trae el nombre de PAGASI 18', htmlOtra.indexOf('PAGASI 18')===-1);
+ok('...ni su RIF',            htmlOtra.indexOf('J-50829589-7')===-1 && htmlOtra.indexOf('J-50.829.589-7')===-1);
+ok('...ni su cuenta bancaria', htmlOtra.indexOf('0156-0030-61-0301030586')===-1 && htmlOtra.indexOf('100% Banco Universal')===-1);
+ok('...ni su domicilio',      htmlOtra.indexOf('Quinta Miramar')===-1);
+ok('...ni su telefono ni su correo', htmlOtra.indexOf('424-2177798')===-1 && htmlOtra.indexOf('info@pagasi.io')===-1);
+ok('...y el contrato sale igual, con rayas para llenar a boligrafo', htmlOtra.length>20000);
+// El aviso que ve quien imprime
+var _avisos=[]; var _toastAntes=global.toast; global.toast=function(m,t){ _avisos.push(String(m)); };
+API._avisarEmpresaContrato();
+ok('avisa que no se pudo leer la ficha y que no se firme',
+  _avisos.some(function(m){ return /NO SE PUDO LEER LA FICHA/.test(m) && /No lo firmes/.test(m); }));
+global.FIREBASE_CONFIG = { projectId:'pagasi-v2' }; _avisos.length=0;
+API._avisarEmpresaContrato();
+ok('en la base de 18 el aviso es el de siempre (sale a nombre de PAGASI 18)',
+  _avisos.some(function(m){ return /sale a nombre de PAGASI 18/.test(m); }));
+global.toast=_toastAntes; global.FIREBASE_CONFIG=_cfgAntes; global._empresa=_empAntes;
 
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;

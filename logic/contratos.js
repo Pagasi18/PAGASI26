@@ -28,6 +28,16 @@ function _datoReal(v){
 // Asi el contrato de hoy sale igual que ayer y el de una compania nueva sale
 // bien en cuanto se carguen sus datos.
 var _EMP_SIN_LLENAR = { nombre:'Pagasi', rif:'J-00000000-0' };
+// El respaldo de PAGASI 18 SOLO vale en la base de PAGASI 18. En cualquier otra
+// compania, una ficha sin cargar tiene que salir en blanco y avisando, nunca con el
+// nombre, el RIF y la cuenta bancaria de otra empresa. El 22-sep-2026 PAGASI 26
+// imprimio un contrato a nombre de PAGASI 18 porque la ficha no se habia podido leer
+// (se habia caido la sesion): el papel salio perfecto y equivocado, que es lo peor
+// que puede pasar en un documento que se firma.
+var _EMP_18_PROYECTO = 'pagasi-v2';
+function _esLaBaseDe18(){
+  try { return String((FIREBASE_CONFIG||{}).projectId||'') === _EMP_18_PROYECTO; } catch(e){ return false; }
+}
 var _EMP_18 = {
   nombre:'PAGASI 18, C.A.', rif:'J-50829589-7',
   direccion:'Avenida Los Chorros, Quinta Miramar, Urbanización Sebucán, Caracas, Estado Miranda, Zona Postal 1071',
@@ -73,8 +83,9 @@ function _empFaltantes(){
 function _empCtr(){
   var e = (typeof _empresa==='object' && _empresa) ? _empresa : {};
   var vacia = _empSinLlenar();
+  var conRespaldo = vacia && _esLaBaseDe18();
   var uno = function(k){
-    if(vacia) return _EMP_18[k] || '';
+    if(vacia) return conRespaldo ? (_EMP_18[k] || '') : '';
     var v = _empTxt(e[k]);
     if(k==='nombre' && v===_EMP_SIN_LLENAR.nombre) return '';
     if(k==='rif' && v===_EMP_SIN_LLENAR.rif) return '';
@@ -84,14 +95,16 @@ function _empCtr(){
   return { nom: uno('nombre'), rif: rif, rifPuntos: _empRifPuntos(rif),
     dir: uno('direccion'), ciudad: uno('ciudad'), tel: uno('tel'), email: uno('email'),
     bancoUsd: uno('bancoUsd'), cuentaUsd: uno('cuentaUsd'), billetera: uno('billetera'),
-    billeteraCuenta: uno('billeteraCuenta'), sinLlenar: vacia };
+    billeteraCuenta: uno('billeteraCuenta'), sinLlenar: vacia, conRespaldo: conRespaldo };
 }
 // Aviso al imprimir: o la ficha esta vacia (sale PAGASI 18) o esta a medias (sale
 // con rayas). Las dos cosas hay que verlas antes de que alguien firme.
 function _avisarEmpresaContrato(){
   if(typeof toast!=='function') return;
   if(_empSinLlenar()){
-    toast('Faltan los datos de la empresa en Configuración → Empresa: el contrato sale a nombre de '+_EMP_18.nombre,'error');
+    toast(_esLaBaseDe18()
+      ? 'Faltan los datos de la empresa en Configuración → Empresa: el contrato sale a nombre de '+_EMP_18.nombre
+      : 'NO SE PUDO LEER LA FICHA DE LA EMPRESA: el contrato va a salir SIN nombre ni RIF. No lo firmes; vuelve a entrar y revisa Configuración → Empresa.','error');
     return;
   }
   var faltan = _empFaltantes();
