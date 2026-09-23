@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Importar en PAGASI 26</title>
+<!-- Página de mantenimiento. Carga la configuración de PAGASI 26 y los datos que
+     vienen del archivo de PAGASI 18. Primero enseña QUÉ haría, sin escribir nada;
+     solo escribe cuando se pulsa el segundo botón. -->
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{ color-scheme:light }
+  body{ font-family:system-ui,-apple-system,"Segoe UI",sans-serif; max-width:780px; margin:6vh auto; padding:0 20px; color:#111; line-height:1.55 }
+  h1{ font-size:22px; margin:0 0 6px } h2{ font-size:15px; margin:0 0 10px }
+  .sub{ color:#555; font-size:14px; margin:0 0 22px }
+  .caja{ border:1px solid #e3e6ec; border-radius:14px; padding:18px 20px; margin-bottom:14px; background:#fff }
+  button{ font:inherit; font-weight:700; padding:11px 18px; border-radius:10px; border:0; background:#2563EB; color:#fff; cursor:pointer }
+  button.sec{ background:#eef2f9; color:#1f2937 }
+  button.peligro{ background:#D42A50 }
+  button[disabled]{ opacity:.4; cursor:default }
+  table{ border-collapse:collapse; width:100%; font-size:13.5px; margin-top:8px }
+  td{ padding:5px 0; border-bottom:1px solid #eef0f4 }
+  td:last-child{ text-align:right; font-variant-numeric:tabular-nums; font-weight:700 }
+  .ok{ color:#00875E } .no{ color:#D42A50 } .gris{ color:#6b7280; font-size:12.5px }
+  input{ font:inherit; padding:9px 11px; border:1px solid #d7dbe3; border-radius:9px; width:100% }
+  .fila{ display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap }
+  #log{ font-family:ui-monospace,Menlo,monospace; font-size:12px; white-space:pre-wrap; max-height:220px; overflow:auto; background:#f7f8fb; padding:10px; border-radius:9px; margin-top:10px }
+</style>
+</head>
+<body>
+<h1>Importar en PAGASI 26</h1>
+<p class="sub">Primero enseña <b>qué haría</b>, sin tocar nada. Solo escribe cuando pulsas
+el botón rojo. Nunca pisa algo que ya exista.</p>
+
+<div class="caja" id="login">
+  <div><b>Entra con tu usuario de PAGASI 26</b></div>
+  <div class="fila"><input id="mail" type="email" placeholder="correo" autocomplete="username"></div>
+  <div class="fila"><input id="pass" type="password" placeholder="contraseña" autocomplete="current-password"></div>
+  <div class="fila"><button id="btnLogin">Entrar</button> <span id="loginMsg" class="gris"></span></div>
+</div>
+
+<div class="caja" id="panel" style="display:none">
+  <div id="quien" class="gris"></div>
+  <h2 style="margin-top:14px">1 · El archivo que bajaste de PAGASI 18</h2>
+  <div class="fila"><input id="archivo" type="file" accept="application/json"></div>
+  <div id="resumen"></div>
+  <div class="fila" style="margin-top:16px">
+    <button id="btnSeco" class="sec" disabled>Ver qué haría (no escribe)</button>
+    <button id="btnVa" class="peligro" disabled>Escribir en PAGASI 26</button>
+  </div>
+  <div id="log" style="display:none"></div>
+</div>
+
+<script>
+var CFG = {
+  apiKey: 'AIzaSyD6IznQjzF7Tdq7UJMXT4rSBdbCNpsmij4',
+  authDomain: 'pagasi26-65ced.firebaseapp.com',
+  projectId: 'pagasi26-65ced',
+  storageBucket: 'pagasi26-65ced.firebasestorage.app',
+  messagingSenderId: '415041001199',
+  appId: '1:415041001199:web:9844b2b6835fea0e84ad1a'
+};
+firebase.initializeApp(CFG);
+var db = firebase.firestore(), auth = firebase.auth();
+
+// ── La ficha de PAGASI 26, del acta constitutiva y del RIF ────────────────────
+var EMPRESA_26 = {
+  nombre: 'PAGASI 26, C.A.',
+  rif: 'J-50856275-5',
+  ciudad: 'Caracas',
+  direccion: 'Av. Orinoco, Edif. Centro Bali, piso 2, of. 2, Urb. Las Mercedes, Caracas, Miranda. Zona postal 1070',
+  tel: '',
+  email: 'info@pagasi.io',
+  representante: '', repCI: '', repCargo: '', repDoc: '',
+  rm: 'Séptimo', rmEstado: 'Distrito Capital', rmNum: '8', rmTomo: '58-A', rmFecha: '14/07/2026',
+  bancoUsd: '', cuentaUsd: '', billetera: 'Binance 26', billeteraCuenta: ''
+};
+// Las dos cuentas con las que arranca. El número de cuenta y el usuario de la
+// billetera se completan en Configuración cuando la oficina los pase.
+var CUENTAS_26 = [
+  { nombre:'Binance 26',      tipo:'Billetera digital', moneda:'USD' },
+  { nombre:'100% Banco 26',   tipo:'Cuenta corriente',  moneda:'Bs'  }
+];
+
+var $ = function(id){ return document.getElementById(id); };
+var PAQ = null, PLAN_DE = {};
+function log(t){ var l=$('log'); l.style.display=''; l.textContent += t + '\n'; l.scrollTop = l.scrollHeight; }
+
+$('btnLogin').onclick = function(){
+  $('loginMsg').textContent = 'entrando...';
+  auth.signInWithEmailAndPassword($('mail').value.trim(), $('pass').value)
+    .then(function(){
+      $('login').style.display='none'; $('panel').style.display='';
+      $('quien').textContent = 'Conectado como ' + (auth.currentUser.email||'') + ' · proyecto pagasi26-65ced';
+    })
+    .catch(function(e){ $('loginMsg').innerHTML = '<span class="no">'+e.message+'</span>'; });
+};
+
+$('archivo').onchange = function(ev){
+  var f = ev.target.files[0]; if(!f) return;
+  var r = new FileReader();
+  r.onload = function(){
+    try{
+      PAQ = JSON.parse(r.result);
+      if(PAQ.para !== 'pagasi26-65ced') throw new Error('Ese archivo no es para PAGASI 26');
+      $('resumen').innerHTML = '<table>'
+        + '<tr><td>Clientes en el archivo</td><td>'+(PAQ.clientes||[]).length+'</td></tr>'
+        + '<tr><td>Motos</td><td>'+(PAQ.motos||[]).length+'</td></tr>'
+        + '<tr><td>Concesionarios</td><td>'+(PAQ.concesionarios||[]).length+'</td></tr>'
+        + '<tr><td>Hecho el</td><td>'+String(PAQ.hecho||'').slice(0,16).replace('T',' ')+'</td></tr>'
+        + '</table>';
+      $('btnSeco').disabled = false;
+    }catch(e){ $('resumen').innerHTML = '<span class="no">'+e.message+'</span>'; }
+  };
+  r.readAsText(f);
+};
+
+// Qué hay ya en la base, para no pisar nada
+function yaHay(){
+  var c = function(n){ return db.collection(n).limit(1).get().then(function(s){ return s.size; }); };
+  var d = function(n){ return db.collection('config').doc(n).get().then(function(x){ return x.exists; }); };
+  return Promise.all([ c('clientes'), c('motos'), c('concesionarios'),
+                       d('empresa'), d('cuentasBanc'), d('plan'), d('tasa') ])
+    .then(function(r){ return { clientes:r[0], motos:r[1], conc:r[2], empresa:r[3], cuentas:r[4], plan:r[5], tasa:r[6] }; });
+}
+
+$('btnSeco').onclick = function(){
+  $('log').textContent = '';
+  log('— ENSAYO: no se escribe nada —');
+  yaHay().then(function(h){
+    log('En la base ahora: ' + (h.clientes?'ya hay clientes':'0 clientes') + ' · ' + (h.motos?'ya hay motos':'0 motos'));
+    log('Configuración: empresa ' + (h.empresa?'YA EXISTE (no se toca)':'se crea')
+      + ' · cuentas ' + (h.cuentas?'YA EXISTEN (no se tocan)':'se crean')
+      + ' · plan ' + (h.plan?'YA EXISTE (no se toca)':'se crea'));
+    log('');
+    log('Se escribirían:');
+    log('  ' + (PAQ.clientes||[]).length + ' clientes, numerados desde el 1');
+    log('  ' + (PAQ.motos||[]).length + ' motos, numeradas desde la 1, todas en "disponible"');
+    log('  ' + (PAQ.concesionarios||[]).length + ' concesionarios');
+    log('  los contadores, para que el siguiente crédito sea M-001');
+    log('');
+    log('NO se escribe: ningún crédito, pago, gasto ni movimiento.');
+    $('btnVa').disabled = false;
+  });
+};
+
+$('btnVa').onclick = function(){
+  if(!confirm('Esto escribe de verdad en la base de PAGASI 26.\n\nNo toca PAGASI 18 en ningún momento.\n\n¿Seguimos?')) return;
+  $('btnVa').disabled = true; $('btnSeco').disabled = true;
+  $('log').textContent = '';
+  log('— ESCRIBIENDO —');
+  yaHay().then(function(h){ return escribir(h); })
+    .then(function(){ log(''); log('LISTO. Ya puedes entrar al sistema.'); })
+    .catch(function(e){ log(''); log('SE DETUVO: ' + (e && e.message || e)); log('Lo que ya se escribió se queda; se puede volver a correr, no duplica.'); });
+};
+
+function lotes(items, fn){
+  // De 400 en 400: Firestore no acepta más de 500 por lote
+  var i = 0;
+  function siguiente(){
+    if(i >= items.length) return Promise.resolve();
+    var b = db.batch(), hasta = Math.min(i+400, items.length);
+    for(var k=i; k<hasta; k++) fn(b, items[k], k);
+    i = hasta;
+    return b.commit().then(function(){ log('   ' + i + '/' + items.length); return siguiente(); });
+  }
+  return siguiente();
+}
+
+function escribir(h){
+  var ahora = new Date().toISOString();
+  var paso = Promise.resolve();
+
+  // 1. Configuración
+  paso = paso.then(function(){
+    var b = db.batch();
+    if(!h.empresa) b.set(db.collection('config').doc('empresa'), Object.assign({updated:ahora}, EMPRESA_26));
+    if(!h.cuentas) b.set(db.collection('config').doc('cuentasBanc'), {lista:CUENTAS_26, updated:ahora});
+    if(!h.plan && PAQ.config && PAQ.config.plan) b.set(db.collection('config').doc('plan'), PAQ.config.plan);
+    if(!h.tasa && PAQ.config && PAQ.config.tasa) b.set(db.collection('config').doc('tasa'), PAQ.config.tasa);
+    if(PAQ.config && PAQ.config.score) b.set(db.collection('config').doc('score'), PAQ.config.score);
+    if(PAQ.config && PAQ.config.rolesPermisos) b.set(db.collection('config').doc('rolesPermisos'), PAQ.config.rolesPermisos);
+    if(PAQ.config && PAQ.config.catalogo) b.set(db.collection('config').doc('catalogo'), PAQ.config.catalogo);
+    return b.commit().then(function(){ log('1. Configuración: lista'); });
+  });
+
+  // 2. Concesionarios (conservan su id, que es texto y no choca con nada)
+  paso = paso.then(function(){
+    if(h.conc){ log('2. Concesionarios: ya había, no se tocan'); return; }
+    var cs = PAQ.concesionarios || [];
+    if(!cs.length){ log('2. Concesionarios: ninguno'); return; }
+    log('2. Concesionarios: ' + cs.length);
+    return lotes(cs, function(b, c){
+      var id = c.id; var d = Object.assign({}, c); delete d.id;
+      b.set(db.collection('concesionarios').doc(String(id)), Object.assign(d, {eliminado:false, creadoEn:ahora}));
+    });
+  });
+
+  // 3. Clientes, numerados desde el 1
+  paso = paso.then(function(){
+    if(h.clientes){ log('3. Clientes: ya había, no se tocan'); return; }
+    var cs = PAQ.clientes || [];
+    log('3. Clientes: ' + cs.length);
+    return lotes(cs, function(b, c, k){
+      var id = k + 1;
+      b.set(db.collection('clientes').doc(String(id)),
+        Object.assign({}, c, { id:id, estado:'activo', eliminado:false, creadoEn:ahora, origen:'PAGASI 18' }));
+    }).then(function(){
+      return db.collection('contadores').doc('clientes').set({ultimo:cs.length, actualizado:ahora});
+    });
+  });
+
+  // 4. Motos, numeradas desde la 1 y todas disponibles
+  paso = paso.then(function(){
+    if(h.motos){ log('4. Motos: ya había, no se tocan'); return; }
+    var ms = PAQ.motos || [];
+    log('4. Motos: ' + ms.length);
+    return lotes(ms, function(b, m, k){
+      var id = k + 1;
+      b.set(db.collection('motos').doc(String(id)),
+        Object.assign({}, m, { id:id, estado:'disponible', cliente:null, creditoId:null,
+          eliminado:false, creadoEn:ahora, origen:'PAGASI 18' }));
+    }).then(function(){
+      return db.collection('contadores').doc('motos').set({ultimo:ms.length, actualizado:ahora});
+    });
+  });
+
+  // 5. El contador de créditos arranca en cero: el primero será M-001
+  paso = paso.then(function(){
+    return db.collection('contadores').doc('creditos').get().then(function(d){
+      if(d.exists){ log('5. Contador de créditos: ya existía, no se toca'); return; }
+      return db.collection('contadores').doc('creditos').set({ultimo:0, actualizado:ahora})
+        .then(function(){ log('5. Contador de créditos en 0: el primero será M-001'); });
+    });
+  });
+
+  return paso;
+}
+</script>
+</body>
+</html>
