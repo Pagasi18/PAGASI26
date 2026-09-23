@@ -19,6 +19,23 @@ global._CONTRATO_PROTECT_DESDE='2026-09-07';
 const API=eval('with(auto){'+L+'\n; ({_contratoVersionDe:_contratoVersionDe, _CONTRATO_DRA_DESDE:_CONTRATO_DRA_DESDE}) }');
 const V=API._contratoVersionDe, CORTE=API._CONTRATO_DRA_DESDE;
 
+// ¿Esta compania tiene versiones viejas que reimprimir? PAGASI 18 si (lleva creditos
+// desde antes); PAGASI 26 nacio con el contrato de hoy y solo ofrece ese. La prueba
+// lee el desplegable en vez de dar por hecho una de las dos (22-sep-2026).
+const MOD = fs.readFileSync(path.join(ROOT,'modules/contratos.js'),'utf8');
+const VERSIONES = (MOD.match(/<option value="(protect|dra|contrato)">/g)||[]).map(x=>x.replace(/.*value="|">/g,''));
+const SOLO_HOY = VERSIONES.length === 1 && VERSIONES[0] === 'protect';
+console.log('versiones que ofrece esta compañía: ' + VERSIONES.join(', '));
+
+if(SOLO_HOY){
+  // Una compania nueva: pase lo que pase, sale el contrato de hoy
+  ok('todo credito lleva el contrato de hoy, sin importar la fecha',
+    ['2026-08-30','2026-09-06','2026-09-15','2025-11-02'].every(function(f){
+      return V({contratoFirmado:true, fechaContratoFirmado:f})==='protect'; }));
+  ok('sin firmar tambien', V({contratoFirmado:false, fecha:'2026-08-30'})==='protect');
+  ok('un credito nulo no revienta y cae en el de hoy', V(null)==='protect');
+} else {
+
 ok('la fecha de corte es hoy (31-ago-2026)', CORTE==='2026-08-31');
 
 // ── Creditos ya firmados: manda el dia en que se firmo ──
@@ -45,4 +62,5 @@ ok('version grabada manda (al reves)', V({contratoVersion:'dra', contratoFirmado
 ok('credito nulo no revienta', V(null)==='dra');
 ok('firmado sin ninguna fecha -> anterior (conservador)', V({contratoFirmado:true})==='contrato');
 ok('fecha con hora se recorta bien', V({contratoFirmado:true, fechaContratoFirmado:'2026-08-30T23:59:00'})==='contrato');
+}
 ok('objeto vacio no revienta', V({})==='protect');

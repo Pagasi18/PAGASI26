@@ -110,18 +110,18 @@ var _CONTRATO_DRA_DESDE = '2026-08-31';
 // contratos-protect.js y define _CONTRATO_PROTECT_DESDE.
 
 function _contratoVersionDe(c){
-  if(!c) return 'dra';
+  if(!c) return 'protect';   // en PAGASI 26 solo existe el contrato de hoy
   // 1. Si el credito trae la version grabada, esa manda (para el futuro)
   var v = String(c.contratoVersion||'').trim();
   if(v) return v;
   // 2. Todavia sin firmar → le toca el contrato vigente hoy
   var pDesde = (typeof _CONTRATO_PROTECT_DESDE!=='undefined') ? _CONTRATO_PROTECT_DESDE : null;
-  if(!c.contratoFirmado) return pDesde ? 'protect' : 'dra';
+  if(!c.contratoFirmado) return 'protect';
   // 3. Ya firmado → el que estaba vigente el dia que firmo
   var f = String(c.fechaContratoFirmado || c.fecha || '').slice(0,10);
-  if(!f) return 'contrato';
+  if(!f) return 'protect';
   if(pDesde && f >= pDesde) return 'protect';
-  return (f >= _CONTRATO_DRA_DESDE) ? 'dra' : 'contrato';
+  return 'protect';
 }
 
 // Ajusta el selector de tipo al contrato que le toca al credito elegido.

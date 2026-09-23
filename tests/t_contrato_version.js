@@ -35,27 +35,37 @@ vm.runInContext(pro0.slice(pro0.indexOf('var _CONTRATO_PROTECT_DESDE'), pro0.ind
 vm.runInContext(ctr.slice(0, ctr.indexOf('function renderContrato()')), G);
 ok('la fecha del contrato de hoy se leyó del archivo', G._CONTRATO_PROTECT_DESDE === '2026-09-07');
 const V = G._contratoVersionDe;
-ok('un crédito sin firmar lleva el contrato de hoy', V({ id:'CRED-1', fecha:'2026-09-20' }) === 'protect');
-ok('uno firmado el 10-sep lleva el de hoy',
-  V({ id:'CRED-2', contratoFirmado:true, fechaContratoFirmado:'2026-09-10' }) === 'protect');
-ok('uno firmado el 2-sep lleva el de esa época',
-  V({ id:'CRED-3', contratoFirmado:true, fechaContratoFirmado:'2026-09-02' }) === 'dra');
-ok('uno firmado en julio lleva la estructura anterior',
-  V({ id:'CRED-4', contratoFirmado:true, fechaContratoFirmado:'2026-07-15' }) === 'contrato');
-ok('si el crédito trae grabada su versión, esa manda',
-  V({ id:'CRED-5', contratoVersion:'dra', contratoFirmado:true, fechaContratoFirmado:'2026-09-20' }) === 'dra');
 
-// ── El desplegable solo ofrece las versiones que el sistema puede elegir ─────
+// ── Lo que ofrece ESTA compañía ───────────────────────────────────────────────
+// PAGASI 18 lleva créditos viejos y necesita poder reimprimirlos como se firmaron;
+// PAGASI 26 nació con el contrato de hoy y solo ofrece ese. La prueba lee el menú
+// en vez de dar por hecho una de las dos.
 const mod = src('modules/contratos.js');
 const opciones = (mod.match(/<option value="([a-z]+)">/g) || []).map(x => x.replace(/.*value="|">/g, ''));
 const tipos = opciones.filter(o => ['protect','dra','contrato','venta','cesion','ambos','pagare','carta','arriendo'].indexOf(o) > -1);
-ok('quedan las tres versiones de contrato, ni una más',
-  tipos.length === 3 && tipos.indexOf('protect') > -1 && tipos.indexOf('dra') > -1 && tipos.indexOf('contrato') > -1);
+const soloHoy = tipos.length === 1 && tipos[0] === 'protect';
+console.log('esta compañía ofrece: ' + tipos.join(', '));
+
 ok('el que se firma hoy va primero', tipos[0] === 'protect');
-ok('las tres que el sistema puede elegir solo están',
-  ['protect','dra','contrato'].every(t => tipos.indexOf(t) > -1));
-ok('ya no se ofrecen pagaré, carta ni arrendamiento',
+ok('no se ofrecen pagaré, carta ni arrendamiento',
   ['pagare','carta','arriendo','venta','cesion','ambos'].every(t => tipos.indexOf(t) === -1));
+ok('un crédito sin firmar lleva el contrato de hoy', V({ id:'CRED-1', fecha:'2026-09-20' }) === 'protect');
+ok('uno firmado el 10-sep lleva el de hoy',
+  V({ id:'CRED-2', contratoFirmado:true, fechaContratoFirmado:'2026-09-10' }) === 'protect');
+
+if(soloHoy){
+  ok('compañía nueva: un crédito con fecha vieja igual sale con el de hoy',
+    V({ id:'CRED-3', contratoFirmado:true, fechaContratoFirmado:'2026-09-02' }) === 'protect');
+  ok('...y uno de julio también', V({ id:'CRED-4', contratoFirmado:true, fechaContratoFirmado:'2026-07-15' }) === 'protect');
+} else {
+  ok('quedan las tres versiones, ni una más', tipos.length === 3);
+  ok('uno firmado el 2-sep lleva el de esa época',
+    V({ id:'CRED-3', contratoFirmado:true, fechaContratoFirmado:'2026-09-02' }) === 'dra');
+  ok('uno firmado en julio lleva la estructura anterior',
+    V({ id:'CRED-4', contratoFirmado:true, fechaContratoFirmado:'2026-07-15' }) === 'contrato');
+  ok('si el crédito trae grabada su versión, esa manda',
+    V({ id:'CRED-5', contratoVersion:'dra', contratoFirmado:true, fechaContratoFirmado:'2026-09-20' }) === 'dra');
+}
 
 // ── Anexo C ──────────────────────────────────────────────────────────────────
 const pro = src('logic/contratos-protect.js');

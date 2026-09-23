@@ -156,7 +156,12 @@ ok('respuesta ante robo: 1 a 5 horas',           esc.includes('entre una (1) y c
 // ── El router manda los creditos nuevos aqui ──
 ok('credito sin firmar hoy -> protect',         API._contratoVersionDe({contratoFirmado:false})==='protect');
 ok('firmado el 7-sep -> protect',               API._contratoVersionDe({contratoFirmado:true,fechaContratoFirmado:'2026-09-07'})==='protect');
-ok('firmado el 6-sep -> dra (no retroactivo)',  API._contratoVersionDe({contratoFirmado:true,fechaContratoFirmado:'2026-09-06'})==='dra');
+// En PAGASI 18 un credito del 6-sep se reimprime con el contrato de esa epoca; en
+// PAGASI 26 solo existe el de hoy. Se lee el menu en vez de dar por hecho una.
+var _MODC = fs.readFileSync(path.join(ROOT,'modules/contratos.js'),'utf8');
+var _SOLO_HOY = (_MODC.match(/<option value="(protect|dra|contrato)">/g)||[]).length === 1;
+ok('firmado el 6-sep -> el contrato que le toca a esta compañía',
+  API._contratoVersionDe({contratoFirmado:true,fechaContratoFirmado:'2026-09-06'}) === (_SOLO_HOY ? 'protect' : 'dra'));
 ok('version grabada manda sobre la fecha',      API._contratoVersionDe({contratoVersion:'dra',contratoFirmado:true,fechaContratoFirmado:'2026-09-20'})==='dra');
 
 // ── Hora del credito en el contrato (Adam, 10-sep-2026) ──
