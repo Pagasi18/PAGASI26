@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exportar para PAGASI 26</title>
+<!-- Página de mantenimiento: SOLO LEE la base de PAGASI 18 y descarga un archivo.
+     No escribe ni una letra en ningún lado. Se abre desde la computadora, con la
+     sesión de un administrador de PAGASI 18. -->
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{ color-scheme:light }
+  body{ font-family:system-ui,-apple-system,"Segoe UI",sans-serif; max-width:760px; margin:6vh auto; padding:0 20px; color:#111; line-height:1.55 }
+  h1{ font-size:22px; margin:0 0 6px }
+  .sub{ color:#555; font-size:14px; margin:0 0 22px }
+  .caja{ border:1px solid #e3e6ec; border-radius:14px; padding:18px 20px; margin-bottom:14px; background:#fff }
+  button{ font:inherit; font-weight:700; padding:11px 18px; border-radius:10px; border:0; background:#2563EB; color:#fff; cursor:pointer }
+  button[disabled]{ opacity:.45; cursor:default }
+  .sec{ background:#eef2f9; color:#1f2937 }
+  table{ border-collapse:collapse; width:100%; font-size:13.5px; margin-top:10px }
+  td{ padding:5px 0; border-bottom:1px solid #eef0f4 }
+  td:last-child{ text-align:right; font-variant-numeric:tabular-nums; font-weight:700 }
+  .ok{ color:#00875E } .no{ color:#D42A50 } .gris{ color:#6b7280; font-size:12.5px }
+  input{ font:inherit; padding:9px 11px; border:1px solid #d7dbe3; border-radius:9px; width:100% }
+  .fila{ display:flex; gap:10px; align-items:center; margin-top:10px }
+</style>
+</head>
+<body>
+<h1>Exportar para PAGASI 26</h1>
+<p class="sub">Esta página <b>solo lee</b> la base de PAGASI 18 y descarga un archivo.
+No escribe absolutamente nada. Lo que se lleve se revisa antes de bajarlo.</p>
+
+<div class="caja" id="login">
+  <div><b>Entra con tu usuario de PAGASI 18</b></div>
+  <div class="fila"><input id="mail" type="email" placeholder="correo" autocomplete="username"></div>
+  <div class="fila"><input id="pass" type="password" placeholder="contraseña" autocomplete="current-password"></div>
+  <div class="fila"><button id="btnLogin">Entrar</button> <span id="loginMsg" class="gris"></span></div>
+</div>
+
+<div class="caja" id="panel" style="display:none">
+  <div id="quien" class="gris"></div>
+  <div id="resumen"></div>
+  <div class="fila" style="margin-top:16px">
+    <button id="btnBajar" disabled>Descargar el archivo para PAGASI 26</button>
+    <span id="msg" class="gris"></span>
+  </div>
+</div>
+
+<script>
+var CFG = {
+  apiKey: 'AIzaSyDt07EYdmvIqjU5a9CGPMQdYz8iBJ69Su8',
+  authDomain: 'pagasi-v2.firebaseapp.com',
+  projectId: 'pagasi-v2',
+  storageBucket: 'pagasi-v2.firebasestorage.app',
+  messagingSenderId: '951911859002',
+  appId: '1:951911859002:web:1eb8f0af7bcbd508474603'
+};
+firebase.initializeApp(CFG);
+var db = firebase.firestore(), auth = firebase.auth();
+var PAQUETE = null;
+
+var $ = function(id){ return document.getElementById(id); };
+var txt = function(v){ return String(v==null?'':v).trim(); };
+var num = function(v){ var n = parseFloat(v); return isFinite(n) ? n : 0; };
+var digitos = function(v){ return txt(v).replace(/\D/g,''); };
+
+$('btnLogin').onclick = function(){
+  $('loginMsg').textContent = 'entrando...';
+  auth.signInWithEmailAndPassword($('mail').value.trim(), $('pass').value)
+    .then(function(){ $('login').style.display='none'; $('panel').style.display=''; leer(); })
+    .catch(function(e){ $('loginMsg').innerHTML = '<span class="no">'+e.message+'</span>'; });
+};
+
+function leer(){
+  $('resumen').innerHTML = '<div class="gris">leyendo la base...</div>';
+  var col = function(c){ return db.collection(c).get().then(function(s){
+    var a=[]; s.forEach(function(d){ a.push(Object.assign({id:d.id}, d.data()||{})); }); return a; }); };
+  var doc = function(c,i){ return db.collection(c).doc(i).get().then(function(d){ return d.exists ? d.data() : null; }); };
+
+  Promise.all([ col('clientes'), col('motos'), col('creditos'), col('concesionarios'),
+                doc('config','plan'), doc('config','tasa'), doc('config','score'),
+                doc('config','rolesPermisos'), doc('config','catalogo') ])
+  .then(function(r){
+    var clientes=r[0], motos=r[1], creditos=r[2], concesionarios=r[3];
+    var plan=r[4], tasa=r[5], score=r[6], roles=r[7], catalogo=r[8];
+    var quien = auth.currentUser;
+    $('quien').textContent = 'Conectado como ' + (quien && quien.email || '') + ' · proyecto pagasi-v2';
+
+    // ── Qué motos son inventario de verdad ────────────────────────────────────
+    // Solo las que NO tiene un credito vivo y no estan eliminadas. Las financiadas
+    // siguen haciendo falta en PAGASI 18, que las sigue cobrando.
+    var VIVO = ['activo','mora'];
+    var conCreditoVivo = {};
+    creditos.forEach(function(c){
+      if(c && !c.eliminado && VIVO.indexOf(txt(c.estado))>-1 && c.motoId!=null) conCreditoVivo[String(c.motoId)] = c.id;
+    });
+    var motosLibres = motos.filter(function(m){
+      return m && !m.eliminado && !conCreditoVivo[String(m.id)];
+    });
+
+    // ── Clientes: se van limpios ──────────────────────────────────────────────
+    // Sin credito, sin score de 18, sin documentos, sin accesos al portal. Y sin
+    // repetidos: si dos fichas comparten cedula, va la mas completa.
+    var porCedula = {}, sinCedula = [];
+    clientes.filter(function(c){ return c && !c.eliminado; }).forEach(function(c){
+      var k = digitos(c.cedula);
+      if(k.length < 5){ sinCedula.push(c); return; }
+      var peso = function(x){ return (txt(x.nombre)?2:0)+(txt(x.tel)?1:0)+(txt(x.email)?1:0)+(txt(x.direccion)?1:0); };
+      if(!porCedula[k] || peso(c) > peso(porCedula[k])) porCedula[k] = c;
+    });
+    var clientesLimpios = Object.keys(porCedula).map(function(k){ return porCedula[k]; });
+    var repetidosFusionados = clientes.filter(function(c){ return c && !c.eliminado && digitos(c.cedula).length>=5; }).length - clientesLimpios.length;
+
+    PAQUETE = {
+      hecho: new Date().toISOString(),
+      desde: 'pagasi-v2',
+      para: 'pagasi26-65ced',
+      clientes: clientesLimpios.map(function(c){
+        return { nombre:txt(c.nombre), cedula:txt(c.cedula), tel:txt(c.tel), wa:txt(c.wa),
+          email:txt(c.email), direccion:txt(c.direccion), ciudad:txt(c.ciudad), estado_ubi:txt(c.estado_ubi),
+          nacionalidad:txt(c.nacionalidad), trabajo:txt(c.trabajo||c.profesion||c.ocupacion),
+          empresa:txt(c.empresa), cargo:txt(c.cargo), ing:num(c.ing), rif:txt(c.rif) };
+      }),
+      motos: motosLibres.map(function(m){
+        return { modelo:txt(m.modelo), marca:txt(m.marca), anio:m.anio||null, color:txt(m.color),
+          vin:txt(m.vin), placa:txt(m.placa), serialMotor:txt(m.serialMotor), serialChasis:txt(m.serialChasis),
+          precio:num(m.precio), precioBaseReal:num(m.precioBaseReal), gpsNum:txt(m.gpsNum), notas:txt(m.notas) };
+      }),
+      concesionarios: concesionarios.filter(function(c){ return c && !c.eliminado; }).map(function(c){
+        return { id:c.id, nombre:txt(c.nombre), ciudad:txt(c.ciudad), tel:txt(c.tel),
+          contacto:txt(c.contacto), activo:c.activo!==false };
+      }),
+      config: { plan:plan, tasa:tasa, score:score, rolesPermisos:roles, catalogo:catalogo }
+    };
+
+    var fila = function(a,b,c){ return '<tr><td>'+a+'</td><td>'+b+(c?' <span class="gris">'+c+'</span>':'')+'</td></tr>'; };
+    $('resumen').innerHTML = '<table>'
+      + fila('Clientes que se llevan', PAQUETE.clientes.length, repetidosFusionados>0 ? '('+repetidosFusionados+' repetidos por cédula, fusionados)' : '')
+      + fila('Clientes sin cédula, que NO se llevan', sinCedula.length, '')
+      + fila('Motos que se llevan (inventario libre)', PAQUETE.motos.length, '')
+      + fila('Motos que se quedan en 18 (tienen crédito vivo)', motos.length - motosLibres.length, '')
+      + fila('Concesionarios', PAQUETE.concesionarios.length, '')
+      + fila('Plan de pago', plan ? '<span class="ok">sí</span>' : '<span class="no">no hay</span>', '')
+      + fila('Tasa', tasa ? '<span class="ok">sí</span>' : '<span class="no">no hay</span>', '')
+      + fila('Catálogo de modelos', (catalogo && catalogo.items && catalogo.items.length) || 0, '')
+      + fila('Créditos, pagos, gastos y movimientos', '<span class="ok">NO se llevan</span>', '')
+      + '</table>';
+    $('btnBajar').disabled = false;
+  })
+  .catch(function(e){ $('resumen').innerHTML = '<span class="no">No se pudo leer: '+e.message+'</span>'; });
+}
+
+$('btnBajar').onclick = function(){
+  var blob = new Blob([JSON.stringify(PAQUETE)], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pagasi26-datos.json';
+  a.click();
+  $('msg').innerHTML = '<span class="ok">descargado · ' + (JSON.stringify(PAQUETE).length/1024).toFixed(0) + ' KB</span>';
+};
+</script>
+</body>
+</html>

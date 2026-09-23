@@ -1184,11 +1184,16 @@ function imprimirContratosDelDia(fecha){
 
 function verContratoById(credId){
   function go(){
+    // El credito se busca SIEMPRE, no solo cuando falta en la lista. Antes estaba
+    // declarado dentro del if: si el credito ya estaba en el desplegable, 'c' llegaba
+    // vacio a la linea de abajo, _contratoVersionDe() caia en su valor por defecto y
+    // la pantalla mostraba el contrato VIEJO mientras el boton de imprimir sacaba el
+    // nuevo. Dos documentos distintos para el mismo credito (22-sep-2026).
+    var c = (S.creds||[]).find(function(x){ return String(x.id)===String(credId); });
     var sel = document.getElementById('sel-cred');
     if(sel){
       var has = Array.prototype.some.call(sel.options||[], function(o){ return String(o.value)===String(credId); });
       if(!has){
-        var c = (S.creds||[]).find(function(x){ return String(x.id)===String(credId); });
         var o = document.createElement('option');
         o.value = credId;
         o.textContent = credId + (c ? (' — '+(c.cli||'')+' · '+(c.modelo||'')) : '');
@@ -1196,8 +1201,10 @@ function verContratoById(credId){
       }
       sel.value = credId;
     }
+    // La version es la que le toca a ESE credito por su fecha; si no se encuentra el
+    // credito no se toca el selector, en vez de caer al contrato viejo.
     var td = document.getElementById('sel-tipo-doc');
-    if(td) td.value = _contratoVersionDe(c);
+    if(td && c) td.value = _contratoVersionDe(c);
     if(typeof renderContrato==='function') renderContrato();
     var cz = document.getElementById('cz');
     var html = cz ? cz.innerHTML : '<div style="padding:40px;text-align:center;color:#888">No se pudo generar el contrato</div>';

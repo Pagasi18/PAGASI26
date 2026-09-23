@@ -516,15 +516,16 @@ function _protectAnexoB(D, S_){
 
 // ── Anexo C: constancia de recepcion ────────────────────────────────────
 function _protectAnexoC(D, S_){
-  // Una moto nueva sale del concesionario siempre igual: 0 km, 10 litros, dos
-  // llaves. Se imprime asi y lo que no aplique se tacha a mano.
+  // Una moto nueva sale del concesionario siempre igual: 0 km, 10 litros y UNA llave
+  // (la otra se la queda Pagasi como garantia). Se imprime asi y lo que no aplique se
+  // tacha a mano. Los cascos ya no van: no se entregan (Adam, 22-sep-2026).
   var S = function(t){ return '<strong>'+t+'</strong>'; };
   var filas = [
     ['Concesionario que entrega', D.concNom], ['Factura de la Compraventa N° / fecha', D.facturaNum+' / '+D.facturaFecha],
     ['Kilometraje al momento de la recepción', S('0 km (vehículo nuevo)')], ['Estado de carrocería y pintura', S('Nuevo, sin detalles')],
     ['Estado mecánico y de funcionamiento', S('Nuevo, en funcionamiento')], ['Estado eléctrico y de luces', S('Nuevo, operativo')],
     ['Estado de neumáticos', S('Nuevos')], ['Nivel de combustible', S('10 litros')],
-    ['Llaves recibidas (cantidad)', S('2')], ['Cascos recibidos (cantidad)', S('1')],
+    ['Llaves recibidas (cantidad)', S('1')],
     ['Manuales y documentos recibidos', S('Manual del propietario y documentos del Vehículo')], ['Accesorios recibidos', S('Los de fábrica')],
     ['Dispositivo GPS instalado (serial)', D.gpsSerial], ['Dispositivo de apagado remoto instalado (serial)', D.gpsSerial+' (mismo equipo)'],
     ['Certificado de origen (N° / entregado a Pagasi en depósito)', D.certOrigenNum+' · '+S('original entregado a Pagasi en depósito')], ['Póliza de Seguro (compañía y N°)', D.poliza],
