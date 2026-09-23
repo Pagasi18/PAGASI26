@@ -230,6 +230,13 @@ ok('...sin arrastrar el telefono ni el correo de PAGASI 18',
   htmlVacio.indexOf('424-2177798') === -1 && htmlVacio.indexOf('info@pagasi.io') === -1);
 ok('...y con la raya para llenar a boligrafo donde falta el dato',
   htmlVacio.indexOf('border-bottom:1px solid #94a3b8') > -1);
+// El banco y la billetera sin cargar dejaban un hueco en medio de la frase, que en un
+// papel firmado parece un error de imprenta: "a las cuentas de PAGASI 26, C.A. en
+// (cuenta corriente...)". Ahora sale la raya, como el resto del contrato.
+ok('...los medios de pago sin cargar salen con la raya, no con un hueco',
+  htmlVacio.indexOf('cuentas de PAGASI 26, C.A. en <span style="display:inline-block;border-bottom') > -1
+  && htmlVacio.indexOf('C.A. en  (cuenta corriente') === -1);
+ok('...y la billetera igual', htmlVacio.indexOf('en <strong></strong>, segun los datos') === -1);
 global._empresa = _empAntes;
 
 // ── La misma ficha vacia, pero en OTRA base: ni una letra de PAGASI 18 ───────

@@ -162,9 +162,13 @@ function _protectDatos(credId){
   // Los bancos tambien salen de Configuracion -> Empresa: con dos companias, las
   // cuentas de una no pueden aparecer en el contrato de la otra (22-sep-2026).
   var _empC = _empCtr();
-  var medios = 'Transferencia o deposito a las cuentas de '+_empC.nom+' en <strong>'+_empC.bancoUsd+'</strong> '
+  // El banco o la billetera que todavia no esten cargados salen con la raya para
+  // llenarlos a boligrafo, como el resto del contrato. Antes quedaba un hueco: "a las
+  // cuentas de PAGASI 26, C.A. en  (cuenta corriente...)", que en un papel que se firma
+  // parece un error de imprenta y no se ve venir (22-sep-2026).
+  var medios = 'Transferencia o deposito a las cuentas de '+_empC.nom+' en '+V(_empC.bancoUsd, 24)+' '
              + '(cuenta corriente en bolivares y cuentas custodia en dolares) y a la billetera digital de '+_empC.nom+' '
-             + 'en <strong>'+_empC.billetera+'</strong>, segun los datos que Pagasi comunique por escrito al Comprador';
+             + 'en '+V(_empC.billetera, 18)+', segun los datos que Pagasi comunique por escrito al Comprador';
 
   return {
     c:c, cli:cli, moto:moto, emp:emp, conc:conc, gps:gps, F:F, b:b, num:num, V:V, USD:USD, T:T, fmt:fmt,
