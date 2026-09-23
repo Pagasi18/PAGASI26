@@ -50,7 +50,12 @@ const MODOS = {
 };
 
 // Origenes que pueden pedir un refresco de GPS desde el navegador.
-const ORIGENES = ['https://pagasi.io', 'https://www.pagasi.io'];
+// 18.pagasi.io es el dominio de PAGASI 18 desde el 23-sep-2026, cuando pagasi.io
+// paso a la compania nueva. Sin esta linea el boton de refrescar GPS deja de
+// funcionar sin decir por que: el navegador bloquea la peticion (CORS) y en la
+// pantalla no pasa nada. pagasi.io se queda en la lista porque el Worker tambien
+// atiende a PAGASI 26.
+const ORIGENES = ['https://pagasi.io', 'https://www.pagasi.io', 'https://18.pagasi.io'];
 
 export default {
   // Cloudflare si corre esto a la hora. GitHub retrasa sus workflows

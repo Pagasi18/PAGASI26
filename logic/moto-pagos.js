@@ -1,12 +1,16 @@
 // Helpers de pago/egreso para compra de motos. Extraido mecanicamente de assets/pagasi-app.js.
 // La cuenta se elige a mano: antes venia elegida la primera de la lista y, si nadie la
 // cambiaba, la compra se anotaba ahi aunque el dinero saliera de otra (punto 8, 19-sep).
+// 23-sep-2026, Adam en PAGASI 26: "solo sale efectivo... y no tenemos cuenta de
+// efectivo, tenemos 100% y binance". Cuando la lista de cuentas venia vacia, el
+// sistema ofrecia "Efectivo USD" como si existiera, y el dinero se anotaba en una
+// cuenta que no esta en Configuracion: no aparece en ningun saldo y nadie lo encuentra
+// despues. Ahora, si no hay cuentas, se dice y no se deja elegir nada.
 function _mpagoMetodosOpts(){
-  var opts = (_cuentasBanc&&_cuentasBanc.length)
-    ? '<option value="" selected>— Elegir cuenta —</option>'
-      + _cuentasBanc.map(function(c){return '<option value="'+c.nombre+'">'+c.nombre+'</option>';}).join('')
-    : '<option value="Efectivo USD">Efectivo USD</option>';
-  return opts;
+  if(!(_cuentasBanc && _cuentasBanc.length))
+    return '<option value="" selected>— No hay cuentas cargadas —</option>';
+  return '<option value="" selected>— Elegir cuenta —</option>'
+    + _cuentasBanc.map(function(c){return '<option value="'+c.nombre+'">'+c.nombre+'</option>';}).join('');
 }
 function _mpagoFilaHtml(prefix, idx){
   var opts = _mpagoMetodosOpts();
@@ -25,6 +29,9 @@ function _mpagoMarcarTocado(el, prefix){
 }
 function _mpagoBloqueHtml(prefix, titulo, descripcion){
   prefix = prefix || _MPAGO_PREFIX;
+  // Si la pantalla lleva horas abierta y las cuentas se crearon despues, se vuelven a
+  // pedir y los desplegables se llenan solos (23-sep-2026).
+  if(typeof _cuentasRecargarSiVacio==='function') setTimeout(_cuentasRecargarSiVacio, 0);
   return '<div class="fsec" style="margin-top:14px">'+(titulo||'Forma de pago de la moto')+'</div>'
     + '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:var(--r8);padding:12px">'
     + '<div style="font-size:12px;color:var(--ink3);margin-bottom:10px">'+(descripcion||'Indica de cuál(es) cuenta(s) o efectivo sale el dinero para pagar esta moto. Puedes dividir el pago entre varias.')+'</div>'
@@ -36,6 +43,9 @@ function _mpagoBloqueHtml(prefix, titulo, descripcion){
     +   '<div style="text-align:center"><div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:0.5px">Diferencia</div><div id="'+prefix+'-dif" style="font-size:14px;font-weight:900;color:var(--ink)">$0.00</div></div>'
     + '</div>'
     + '<div id="'+prefix+'-msg" style="margin-top:8px;font-size:11px;color:var(--ink3)"></div>'
+    + ((_cuentasBanc && _cuentasBanc.length) ? ''
+       : '<div class="mpago-sin-cuentas" style="margin-top:8px;font-size:11.5px;color:var(--red);font-weight:700">'
+         + 'No hay cuentas cargadas. Cárgalas en Configuración → Cuentas bancarias.</div>')
     + '</div>';
 }
 function _mpagoAgregarFila(prefix){

@@ -1988,8 +1988,11 @@ function _wzConfirmarCambios(difs, credId){
 // Cuentas para el cobro de la inicial: arranca en "— Elegir cuenta —" (antes venia
 // elegida la primera de la lista y la inicial quedaba anotada ahi; punto 8, 19-sep)
 function _wzIniMetodoOpts(){
+  if(typeof _cuentasRecargarSiVacio==='function') setTimeout(_cuentasRecargarSiVacio, 0);
   var cuentas = (_cuentasBanc&&_cuentasBanc.length) ? _cuentasBanc : [];
-  if(!cuentas.length) return '<option value="Efectivo USD">Efectivo USD</option>';
+  // Sin cuentas no se inventa ninguna: la inicial quedaria anotada en una cuenta que
+  // no existe y ese dinero no aparece en ningun saldo (23-sep-2026).
+  if(!cuentas.length) return '<option value="" selected>— No hay cuentas cargadas —</option>';
   var elegida = cuentas.some(function(c){ return WZ.iniMetodo && WZ.iniMetodo===c.nombre; });
   return '<option value=""'+(elegida?'':' selected')+'>— Elegir cuenta —</option>'
     + cuentas.map(function(c){ return '<option value="'+c.nombre+'"'+(WZ.iniMetodo&&WZ.iniMetodo===c.nombre?' selected':'')+'>'+c.nombre+'</option>'; }).join('');
@@ -2619,7 +2622,7 @@ function _wzGuardar(){
   }
 
   // Registrar la inicial también en Pagos
-  var iniMetodo = ($('wz_ini_metodo')&&$('wz_ini_metodo').value) || (_cuentasBanc&&_cuentasBanc.length?_cuentasBanc[0].nombre:'Efectivo USD');
+  var iniMetodo = ($('wz_ini_metodo')&&$('wz_ini_metodo').value) || '';
   var iniRef = ($('wz_ini_ref')&&$('wz_ini_ref').value) || '';
   var pagoIniId = 'PAG-'+Date.now()+'-'+Math.floor(Math.random()*10000);
   var pagoIni = {

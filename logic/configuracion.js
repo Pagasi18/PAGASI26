@@ -58,6 +58,42 @@ function renderCuentasBanc(lista){
   }
 }
 
+// ── Cuando la pantalla lleva horas abierta ──────────────────────────────────
+// Las cuentas se leen UNA vez, al entrar. Si alguien crea las cuentas mientras otro
+// tiene el sistema abierto, ese otro sigue viendo la lista vacia hasta que recarga, y
+// no tiene forma de saberlo: el desplegable simplemente no las trae. Paso el
+// 23-sep-2026, el dia que PAGASI 26 empezo a vender. Ahora, cuando algo necesita las
+// cuentas y no hay ninguna, se vuelve a preguntar a la base y los desplegables que
+// estaban vacios se llenan solos, sin recargar ni perder lo escrito.
+function _cuentasRecargarSiVacio(){
+  if(_cuentasBanc && _cuentasBanc.length) return;
+  if(!db || window._cuentasRecargando) return;
+  window._cuentasRecargando = true;
+  db.collection('config').doc('cuentasBanc').get().then(function(doc){
+    window._cuentasRecargando = false;
+    var lista = (doc.exists && doc.data().lista) ? doc.data().lista : [];
+    if(!lista.length) return;
+    renderCuentasBanc(lista);
+    _cuentasRellenarSelects();
+  }).catch(function(){ window._cuentasRecargando = false; });
+}
+// Rellena los desplegables que quedaron con el aviso de "no hay cuentas", sin tocar
+// ningun otro: lo que el usuario ya eligio o escribio se respeta.
+function _cuentasRellenarSelects(){
+  if(!(_cuentasBanc && _cuentasBanc.length)) return;
+  var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var opciones = '<option value="" selected>— Elegir cuenta —</option>'
+    + _cuentasBanc.map(function(c){ return '<option value="'+esc(c.nombre)+'">'+esc(c.nombre)+'</option>'; }).join('');
+  var sels = document.querySelectorAll('select');
+  Array.prototype.forEach.call(sels, function(sel){
+    var o = sel.options && sel.options[0];
+    if(!o || String(o.textContent||'').indexOf('No hay cuentas cargadas') === -1) return;
+    sel.innerHTML = opciones;
+  });
+  // Y el aviso rojo que acompanaba al bloque ya no hace falta
+  Array.prototype.forEach.call(document.querySelectorAll('.mpago-sin-cuentas'), function(el){ el.remove(); });
+}
+
 function renderCobradores(lista){
   _cobradores = lista || ['Juan Admin'];
   var el = document.getElementById('cobradores-list');

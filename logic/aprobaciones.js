@@ -84,7 +84,7 @@ function _aprAprobar(credId){
   var cuentas = (typeof _cuentasBanc !== 'undefined' && _cuentasBanc && _cuentasBanc.length) ? _cuentasBanc : [];
   // Arranca en "— Elegir cuenta —": antes venia "Efectivo USD", que no es ninguna de
   // las cuentas, y la inicial no aparecia en ningun saldo (punto 8, 19-sep)
-  var opts = (cuentas.length ? '<option value="" selected>— Elegir cuenta —</option>' : '<option value="Efectivo USD">Efectivo USD</option>')
+  var opts = (cuentas.length ? '<option value="" selected>— Elegir cuenta —</option>' : '<option value="" selected>— No hay cuentas cargadas —</option>')
     + cuentas.map(function(cu){ return '<option value="'+String(cu.nombre).replace(/"/g,'')+'">'+String(cu.nombre).replace(/[<>]/g,'')+'</option>'; }).join('');
   $('mic').textContent='OK';
   $('mtt').textContent='Aprobar crédito '+credId;

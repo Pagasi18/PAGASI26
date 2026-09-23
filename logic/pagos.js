@@ -97,7 +97,9 @@ function openAddPago(preCredId){
       cli:cred.cli,cred:credId,
       fecha:($('p_fecha')&&$('p_fecha').value)||hoyLocalISO(),
       monto:monto,
-      metodo:($('p_forma')&&$('p_forma').value)||'Efectivo USD',
+      // Sin cuenta elegida el pago se guarda sin cuenta, no en una inventada: un pago
+      // anotado en "Efectivo USD" cuando esa cuenta no existe no aparece en ningun saldo.
+      metodo:($('p_forma')&&$('p_forma').value)||'',
       cuenta:($('p_forma')&&$('p_forma').value)||'—',
       cobrador:($('p_cobrador')&&$('p_cobrador').value)||'Admin',
       referencia:($('p_ref')&&$('p_ref').value)||'',
