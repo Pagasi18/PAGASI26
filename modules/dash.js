@@ -309,7 +309,7 @@ PG.dash = function(){
     'Resumen general del negocio · cartera activa, cobranza, inventario y rendimiento',
     [
       {label:'Reportes', onclick:"nav('reportes')"},
-      {label:'＋ Nueva Solicitud', onclick:'openAddCred()', primary:true}
+      {label:'＋ Nueva Solicitud', onclick:'openAddCred()', primary:true, soloSiVende:true}
     ]
   )}
 

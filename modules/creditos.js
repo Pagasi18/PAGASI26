@@ -179,7 +179,7 @@ PG.creditos = function(){
       {label:'⚖ Auditar iniciales', onclick:'auditarIniciales()'},
       {label:'🔧 Reparar motos', onclick:'auditarVinculosMoto()'},
       {label:'↓ Exportar CSV', onclick:"exportarCSV('creditos')"},
-      {label:'＋ Nueva Solicitud', onclick:'openAddCred()', primary:true}
+      {label:'＋ Nueva Solicitud', onclick:'openAddCred()', primary:true, soloSiVende:true}
     ]
   )}
 

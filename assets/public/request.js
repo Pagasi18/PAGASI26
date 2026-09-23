@@ -31,6 +31,41 @@ if(_SIN_LLAVE && typeof document !== 'undefined'){
     document.body.appendChild(d);
   });
 }
+// ── La compania que ya no vende tampoco recibe solicitudes por la web ──────
+// 23-sep-2026: PAGASI 18 se quedo cobrando los creditos que ya tiene. El formulario
+// publico sigue vivo en su direccion, y una solicitud que entre por ahi aterriza en
+// la compania equivocada — nadie la ve hasta que el cliente llama preguntando.
+// La decision sale de la BASE a la que apunta esta pagina, no del dominio.
+var SOLICITUDES_CERRADAS = (FIREBASE_CONFIG.projectId === 'pagasi-v2');
+var PAGASI_QUE_VENDE = 'https://pagasi.io/solicitar.html';
+function _solicitudesCerradasAviso(){
+  if(!SOLICITUDES_CERRADAS) return;
+  try{
+    var caja = document.querySelector('form') || document.querySelector('main') || document.body;
+    var d = document.createElement('div');
+    d.setAttribute('style','background:#FFF7E6;border:1px solid #E8980A;border-radius:14px;padding:18px 20px;margin:0 0 18px;'
+      + "font-family:'Manrope',system-ui,sans-serif;color:#1f2937;line-height:1.6");
+    var t = document.createElement('div');
+    t.setAttribute('style','font-weight:800;font-size:16px;margin-bottom:6px');
+    t.textContent = 'Las solicitudes se hacen en otra dirección';
+    var p1 = document.createElement('div');
+    p1.setAttribute('style','font-size:14px');
+    p1.textContent = 'Esta página ya no recibe solicitudes nuevas. Para pedir tu crédito, entra aquí:';
+    var a = document.createElement('a');
+    a.href = PAGASI_QUE_VENDE;
+    a.textContent = 'Solicitar mi moto en pagasi.io';
+    a.setAttribute('style','display:inline-block;margin-top:12px;background:#065cff;color:#fff;text-decoration:none;'
+      + 'font-weight:800;font-size:14px;padding:11px 20px;border-radius:12px');
+    d.appendChild(t); d.appendChild(p1); d.appendChild(a);
+    caja.parentNode.insertBefore(d, caja);
+    // Y el formulario no se puede enviar: se deshabilita entero
+    if(caja.tagName === 'FORM'){
+      caja.setAttribute('style', (caja.getAttribute('style')||'') + ';opacity:.45;pointer-events:none');
+      Array.prototype.forEach.call(caja.querySelectorAll('input,select,textarea,button'), function(x){ x.disabled = true; });
+    }
+  }catch(e){ console.warn('aviso solicitudes:', e); }
+}
+
 var fbApp=null, fbAuth=null, db=null, FIREBASE_READY=false;
 function initFirebaseSolicitar(){
   try{
@@ -51,6 +86,9 @@ function initFirebaseSolicitar(){
 }
 initFirebaseSolicitar();
 window.addEventListener('load', function(){ if(!FIREBASE_READY){ initFirebaseSolicitar(); } });
+window.addEventListener('load', _solicitudesCerradasAviso);
+if(document.readyState !== 'loading') _solicitudesCerradasAviso();
+else document.addEventListener('DOMContentLoaded', _solicitudesCerradasAviso);
 
 var cur=1;
 function goS(s){

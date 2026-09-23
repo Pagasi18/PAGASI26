@@ -8,6 +8,16 @@ var WZ = {
 };
 
 function openAddCred(motoId=null){
+  // La compania que ya no vende no abre solicitudes nuevas (23-sep-2026). El boton
+  // se esconde, pero la puerta se cierra AQUI: al asistente se llega tambien desde
+  // el inventario, desde la ficha del cliente y desde el catalogo, y basta con que
+  // una de esas rutas quede abierta para que un credito nuevo aterrice en la
+  // compania equivocada. Deshacerlo despues no es borrar una fila: es la moto, los
+  // gastos, el contrato y la numeracion.
+  if(typeof _puedeVender==='function' && !_puedeVender()){
+    if(typeof _avisarNoVende==='function') _avisarNoVende();
+    return;
+  }
   // Overlay fullscreen — reemplaza el modal estándar
   var overlay = document.getElementById('wz-overlay');
   if(!overlay){

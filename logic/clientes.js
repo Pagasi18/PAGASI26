@@ -1149,11 +1149,11 @@ function empleadoDashHTML(){
       <div style="font-size:11.5px;font-weight:800;color:var(--ink)">Registrar Pago</div>
       <div style="font-size:9.5px;color:var(--ink3)">Cobro rápido</div>
     </button>
-    <button onclick="openAddCred()" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px;border-radius:12px;border:1px solid var(--rim);background:var(--surf);cursor:pointer;transition:all .15s;font-family:var(--f)" onmouseover="this.style.borderColor='var(--p1)';this.style.background='var(--gs)'" onmouseout="this.style.borderColor='var(--rim)';this.style.background='var(--surf)'">
+    ${(typeof _puedeVender!=='function' || _puedeVender()) ? `<button onclick="openAddCred()" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px;border-radius:12px;border:1px solid var(--rim);background:var(--surf);cursor:pointer;transition:all .15s;font-family:var(--f)" onmouseover="this.style.borderColor='var(--p1)';this.style.background='var(--gs)'" onmouseout="this.style.borderColor='var(--rim)';this.style.background='var(--surf)'">
       <div style="font-size:22px"></div>
       <div style="font-size:11.5px;font-weight:800;color:var(--ink)">Nueva Solicitud</div>
       <div style="font-size:9.5px;color:var(--ink3)">Capturar cliente</div>
-    </button>
+    </button>` : ''}
     <button onclick="nav(&quot;cobranza&quot;)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px;border-radius:12px;border:1px solid var(--rim);background:var(--surf);cursor:pointer;transition:all .15s;font-family:var(--f)" onmouseover="this.style.borderColor='var(--amber)';this.style.background='var(--ambers)'" onmouseout="this.style.borderColor='var(--rim)';this.style.background='var(--surf)'">
       <div style="font-size:22px"></div>
       <div style="font-size:11.5px;font-weight:800;color:var(--ink)">Ver Cobranza</div>
@@ -1319,7 +1319,7 @@ function empleadoDashHTML(){
     <div style="font-size:32px;margin-bottom:8px;opacity:.4"></div>
     <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:4px">Aún no has creado solicitudes</div>
     <div style="font-size:11.5px;color:var(--ink3);margin-bottom:12px">Crea la primera para que empiece a contar</div>
-    <button class="btn btn-p btn-sm" onclick="openAddCred()">＋ Crear solicitud</button>
+    ${(typeof _puedeVender!=='function' || _puedeVender()) ? '<button class="btn btn-p btn-sm" onclick="openAddCred()">＋ Crear solicitud</button>' : ''}
   </div>
   `}
 
@@ -1336,6 +1336,11 @@ function empleadoDashHTML(){
 // actions: array de objetos { label, onclick, primary?:bool } (opcional)
 function pageBanner(tagline, title, subtitle, actions){
   var actionsHTML = '';
+  // Una accion marcada soloSiVende no se ofrece en la compania que ya no vende
+  // (PAGASI 18 desde el 23-sep-2026, que se queda cobrando lo que ya tiene).
+  if(actions && actions.length) actions = actions.filter(function(a){
+    return !(a && a.soloSiVende) || (typeof _puedeVender!=='function' || _puedeVender());
+  });
   if(actions && actions.length){
     actionsHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap">' + actions.map(function(a){
       var st = a.primary

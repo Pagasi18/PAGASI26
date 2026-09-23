@@ -28,12 +28,29 @@ var FIREBASE_CONFIG = {
 // asi no puede mentir. Si alguien abre una copia apuntando a otra base, se ve al
 // instante.
 var _EMPRESAS_MARCA = {
-  'pagasi-v2':      { marca:'18', nombre:'PAGASI 18', apodo:'Cobranza' },
-  'pagasi26-65ced': { marca:'26', nombre:'PAGASI 26', apodo:'' }
+  'pagasi-v2':      { marca:'18', nombre:'PAGASI 18', apodo:'Cobranza', vende:false },
+  'pagasi26-65ced': { marca:'26', nombre:'PAGASI 26', apodo:'', vende:true }
 };
 function _marcaEmpresa(){
   try { return _EMPRESAS_MARCA[String((FIREBASE_CONFIG||{}).projectId||'')] || null; }
   catch(e){ return null; }
+}
+// 23-sep-2026, Adam: "en pagasi 18 no dejes crear una nueva solicitud".
+// PAGASI 18 ya no vende: se queda cobrando los creditos que ya tiene. Un credito
+// nuevo creado ahi arranca una cartera en la compania que se esta cerrando, y
+// deshacerlo despues no es borrar una fila: es la moto, los gastos, el contrato y
+// la numeracion.
+// Como el color, esto sale de la BASE y no del dominio: si alguien abre una copia
+// apuntando a la base de 18, tampoco puede vender ahi.
+// Una base desconocida SI vende: mas vale dejar trabajar que bloquear por error.
+function _puedeVender(){
+  var e = _marcaEmpresa();
+  return !e || e.vende !== false;
+}
+function _avisarNoVende(){
+  var e = _marcaEmpresa() || {};
+  if(typeof toast==='function')
+    toast((e.nombre||'Esta compañía')+' ya no vende: los créditos nuevos se hacen en PAGASI 26 (pagasi.io). Aquí se cobran los que ya existen.','warn',7000);
 }
 (function _pintarLaCompania(){
   try{
@@ -3109,10 +3126,12 @@ function renderSidebar(){
     var extraMapEmp = {pagos:'<span class="si-bx" id="sb-badge-cob"></span>', centro:'<span class="si-bx" id="sb-badge-wt"></span>'};
 
     var sidebarEmp = '<div style="padding:10px 8px">'
-      +'<div style="margin-bottom:6px">'
-      +'<button type="button" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:12px;background:var(--p1);color:#fff;border:none;cursor:pointer;font-family:var(--f);font-size:13px;font-weight:700;width:100%" onclick="openAddCred()">'
-      +'<span style="font-size:16px;font-weight:900;line-height:1">＋</span><span>Nueva Solicitud</span></button>'
-      +'</div>'
+      + (_puedeVender()
+        ? '<div style="margin-bottom:6px">'
+          +'<button type="button" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:12px;background:var(--p1);color:#fff;border:none;cursor:pointer;font-family:var(--f);font-size:13px;font-weight:700;width:100%" onclick="openAddCred()">'
+          +'<span style="font-size:16px;font-weight:900;line-height:1">＋</span><span>Nueva Solicitud</span></button>'
+          +'</div>'
+        : '')
       + grposEmp.map(function(g){
           var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (k==='recursos' || permsEmp.includes(k)); });
           if(!items.length) return '';
@@ -3134,10 +3153,12 @@ function renderSidebar(){
   // No ve admin, finanzas, GPS, otros concesionarios — nada de eso
   if(isVendedorConcesionarioRole()){
     var sidebarVC = '<div style="padding:10px 8px">'
-      +'<div style="margin-bottom:6px">'
-      +'<button type="button" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:12px;background:var(--p1);color:#fff;border:none;cursor:pointer;font-family:var(--f);font-size:13px;font-weight:700;width:100%" onclick="openAddCred()">'
-      +'<span style="font-size:16px;font-weight:900;line-height:1">＋</span><span>Nueva Solicitud</span></button>'
-      +'</div>'
+      + (_puedeVender()
+        ? '<div style="margin-bottom:6px">'
+          +'<button type="button" style="display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:12px;background:var(--p1);color:#fff;border:none;cursor:pointer;font-family:var(--f);font-size:13px;font-weight:700;width:100%" onclick="openAddCred()">'
+          +'<span style="font-size:16px;font-weight:900;line-height:1">＋</span><span>Nueva Solicitud</span></button>'
+          +'</div>'
+        : '')
       +'<div class="sb-grp"><div class="sb-lbl">Mi Trabajo</div>'
       +'<button type="button" class="si" data-nav="motos" onclick="nav(\'motos\')"><span class="sic nav-ic">'+pgNavIcon('motos')+'</span><span>Motos</span></button>'
       +'<button type="button" class="si" data-nav="calculadora" onclick="nav(\'calculadora\')"><span class="sic nav-ic">'+pgNavIcon('calculadora')+'</span><span>Calculadora</span></button>'
@@ -3692,6 +3713,7 @@ var TOP_BTN_LABELS = {
   clientes: 'Nueva Solicitud',
   creditos: 'Nueva Solicitud',
   contratos: 'Nueva Solicitud',
+  // (en la compania que ya no vende, los de "Nueva Solicitud" se quitan mas abajo)
   motos: 'Nueva Unidad al Inventario',
   pagos: 'Registrar Pago',
   conta: 'Nuevo Egreso',
@@ -3706,6 +3728,8 @@ function updateTopbar(){
   var btn = $('topNewBtn');
   var label = $('topNewLabel');
   var lbl = TOP_BTN_LABELS[p];
+  // En la compania que ya no vende, el boton de crear solicitudes no se ofrece
+  if(lbl === 'Nueva Solicitud' && !_puedeVender()) lbl = '';
   if(btn){
     if(lbl){ btn.style.display=''; label.textContent=lbl; }
     else { btn.style.display='none'; }

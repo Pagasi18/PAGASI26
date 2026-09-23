@@ -56,7 +56,7 @@ function motoRow(m){
     <td><div class="tdm">${fmt(m.totalPagado)}</div><div class="tds">total plan</div></td>
     <td onclick="event.stopPropagation()">
       <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
-        ${m.estado==='disponible'?`<button class="btn btn-p btn-xs" onclick="openAddCredConMoto(${idArg})">Solicitud</button>`:''}
+        ${(m.estado==='disponible' && (typeof _puedeVender!=='function' || _puedeVender()))?`<button class="btn btn-p btn-xs" onclick="openAddCredConMoto(${idArg})">Solicitud</button>`:''}
         <button class="btn btn-g btn-xs" onclick="editMoto(${idArg})">Editar</button>
         <button class="btn btn-d btn-xs" onclick="delMoto(${idArg})">x</button>
       </div>

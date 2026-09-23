@@ -141,6 +141,10 @@ ctx._aprRechazar('CRED-902');
 ok('moto borrada sin regresar el dinero: el rechazo tampoco lo devuelve', saldo('Binance') === saldoSinDevolver);
 
 // ── 11) El botón "Solicitud" de Inventario no pierde la moto ──
+// Desde el 23-sep-2026, PAGASI 18 no abre solicitudes nuevas (se quedó cobrando). Esta
+// prueba es del ASISTENTE, no de esa política: se pone en una compañía que sí vende,
+// que es la única situación en la que el asistente llega a abrirse.
+ctx._puedeVender = function(){ return true; };
 S.motos = [{ id: 11, modelo:'NEW HORSE 150', precio:1320, estado:'disponible' }];
 S.clientes = []; S.creds = [];
 const ov = el({ style:{} }); let htmlWz = '';
