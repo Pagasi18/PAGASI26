@@ -178,6 +178,7 @@ PG.reportes = function(){
   var tabs = [
     {k:'dashfin', lbl:'Dashboard Finanzas', sub:'Cartera · principal e interés · mora'},
     {k:'resumen', lbl:'Resumen', sub:'Estado general · KPIs'},
+    {k:'metodologia', lbl:'Nueva metodología', sub:'12 % interés · Protect · IVA'},
     {k:'periodicos', lbl:'Reportes', sub:'Diario · Semanal · Quincenal · Mensual'},
     {k:'proyecciones', lbl:'Proyecciones', sub:'Flujo futuro · 12 meses'},
     {k:'egresos', lbl:'Egresos', sub:'Gastos · categorías'},
@@ -944,6 +945,8 @@ PG.reportes = function(){
   ${tab==='periodicos' ? _renderTabReportesPeriodicos() : ''}
 
   ${tab==='inventario' ? _renderTabInventario() : ''}
+
+  ${tab==='metodologia' ? (typeof _renderNuevaMetodologia==='function' ? _renderNuevaMetodologia() : '') : ''}
 
   ${tab==='libroseniat' ? _renderLibroSeniat() : ''}
 
