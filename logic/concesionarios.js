@@ -490,11 +490,11 @@ function _concAbrirDetalle(id){
   var antF = fin.anticipos.filter(function(a){ return _enRango(a.fecha); });
   var credsF = fin.creds.filter(function(cr){ return _enRango(cr.fecha); });
   var envP = antF.reduce(function(s,a){ return s+(parseFloat(a.monto)||0); },0);
-  var conP = credsF.reduce(function(s,cr){ return s+(parseFloat(cr.precioBaseReal||cr.precio)||0); },0);
+  var conP = credsF.reduce(function(s,cr){ return s+_concCostoSalida(cr); },0);
   // Créditos (motos que salieron) — más recientes primero
   var credsOrd = credsF.slice().sort(function(a,b){ return String(b.fecha||'').localeCompare(String(a.fecha||'')); });
   var filasCreds = credsOrd.map(function(cr){
-    var costo = parseFloat(cr.precioBaseReal||cr.precio)||0;
+    var costo = _concCostoSalida(cr);
     return '<tr style="cursor:pointer" onclick="closeM();openAmort(\''+cr.id+'\')">'
       + '<td class="tds" style="font-family:var(--fd)">'+cr.id+'</td>'
       + '<td class="tds">'+(cr.fecha||'—')+'</td>'
@@ -524,7 +524,7 @@ function _concAbrirDetalle(id){
   var movsAll = fin.anticipos.map(function(a){
       return { fecha:a.fecha||'', det:'Anticipo · '+(a.metodo||'—')+(a.ref?' · '+a.ref:'')+(a.nota?' · '+a.nota:''), monto:parseFloat(a.monto)||0 };
     }).concat(fin.creds.map(function(cr){
-      return { fecha:cr.fecha||'', det:cr.id+' · '+(cr.cli||'')+' · '+(cr.modelo||''), monto:-(parseFloat(cr.precioBaseReal||cr.precio)||0), credId:cr.id };
+      return { fecha:cr.fecha||'', det:cr.id+' · '+(cr.cli||'')+' · '+(cr.modelo||''), monto:-_concCostoSalida(cr), credId:cr.id };
     })).sort(function(a,b){ return String(a.fecha).localeCompare(String(b.fecha)); });
   var _run = 0;
   movsAll.forEach(function(m){ _run += m.monto; m.saldo = _run; });
@@ -853,6 +853,24 @@ function _concAsignarUno(tipo, id, sedeId){
 // ║  (c.anticipos[]) — no requiere reglas nuevas de Firestore.║
 // ╚══════════════════════════════════════════════════════════╝
 
+// Lo que una moto que salio le consume al anticipo: SOLO lo que puso Pagasi.
+// 23-sep-2026, Adam viendo la pantalla: "el saldo consumido es unicamente el dinero que
+// nosotros pusimos, no el dinero que puso el cliente para comprar las dos motos". Tenia
+// razon: se descontaba el precio completo, asi que la inicial del cliente salia del
+// bolsillo de Pagasi en la cuenta. Con dos motos de 1.350 e inicial de 750, la pantalla
+// decia 2.700 consumido cuando Pagasi habia puesto 1.200.
+// Esta cuenta estaba escrita A MANO en siete sitios (la tabla, el historial de la sede,
+// el historial de todas, el resumen del periodo, la tabla de motos, el Excel y el PDF, y
+// la grafica). Vive aqui una sola vez para que no puedan volver a separarse.
+function _concCostoSalida(cr){
+  if(!cr) return 0;
+  var costo = parseFloat(cr.precioBaseReal || cr.precio) || 0;
+  var ini = parseFloat(cr.ini) || 0;          // guardada como texto en fichas viejas
+  var puso = costo - ini;
+  // Una inicial mayor que el costo no le devuelve dinero al anticipo: consume cero.
+  return puso > 0 ? Math.round(puso * 100) / 100 : 0;
+}
+
 function _concFinanzasDe(cid){
   var c = _concGetById(cid) || {};
   var anticipos = Array.isArray(c.anticipos) ? c.anticipos.filter(function(a){ return a && !a.eliminado; }) : [];
@@ -861,7 +879,7 @@ function _concFinanzasDe(cid){
   var creds = (S.creds||[]).filter(function(cr){
     return cr && !cr.eliminado && cr.concesionarioId === cid && cr.estado !== 'cancelado';
   });
-  var consumido = creds.reduce(function(s,cr){ return s + (parseFloat(cr.precioBaseReal||cr.precio)||0); }, 0);
+  var consumido = creds.reduce(function(s,cr){ return s + _concCostoSalida(cr); }, 0);
   return { anticipos: anticipos, creds: creds, enviado: enviado, consumido: consumido, saldo: enviado - consumido };
 }
 
@@ -918,7 +936,7 @@ function _concAbrirDetalleTotal(keep){
       movsAll.push({ fecha:a.fecha||'', sede:c.nombre||c.id, det:'Anticipo · '+(a.metodo||'—')+(a.ref?' · '+a.ref:''), monto:parseFloat(a.monto)||0 });
     });
     fin.creds.forEach(function(cr){
-      movsAll.push({ fecha:cr.fecha||'', sede:c.nombre||c.id, det:cr.id+' · '+(cr.cli||'')+' · '+(cr.modelo||''), monto:-(parseFloat(cr.precioBaseReal||cr.precio)||0), credId:cr.id });
+      movsAll.push({ fecha:cr.fecha||'', sede:c.nombre||c.id, det:cr.id+' · '+(cr.cli||'')+' · '+(cr.modelo||''), monto:-_concCostoSalida(cr), credId:cr.id });
     });
     var sc = fin.saldo > 0 ? 'var(--green)' : (fin.saldo < 0 ? 'var(--red)' : 'var(--ink3)');
     return '<tr style="cursor:pointer" onclick="_concAbrirDetalle(\''+c.id+'\')">'
@@ -1113,7 +1131,7 @@ function _concGenerarReporte(cid, formato){
     .sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
   var antP = fin.anticipos.filter(function(a){ return enR(a.fecha); })
     .sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
-  var costoP = credsP.reduce(function(s,cr){ return s + (parseFloat(cr.precioBaseReal||cr.precio)||0); }, 0);
+  var costoP = credsP.reduce(function(s,cr){ return s + _concCostoSalida(cr); }, 0);
   var ventaP = credsP.reduce(function(s,cr){ return s + (parseFloat(cr.precio)||0); }, 0);
   var antTotalP = antP.reduce(function(s,a){ return s + (parseFloat(a.monto)||0); }, 0);
   var cliDe = function(cr){
@@ -1128,18 +1146,22 @@ function _concGenerarReporte(cid, formato){
     aoa.push([]);
     aoa.push(['RESUMEN']);
     aoa.push(['Motos que salieron (período)', credsP.length]);
-    aoa.push(['Costo consumido (período)', n2(costoP)]);
+    aoa.push(['Consumido del anticipo — lo que puso Pagasi (período)', n2(costoP)]);
     aoa.push(['Precio de venta total (período)', n2(ventaP)]);
     aoa.push(['Anticipos enviados (período)', n2(antTotalP)]);
     aoa.push(['— SALDO GLOBAL DE LA SEDE —', n2(fin.saldo)]);
     aoa.push(['Total enviado histórico', n2(fin.enviado)]);
-    aoa.push(['Total consumido histórico', n2(fin.consumido)]);
+    aoa.push(['Total consumido histórico — lo que puso Pagasi', n2(fin.consumido)]);
     aoa.push([]);
     aoa.push(['MOTOS QUE SALIERON']);
-    aoa.push(['N° Crédito','Fecha','Cliente','Cédula','Teléfono','Modelo','Placa/Serial','Precio venta','Costo (deducción)','Estado']);
+    // "Puso el cliente" y "Puso Pagasi" en vez de una sola columna "Costo": de la moto
+    // sale una parte de cada bolsillo, y del anticipo solo se descuenta la de Pagasi.
+    aoa.push(['N° Crédito','Fecha','Cliente','Cédula','Teléfono','Modelo','Placa/Serial','Precio venta','Costo de la moto','Puso el cliente (inicial)','Puso Pagasi (descontado)','Estado']);
     credsP.forEach(function(cr){
       var cl = cliDe(cr);
-      aoa.push([cr.id, cr.fecha||'', cr.cli||'', cl.cedula||'', cl.tel||'', cr.modelo||'', cr.placa||cr.serialMotor||'', n2(cr.precio), n2(cr.precioBaseReal||cr.precio), cr.estado||'']);
+      var costoM = parseFloat(cr.precioBaseReal||cr.precio)||0;
+      aoa.push([cr.id, cr.fecha||'', cr.cli||'', cl.cedula||'', cl.tel||'', cr.modelo||'', cr.placa||cr.serialMotor||'',
+                n2(cr.precio), n2(costoM), n2(parseFloat(cr.ini)||0), n2(_concCostoSalida(cr)), cr.estado||'']);
     });
     aoa.push([]);
     aoa.push(['ANTICIPOS ENVIADOS']);
@@ -1162,16 +1184,16 @@ function _concGenerarReporte(cid, formato){
     + '<table><tr><th>Motos que salieron</th><th>Costo consumido</th><th>Venta total</th><th>Anticipos enviados</th></tr>'
     + '<tr><td>'+credsP.length+'</td><td>$'+costoP.toFixed(2)+'</td><td>$'+ventaP.toFixed(2)+'</td><td>$'+antTotalP.toFixed(2)+'</td></tr></table>'
     + '<h3>Saldo global de la sede</h3>'
-    + '<table><tr><th>Total enviado</th><th>Total consumido</th><th>SALDO DISPONIBLE</th></tr>'
+    + '<table><tr><th>Total enviado</th><th>Consumido (lo que puso Pagasi)</th><th>SALDO DISPONIBLE</th></tr>'
     + '<tr><td>$'+fin.enviado.toFixed(2)+'</td><td>−$'+fin.consumido.toFixed(2)+'</td><td style="font-weight:900;'+(fin.saldo<0?'color:#c0392b':'color:#0a7a4b')+'">$'+fin.saldo.toFixed(2)+'</td></tr></table>'
     + '<h3>Motos que salieron ('+credsP.length+')</h3>'
     + (credsP.length===0 ? '<div style="color:#777;font-size:11px">Sin ventas en el período.</div>'
-      : '<table><tr><th>Crédito</th><th>Fecha</th><th>Cliente</th><th>Cédula</th><th>Teléfono</th><th>Modelo</th><th>Placa/Serial</th><th>Costo</th><th>Estado</th></tr>'
+      : '<table><tr><th>Crédito</th><th>Fecha</th><th>Cliente</th><th>Cédula</th><th>Teléfono</th><th>Modelo</th><th>Placa/Serial</th><th>Puso el cliente</th><th>Puso Pagasi</th><th>Estado</th></tr>'
         + credsP.map(function(cr){
             var cl = cliDe(cr);
-            return '<tr><td>'+esc(cr.id)+'</td><td>'+esc(cr.fecha||'')+'</td><td>'+esc(cr.cli||'')+'</td><td>'+esc(cl.cedula||'')+'</td><td>'+esc(cl.tel||'')+'</td><td>'+esc(cr.modelo||'')+'</td><td>'+esc(cr.placa||cr.serialMotor||'')+'</td><td>−$'+(parseFloat(cr.precioBaseReal||cr.precio)||0).toFixed(2)+'</td><td>'+esc(cr.estado||'')+'</td></tr>';
+            return '<tr><td>'+esc(cr.id)+'</td><td>'+esc(cr.fecha||'')+'</td><td>'+esc(cr.cli||'')+'</td><td>'+esc(cl.cedula||'')+'</td><td>'+esc(cl.tel||'')+'</td><td>'+esc(cr.modelo||'')+'</td><td>'+esc(cr.placa||cr.serialMotor||'')+'</td><td>$'+(parseFloat(cr.ini)||0).toFixed(2)+'</td><td>−$'+_concCostoSalida(cr).toFixed(2)+'</td><td>'+esc(cr.estado||'')+'</td></tr>';
           }).join('')
-        + '<tr><td colspan="7" style="text-align:right;font-weight:800">TOTAL COSTO</td><td style="font-weight:900">−$'+costoP.toFixed(2)+'</td><td></td></tr></table>')
+        + '<tr><td colspan="8" style="text-align:right;font-weight:800">TOTAL DESCONTADO DEL ANTICIPO</td><td style="font-weight:900">−$'+costoP.toFixed(2)+'</td><td></td></tr></table>')
     + '<h3>Anticipos enviados ('+antP.length+')</h3>'
     + (antP.length===0 ? '<div style="color:#777;font-size:11px">Sin anticipos en el período.</div>'
       : '<table><tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Referencia</th><th>Nota</th><th>Registrado por</th></tr>'

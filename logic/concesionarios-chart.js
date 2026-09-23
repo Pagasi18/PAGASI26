@@ -43,6 +43,11 @@ function _concChartBuckets(periodo, desplazado){
 
 function _concChartCorte(periodo){ return periodo==='dia' ? 10 : (periodo==='ano' ? 4 : 7); }
 
+// Ojo: esto NO es lo que se descuenta del anticipo. La grafica mide cuanta plata en
+// motos movio cada sede (el costo de las motos que salieron); lo que se descuenta del
+// anticipo es solo la parte que puso Pagasi, y de eso se encarga _concCostoSalida.
+// Por eso el boton dice "Comprado" y no "Monto": eran dos numeros distintos con el
+// mismo nombre y a nadie le cuadraban (23-sep-2026).
 function _concChartValor(c){
   return (_concChartModo === 'motos' || _concChartModo === 'parte')
     ? 1 : (parseFloat(c.precioBaseReal||c.precio)||0);
@@ -140,7 +145,7 @@ function _concChartHtml(){
     +   '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
     +     '<div style="display:flex;gap:4px">'
     +       btn('motos','Motos',_concChartModo,'_concChartSetModo')
-    +       btn('monto','Monto',_concChartModo,'_concChartSetModo')
+    +       btn('monto','Comprado',_concChartModo,'_concChartSetModo')
     +       btn('parte','Participación',_concChartModo,'_concChartSetModo')
     +     '</div>'
     +     '<div style="width:1px;height:20px;background:var(--rim2)"></div>'
