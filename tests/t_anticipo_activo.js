@@ -113,5 +113,43 @@ ok('...y si la subida falla, el anticipo NO se pierde',
 ok('...hay un límite de tamaño, con aviso claro', /10 \* 1024 \* 1024/.test(cs) && /pesa más de 10 MB/.test(cs));
 ok('...y queda a la vista en la lista de anticipos', /a\.comprobante[\s\S]{0,120}target="_blank"/.test(cs));
 
+// ── Los anticipos que ya estaban registrados como salida ───────────────────
+// Los nueve que PAGASI 26 cargó esta mañana quedaron con el formato viejo. No se
+// corrigen solos a propósito: tocar movimientos de dinero sin que nadie lo pida es la
+// clase de arreglo que después nadie sabe explicar.
+(function(){
+  const viejo={ id:'MOV-ANT-1', tipoOperacion:'anticipo_concesionario', tipo:'retiro',
+                monto:10000, cuentaOrigen:'Binance 26', concesionarioId:'C1' };
+  const nuevo={ id:'MOV-ANT-2', tipoOperacion:'anticipo_concesionario', tipo:'transferencia',
+                monto:3000, cuentaOrigen:'Binance 26', cuentaDestino:'Anticipos en concesionarios', concesionarioId:'C2' };
+  const otro ={ id:'MOV-X', tipo:'retiro', monto:500, cuentaOrigen:'Binance 26' };
+  const guardados=[]; let avisos=[]; let navegado=false;
+  const G={ console:{log(){},warn(){}}, Math, parseFloat, String, Number, Array, Object, Date, JSON, confirm:()=>true,
+    S:{ movimientos:[viejo,nuevo,otro], currentUser:{nombre:'Adam'}, page:'concesionarios' },
+    CUENTA_ANTICIPOS:'Anticipos en concesionarios', fmt:n=>'$'+(parseFloat(n)||0).toFixed(2),
+    toast:(m)=>avisos.push(String(m)), nav:()=>{navegado=true},
+    DB:{ saveMovimiento(m){ guardados.push(m); } }, window:{} };
+  G.window=G; vm.createContext(G);
+  const cs2=src('logic/concesionarios.js');
+  vm.runInContext(cs2.slice(cs2.indexOf('function _concAnticiposFormatoViejo'), cs2.indexOf('function _concAvisoAnticiposSueltos')), G);
+
+  ok('se detecta el anticipo que quedó como salida', G._concAnticiposFormatoViejo().length===1);
+  ok('...el que ya está bien no se toca', !G._concAnticiposFormatoViejo().some(m=>m.id==='MOV-ANT-2'));
+  ok('...ni un movimiento que no es anticipo', !G._concAnticiposFormatoViejo().some(m=>m.id==='MOV-X'));
+  const aviso=G._concAvisoAnticiposViejos();
+  ok('la pantalla lo dice, con el monto', aviso.indexOf('$10000.00')>-1 && /contados como gasto/.test(aviso));
+  ok('...explica que la empresa se ve más pobre de lo que es', /más pobre de lo que es/.test(aviso));
+  ok('...y ofrece el botón para arreglarlo', /_concCorregirAnticiposViejos\(\)/.test(aviso));
+
+  G._concCorregirAnticiposViejos();
+  ok('al corregir, el anticipo pasa a ser transferencia', viejo.tipo==='transferencia');
+  ok('...con la otra mitad: la cuenta donde el dinero espera', viejo.cuentaDestino==='Anticipos en concesionarios');
+  ok('...queda el rastro de quién y cuándo', !!viejo.corregidoEn && viejo.corregidoPor==='Adam');
+  ok('...se guarda en la base', guardados.length===1 && guardados[0].id==='MOV-ANT-1');
+  ok('...y se avisa de lo que se ganó', avisos.some(m=>/vuelven a contar como dinero tuyo/.test(m)));
+  ok('después ya no queda ninguno por corregir', G._concAnticiposFormatoViejo().length===0);
+  ok('...y el aviso desaparece', G._concAvisoAnticiposViejos()==='');
+})();
+
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;

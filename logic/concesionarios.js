@@ -371,7 +371,7 @@ function _concRender(){
       html += _concChartHtml();
       setTimeout(function(){ if(typeof _concChartPintar==='function') _concChartPintar(); }, 30);
     }
-    html += _concAvisoAnticiposSueltos();
+    html += _concAvisoAnticiposViejos() + _concAvisoAnticiposSueltos();
     html += '<div class="card">'
       + '<div class="ch"><div><div class="ct">Concesionarios</div><div class="cs">Saldo = anticipos enviados − lo que puso Pagasi en las motos que salieron</div></div>'
       + '<button class="btn btn-p btn-sm" onclick="_concAbrirDetalleTotal()">Σ Detalle total</button></div>'
@@ -1141,6 +1141,55 @@ function _concAnticiposSinMovimiento(){
   });
   return fuera;
 }
+// Los anticipos que se registraron ANTES de entender que son un activo: su movimiento
+// dice "salida del banco" y punto, sin la otra mitad (la entrada a la cuenta donde el
+// dinero espera). Mientras sigan asi, la empresa se ve mas pobre de lo que es y ese
+// dinero no se puede usar para pagar motos.
+// No se corrigen solos a proposito: tocar movimientos de dinero sin que nadie lo pida
+// es la clase de arreglo que despues nadie sabe explicar. Se avisa y se corrige con un
+// boton, que deja su rastro.
+function _concAnticiposFormatoViejo(){
+  return (S.movimientos||[]).filter(function(m){
+    return m && !m.eliminado && m.tipoOperacion === 'anticipo_concesionario'
+        && m.tipo !== 'transferencia' && !m.cuentaDestino;
+  });
+}
+function _concCorregirAnticiposViejos(){
+  var viejos = _concAnticiposFormatoViejo();
+  if(!viejos.length){ toast('No hay anticipos por corregir','info'); return; }
+  var tot = viejos.reduce(function(s,m){ return s + (parseFloat(m.monto)||0); }, 0);
+  if(!confirm('Se van a corregir '+viejos.length+' anticipo'+(viejos.length===1?'':'s')+' por '+fmt(tot)+'.\n\n'
+    + 'Ese dinero salió del banco pero sigue siendo tuyo: está en poder de los concesionarios. '
+    + 'Después de corregirlo, el saldo de tus cuentas bancarias no cambia, pero el DINERO TOTAL de Pagasi '
+    + 'sube en '+fmt(tot)+', que es lo que de verdad tienes.\n\n¿Corregir?')) return;
+  var destino = (typeof CUENTA_ANTICIPOS!=='undefined') ? CUENTA_ANTICIPOS : 'Anticipos en concesionarios';
+  var n = 0;
+  viejos.forEach(function(m){
+    m.tipo = 'transferencia';
+    m.cuentaDestino = destino;
+    m.corregidoEn = new Date().toISOString();
+    m.corregidoPor = (S.currentUser&&S.currentUser.nombre)||'Admin';
+    m.corregidoNota = 'El anticipo pasó de salida a transferencia: el dinero sigue siendo de Pagasi (23-sep-2026)';
+    if(DB && DB.saveMovimiento) DB.saveMovimiento(m);
+    n++;
+  });
+  if(typeof logActividad==='function') logActividad('anticipos_corregidos','concesionarios','',n+' movimientos · '+fmt(tot));
+  toast('✓ '+n+' anticipo'+(n===1?'':'s')+' corregido'+(n===1?'':'s')+': '+fmt(tot)+' vuelven a contar como dinero tuyo','success',6000);
+  nav('concesionarios');
+}
+function _concAvisoAnticiposViejos(){
+  var viejos = _concAnticiposFormatoViejo();
+  if(!viejos.length) return '';
+  var tot = viejos.reduce(function(s,m){ return s + (parseFloat(m.monto)||0); }, 0);
+  return '<div style="background:var(--ambers);border:1px solid var(--amber);border-radius:var(--r12);padding:12px 14px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
+    + '<div style="flex:1;min-width:260px">'
+    + '<div style="font-weight:800;font-size:13px;color:var(--amber);margin-bottom:3px">'
+    +   viejos.length+' anticipo'+(viejos.length===1?'':'s')+' por '+fmt(tot)+' están contados como gasto</div>'
+    + '<div style="font-size:11.5px;color:var(--ink2);line-height:1.5">Ese dinero salió del banco pero sigue siendo tuyo: está en poder de los concesionarios y se descuenta cuando sale una moto. '
+    + 'Mientras estén así, Pagasi se ve '+fmt(tot)+' más pobre de lo que es y ese saldo no se puede usar para pagar motos.</div></div>'
+    + '<button class="btn btn-p btn-sm" onclick="_concCorregirAnticiposViejos()">Corregirlos</button></div>';
+}
+
 function _concAvisoAnticiposSueltos(){
   var f = _concAnticiposSinMovimiento();
   if(!f.length) return '';
