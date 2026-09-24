@@ -105,9 +105,13 @@ function _mpagoRepartirInicial(prefix, costo, inicial){
 // salia dos veces. Ahora el sistema ya sabe todo menos una cosa:
 //  · la inicial sale de la cuenta donde la pago el cliente (se pregunta UNA vez, la
 //    misma respuesta sirve para el cobro y para la compra);
-//  · lo que financia Pagasi sale del anticipo de esa sede, si tiene;
-//  · si el anticipo no alcanza, pone lo que tiene y el resto sale de una cuenta;
-//  · si la sede no tiene anticipo, ahi si se elige la cuenta.
+//  · lo que financia Pagasi sale SIEMPRE del anticipo de la sede de la moto, aunque
+//    no alcance. Adam, el mismo dia: "a veces estamos en negativo con los
+//    concesionarios.. y en la semana le hacemos un anticipo grande para cubrir y dejar
+//    saldo.. si sale de trujillo que se descuente de trujillo.. igual en todos".
+//    Un anticipo en negativo es lo que Pagasi le debe a esa sede hasta el proximo
+//    anticipo. Es la misma cuenta que ya hacia la pantalla de Concesionarios.
+//  · solo si no hay ninguna sede (no hay concesionarios creados) se elige una cuenta.
 // Esta funcion no toca la pantalla ni la base: solo dice como se reparte.
 function _mpagoPlanAuto(o){
   o = o || {};
@@ -116,27 +120,29 @@ function _mpagoPlanAuto(o){
   var ini = Math.min(Math.max(0, r2(o.inicial)), costo);
   var fin = r2(costo - ini);
   var cid = o.concesionarioId ? String(o.concesionarioId) : '';
-  var saldo = cid ? Math.max(0, r2(o.saldoAnticipo)) : 0;
+  // Puede venir en negativo: la sede ya estaba debiendose
+  var saldo = cid ? r2(o.saldoAnticipo) : 0;
   var filas = [];
   if(ini > 0.005) filas.push({ que:'inicial', etiqueta:'Inicial del cliente', monto:ini, cuenta:o.cuentaInicial||'', fija:true });
   var deAnt = 0;
-  if(fin > 0.005 && saldo > 0.005){
-    deAnt = r2(Math.min(saldo, fin));
-    filas.push({ que:'anticipo', etiqueta:'Lo que financia Pagasi', monto:deAnt, cuenta:'ANT:'+cid, fija:true });
+  if(fin > 0.005 && cid){
+    deAnt = fin;
+    filas.push({ que:'anticipo', etiqueta:'Lo que financia Pagasi', monto:fin, cuenta:'ANT:'+cid, fija:true });
   }
   var resto = r2(fin - deAnt);
   if(resto > 0.005){
-    filas.push({ que:'resto', etiqueta:(deAnt > 0 ? 'Lo que no cubre el anticipo' : 'Lo que financia Pagasi'),
-                 monto:resto, cuenta:o.cuentaResto||'', fija:false });
+    filas.push({ que:'resto', etiqueta:'Lo que financia Pagasi', monto:resto, cuenta:o.cuentaResto||'', fija:false });
   }
   var faltan = [];
   if(ini > 0.005 && !o.cuentaInicial) faltan.push('inicial');
   if(resto > 0.005 && !o.cuentaResto) faltan.push('resto');
+  var queda = r2(saldo - deAnt);
   return {
     costo: costo, inicial: ini, financiado: fin,
     deAnticipo: deAnt, resto: resto,
-    saldoAnticipo: saldo, quedaAnticipo: r2(saldo - deAnt),
-    anticipoNoAlcanza: deAnt > 0 && resto > 0.005,
+    saldoAnticipo: saldo, quedaAnticipo: queda,
+    // Despues de esta moto, Pagasi le debe a la sede (se cubre con el proximo anticipo)
+    quedaDebiendo: deAnt > 0 && queda < -0.004,
     filas: filas, faltan: faltan,
     pagos: faltan.length ? [] : filas.filter(function(f){ return f.monto > 0.005; })
                                      .map(function(f){ return { cuenta:f.cuenta, monto:f.monto }; })

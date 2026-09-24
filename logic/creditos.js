@@ -976,8 +976,8 @@ function _wzActualizarPrecioBaseDesdePrecio(){
 // podia contestar distinto las dos veces. Ahora:
 //  · la sede se elige primero, sin venir puesta (salvo que solo tenga una);
 //  · la inicial se pregunta UNA vez y sirve para el cobro y para la compra;
-//  · lo que financia Pagasi sale solo del anticipo de la sede (ver _mpagoPlanAuto);
-//  · solo si el anticipo no alcanza, o la sede no tiene, se elige una cuenta.
+//  · lo que financia Pagasi sale SIEMPRE del anticipo de la sede, aunque quede en
+//    negativo: eso es lo que Pagasi le debe a la sede (ver _mpagoPlanAuto).
 // ══════════════════════════════════════════════════════════════════════
 
 // Las sedes que puede usar quien hace la solicitud
@@ -1029,7 +1029,7 @@ function _wzSedeHtml(){
         return '<option value="'+_wzEsc(c.id)+'"'+(String(c.id)===elegida?' selected':'')+'>'+_wzEsc(c.nombre)+(c.ciudad?' · '+_wzEsc(c.ciudad):'')+'</option>';
       }).join('')
     + '</select>'
-    + '<div style="font-size:11px;color:var(--ink3);margin-top:6px;line-height:1.5">De aquí sale la moto y aquí queda el crédito. Si la sede tiene anticipo de Pagasi, la moto se paga de ahí sola.</div>'
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:6px;line-height:1.5">De aquí sale la moto y aquí queda el crédito. Lo que financia Pagasi se descuenta del anticipo de esta sede.</div>'
     + '</div>';
 }
 function _wzSetSede(v){
@@ -1101,7 +1101,9 @@ function _wzPagoMotoHtml(costo, ini){
         : '<span style="color:var(--amber);font-weight:700">Falta decir arriba dónde la pagó el cliente.</span>';
     } else if(f.que === 'anticipo'){
       de = 'Sale del <b>anticipo de '+sedeNom+'</b>. '
-        + (plan.anticipoNoAlcanza ? 'Lo usa todo.' : 'Le quedan '+_wzMoney(plan.quedaAnticipo)+' después de esta moto.');
+        + (plan.quedaDebiendo
+            ? 'Después de esta moto Pagasi le debe <b>'+_wzMoney(-plan.quedaAnticipo)+'</b> a la sede: se cubre con el próximo anticipo.'
+            : 'Le quedan '+_wzMoney(plan.quedaAnticipo)+' después de esta moto.');
     } else {
       de = '<label style="font-size:11px;display:block;margin:4px 0 3px">¿De qué cuenta sale? *</label>'
         + '<select class="fs" id="wz_mpago_resto" onchange="WZ._mpagoCuentaResto=this.value;_wzMpagoSync()">'
@@ -1112,13 +1114,6 @@ function _wzPagoMotoHtml(costo, ini){
       + '<div style="font-size:11.5px;color:var(--ink3);margin-top:2px;line-height:1.45">'+de+'</div>'
       + '</div>';
   }).join('');
-  if(plan.anticipoNoAlcanza){
-    html += '<div style="font-size:11.5px;color:var(--amber);font-weight:700;margin-top:8px;line-height:1.45">'
-      + 'El anticipo de '+sedeNom+' no alcanza: tiene '+_wzMoney(plan.saldoAnticipo)+'. Los '+_wzMoney(plan.resto)+' que faltan salen de la cuenta que elijas.</div>';
-  } else if(plan.resto > 0.005 && WZ.concesionarioId){
-    html += '<div style="font-size:11.5px;color:var(--ink3);margin-top:8px;line-height:1.45">'
-      + sedeNom+' no tiene anticipo de Pagasi: elige de qué cuenta sale lo que financia Pagasi.</div>';
-  }
   if(_wzPuedePagoManual()){
     html += '<div style="margin-top:8px;text-align:right"><a href="javascript:void(0)" onclick="_wzMpagoManual(true)" style="font-size:11px;color:var(--ink3)">Repartir a mano (solo administrador)</a></div>';
   }
@@ -1149,7 +1144,15 @@ function _wzMpagoManualLlenar(costo, ini){
       if(!row) return;
       row.setAttribute('data-touched','1');
       var c = row.querySelector('.wzmpago-cuenta'), mt = row.querySelector('.wzmpago-monto');
-      if(c) c.value = p.cuenta || '';
+      if(c){
+        c.value = p.cuenta || '';
+        // El anticipo de una sede en cero o en negativo no esta en la lista: se agrega
+        if(p.cuenta && c.value !== p.cuenta){
+          var _op = document.createElement('option');
+          _op.value = p.cuenta; _op.textContent = _mpagoNombreCuenta(p.cuenta);
+          c.appendChild(_op); c.value = p.cuenta;
+        }
+      }
       if(mt) mt.value = p.monto;
     });
   }
@@ -1900,8 +1903,7 @@ function _wzValidar(){
       } else {
         var _plan = _wzPlanPagoMoto(_precioBase, _iniPlan);
         if(_plan.faltan.indexOf('resto') > -1){
-          toast(_plan.deAnticipo > 0 ? 'El anticipo no alcanza: elige de qué cuenta sale el resto'
-                                     : 'Elige de qué cuenta sale lo que financia Pagasi','error');
+          toast('Elige de qué cuenta sale lo que financia Pagasi','error');
           var _selResto = document.getElementById('wz_mpago_resto'); if(_selResto && _selResto.focus) _selResto.focus();
           return false;
         }

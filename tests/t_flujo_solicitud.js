@@ -4,6 +4,8 @@
 // el paso 4 volvia a preguntar donde entro la inicial. La sede venia puesta en la
 // primera de la lista. Ahora: la sede se elige primero y sin venir puesta, la inicial
 // se pregunta UNA vez, y lo que financia Pagasi sale solo del anticipo de la sede.
+// Y aunque no alcance (Adam, el mismo dia): "a veces estamos en negativo con los
+// concesionarios.. si sale de trujillo que se descuente de trujillo.. igual en todos".
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 let pass = 0, fail = 0;
@@ -65,17 +67,19 @@ ok('...las partes suman el costo de la moto', suma(p)===1350);
 ok('...y dice cuánto le queda a la sede', p.quedaAnticipo===2400 && !p.anticipoNoAlcanza);
 
 p = plan({ costo:1350, inicial:750, cuentaInicial:'Binance 26', concesionarioId:'C1', saldoAnticipo:400 });
-ok('anticipo que no alcanza: pone lo que tiene', p.filas[1].que==='anticipo' && p.filas[1].monto===400 && p.quedaAnticipo===0);
-ok('...y el resto pide cuenta', p.filas[2].que==='resto' && p.filas[2].monto===200 && p.faltan.join()==='resto');
-ok('...sin la cuenta no hay pagos que guardar', p.pagos.length===0 && p.anticipoNoAlcanza);
-p = plan({ costo:1350, inicial:750, cuentaInicial:'Binance 26', concesionarioId:'C1', saldoAnticipo:400, cuentaResto:'100% Banco 26' });
-ok('...con la cuenta del resto, tres partes que suman el costo', p.pagos.length===3 && suma(p)===1350 && p.faltan.length===0);
+ok('anticipo que no alcanza: igual sale TODO de la sede', p.filas.length===2 && p.filas[1].cuenta==='ANT:C1' && p.filas[1].monto===600);
+ok('...queda en negativo: lo que Pagasi le debe a la sede', p.quedaAnticipo===-200 && p.quedaDebiendo);
+ok('...sin preguntar ninguna cuenta', p.faltan.length===0 && p.pagos.length===2 && suma(p)===1350);
 
 p = plan({ costo:1350, inicial:750, cuentaInicial:'Binance 26', concesionarioId:'C2', saldoAnticipo:0 });
-ok('sede sin anticipo: lo que financia Pagasi pide cuenta', p.filas.length===2 && p.filas[1].que==='resto'
-  && p.filas[1].etiqueta==='Lo que financia Pagasi' && p.faltan.join()==='resto');
+ok('sede sin anticipo (EK Trujillo): igual se descuenta de su anticipo', p.filas[1].cuenta==='ANT:C2' && p.quedaAnticipo===-600 && p.faltan.length===0);
+p = plan({ costo:1350, inicial:750, cuentaInicial:'Binance 26', concesionarioId:'C2', saldoAnticipo:-2770 });
+ok('sede que ya estaba en negativo: sigue sumando deuda', p.quedaAnticipo===-3370 && p.faltan.length===0);
+p = plan({ costo:1350, inicial:750, cuentaInicial:'Binance 26', concesionarioId:'C1', saldoAnticipo:3000 });
+ok('con saldo de sobra no dice que se debe nada', !p.quedaDebiendo && p.quedaAnticipo===2400);
 p = plan({ costo:1350, inicial:750, cuentaInicial:'Binance 26', concesionarioId:'', saldoAnticipo:3000 });
-ok('sin sede no se usa ningún anticipo', !p.filas.some(f=>f.que==='anticipo'));
+ok('sin sede (no hay concesionarios) no se usa ningún anticipo y se pide cuenta',
+  !p.filas.some(f=>f.que==='anticipo') && p.faltan.join()==='resto');
 p = plan({ costo:1350, inicial:0, concesionarioId:'C1', saldoAnticipo:3000 });
 ok('sin inicial: todo del anticipo y no se pregunta la cuenta de la inicial',
   p.filas.length===1 && p.filas[0].monto===1350 && p.faltan.length===0);
@@ -129,7 +133,8 @@ ok('...y la inicial sale de Binance 26', /Sale de <b>Binance 26<\/b>/.test(h));
 ok('el administrador puede repartir a mano', /Repartir a mano/.test(h));
 ctx.WZ.concesionarioId = 'C2';
 h = ctx._wzPagoMotoHtml(1350, 750);
-ok('EMPIRE (sin anticipo): ahí sí pregunta la cuenta', h.indexOf('id="wz_mpago_resto"')>-1 && /no tiene anticipo/.test(h));
+ok('EMPIRE (sin anticipo): tampoco pregunta cuenta', h.indexOf('wz_mpago_resto')===-1 && /anticipo de EMPIRE BELLO MONTE/.test(h));
+ok('...y dice cuánto le queda debiendo Pagasi a la sede', /Pagasi le debe <b>\$600,00<\/b>|Pagasi le debe <b>[^<]*600[^<]*<\/b>/.test(h));
 S.currentUser = vendedora;
 ok('la vendedora no ve "Repartir a mano"', !/Repartir a mano/.test(ctx._wzPagoMotoHtml(1350, 750)));
 ctx.WZ.iniMetodo = '';
@@ -160,9 +165,10 @@ ok('...y deja listo el pago: 750 de Binance y 600 del anticipo',
   JSON.stringify(ctx.WZ._pagosMoto)===JSON.stringify([{cuenta:'Binance 26',monto:750},{cuenta:'ANT:C1',monto:600}]));
 ok('...con la cuenta y la referencia de la inicial guardadas para el final', ctx.WZ.iniMetodo==='Binance 26' && ctx.WZ.iniRef==='REF-9');
 r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C2' });
-ok('EMPIRE sin cuenta para lo financiado: no deja seguir', r===false && avisos.some(a=>/financia Pagasi/.test(a)));
+ok('EMPIRE sin anticipo: pasa sin preguntar y lo financiado va a su anticipo',
+  r!==false && avisos.length===0 && ctx.WZ._pagosMoto.length===2 && ctx.WZ._pagosMoto[1].cuenta==='ANT:C2');
 r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C2', resto:'100% Banco 26' });
-ok('...con la cuenta elegida: pasa', r!==false && ctx.WZ._pagosMoto.length===2 && ctx.WZ._pagosMoto[1].cuenta==='100% Banco 26');
+ok('...aunque haya quedado elegida una cuenta de antes, no se usa', ctx.WZ._pagosMoto[1].cuenta==='ANT:C2');
 r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C1', inventario:true });
 ok('moto del inventario: no se vuelve a pagar', r!==false && ctx.WZ._pagosMoto===null);
 r = pantalla({ costo:1350, ini:750, iniMetodo:'', sedeSelect:'C1', inventario:true });
@@ -194,6 +200,21 @@ ok('el anticipo de MOTOS TORO baja justo lo financiado', ctx.saldoAnticipoDe('C1
 ok('el dinero de Pagasi baja solo lo que prestó', Math.round((antesTot - ctx.totalCuentas())*100)/100 === 600);
 ok('los gastos dicen de dónde salió cada parte',
   S.egresos.some(e=>e.forma==='Binance 26' && e.monto===750) && S.egresos.some(e=>e.forma==='Anticipo — MOTOS TORO' && e.monto===600));
+
+// ════════ 8. Sede sin anticipo: Cuentas y Concesionarios dicen lo mismo ════════
+S.creds = [{ id:'CRED-EMP', concesionarioId:'C2', estado:'activo', precioBaseReal:1350, ini:750 }];
+const antesBin2 = ctx.saldoCuenta('Binance 26');
+const pagos2 = ctx._mpagoPlanAuto({ costo:1350, inicial:750, cuentaInicial:'Binance 26', concesionarioId:'C2', saldoAnticipo:ctx.saldoAnticipoDe('C2') }).pagos;
+S.movimientos.push({ id:'MOV-INI-2', tipo:'deposito', tipoOperacion:'inicial_credito', monto:750, cuentaDestino:'Binance 26', fecha:'2026-09-23' });
+ctx._mpagoCrearGastos({ id:502, modelo:'NEW HORSE 150' }, pagos2, { fecha:'2026-09-23', ids:[3,4] });
+ok('EMPIRE queda en −600 en Cuentas: Pagasi le debe la moto', ctx.saldoAnticipoDe('C2') === -600);
+ok('...y en Concesionarios dice lo mismo', ctx._concFinanzasDe('C2').saldo === -600);
+ok('...Binance no pagó nada por esa moto (solo pasó la inicial)', ctx.saldoCuenta('Binance 26') === antesBin2);
+// La semana siguiente se manda un anticipo grande y la deuda se cubre
+S.movimientos.push({ id:'A2', tipo:'transferencia', monto:2000, cuentaOrigen:'Binance 26', cuentaDestino:CA, concesionarioId:'C2', fecha:'2026-09-28' });
+S.concesionarios[1].anticipos = [{ id:'ANT-2', monto:2000, fecha:'2026-09-28' }];
+ok('con el anticipo grande queda a favor: 2.000 − 600 = 1.400',
+  ctx.saldoAnticipoDe('C2') === 1400 && ctx._concFinanzasDe('C2').saldo === 1400);
 
 console.log('\n' + pass + ' OK · ' + fail + ' fallas');
 process.exit(fail ? 1 : 0);
