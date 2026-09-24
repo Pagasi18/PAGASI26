@@ -79,6 +79,69 @@ function _casheaExtraScore(v){
   return d;
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// MÁS DEL PERFIL: LO QUE FALTABA PREGUNTAR
+// 24-sep-2026. Del analisis de la cartera de la 18 salieron datos que no se
+// preguntaban y que si separan a quien paga de quien no: la edad, como se comprobo
+// el ingreso (el declarado de palabra no separa nada), el dia que cobra (para cuadrar
+// las cuotas con su plata), cuanto paga al mes en deudas y si ya tuvo moto.
+// Todos opcionales (Adam: "con los obligatorios hay que tener cuidado"), pero se
+// guardan en el cliente y en el credito para el analisis de diciembre.
+// Misma receta que CASHEA_EXTRA: una sola lista que recorre todo.
+// ══════════════════════════════════════════════════════════════════════
+var PERFIL_EXTRA = [
+  { k:'fecha_nacimiento',   sec:'cliente',   et:'Fecha de nacimiento',            tipo:'date' },
+  { k:'ingreso_comprobante',sec:'empleo',    et:'¿Cómo se comprobó el ingreso?',   tipo:'sel', ops:[['','Seleccionar...'],['recibo','Recibo de pago / nómina'],['estado_cuenta','Estado de cuenta'],['movimientos','Movimientos de Binance, Zelle o pago móvil'],['constancia','Constancia de trabajo'],['negocio','Lo vi en su negocio'],['palabra','Solo de palabra']] },
+  { k:'dia_cobro',          sec:'empleo',    et:'¿Cuándo cobra?',                  tipo:'sel', ops:[['','Seleccionar...'],['quincenal','Quincenal (15 y 30)'],['semanal','Semanal'],['diario','Diario'],['mensual','Mensual'],['variable','Variable, cuando hay trabajo']] },
+  { k:'deuda_mensual',      sec:'historial', et:'Cuánto paga al mes en otras deudas (USD)', tipo:'number', ph:'Ej: 80' },
+  { k:'moto_previa',        sec:'historial', et:'¿Ya tuvo moto antes?',            tipo:'sel', ops:[['','Seleccionar...'],['no','No, es su primera'],['pagada','Sí, la pagó completa'],['tiene','Sí, y todavía la tiene'],['perdida','Sí, pero la perdió, se la robaron o la devolvió']] }
+];
+function _perfilExtraIds(){ return PERFIL_EXTRA.map(function(f){ return 'wz_'+f.k; }); }
+function _perfilExtraKeys(){ return PERFIL_EXTRA.map(function(f){ return f.k; }); }
+function _perfilEtiqueta(k, v){
+  var f = PERFIL_EXTRA.filter(function(x){ return x.k===k; })[0];
+  if(!f || v==null || v==='') return '';
+  if(f.ops){ var o = f.ops.filter(function(p){ return String(p[0])===String(v); })[0]; return o ? o[1] : String(v); }
+  return String(v);
+}
+// La edad a partir de la fecha de nacimiento (o '' si no hay)
+function _edadDe(fecha){
+  if(!fecha) return '';
+  var d = new Date(fecha + (String(fecha).length===10 ? 'T12:00:00' : '')); if(isNaN(d)) return '';
+  var h = new Date(), e = h.getFullYear() - d.getFullYear(); if(h.getMonth() < d.getMonth() || (h.getMonth()===d.getMonth() && h.getDate() < d.getDate())) e--;
+  return (e >= 0 && e < 120) ? e : '';
+}
+// El trozo del formulario para una seccion (cliente / empleo / historial), con los mismos
+// estilos de campo que el resto del asistente. Se vale por si solo: no depende de las
+// ayudas locales de cada formulario.
+function _perfilExtraHtml(sec){
+  var lab = function(t){ return '<label class="fsec" style="display:block;margin-bottom:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">'+t+'</label>'; };
+  var campo = function(f){
+    var id = 'wz_'+f.k, val = (typeof WZ!=='undefined' && WZ && WZ[id]!=null) ? String(WZ[id]).replace(/"/g,'&quot;') : '';
+    var inner = f.tipo==='sel'
+      ? '<select class="fs" id="'+id+'" onchange="_wzScore()">'+f.ops.map(function(p){ return '<option value="'+p[0]+'"'+(val && String(p[0])===val ? ' selected' : '')+'>'+p[1]+'</option>'; }).join('')+'</select>'
+      : '<input class="fi" id="'+id+'" type="'+f.tipo+'" placeholder="'+(f.ph||'')+'" value="'+val+'" style="width:100%"'+(f.tipo==='date' ? ' onchange="_wzEdadPista(this)"' : '')+'>';
+    var pista = f.k==='fecha_nacimiento' ? '<div id="wz_edad_pista" style="font-size:11px;color:var(--ink3);margin-top:4px">'+(_edadDe(val) !== '' ? _edadDe(val)+' años' : '')+'</div>' : '';
+    return '<div class="fg">'+lab(f.et)+inner+pista+'</div>';
+  };
+  var lista = PERFIL_EXTRA.filter(function(f){ return f.sec===sec; }), out = '';
+  for(var i=0;i<lista.length;i+=2){
+    out += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+campo(lista[i])+(lista[i+1] ? campo(lista[i+1]) : '<div></div>')+'</div>';
+  }
+  return out;
+}
+function _wzEdadPista(el){ var p = document.getElementById('wz_edad_pista'); if(p){ var e = _edadDe(el.value); p.textContent = e !== '' ? e+' años' : ''; } }
+// Lo que se guarda. Con base, lo vacio conserva lo que ya habia.
+function _perfilExtraDatos(base){
+  var o = {};
+  PERFIL_EXTRA.forEach(function(f){
+    var v = (typeof WZ!=='undefined' && WZ) ? (WZ[f.k] != null && WZ[f.k] !== '' ? WZ[f.k] : WZ['wz_'+f.k]) : undefined;
+    if((v==null || v==='') && base) v = base[f.k];
+    if(f.tipo==='number') o[f.k] = parseFloat(v)||0; else o[f.k] = (v==null ? '' : String(v));
+  });
+  return o;
+}
+
 function openAddCred(motoId=null){
   // La compania que ya no vende no abre solicitudes nuevas (23-sep-2026). El boton
   // se esconde, pero la puerta se cierra AQUI: al asistente se llega tambien desde
@@ -197,31 +260,9 @@ function _wzRender(motoId){
     + _wzFg('Correo','wz_email','email','correo@ejemplo.com')
     + _wzFg('Ciudad','wz_ciudad','text','Ej: Caracas')
     + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'
-    + '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Tipo de empleo *</label>'
-    + '<select class="fs" id="wz_emp" onchange="_wzScore()">'
-    + '<option value="">Seleccionar...</option>'
-    + '<option value="formal">Formal / Empleado</option>'
-    + '<option value="publico">Empleado Público</option>'
-    + '<option value="delivery">Delivery / Motorizado</option>'
-    + '<option value="independiente">Independiente</option>'
-    + '<option value="comerciante">Comercio / Negocio</option>'
-    + '<option value="remesas">Remesas</option>'
-    + '<option value="informal">Informal</option>'
-    + '</select></div>'
-    + '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Antigüedad laboral</label>'
-    + '<select class="fs" id="wz_ant" onchange="_wzScore()">'
-    + '<option value="">Seleccionar...</option>'
-    + '<option value="1">Menos de 6 meses</option>'
-    + '<option value="2">6 meses – 1 año</option>'
-    + '<option value="3">1 a 3 años</option>'
-    + '<option value="5">Más de 3 años</option>'
-    + '</select></div>'
-    + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'
-    + _wzFg('Ingreso mensual (USD) *','wz_ing','number','0','oninput="_wzScore()"',true)
-    + _wzFg('Ingreso familiar total (USD)','wz_ifam','number','0','oninput="_wzScore()"')
-    + '</div>'
+    // El empleo, la antiguedad y el ingreso se preguntaban aqui Y en el paso 2 (24-sep-2026):
+    // quedan solo en el paso 2, con todo lo del trabajo. Aqui entra la fecha de nacimiento.
+    + '<div style="margin-top:10px">' + _perfilExtraHtml('cliente') + '</div>'
     + '<div style="margin-top:10px"><label class="fsec" style="display:block;margin-bottom:5px">¿Cómo nos conoció?</label>'
     + '<select class="fs" id="wz_conocio" onchange="_wzScore()">'
     + '<option value="">Seleccionar...</option>'
@@ -420,6 +461,7 @@ function _wzRender(motoId){
   )+'</div>'
 
   // ── HISTORIAL CREDITICIO ──
+  +_perfilExtraHtml('empleo')
   +_s('Historial Crediticio')
   +'<div style="margin-bottom:10px">'+_fg('Créditos anteriores *',
     '<div style="display:flex;flex-wrap:wrap;gap:7px" id="wz_hist_g">'
@@ -433,6 +475,7 @@ function _wzRender(motoId){
     .map(function(x){ return _chip(x[0],'wz_deuda_g',x[1],'_wzScore()'); }).join('')
     +'</div>'
   )+'</div>'
+  +_perfilExtraHtml('historial')
   +_row2(
     _fg('Cuenta bancaria',_sel('wz_banco','<option value="activa">Activa con movimientos</option><option value="poca">Poco movimiento</option><option value="no">Sin cuenta bancaria</option>','_wzScore()')),
     _fg('Banco(s)',_inp('wz_banco_nm','text','Ej: Banesco, Mercantil'))
@@ -795,7 +838,7 @@ function _wzHydrate(){
     // Selector moto inventario
     'wz_moto_inv',
     // Referencia de la inicial (la cuenta se marca sola al pintar el desplegable)
-    'wz_ini_ref'].concat(_casheaIds());
+    'wz_ini_ref'].concat(_casheaIds(), _perfilExtraIds());
   ids.forEach(function(id){
     var el=document.getElementById(id);
     if(!el) return;
@@ -881,6 +924,7 @@ function _wzCollectVisibleValues(){
     wz_cat_marca:'catMarca', wz_cat_modelo:'catModelo', wz_cat_precio:'catPrecio'
   };
   CASHEA_EXTRA.forEach(function(f){ alias['wz_'+f.k] = f.k; });
+  PERFIL_EXTRA.forEach(function(f){ alias['wz_'+f.k] = f.k; });
   Array.from(ov.querySelectorAll('input[id^="wz_"],select[id^="wz_"],textarea[id^="wz_"]')).forEach(function(el){
     var id = el.id;
     if(!id || el.type==='radio' || el.type==='checkbox') return;
@@ -918,10 +962,10 @@ function _wzPickCliente(sel){
   WZ.clienteSel = id || '';
   if(!id){
     // Limpiar TODOS los campos al deseleccionar
-    var keys = ['nom','ci','tel','wa','email','ciudad','emp','ant','ing','ifam','conocio','viv','tdir','estado_ubi','ciudad_res','dir_det','dir_q','empresa','cargo','rem','dep','hist','deuda','banco','banco_nm','banco_cobro','cuenta','ahorro','cashea','cashea_nivel','cashea_pago','cashea_estado','cashea_deuda','cashea_monto','cashea_cuotas_pend','cashea_ultimo_art','cashea_ultimo_monto','cashea_ultima_fecha','cashea_total_compras','cashea_obs','fiador_tiene','fiador_nom','fiador_tel','fiador_ci','fiador_rel','r1n','r1t','r1r','r1obs','r2n','r2t','r2r','r2obs','impresion','obs'].concat(_casheaKeys());
+    var keys = ['nom','ci','tel','wa','email','ciudad','emp','ant','ing','ifam','conocio','viv','tdir','estado_ubi','ciudad_res','dir_det','dir_q','empresa','cargo','rem','dep','hist','deuda','banco','banco_nm','banco_cobro','cuenta','ahorro','cashea','cashea_nivel','cashea_pago','cashea_estado','cashea_deuda','cashea_monto','cashea_cuotas_pend','cashea_ultimo_art','cashea_ultimo_monto','cashea_ultima_fecha','cashea_total_compras','cashea_obs','fiador_tiene','fiador_nom','fiador_tel','fiador_ci','fiador_rel','r1n','r1t','r1r','r1obs','r2n','r2t','r2r','r2obs','impresion','obs'].concat(_casheaKeys(), _perfilExtraKeys());
     keys.forEach(function(k){ WZ[k]=''; });
     // Limpiar también todos los aliases wz_*
-    var wzKeys = ['wz_nom','wz_ci','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_viv','wz_tdir','wz_terremoto','wz_terremoto_danos','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_empresa','wz_cargo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rel','wz_r1n','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2t','wz_r2r','wz_r2obs','wz_impresion','wz_obs'].concat(_casheaIds());
+    var wzKeys = ['wz_nom','wz_ci','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_viv','wz_tdir','wz_terremoto','wz_terremoto_danos','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_empresa','wz_cargo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rel','wz_r1n','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2t','wz_r2r','wz_r2obs','wz_impresion','wz_obs'].concat(_casheaIds(), _perfilExtraIds());
     wzKeys.forEach(function(k){ WZ[k]=''; });
     // Limpiar chips
     WZ['_chip_wz_emp_g']=WZ['_chip_wz_dep_g']=WZ['_chip_wz_hist_g']=WZ['_chip_wz_deuda_g']=WZ['_chip_wz_impresion_g']='';
@@ -978,6 +1022,7 @@ function _wzPickCliente(sel){
   WZ.cashea_total_compras = WZ.wz_cashea_total_compras = c.cashea_total_compras || '';
   WZ.cashea_obs = WZ.wz_cashea_obs = c.cashea_obs || '';
   CASHEA_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = (c[f.k]==null ? '' : c[f.k]); });
+  PERFIL_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = (c[f.k]==null ? '' : c[f.k]); });
   // Fiador
   WZ.fiador_tiene = c.fiador || 'no';
   WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
@@ -1802,9 +1847,13 @@ function _wzValidar(){
     if(!g('wz_nom')){ toast('El nombre es obligatorio','error'); return false; }
     if(!g('wz_ci')){ toast('La cédula es obligatoria','error'); return false; }
     if(!g('wz_tel')){ toast('El teléfono es obligatorio','error'); return false; }
-    if(!g('wz_emp')){ toast('Selecciona el tipo de empleo','error'); return false; }
-    var ing = parseFloat((document.getElementById('wz_ing')||{}).value)||0;
-    if(ing<=0){ toast('El ingreso mensual es obligatorio','error'); return false; }
+  }
+  // Empleo e ingreso eran obligatorios en el paso 1; ahora viven solo en el paso 2 y se
+  // exigen ahi, igual que antes (24-sep-2026). No se agrego ningun obligatorio nuevo.
+  if(s===2 && !_modoEdicion){
+    if(!_wzChipVal('wz_emp_g')){ toast('Selecciona el tipo de empleo','error'); return false; }
+    var ing2 = parseFloat((document.getElementById('wz_ing')||{}).value)||0;
+    if(ing2<=0){ toast('El ingreso mensual es obligatorio','error'); return false; }
   }
   if(s===3){
     // Vendedor obligatorio (para atribuir la comisión de venta)
@@ -1911,11 +1960,9 @@ function _wzValidar(){
     WZ.clienteSel = g('wz_cliente_sel');
     WZ.nom = g('wz_nom'); WZ.ci = _wzFmtCedula(g('wz_ci')); WZ.tel = g('wz_tel');
     WZ.wa = g('wz_wa'); WZ.email = g('wz_email'); WZ.ciudad = g('wz_ciudad');
-    WZ.emp = g('wz_emp'); WZ.ant = g('wz_ant');
-    WZ.ing = parseFloat((document.getElementById('wz_ing')||{}).value)||0;
     WZ.conocio = g('wz_conocio');
     WZ.wz_nom = WZ.nom; WZ.wz_ci = WZ.ci; WZ.wz_tel = WZ.tel; WZ.wz_wa = WZ.wa; WZ.wz_email = WZ.email; WZ.wz_ciudad = WZ.ciudad;
-    WZ.wz_emp = WZ.emp; WZ.wz_ant = WZ.ant; WZ.wz_ing = WZ.ing; WZ.wz_conocio = WZ.conocio;
+    WZ.wz_conocio = WZ.conocio;
   }
   if(s===3){
     WZ.uso = g('wz_uso');
@@ -2407,6 +2454,7 @@ function _wzGuardar(){
     cashea_total_compras: WZ.cashea_total_compras||'',
     cashea_obs: WZ.cashea_obs||'',
     ..._casheaExtraDatos(),
+    ..._perfilExtraDatos(),
     fiador: WZ.fiador_tiene||'no',
     fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'',
@@ -2567,6 +2615,7 @@ function _wzGuardar(){
         cashea_total_compras: WZ.cashea_total_compras||S.creds[_ei].cashea_total_compras||'',
         cashea_obs: WZ.cashea_obs||S.creds[_ei].cashea_obs||'',
         ..._casheaExtraDatos(S.creds[_ei]),
+        ..._perfilExtraDatos(S.creds[_ei]),
         score: WZ.score||S.creds[_ei].score||0,
         concesionarioId: WZ.concesionarioId||S.creds[_ei].concesionarioId||'',
         f1: WZ.f1||S.creds[_ei].f1||'',
@@ -2730,6 +2779,7 @@ function _wzGuardar(){
     cashea_ultima_fecha: WZ.cashea_ultima_fecha||'',
     cashea_total_compras: WZ.cashea_total_compras||'', cashea_obs: WZ.cashea_obs||'',
     ..._casheaExtraDatos(),
+    ..._perfilExtraDatos(),
     // ── Paso 2: Fiador ──
     fiador_tiene: WZ.fiador_tiene||'no', fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'', fiador_ci: WZ.fiador_ci||'', fiador_rel: WZ.fiador_rel||'',
@@ -3482,6 +3532,7 @@ function editarCredSinFirma(credId){
   preload['wz_cashea_total_compras'] = _f('cashea_total_compras','cashea_total_compras',''); preload.cashea_total_compras = preload['wz_cashea_total_compras'];
   preload['wz_cashea_obs'] = _f('cashea_obs','cashea_obs',''); preload.cashea_obs = preload['wz_cashea_obs'];
   CASHEA_EXTRA.forEach(function(f){ preload['wz_'+f.k] = _f(f.k, f.k, ''); preload[f.k] = preload['wz_'+f.k]; });
+  PERFIL_EXTRA.forEach(function(f){ preload['wz_'+f.k] = _f(f.k, f.k, ''); preload[f.k] = preload['wz_'+f.k]; });
   // Fiador
   preload.fiador_tiene = _f('fiador_tiene','fiador','no');
   preload['wz_fiador_nom'] = _f('fiador_nom','fiador_nom',''); preload.fiador_nom = preload['wz_fiador_nom'];

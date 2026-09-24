@@ -222,6 +222,34 @@ function _docLibreSubirCliente(input, cliId){
 }
 
 // ── HTML del bloque en el wizard ──
+// ── El expediente recomendado: que se vea que falta, sin obligar ──
+// 24-sep-2026. Los documentos se suben con nombre libre y nadie sabia despues que
+// expediente estaba completo. Adam: la foto y lo demas se suben despues, no se obliga.
+// Se reconocen por el nombre que les puso el empleado.
+var EXPEDIENTE_BASE = [
+  { k:'cedula',     et:'Cédula',                    re:/c[eé]dula|\bci\b|identidad/i },
+  { k:'selfie',     et:'Selfie con cédula',         re:/selfie|foto del cliente|foto cliente/i },
+  { k:'residencia', et:'Comprobante de residencia', re:/residencia|recibo de (luz|agua|gas)|corpoelec|cantv|hidrocapital/i },
+  { k:'ingreso',    et:'Comprobante de ingreso',    re:/ingreso|n[oó]mina|estado de cuenta|constancia|carta de trabajo|recibo de pago/i }
+];
+function _expedienteEstado(docs){
+  docs = Array.isArray(docs) ? docs.filter(Boolean) : [];
+  return EXPEDIENTE_BASE.map(function(e){
+    return { k:e.k, et:e.et, ok: docs.some(function(d){ return e.re.test(String((d.label||'')+' '+(d.name||''))); }) };
+  });
+}
+function _expedienteHtml(docs){
+  var est = _expedienteEstado(docs), faltan = est.filter(function(x){ return !x.ok; }).length;
+  return '<div id="wz_expediente" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px">'
+    + est.map(function(x){
+        return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 10px;border-radius:50px;'
+          + (x.ok ? 'background:var(--greens);color:var(--green)' : 'background:var(--ambers);color:var(--amber)') + '">'
+          + (x.ok ? '✓' : '·') + ' ' + x.et + '</span>';
+      }).join('')
+    + '<span style="font-size:11px;color:var(--ink3);margin-left:auto">' + (faltan ? 'Faltan '+faltan+' · se pueden subir después' : 'Expediente base completo') + '</span>'
+    + '</div>';
+}
+
 function _docLibreWizardHtml(){
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
   var existentes = Array.isArray(WZ.documentos) ? WZ.documentos : [];
@@ -244,6 +272,7 @@ function _docLibreWizardHtml(){
 
   return '<div style="background:rgba(37,99,235,.05);border:1px solid var(--rim2);border-radius:12px;padding:12px;margin-bottom:10px">'
     + '<div style="font-size:12px;font-weight:800;color:var(--ink);margin-bottom:8px">📋 Documentos del expediente</div>'
+    + _expedienteHtml(existentes)
     + listaHtml
     + '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end">'
     + '<div><label style="font-size:10.5px;font-weight:700;color:var(--ink3);display:block;margin-bottom:4px">Nombre del documento</label>'
@@ -293,9 +322,13 @@ function _docLibreWizardSubir(input){
 }
 
 function _docLibreWizardRefreshList(){
+  // esc no es global (se fue en la limpieza del 22-sep): sin esta linea, al subir un
+  // documento la lista no se refrescaba y el empleado no lo veia aparecer (24-sep-2026)
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
   var listEl = document.getElementById('wz_doc_libre_list');
   if(!listEl) return;
   var docs = Array.isArray(WZ.documentos) ? WZ.documentos : [];
+  var expEl = document.getElementById('wz_expediente'); if(expEl) expEl.outerHTML = _expedienteHtml(docs);
   if(!docs.length){ listEl.innerHTML=''; return; }
   listEl.innerHTML = docs.map(function(d){
     if(!d) return '';

@@ -658,6 +658,7 @@ function verCliente(id){
     + field('Teléfono', c.tel, true)
     + field('WhatsApp', c.wa||c.tel, true)
     + field('Email', c.email)
+    + field('Fecha de nacimiento', c.fecha_nacimiento ? new Date(c.fecha_nacimiento+'T12:00:00').toLocaleDateString('es-VE')+(_edadDe(c.fecha_nacimiento)!==''?' · '+_edadDe(c.fecha_nacimiento)+' años':'') : null)
     + field('Cliente desde', c.creado?new Date(c.creado).toLocaleDateString('es-VE',{day:'2-digit',month:'short',year:'numeric'}):'—')
     + '</div></div>';
 
@@ -694,6 +695,8 @@ function verCliente(id){
     + field('Empresa', c.empresa)
     + field('Cargo', c.cargo)
     + field('Antigüedad', c.antiguedad)
+    + field('Cómo se comprobó el ingreso', _perfilEtiqueta('ingreso_comprobante', c.ingreso_comprobante)||null)
+    + field('Cuándo cobra', _perfilEtiqueta('dia_cobro', c.dia_cobro)||null)
     + '</div></div>';
 
   html += '<div class="cf-section"><div class="cf-section-h"><div class="cf-section-t"> Ingresos</div></div>'
@@ -704,6 +707,8 @@ function verCliente(id){
     + field('Dependientes', c.dependientes)
     + field('Deudas previas', c.deudas)
     + field('Historial crediticio', c.historial)
+    + field('Paga al mes en otras deudas', (parseFloat(c.deuda_mensual)||0) > 0 ? valMoney(c.deuda_mensual) : null)
+    + field('¿Ya tuvo moto?', _perfilEtiqueta('moto_previa', c.moto_previa)||null)
     + '</div>';
   if(ingreso>0 && cuotaActivaTotal>0){
     var cuotaMensual = cuotaActivaTotal*2;
@@ -876,7 +881,7 @@ function verCliente(id){
   // ── PANEL: DOCUMENTOS ──
   html += '<div class="cf-panel" data-tab="docs">';
   html += '<div class="cf-section"><div class="cf-section-h"><div class="cf-section-t">Expediente del cliente</div></div>'
-    + _renderCliDocManager(c) + '</div>';
+    + _expedienteHtml(c.documentos) + _renderCliDocManager(c) + '</div>';
   html += '</div>';
 
   $('mbd').innerHTML = html;
@@ -1463,6 +1468,7 @@ function _cliInitFromCliente(c){
   WZ.cashea_total_compras = WZ.wz_cashea_total_compras = c.cashea_total_compras || '';
   WZ.cashea_obs = WZ.wz_cashea_obs = c.cashea_obs || '';
   CASHEA_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = (c[f.k]==null ? '' : c[f.k]); });
+  PERFIL_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = (c[f.k]==null ? '' : c[f.k]); });
   WZ.fiador_tiene = c.fiador || 'no';
   WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
   WZ.fiador_rif = WZ.wz_fiador_rif = c.fiador_rif || '';
@@ -1517,31 +1523,9 @@ function _cliStep1(){
     + _wzFg('Correo','wz_email','email','correo@ejemplo.com')
     + _wzFg('Ciudad','wz_ciudad','text','Ej: Caracas')
     + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'
-    + '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Tipo de empleo *</label>'
-    + '<select class="fs" id="wz_emp" onchange="_wzScore()">'
-    + '<option value="">Seleccionar...</option>'
-    + '<option value="formal">Formal / Empleado</option>'
-    + '<option value="publico">Empleado Público</option>'
-    + '<option value="delivery">Delivery / Motorizado</option>'
-    + '<option value="independiente">Independiente</option>'
-    + '<option value="comerciante">Comercio / Negocio</option>'
-    + '<option value="remesas">Remesas</option>'
-    + '<option value="informal">Informal</option>'
-    + '</select></div>'
-    + '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Antigüedad laboral</label>'
-    + '<select class="fs" id="wz_ant" onchange="_wzScore()">'
-    + '<option value="">Seleccionar...</option>'
-    + '<option value="1">Menos de 6 meses</option>'
-    + '<option value="2">6 meses – 1 año</option>'
-    + '<option value="3">1 a 3 años</option>'
-    + '<option value="5">Más de 3 años</option>'
-    + '</select></div>'
-    + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'
-    + _wzFg('Ingreso mensual (USD) *','wz_ing','number','0','oninput="_wzScore()"',true)
-    + _wzFg('Ingreso familiar total (USD)','wz_ifam','number','0','oninput="_wzScore()"')
-    + '</div>'
+    // El empleo, la antiguedad y el ingreso se preguntaban aqui Y en el paso 2 (24-sep-2026):
+    // quedan solo en el paso 2, con todo lo del trabajo. Aqui entra la fecha de nacimiento.
+    + '<div style="margin-top:10px">' + _perfilExtraHtml('cliente') + '</div>'
     + '<div style="margin-top:10px"><label class="fsec" style="display:block;margin-bottom:5px">¿Cómo nos conoció?</label>'
     + '<select class="fs" id="wz_conocio" onchange="_wzScore()">'
     + '<option value="">Seleccionar...</option>'
@@ -1609,6 +1593,7 @@ function _cliStep2(){
     +[['0','0'],['1','1'],['2','2'],['3+','3']].map(function(x){ return _chip(x[0],'wz_dep_g',x[1],'_wzScore()'); }).join('')
     +'</div>'
   )+'</div>'
+  +_perfilExtraHtml('empleo')
   +_s('Historial Financiero')
   +'<div style="margin-bottom:10px">'+_fg('Créditos anteriores *',
     '<div style="display:flex;flex-wrap:wrap;gap:7px">'
@@ -1622,6 +1607,7 @@ function _cliStep2(){
     .map(function(x){ return _chip(x[0],'wz_deuda_g',x[1],'_wzScore()'); }).join('')
     +'</div>'
   )+'</div>'
+  +_perfilExtraHtml('historial')
   +_row2(
     _fg('Cuenta bancaria',_sel('wz_banco','<option value="activa">Activa con movimientos</option><option value="poca">Poco movimiento</option><option value="no">Sin cuenta bancaria</option>','_wzScore()')),
     _fg('Banco(s)',_inp('wz_banco_nm','text','Ej: Banesco, Mercantil'))
@@ -1704,7 +1690,7 @@ function _cliStep2(){
 }
 
 function _cliHydrate(){
-  var ids=['wz_nom','wz_ci','wz_rif','wz_nacionalidad','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_tdir','wz_viv','wz_empresa','wz_cargo','wz_dir_trabajo','wz_tel_trabajo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_r1n','wz_r1ci','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2ci','wz_r2t','wz_r2r','wz_r2obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rif','wz_fiador_dir','wz_fiador_email','wz_fiador_rel','wz_obs'].concat(_casheaIds());
+  var ids=['wz_nom','wz_ci','wz_rif','wz_nacionalidad','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_tdir','wz_viv','wz_empresa','wz_cargo','wz_dir_trabajo','wz_tel_trabajo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_r1n','wz_r1ci','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2ci','wz_r2t','wz_r2r','wz_r2obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rif','wz_fiador_dir','wz_fiador_email','wz_fiador_rel','wz_obs'].concat(_casheaIds(), _perfilExtraIds());
   ids.forEach(function(id){ var el=document.getElementById(id); if(el && WZ[id]!=null) el.value=WZ[id]; });
   ['wz_emp','wz_ant','wz_conocio','wz_estado','wz_tdir','wz_viv','wz_rem','wz_banco','wz_banco_cobro','wz_ahorro','wz_cashea_nivel','wz_cashea_estado','wz_cashea_deuda','wz_cashea_total_compras','wz_r1r','wz_r2r','wz_fiador_rel','wz_uso','wz_plan_mode','wz_apy_inicial_sel'].forEach(function(id){ var el=document.getElementById(id); if(el && WZ[id]!=null && WZ[id]!=='') el.value=WZ[id]; });
   var cashea = WZ.cashea||'no';
@@ -1731,11 +1717,8 @@ function _cliCollectStep(step){
     WZ.wa = WZ.wz_wa = g('wz_wa');
     WZ.email = WZ.wz_email = g('wz_email');
     WZ.ciudad = WZ.wz_ciudad = g('wz_ciudad');
-    WZ.emp = WZ.wz_emp = g('wz_emp');
-    WZ.ant = WZ.wz_ant = g('wz_ant');
-    WZ.ing = WZ.wz_ing = parseFloat((document.getElementById('wz_ing')||{}).value)||0;
-    WZ.ifam = WZ.wz_ifam = parseFloat((document.getElementById('wz_ifam')||{}).value)||0;
     WZ.conocio = WZ.wz_conocio = g('wz_conocio');
+    PERFIL_EXTRA.forEach(function(f){ var el = document.getElementById('wz_'+f.k); if(el) WZ[f.k] = WZ['wz_'+f.k] = el.value; });
   }
   if(step===2){
     WZ.obs = WZ.wz_obs = g('wz_obs');
@@ -1758,6 +1741,7 @@ function _cliCollectStep(step){
     WZ.rem = WZ.wz_rem = g('wz_rem');
     WZ.dep = parseInt(_wzChipVal('wz_dep_g')||0);
     WZ.hist = _wzChipVal('wz_hist_g')||'ninguno';
+    PERFIL_EXTRA.forEach(function(f){ var el = document.getElementById('wz_'+f.k); if(el) WZ[f.k] = WZ['wz_'+f.k] = el.value; });
     WZ.deuda = _wzChipVal('wz_deuda_g')||'no';
     WZ.banco = WZ.wz_banco = g('wz_banco');
     WZ.banco_nm = WZ.wz_banco_nm = g('wz_banco_nm');
@@ -1797,6 +1781,9 @@ function _cliValidar(step){
     if(!WZ.nom){ toast('El nombre es obligatorio','error'); return false; }
     if(!WZ.ci){ toast('La cédula es obligatoria','error'); return false; }
     if(!WZ.tel){ toast('El teléfono es obligatorio','error'); return false; }
+  }
+  // empleo e ingreso ya no estan en el paso 1: se exigen en el 2, como siempre (24-sep-2026)
+  if(step===2){
     if(!WZ.emp){ toast('Selecciona el tipo de empleo','error'); return false; }
     if((parseFloat(WZ.ing)||0)<=0){ toast('El ingreso mensual es obligatorio','error'); return false; }
   }
@@ -1895,6 +1882,7 @@ function _cliGuardar(){
     cashea_total_compras: WZ.cashea_total_compras||'',
     cashea_obs: WZ.cashea_obs||'',
     ..._casheaExtraDatos(),
+    ..._perfilExtraDatos(),
     fiador: WZ.fiador_tiene||'no',
     fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'',
