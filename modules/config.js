@@ -24,6 +24,8 @@ PG.config = function(){
       if($('cfg_cuenta_usd')) $('cfg_cuenta_usd').value=d.cuentaUsd||'';
       if($('cfg_billetera')) $('cfg_billetera').value=d.billetera||'';
       if($('cfg_billetera_cuenta')) $('cfg_billetera_cuenta').value=d.billeteraCuenta||'';
+      if($('cfg_cuenta_bs')) $('cfg_cuenta_bs').value=d.cuentaBs||'';
+      if($('cfg_pago_movil')) $('cfg_pago_movil').value=d.pagoMovil||'';
     });
     db.collection('config').doc('plan').get().then(function(doc){
       if(!doc.exists) return;
@@ -124,8 +126,10 @@ PG.config = function(){
             </div>
             <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin:12px 0 7px">Cuentas que salen en el contrato</div>
             <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr;gap:8px">
-              <div class="fg"><label>Banco (dólares)</label><input class="fi" id="cfg_banco_usd" placeholder="Ej: 100% Banco Universal"></div>
-              <div class="fg"><label>N° de cuenta</label><input class="fi" id="cfg_cuenta_usd" placeholder="Ej: 0156-0030-61-0301030586"></div>
+              <div class="fg"><label>Banco</label><input class="fi" id="cfg_banco_usd" placeholder="Ej: 100% Banco Universal"></div>
+              <div class="fg"><label>N° de cuenta en dólares</label><input class="fi" id="cfg_cuenta_usd" placeholder="Ej: 0156-0030-61-0301030586"></div>
+              <div class="fg"><label>N° de cuenta en bolívares</label><input class="fi" id="cfg_cuenta_bs" placeholder="Ej: 0156-0030-63-0202268129"></div>
+              <div class="fg"><label>Pago Móvil (teléfono)</label><input class="fi" id="cfg_pago_movil" placeholder="Ej: 0424-4433312"></div>
               <div class="fg"><label>Billetera digital</label><input class="fi" id="cfg_billetera" placeholder="Ej: Binance (USDT)"></div>
               <div class="fg"><label>Correo o usuario de la billetera</label><input class="fi" id="cfg_billetera_cuenta" placeholder="Ej: pagos@tuempresa.com"></div>
             </div>

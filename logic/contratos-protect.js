@@ -172,9 +172,14 @@ function _protectDatos(credId){
   // llenarlos a boligrafo, como el resto del contrato. Antes quedaba un hueco: "a las
   // cuentas de PAGASI 26, C.A. en  (cuenta corriente...)", que en un papel que se firma
   // parece un error de imprenta y no se ve venir (22-sep-2026).
-  var medios = 'Transferencia o deposito a las cuentas de '+_empC.nom+' en '+V(_empC.bancoUsd, 24)+' '
-             + '(cuenta corriente en bolivares y cuentas custodia en dolares) y a la billetera digital de '+_empC.nom+' '
-             + 'en '+V(_empC.billetera, 18)+', segun los datos que Pagasi comunique por escrito al Comprador';
+  // 24-sep-2026, Adam: "en el contrato necesito agregar estos metodos de pago". Antes solo
+  // nombraba el banco; ahora salen los numeros: cuenta en bolivares, cuenta en dolares,
+  // Pago Movil y la billetera. Lo que no este cargado sale como N/A, nunca en blanco.
+  var medios = '(i) transferencia o deposito en bolivares a la cuenta de '+_empC.nom+' en '+V(_empC.bancoUsd, 24)+', N° '+V(_empC.cuentaBs, 24)+'; '
+             + '(ii) transferencia o deposito en dolares a la cuenta custodia de '+_empC.nom+' en '+V(_empC.bancoUsd, 24)+', N° '+V(_empC.cuentaUsd, 24)+'; '
+             + '(iii) Pago Movil al '+V(_empC.pagoMovil, 14)+', RIF '+V(_empC.rifPuntos, 14)+', '+V(_empC.bancoUsd, 24)+'; y '
+             + '(iv) la billetera digital de '+_empC.nom+' en '+V(_empC.billetera, 18)+', usuario '+V(_empC.billeteraCuenta, 20)
+             + '. Todo pago se hara a nombre de '+_empC.nom+', RIF '+V(_empC.rifPuntos, 14)+', y el Comprador enviara el comprobante por WhatsApp al '+V(_empC.tel, 16);
 
   return {
     c:c, cli:cli, moto:moto, emp:emp, conc:conc, gps:gps, F:F, b:b, num:num, V:V, USD:USD, T:T, fmt:fmt,

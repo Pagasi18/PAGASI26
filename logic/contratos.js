@@ -43,7 +43,7 @@ var _EMP_18 = {
   direccion:'Avenida Los Chorros, Quinta Miramar, Urbanización Sebucán, Caracas, Estado Miranda, Zona Postal 1071',
   ciudad:'Caracas',
   bancoUsd:'100% Banco Universal', cuentaUsd:'0156-0030-61-0301030586', billetera:'Binance (USDT)',
-  billeteraCuenta:'pagos@pagasi.io',
+  billeteraCuenta:'pagos@pagasi.io', cuentaBs:'', pagoMovil:'',
   tel:'+58 424-2177798', email:'info@pagasi.io'
 };
 function _empTxt(v){ return String(v==null?'':v).trim(); }
@@ -95,7 +95,8 @@ function _empCtr(){
   return { nom: uno('nombre'), rif: rif, rifPuntos: _empRifPuntos(rif),
     dir: uno('direccion'), ciudad: uno('ciudad'), tel: uno('tel'), email: uno('email'),
     bancoUsd: uno('bancoUsd'), cuentaUsd: uno('cuentaUsd'), billetera: uno('billetera'),
-    billeteraCuenta: uno('billeteraCuenta'), sinLlenar: vacia, conRespaldo: conRespaldo };
+    billeteraCuenta: uno('billeteraCuenta'), cuentaBs: uno('cuentaBs'), pagoMovil: uno('pagoMovil'),
+    sinLlenar: vacia, conRespaldo: conRespaldo };
 }
 // Aviso al imprimir: o la ficha esta vacia (sale PAGASI 18) o esta a medias (sale
 // con rayas). Las dos cosas hay que verlas antes de que alguien firme.
@@ -422,6 +423,8 @@ function _renderContratoArrendamiento(){
     <table style="width:100%;border-collapse:collapse;font-size:11px;margin:6px 0 8px">
       <tr><td style="padding:6px 9px;border:1px solid #DBEAFE;background:${purpleLight};font-weight:700;width:26%">a) ${_empCtr().billetera}</td><td style="padding:6px 9px;border:1px solid #DBEAFE">${_empCtr().billeteraCuenta}</td></tr>
       <tr><td style="padding:6px 9px;border:1px solid #DBEAFE;background:${purpleLight};font-weight:700">b) Transferencia o depósito en dólares</td><td style="padding:6px 9px;border:1px solid #DBEAFE">${_empCtr().bancoUsd} · titular ${_empCtr().nom} · RIF ${_empCtr().rifPuntos} · cuenta N° ${_empCtr().cuentaUsd}</td></tr>
+      ${_empCtr().cuentaBs ? `<tr><td style="padding:6px 9px;border:1px solid #DBEAFE;background:${purpleLight};font-weight:700">c) Transferencia o depósito en bolívares</td><td style="padding:6px 9px;border:1px solid #DBEAFE">${_empCtr().bancoUsd} · titular ${_empCtr().nom} · RIF ${_empCtr().rifPuntos} · cuenta N° ${_empCtr().cuentaBs}</td></tr>` : ''}
+      ${_empCtr().pagoMovil ? `<tr><td style="padding:6px 9px;border:1px solid #DBEAFE;background:${purpleLight};font-weight:700">d) Pago Móvil</td><td style="padding:6px 9px;border:1px solid #DBEAFE">${_empCtr().bancoUsd} · ${_empCtr().pagoMovil} · RIF ${_empCtr().rifPuntos}</td></tr>` : ''}
     </table>
     <p style="${sub}">El Arrendatario deberá enviar el comprobante de pago por WhatsApp al <strong>${_empCtr().tel}</strong>. Cuando un pago sea realizado en bolívares, se aplicará el tipo de cambio oficial publicado por el Banco Central de Venezuela vigente en la fecha de recepción efectiva del pago, salvo acuerdo escrito distinto.</p>
     <p style="${sub}"><span style="${subN}">2.6 Pago Inicial.</span> En la Fecha de Celebración y como condición para la entrega material del Vehículo, el Arrendatario paga al Arrendador la cantidad de ${iniMonto>0 ? '<strong>'+enLetrasUSD(iniMonto)+'</strong> (<strong>US$ '+fmtUSD(iniMonto)+'</strong>)' : blank(null,30)} (el “Pago Inicial”), en cualquiera de las formas previstas en la Sección 2.5. El Pago Inicial: (a) constituye contraprestación por la celebración de este Contrato y la entrega material del Vehículo en la Fecha de Celebración; (b) no constituye Canon Mensual ni es imputable a los Cánones Mensuales del Plazo ni al Precio de Ejercicio; (c) no será reembolsable en caso de terminación del Contrato por cualquier causa, salvo disposición legal imperativa en contrario; y (d) en caso de ejercicio de la Opción de Compra, se entenderá que forma parte de la contraprestación total de la operación, a tenor de lo previsto en la Sección 4.5 y el artículo 1.579 del Código Civil.</p>

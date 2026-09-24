@@ -237,8 +237,22 @@ ok('...el correo tambien', /E-Mail: <strong>N\/A<\/strong>/.test(htmlVacio));
 // El banco sin cargar dejaba un HUECO en medio de la frase: "a las cuentas de PAGASI 26,
 // C.A. en  (cuenta corriente...)", que parece un error de imprenta.
 ok('...los medios de pago sin cargar dicen N/A, no dejan un hueco',
-  htmlVacio.indexOf('cuentas de PAGASI 26, C.A. en <strong>N/A</strong> (cuenta corriente') > -1);
-ok('...y la billetera igual', htmlVacio.indexOf('en <strong></strong>, segun los datos') === -1);
+  htmlVacio.indexOf('cuenta de PAGASI 26, C.A. en <strong>N/A</strong>, N° <strong>N/A</strong>') > -1
+  && htmlVacio.indexOf('Pago Movil al <strong>N/A</strong>') > -1);
+ok('...y la billetera igual', htmlVacio.indexOf('en <strong></strong>') === -1 && htmlVacio.indexOf('billetera digital de PAGASI 26, C.A. en <strong>N/A</strong>') > -1);
+// 24-sep-2026, Adam: "en el contrato necesito agregar estos metodos de pago": con la ficha
+// cargada salen los numeros de las cuentas, el Pago Movil y el RIF
+global._empresa = { nombre:'PAGASI 26, C.A.', rif:'J-50856275-5', ciudad:'Caracas', direccion:'Av. Orinoco, Caracas', tel:'0424-4433312', email:'info@pagasi.io',
+  bancoUsd:'100% Banco Universal', cuentaUsd:'0156-0030-63-0301066602', cuentaBs:'0156-0030-63-0202268129', pagoMovil:'0424-4433312', billetera:'Binance (USDT)', billeteraCuenta:'' };
+var htmlLleno = API._htmlContratoProtect('CRED-900');
+ok('con la ficha cargada, el contrato trae la cuenta en bolívares', htmlLleno.indexOf('en bolivares a la cuenta de PAGASI 26, C.A. en <strong>100% Banco Universal</strong>, N° <strong>0156-0030-63-0202268129</strong>') > -1);
+ok('...la cuenta en dólares', htmlLleno.indexOf('N° <strong>0156-0030-63-0301066602</strong>') > -1);
+ok('...el Pago Móvil con el RIF con puntos', htmlLleno.indexOf('Pago Movil al <strong>0424-4433312</strong>, RIF <strong>J-50.856.275-5</strong>') > -1);
+ok('...y Binance sin usuario todavía dice N/A, no queda en blanco', htmlLleno.indexOf('en <strong>Binance (USDT)</strong>, usuario <strong>N/A</strong>') > -1);
+ok('la ficha de la empresa lee y guarda las cuentas nuevas',
+  /cuentaBs: d\.cuentaBs \|\| '', pagoMovil: d\.pagoMovil \|\| ''/.test(fs.readFileSync(path.join(ROOT,'logic/configuracion.js'),'utf8'))
+  && /cuentaBs, pagoMovil, updated/.test(fs.readFileSync(path.join(ROOT,'logic/configuracion.js'),'utf8'))
+  && /id="cfg_cuenta_bs"/.test(fs.readFileSync(path.join(ROOT,'modules/config.js'),'utf8')) && /id="cfg_pago_movil"/.test(fs.readFileSync(path.join(ROOT,'modules/config.js'),'utf8')));
 // La raya se queda SOLO donde el hueco es a proposito: la hora, que se escribe a mano.
 ok('la raya se queda donde se llena a boligrafo (la hora), no en los datos',
   (htmlVacio.match(/border-bottom:1px solid #94a3b8/g)||[]).length <= 8);
