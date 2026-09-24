@@ -7,6 +7,78 @@ var WZ = {
   cuota:0, ratio:0, monto:0, precio:0, plazo:0, ini:0, ing:0
 };
 
+
+// ══════════════════════════════════════════════════════════════════════
+// CASHEA: LO QUE LA APP LE MUESTRA AL CLIENTE
+// 24-sep-2026, los empleados le pidieron a Adam "más data de Cashea". Cashea es la
+// mejor referencia crediticia que tiene un cliente en Venezuela: la app le enseña
+// su nivel, su línea, su cupo y cuántas cuotas ha pagado a tiempo. Todo eso se
+// puede ver en el teléfono del cliente en la misma visita.
+// Una sola lista: el formulario de la solicitud, el de la ficha del cliente, la
+// ficha, el guardado y la edición la recorren. Antes cada dato de Cashea se copiaba
+// a mano en diez sitios y era fácil que uno se quedara sin guardar.
+// Los niveles son los del Club Cashea Más (6, con nombre propio). Antes el sistema
+// ofrecía 4 con nombres inventados (Bronce, Plata, Oro).
+// ══════════════════════════════════════════════════════════════════════
+var CASHEA_NIVELES = [[1,'Semilla'],[2,'Raíz'],[3,'Hoja'],[4,'Tronco'],[5,'Árbol'],[6,'Araguaney']];
+var CASHEA_EXTRA = [
+  { k:'cashea_linea',           et:'Línea de crédito (USD)',           tipo:'number', ph:'Ej: 600' },
+  { k:'cashea_cupo',            et:'Cupo disponible (USD)',            tipo:'number', ph:'Ej: 350' },
+  { k:'cashea_cuotas_tiempo',   et:'Cuotas pagadas a tiempo',          tipo:'number', ph:'Ej: 24', score:true },
+  { k:'cashea_total_pagado',    et:'Total pagado a Cashea (USD)',      tipo:'number', ph:'Ej: 1200' },
+  { k:'cashea_atrasos',         et:'Atrasos en el último año',         tipo:'sel', score:true, ops:[['','—'],['0','Ninguno'],['1','Uno'],['2+','Dos o más']] },
+  { k:'cashea_bajo_nivel',      et:'¿Bajó de nivel por atraso?',       tipo:'sel', score:true, ops:[['','—'],['no','No'],['si','Sí']] },
+  { k:'cashea_compras_activas', et:'Compras en curso',                 tipo:'number', ph:'Ej: 2' },
+  { k:'cashea_antiguedad',      et:'Tiempo usando Cashea',             tipo:'sel', ops:[['','—'],['<6m','Menos de 6 meses'],['6-12m','6 meses a 1 año'],['1-2a','1 a 2 años'],['2a+','Más de 2 años']] },
+  { k:'cashea_prox_fecha',      et:'Próxima cuota: fecha',             tipo:'date' },
+  { k:'cashea_prox_monto',      et:'Próxima cuota: monto (USD)',       tipo:'number', ph:'Ej: 45' },
+  { k:'cashea_verificado',      et:'¿Cómo confirmaste estos datos?',   tipo:'sel', solo:true, ops:[['','Seleccionar...'],['app','Lo vi en la app del cliente'],['captura','Me mandó una captura'],['dicho','Solo me lo dijo el cliente']] }
+];
+function _casheaIds(){ return CASHEA_EXTRA.map(function(f){ return 'wz_'+f.k; }); }
+function _casheaKeys(){ return CASHEA_EXTRA.map(function(f){ return f.k; }); }
+function _casheaNivelNombre(n){ var x = CASHEA_NIVELES.filter(function(p){ return String(p[0])===String(n); })[0]; return x ? 'Nivel '+x[0]+' — '+x[1] : (n ? 'Nivel '+n : ''); }
+function _casheaNivelOpts(){
+  return '<option value="">Seleccionar...</option>' + CASHEA_NIVELES.map(function(p){ return '<option value="'+p[0]+'">Nivel '+p[0]+' — '+p[1]+'</option>'; }).join('');
+}
+function _casheaEtiqueta(k, v){
+  var f = CASHEA_EXTRA.filter(function(x){ return x.k===k; })[0];
+  if(!f || v==null || v==='') return '';
+  if(f.ops){ var o = f.ops.filter(function(p){ return String(p[0])===String(v); })[0]; return o ? o[1] : String(v); }
+  return String(v);
+}
+// El trozo del formulario. h = las ayudas locales de cada formulario (_row2, _fg, _sel, _inp, _s2)
+function _casheaExtraHtml(h){
+  var campo = function(f){
+    var extra = f.score ? (f.tipo==='sel' ? '_wzScore()' : 'oninput="_wzScore()"') : '';
+    if(f.tipo==='sel') return h.fg(f.et, h.sel('wz_'+f.k, f.ops.map(function(p){ return '<option value="'+p[0]+'">'+p[1]+'</option>'; }).join(''), extra));
+    return h.fg(f.et, h.inp('wz_'+f.k, f.tipo, f.ph||'', extra));
+  };
+  var pares = CASHEA_EXTRA.filter(function(f){ return !f.solo; }), out = h.s2('Lo que muestra la app de Cashea');
+  for(var i=0;i<pares.length;i+=2) out += h.row2(campo(pares[i]), pares[i+1] ? campo(pares[i+1]) : '');
+  CASHEA_EXTRA.filter(function(f){ return f.solo; }).forEach(function(f){ out += '<div style="margin-bottom:10px">'+campo(f)+'</div>'; });
+  return out;
+}
+// Lo que se guarda (en el cliente y en el crédito). Con base, lo vacío conserva lo que ya había.
+function _casheaExtraDatos(base){
+  var o = {};
+  CASHEA_EXTRA.forEach(function(f){
+    var v = (typeof WZ!=='undefined' && WZ) ? WZ[f.k] : undefined;
+    if((v==null || v==='') && base) v = base[f.k];
+    if(f.tipo==='number') o[f.k] = parseFloat(v)||0; else o[f.k] = (v==null ? '' : String(v));
+  });
+  return o;
+}
+// Lo que suma o resta al factor "intención de pago" del score
+function _casheaExtraScore(v){
+  var d = 0, n = parseInt(v.cashea_nivel,10)||0;
+  d += n>=5 ? 15 : n>=3 ? 12 : n>=2 ? 7 : n>=1 ? 3 : 0;
+  var ct = parseInt(v.cashea_cuotas_tiempo,10)||0;
+  d += ct>=40 ? 10 : ct>=20 ? 7 : ct>=10 ? 4 : 0;
+  if(v.cashea_atrasos==='0') d += 5; else if(v.cashea_atrasos==='1') d -= 6; else if(v.cashea_atrasos==='2+') d -= 18;
+  if(v.cashea_bajo_nivel==='si') d -= 10;
+  return d;
+}
+
 function openAddCred(motoId=null){
   // La compania que ya no vende no abre solicitudes nuevas (23-sep-2026). El boton
   // se esconde, pero la puerta se cierra AQUI: al asistente se llega tambien desde
@@ -88,23 +160,15 @@ function _wzRender(motoId){
   function scoreLbl(s){ return s>=750?'Excelente':s>=625?'Bueno':s>=450?'Regular':'Bajo'; }
 
   // ── HTML de pasos ──
-  var stepsTpl = [
-    '① Cliente',
-    '② Perfil',
-    '③ Moto',
-    '④ Resultado'
-  ].map(function(l,i){
-    var on = WZ.step === i+1;
-    var done = WZ.step > i+1;
-    return '<div style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:'+(on?'700':'500')+';color:'+(on?'var(--p1)':done?'var(--green)':'var(--ink3)')+'">'+
-      '<div style="width:20px;height:20px;border-radius:50%;background:'+(on?'var(--p1)':done?'var(--green)':'var(--rim2)')+';color:'+(on||done?'#fff':'var(--ink3)')+';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">'+(done?'✓':(i+1))+'</div>'+
-      '<span style="white-space:nowrap">'+l.slice(2)+'</span></div>' +
-      (i<3?'<div style="height:1px;background:var(--rim);flex:1;min-width:8px"></div>':'');
+  var stepsTpl = ['Cliente','Perfil','Moto','Resultado'].map(function(l,i){
+    var on = WZ.step === i+1, done = WZ.step > i+1;
+    return '<div class="wz-step'+(on?' is-on':done?' is-done':'')+'"><div class="wz-step-n">'+(done?'✓':(i+1))+'</div><span>'+l+'</span></div>'
+      + (i<3 ? '<div class="wz-step-line'+(done?' is-done':'')+'"></div>' : '');
   }).join('');
 
   // ── Score pill ──
   var scorePill = WZ.score>0
-    ? '<div style="display:flex;align-items:center;gap:10px;background:var(--surf);border:1.5px solid var(--rim2);border-radius:50px;padding:7px 16px">'
+    ? '<div class="wz-pill">'
         +'<div style="font-size:22px;font-weight:900;letter-spacing:-1px;color:'+scoreCol(WZ.score)+'">'+WZ.score+'</div>'
         +'<div><div style="font-size:10px;font-weight:700;color:'+scoreCol(WZ.score)+'">'+scoreLbl(WZ.score)+'</div>'
         +'<div style="font-size:9px;color:var(--ink3)">Score Indexa /850</div></div>'
@@ -196,7 +260,7 @@ function _wzRender(motoId){
   // La sede va PRIMERO: de ella depende de donde sale el dinero de la moto (su
   // anticipo). Antes se elegia al final, venia puesta la primera de la lista y nadie la
   // cambiaba: las motos quedaban en una sede y los creditos en otra (23-sep-2026).
-  var step2 = _wzSedeHtml() + (motosDisp.length
+  var step2 = _wzSedeHtml() + '<div class="wz-card"><div class="wz-card-h"><span>La moto y su plan</span></div>' + (motosDisp.length
     ? '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Moto del inventario (ya comprada)</label>'
       + '<select class="fs" id="wz_moto_inv" onchange="_wzPickMotoInv(this)">'
       + '<option value="">— Ninguna: es una moto nueva del catálogo —</option>'
@@ -291,11 +355,13 @@ function _wzRender(motoId){
     // Al EDITAR no se dibuja: la compra de esta moto ya se registro hace tiempo, y lo
     // que el operario llenaba aqui se tiraba a la basura sin decir nada (el guardado de
     // la edicion pone WZ._pagosMoto = null y nunca crea el gasto). Punto 13, 22-sep-2026.
-    + (window._wzEditando ? '' : _wzDineroHtml());
+    + '</div>' + (window._wzEditando ? '' : _wzDineroHtml());
 
   // ── PASO 3: Perfil crediticio ──
   // helper para secciones
-  function _s(title){ return '<div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--p1);margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--rim)">'+title+'</div>'; }
+  // Cada seccion es una tarjeta (cierra la anterior y abre la suya) con su ancla para el indice
+  var _secs = [];
+  function _s(title){ _secs.push(title); return '</div><div class="wz-card" id="wz-sec-'+_secs.length+'"><div class="wz-card-h"><span>'+title+'</span></div>'; }
   function _s2(title){ return '<div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);margin:12px 0 6px">'+title+'</div>'; }
   function _row2(a,b){ return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+a+b+'</div>'; }
   function _fg(label,inner){ return '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">'+label+'</label>'+inner+'</div>'; }
@@ -389,7 +455,7 @@ function _wzRender(motoId){
   )+'</div>'
   +'<div id="wz_cashea_det" style="display:none;background:var(--surf2);border:1px solid var(--rim);border-radius:12px;padding:12px">'
   +_row2(
-    _fg('Nivel Cashea',_sel('wz_cashea_nivel','<option value="">Seleccionar...</option><option value="1">Nivel 1 — Básico</option><option value="2">Nivel 2 — Bronce</option><option value="3">Nivel 3 — Plata</option><option value="4">Nivel 4 — Oro</option>','_wzScore()')),
+    _fg('Nivel Cashea',_sel('wz_cashea_nivel',_casheaNivelOpts(),'_wzScore()')),
     _fg('Estado con Cashea',_sel('wz_cashea_estado','<option value="">Seleccionar...</option><option value="al_dia">Al día</option><option value="mora_leve">Mora < 30 días</option><option value="mora_grave">Mora > 30 días</option><option value="completado">Ya canceló todo</option>','_wzScore()'))
   )
   +_row2(
@@ -410,6 +476,7 @@ function _wzRender(motoId){
     _fg('Fecha de compra',_inp('wz_cashea_ultima_fecha','date','')),
     _fg('Total compras con Cashea',_sel('wz_cashea_total_compras','<option value="">—</option><option value="1">1 producto</option><option value="2-3">2 a 3 productos</option><option value="4-5">4 a 5 productos</option><option value="6+">6 o más</option>','_wzScore()'))
   )
+  +_casheaExtraHtml({row2:_row2, fg:_fg, sel:_sel, inp:_inp, s2:_s2})
   +_fg('Observaciones sobre Cashea',_inp('wz_cashea_obs','text','Ej: Cliente con buen historial, pagó iPhone sin atrasos...'))
   +'</div>'
 
@@ -473,43 +540,37 @@ function _wzRender(motoId){
   // ── PASO 4: Resultado ──
   var step4 = '<div id="wz-resultado-contenido">Calculando...</div>';
 
+  // Vestido de tarjetas (24-sep-2026): el paso 2 lleva un indice fijo para saltar de seccion
+  var navPerfil = '<div class="wz-nav">' + _secs.map(function(t,i){ return '<a onclick="_wzIrSeccion('+(i+1)+',this)">'+t+'</a>'; }).join('') + '</div>';
+  step1 = '<div class="wz-card">' + step1 + '</div>';
+  step3 = navPerfil + '<div class="wz-card">' + step3 + '</div>';
   var steps = [step1, step3, step2, step4];
   var current = steps[WZ.step-1];
 
   var btnBack = WZ.step > 1
-    ? '<button onclick="_wzPrev()" style="padding:11px 20px;border-radius:12px;border:1.5px solid var(--rim);background:var(--surf2);color:var(--ink2);font-family:var(--f);font-weight:700;font-size:13px;cursor:pointer">← Atrás</button>'
-    : '<button onclick="_wzClose()" style="padding:11px 20px;border-radius:12px;border:1.5px solid var(--rim);background:var(--surf2);color:var(--ink2);font-family:var(--f);font-weight:700;font-size:13px;cursor:pointer">Cancelar</button>';
+    ? '<button class="wz-btn wz-btn-g" onclick="_wzPrev()">← Atrás</button>'
+    : '<button class="wz-btn wz-btn-g" onclick="_wzClose()">Cancelar</button>';
 
   var btnNext = WZ.step < 4
-    ? '<button onclick="_wzNext()" style="padding:11px 24px;border-radius:12px;background:var(--p1);color:#fff;font-family:var(--f);font-weight:700;font-size:13px;border:none;cursor:pointer;box-shadow:0 2px 10px rgba(37,99,235,.25)">'+(WZ.step===3?'Calcular Score →':'Siguiente →')+'</button>'
-    : '<button onclick="_wzGuardar()" style="padding:11px 24px;border-radius:12px;background:var(--green);color:#fff;font-family:var(--f);font-weight:700;font-size:13px;border:none;cursor:pointer"> Guardar Solicitud</button>';
+    ? '<button class="wz-btn wz-btn-p" onclick="_wzNext()">'+(WZ.step===3?'Calcular score →':'Siguiente →')+'</button>'
+    : '<button class="wz-btn wz-btn-ok" onclick="_wzGuardar()">Guardar solicitud</button>';
 
   ov.innerHTML =
-    // Header
-    '<div style="position:sticky;top:0;z-index:10;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--rim);padding:0 20px">'
-    + '<div style="max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px;height:56px">'
-    + '<button onclick="_wzClose()" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--rim);background:var(--surf2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--ink3);flex-shrink:0">✕</button>'
-    + '<div style="flex:1"><div style="font-size:15px;font-weight:800;letter-spacing:-.3px">Nueva Solicitud</div><div style="font-size:11px;color:var(--ink3)">Paso '+WZ.step+' de 4</div></div>'
-    + '<div data-wz-header>'
-    + scorePill
-    + '</div>'
-    + '</div>'
-    // Steps indicator
-    + '<div style="max-width:680px;margin:0 auto;display:flex;align-items:center;gap:6px;padding:10px 0">'
-    + stepsTpl
-    + '</div></div>'
-    // Body
-    + '<div style="max-width:680px;margin:0 auto;padding:20px 20px 100px">'
-    + '<div style="font-size:16px;font-weight:800;margin-bottom:4px;letter-spacing:-.3px">'+['Datos del Cliente','Perfil Crediticio','Motocicleta','Resultado'][WZ.step-1]+'</div>'
-    + '<div style="font-size:12px;color:var(--ink3);margin-bottom:18px">'+['Información personal y laboral','Historial y capacidad de pago','¿Qué moto quiere financiar?','Score Indexa y resumen'][WZ.step-1]+'</div>'
+    '<div class="wz-head"><div class="wz-head-in">'
+    + '<button class="wz-x" onclick="_wzClose()" title="Cerrar">✕</button>'
+    + '<div style="flex:1;min-width:0"><div class="wz-title">'+(window._wzEditando ? 'Editar solicitud' : 'Nueva solicitud')+'</div><div class="wz-sub">Paso '+WZ.step+' de 4 · '+['Datos del cliente','Perfil crediticio','Motocicleta','Resultado'][WZ.step-1]+'</div></div>'
+    + '<div data-wz-header>'+scorePill+'</div>'
+    + '</div><div class="wz-steps">'+stepsTpl+'</div></div>'
+    + '<div class="wz-body">'
+    + '<div class="wz-h1">'+['Datos del cliente','Perfil crediticio','Motocicleta','Resultado'][WZ.step-1]+'</div>'
+    + '<div class="wz-h2">'+['Información personal y laboral','Historial y capacidad de pago','¿Qué moto quiere financiar?','Score Indexa y resumen'][WZ.step-1]+'</div>'
     + current
     + '</div>'
-    // Footer fijo
-    + '<div style="position:fixed;bottom:0;left:0;right:0;background:var(--surf);border-top:1px solid var(--rim);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;z-index:11">'
+    + '<div class="wz-foot"><div class="wz-foot-in">'
     + btnBack
-    + '<div style="font-size:11px;color:var(--ink3)">'+WZ.step+' / 4</div>'
+    + '<div class="wz-foot-mid">'+WZ.step+' / 4</div>'
     + btnNext
-    + '</div>';
+    + '</div></div>';
 
   setTimeout(function(){ _wzHydrate(); _wzHydrateDocsUI(); }, 0);
   // Inicializar preview financiero si hay precio (ahora en paso 3 = moto)
@@ -734,7 +795,7 @@ function _wzHydrate(){
     // Selector moto inventario
     'wz_moto_inv',
     // Referencia de la inicial (la cuenta se marca sola al pintar el desplegable)
-    'wz_ini_ref'];
+    'wz_ini_ref'].concat(_casheaIds());
   ids.forEach(function(id){
     var el=document.getElementById(id);
     if(!el) return;
@@ -819,6 +880,7 @@ function _wzCollectVisibleValues(){
     wz_ini_metodo:'iniMetodo', wz_ini_ref:'iniRef', wz_mpago_resto:'_mpagoCuentaResto',
     wz_cat_marca:'catMarca', wz_cat_modelo:'catModelo', wz_cat_precio:'catPrecio'
   };
+  CASHEA_EXTRA.forEach(function(f){ alias['wz_'+f.k] = f.k; });
   Array.from(ov.querySelectorAll('input[id^="wz_"],select[id^="wz_"],textarea[id^="wz_"]')).forEach(function(el){
     var id = el.id;
     if(!id || el.type==='radio' || el.type==='checkbox') return;
@@ -856,10 +918,10 @@ function _wzPickCliente(sel){
   WZ.clienteSel = id || '';
   if(!id){
     // Limpiar TODOS los campos al deseleccionar
-    var keys = ['nom','ci','tel','wa','email','ciudad','emp','ant','ing','ifam','conocio','viv','tdir','estado_ubi','ciudad_res','dir_det','dir_q','empresa','cargo','rem','dep','hist','deuda','banco','banco_nm','banco_cobro','cuenta','ahorro','cashea','cashea_nivel','cashea_pago','cashea_estado','cashea_deuda','cashea_monto','cashea_cuotas_pend','cashea_ultimo_art','cashea_ultimo_monto','cashea_ultima_fecha','cashea_total_compras','cashea_obs','fiador_tiene','fiador_nom','fiador_tel','fiador_ci','fiador_rel','r1n','r1t','r1r','r1obs','r2n','r2t','r2r','r2obs','impresion','obs'];
+    var keys = ['nom','ci','tel','wa','email','ciudad','emp','ant','ing','ifam','conocio','viv','tdir','estado_ubi','ciudad_res','dir_det','dir_q','empresa','cargo','rem','dep','hist','deuda','banco','banco_nm','banco_cobro','cuenta','ahorro','cashea','cashea_nivel','cashea_pago','cashea_estado','cashea_deuda','cashea_monto','cashea_cuotas_pend','cashea_ultimo_art','cashea_ultimo_monto','cashea_ultima_fecha','cashea_total_compras','cashea_obs','fiador_tiene','fiador_nom','fiador_tel','fiador_ci','fiador_rel','r1n','r1t','r1r','r1obs','r2n','r2t','r2r','r2obs','impresion','obs'].concat(_casheaKeys());
     keys.forEach(function(k){ WZ[k]=''; });
     // Limpiar también todos los aliases wz_*
-    var wzKeys = ['wz_nom','wz_ci','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_viv','wz_tdir','wz_terremoto','wz_terremoto_danos','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_empresa','wz_cargo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rel','wz_r1n','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2t','wz_r2r','wz_r2obs','wz_impresion','wz_obs'];
+    var wzKeys = ['wz_nom','wz_ci','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_viv','wz_tdir','wz_terremoto','wz_terremoto_danos','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_empresa','wz_cargo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rel','wz_r1n','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2t','wz_r2r','wz_r2obs','wz_impresion','wz_obs'].concat(_casheaIds());
     wzKeys.forEach(function(k){ WZ[k]=''; });
     // Limpiar chips
     WZ['_chip_wz_emp_g']=WZ['_chip_wz_dep_g']=WZ['_chip_wz_hist_g']=WZ['_chip_wz_deuda_g']=WZ['_chip_wz_impresion_g']='';
@@ -915,6 +977,7 @@ function _wzPickCliente(sel){
   WZ.cashea_ultima_fecha = WZ.wz_cashea_ultima_fecha = c.cashea_ultima_fecha || '';
   WZ.cashea_total_compras = WZ.wz_cashea_total_compras = c.cashea_total_compras || '';
   WZ.cashea_obs = WZ.wz_cashea_obs = c.cashea_obs || '';
+  CASHEA_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = (c[f.k]==null ? '' : c[f.k]); });
   // Fiador
   WZ.fiador_tiene = c.fiador || 'no';
   WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
@@ -1007,9 +1070,9 @@ function _wzSedeHtml(){
   if(disp.length === 1){
     // Al EDITAR no se pisa la sede que traia el credito (punto 14, 22-sep-2026)
     if(!(window._wzEditando && WZ.concesionarioId)) WZ.concesionarioId = disp[0].id;
-    return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:14px 16px;margin-bottom:14px">'
+    return '<div class="wz-card">'
       + '<div style="display:flex;justify-content:space-between;align-items:center">'
-      + '<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1)">Concesionario</div>'
+      + '<div><div class="wz-card-h" style="margin:0 0 4px"><span>Concesionario</span></div>'
       + '<div style="font-size:13.5px;font-weight:700;margin-top:3px">'+_wzEsc(disp[0].nombre)+(disp[0].ciudad?' · '+_wzEsc(disp[0].ciudad):'')+'</div></div>'
       + '<span style="background:rgba(0,184,118,.15);color:var(--green);padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700">SEDE ÚNICA</span>'
       + '</div>'
@@ -1021,8 +1084,8 @@ function _wzSedeHtml(){
   var elegida = WZ.concesionarioId ? String(WZ.concesionarioId) : '';
   if(elegida && !disp.some(function(c){ return String(c.id)===elegida; })) elegida = '';
   WZ.concesionarioId = elegida;
-  return '<div style="background:var(--surf);border:1.5px solid var(--p1);border-radius:14px;padding:14px 16px;margin-bottom:14px">'
-    + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:9px">¿De qué concesionario sale la moto? *</div>'
+  return '<div class="wz-card wz-card-accent">'
+    + '<div class="wz-card-h"><span>¿De qué concesionario sale la moto? *</span></div>'
     + '<select class="fs" id="wz_concesionario_id" onchange="_wzSetSede(this.value)" style="font-size:13px;font-weight:700">'
     + '<option value=""'+(elegida?'':' selected')+'>— Elegir concesionario —</option>'
     + disp.map(function(c){
@@ -1041,8 +1104,8 @@ function _wzSetSede(v){
 // La tarjeta "El dinero de esta venta" (solo al crear)
 function _wzDineroHtml(){
   var esVendConc = (S.currentUser&&S.currentUser.rol)==='Vendedor Concesionario';
-  return '<div id="wz-dinero" style="margin-top:16px;background:var(--surf);border:1.5px solid var(--p1);border-radius:14px;padding:14px 16px">'
-    + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">El dinero de esta venta</div>'
+  return '<div id="wz-dinero" class="wz-card wz-card-accent">'
+    + '<div class="wz-card-h"><span>El dinero de esta venta</span></div>'
     + '<div class="fgr">'
     +   '<div class="fg"><label id="wz_ini_lbl">¿Dónde pagó el cliente la inicial? *</label>'
     +   '<select class="fs" id="wz_ini_metodo" onchange="WZ.iniMetodo=this.value;_wzMpagoSync()">'+_wzIniMetodoOpts()+'</select></div>'
@@ -1211,12 +1274,9 @@ function _wzResumenDineroHTML(r){
     }
   }
   if(!filas.length) return '';
-  return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:16px;margin-bottom:12px">'
-    + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">'+(window._wzEditando ? 'Sede' : 'El dinero de esta venta')+'</div>'
-    + filas.map(function(f){
-        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--rim2);font-size:12.5px">'
-          + '<span style="color:var(--ink3);flex-shrink:0">'+f[0]+'</span><span style="font-weight:700;text-align:right">'+f[1]+'</span></div>';
-      }).join('')
+  return '<div class="wz-card">'
+    + '<div class="wz-card-h"><span>'+(window._wzEditando ? 'Sede' : 'El dinero de esta venta')+'</span></div>'
+    + filas.map(function(f){ return '<div class="wz-row"><span style="flex-shrink:0">'+f[0]+'</span><span>'+f[1]+'</span></div>'; }).join('')
     + '<div style="font-size:11px;color:var(--ink3);margin-top:8px">Para cambiar algo, vuelve al paso 3 con “← Atrás”.</div>'
     + '</div>';
 }
@@ -1656,128 +1716,59 @@ function _wzAddrSelect(i){
 // ── Documento handler ──
 
 function _wzScore(){
-  var g=function(id){var el=document.getElementById(id);return el?el.value:'';};
-  var ing = parseFloat(g('wz_ing'))||0;
-  var ifam = parseFloat(g('wz_ifam'))||0;
-  var emp = _wzChipVal('wz_emp_g')||g('wz_emp')||'';
-  var ant = g('wz_ant');
-  var hist = _wzChipVal('wz_hist_g')||'ninguno';
-  var deuda = _wzChipVal('wz_deuda_g')||'no';
-  var dep = parseInt(_wzChipVal('wz_dep_g')||0);
-  var banco = g('wz_banco')||'activa';
-  var viv = g('wz_viv')||'propia';
-  var rem = g('wz_rem')||'no';
-  var uso = g('wz_uso')||'personal';
-  var conocio = g('wz_conocio')||'';
-  var cashea = (document.querySelector('input[name="wz_cashea"]:checked')||{value:'no'}).value;
-  var casheaNivel = parseInt(g('wz_cashea_nivel'))||0;
-  var casheaEstado = g('wz_cashea_estado')||'';
-  var casheaDeuda = g('wz_cashea_deuda')||'no';
-  var casheaTotalCompras = g('wz_cashea_total_compras')||'';
-  var fiador = (document.querySelector('input[name="wz_fiador"]:checked')||{value:'no'}).value==='si';
-  var precio = WZ.precio||parseFloat(g('wz_precio'))||0;
+  // 24-sep-2026: antes leia solo la pantalla, y cada paso borra la anterior. Al llegar al
+  // paso 4 ya no existian el ingreso, la antiguedad, el banco, la vivienda ni el fiador
+  // del paso 1 y 2: la formula recibia ingreso 0 y "sin fiador" para TODOS, y por eso
+  // capacidad de pago daba 10 y garantias 50 en toda la cartera. Ahora cada dato se
+  // toma de la pantalla si esta, y si no, de lo que ya se recogio en WZ.
+  var v = function(id, alias){
+    var el = document.getElementById(id);
+    if(el) return el.value;
+    if(WZ[id] != null && WZ[id] !== '') return WZ[id];
+    return (alias && WZ[alias] != null) ? WZ[alias] : '';
+  };
+  var radio = function(name, alias, def){
+    var el = document.querySelector('input[name="'+name+'"]:checked');
+    if(el) return el.value;
+    return (WZ[alias] != null && WZ[alias] !== '') ? WZ[alias] : def;
+  };
+  var precio = WZ.precio||parseFloat(v('wz_precio','precio'))||0;
   var planCfg = precio>0 ? getWzPlanConfig() : null;
-  var cuotaQ = planCfg ? (parseFloat(planCfg.cuotaQ)||0) : 0;
-  var ingEf = Math.max(ing,ifam);
-  var ratio = (cuotaQ>0&&ingEf>0)?cuotaQ/ingEf:0;
-
-  var f1={ninguno:50,bueno:100,mora_leve:35,malo:5}[hist]||50;
-  if(deuda==='menores')f1=Math.max(0,f1-12);
-  else if(deuda==='graves')f1=Math.max(0,f1-35);
-  if(banco==='activa')f1=Math.min(100,f1+10);
-  else if(banco==='no')f1=Math.max(0,f1-10);
-  // Cashea: nivel base + estado actual + historial
-  if(cashea==='si'){
-    // Bonus por nivel (cliente activo Cashea)
-    f1=Math.min(100,f1+(casheaNivel>=3?12:casheaNivel>=2?7:3));
-    // Estado de pago con Cashea: señal crediticia directa y fuerte
-    if(casheaEstado==='completado') f1=Math.min(100,f1+15); // canceló todo ok
-    else if(casheaEstado==='al_dia') f1=Math.min(100,f1+10); // al día
-    else if(casheaEstado==='mora_leve') f1=Math.max(0,f1-15); // mora leve
-    else if(casheaEstado==='mora_grave') f1=Math.max(0,f1-35);// mora grave (equivale a hist malo)
-    // Historial de compras: cuantas más compras sin problema = más confianza
-    if(casheaEstado!=='mora_leve' && casheaEstado!=='mora_grave'){
-      if(casheaTotalCompras==='6+') f1=Math.min(100,f1+10);
-      else if(casheaTotalCompras==='4-5') f1=Math.min(100,f1+6);
-      else if(casheaTotalCompras==='2-3') f1=Math.min(100,f1+3);
-    }
-    // Deuda activa alta con Cashea = señal de sobreendeudamiento
-    if(casheaDeuda==='si'){
-      var casheaMonto = parseFloat(g('wz_cashea_monto'))||0;
-      if(casheaMonto>500) f1=Math.max(0,f1-8);
-      else if(casheaMonto>200) f1=Math.max(0,f1-4);
-    }
-  }
-  f1=Math.max(0,Math.min(100,f1));
-
-  var ingBase={formal:80,publico:70,independiente:60,comerciante:65,delivery:70,remesas:55,informal:30};
-  // f2 usa ingreso base configurable
-  var _minB=(SCORE_CFG&&SCORE_CFG.ingreso&&SCORE_CFG.ingreso.minBase)||100;
-  var _maxB=(SCORE_CFG&&SCORE_CFG.ingreso&&SCORE_CFG.ingreso.maxBase)||3000;
-  var f2= (ingEf>=_minB) ? Math.min(100, ((ingEf-_minB)/(_maxB-_minB))*100) : 0;
-  if(emp)f2=Math.min(100,f2*(ingBase[emp]||50)/70);
-  if(dep===1)f2=Math.max(0,f2-8);
-  else if(dep===2)f2=Math.max(0,f2-18);
-  else if(dep>=3)f2=Math.max(0,f2-28);
-  if(viv==='propia')f2=Math.min(100,f2+10);
-  else if(viv==='alquilada')f2=Math.max(0,f2-8);
-  if(ratio>0){
-    var _rIdeal=(SCORE_CFG&&SCORE_CFG.ratios&&SCORE_CFG.ratios.ideal)||0.20;
-    var _rAce=(SCORE_CFG&&SCORE_CFG.ratios&&SCORE_CFG.ratios.aceptable)||0.30;
-    var _rAlto=(SCORE_CFG&&SCORE_CFG.ratios&&SCORE_CFG.ratios.alto)||0.40;
-    var _rMuy=(SCORE_CFG&&SCORE_CFG.ratios&&SCORE_CFG.ratios.muyAlto)||0.50;
-    if(ratio<=_rIdeal)f2=Math.min(100,f2+12);
-    else if(ratio<=_rAce){}
-    else if(ratio<=_rAlto)f2=Math.max(0,f2-18);
-    else if(ratio<=_rMuy)f2=Math.max(0,f2-38);
-    else f2=Math.max(0,f2-60);
-  }
-  f2=Math.max(0,Math.min(100,f2));
-
-  var empBase={formal:78,publico:70,independiente:65,comerciante:68,delivery:70,remesas:60,informal:38};
-  var antBase={'1':0,'2':10,'3':22,'5':35};
-  var f3=Math.min(100,(empBase[emp]||30)+(antBase[ant]||0));
-  if(uso==='delivery')f3=Math.min(100,f3+15);
-  else if(uso==='negocio')f3=Math.min(100,f3+7);
-  if(rem==='si'&&emp!=='remesas')f3=Math.min(100,f3+8);
-  f3=Math.max(0,Math.min(100,f3));
-
-  var f4=25;
-  if(fiador)f4=Math.min(100,f4+45);
-  if(viv==='propia')f4=Math.min(100,f4+15);
-  else if(viv==='familiar')f4=Math.min(100,f4+5);
-  if(banco==='activa')f4=Math.min(100,f4+10);
-  else if(banco==='no')f4=Math.max(0,f4-10);
-  f4=Math.max(0,Math.min(100,f4));
-
-  var f5=50;
-  if(conocio==='referido')f5=Math.min(100,f5+30);
-  else if(conocio==='anterior')f5=Math.min(100,f5+22);
-  else if(conocio==='redes')f5=Math.min(100,f5+5);
-  if(deuda==='no')f5=Math.min(100,f5+10);
-  else if(deuda==='graves')f5=Math.max(0,f5-15);
-  if(rem==='si')f5=Math.min(100,f5+8);
-  f5=Math.max(0,Math.min(100,f5));
-
-  // Hard rejects con SCORE_CFG
-  var _hr = (SCORE_CFG&&SCORE_CFG.hardReject)||{};
-  var _ingMin = _hr.ingresoMinimo||100;
-  var _ratioMax = _hr.ratioCuotaMax||0.55;
-  // nota: ratio aquí es cuota quincenal/ingreso mensual; convertimos para que sea mensual/mensual
-  var _ratioMensual = ratio*2;
-  var hardReject = (ingEf>0 && ingEf<_ingMin)
-    || (_ratioMensual>_ratioMax)
-    || (_hr.historialMaloConDeuda && hist==='malo' && deuda==='graves');
-  // Pesos configurables
-  var _p = (SCORE_CFG&&SCORE_CFG.pesos)||{f1:30,f2:30,f3:20,f4:15,f5:5};
-  var _totalPeso = (_p.f1+_p.f2+_p.f3+_p.f4+_p.f5)||100;
-  var raw=Math.round((f1*_p.f1+f2*_p.f2+f3*_p.f3+f4*_p.f4+f5*_p.f5)/_totalPeso*10);
-  var score=hardReject?300:Math.max(300,Math.min(850,Math.round(300+(raw/1000)*550)));
-
-  WZ.score=score;WZ.f1=Math.round(f1);WZ.f2=Math.round(f2);
-  WZ.f3=Math.round(f3);WZ.f4=Math.round(f4);WZ.f5=Math.round(f5);
-  WZ.ratio=ratio;WZ.ingEf=ingEf;WZ.precio=precio;
-  if(cuotaQ>0){WZ.cuota=cuotaQ;WZ.monto=planCfg ? (parseFloat(planCfg.fin)||0) : calcMoto(precio).fin; }
+  var input = {
+    ing: parseFloat(v('wz_ing','ing'))||0,
+    ifam: parseFloat(v('wz_ifam','ifam'))||0,
+    cuotaQ: planCfg ? (parseFloat(planCfg.cuotaQ)||0) : 0,
+    emp: _wzChipVal('wz_emp_g')||v('wz_emp','emp')||'',
+    ant: String(v('wz_ant','ant')||''),
+    hist: _wzChipVal('wz_hist_g')||'ninguno',
+    deuda: _wzChipVal('wz_deuda_g')||'no',
+    dep: parseInt(_wzChipVal('wz_dep_g')||0, 10)||0,
+    banco: v('wz_banco','banco')||'activa',
+    viv: v('wz_viv','viv')||'propia',
+    rem: (v('wz_rem','rem')||'no')==='si',
+    fiador: radio('wz_fiador','fiador_tiene','no')==='si',
+    tieneTel: !!(v('wz_tel','tel')),
+    tieneRef: !!(v('wz_r1n','r1n') || v('wz_r2n','r2n')),
+    uso: v('wz_uso','uso')||'personal',
+    conocio: v('wz_conocio','conocio')||'',
+    cashea: radio('wz_cashea','cashea','no'),
+    cashea_nivel: parseInt(v('wz_cashea_nivel','cashea_nivel'),10)||0,
+    cashea_estado: v('wz_cashea_estado','cashea_estado')||'',
+    cashea_total_compras: v('wz_cashea_total_compras','cashea_total_compras')||'',
+    cashea_deuda: v('wz_cashea_deuda','cashea_deuda')||'no',
+    cashea_monto: parseFloat(v('wz_cashea_monto','cashea_monto'))||0,
+    cashea_cuotas_tiempo: v('wz_cashea_cuotas_tiempo','cashea_cuotas_tiempo')||'',
+    cashea_atrasos: v('wz_cashea_atrasos','cashea_atrasos')||'',
+    cashea_bajo_nivel: v('wz_cashea_bajo_nivel','cashea_bajo_nivel')||''
+  };
+  // La misma formula que la ficha del cliente y el simulador (logic/scores.js)
+  var r = calcularScoreConCfg(input);
+  WZ.score=r.score; WZ.f1=r.f1; WZ.f2=r.f2; WZ.f3=r.f3; WZ.f4=r.f4; WZ.f5=r.f5;
+  WZ.ratio=r.ratio; WZ.ingEf=r.ingEf; WZ.precio=precio;
+  // Los datos exactos con que salio este score: se guardan con el credito para poder
+  // revisar la formula en diciembre sin adivinar que se sabia ese dia
+  WZ.scoreInput = input; WZ.scoreMotivos = r.motivosRechazo||[];
+  if(input.cuotaQ>0){ WZ.cuota=input.cuotaQ; WZ.monto=planCfg ? (parseFloat(planCfg.fin)||0) : calcMoto(precio).fin; }
   _wzActualizarPill();
 }
 
@@ -1977,6 +1968,7 @@ function _wzValidar(){
     WZ.cashea_ultima_fecha = g('wz_cashea_ultima_fecha');
     WZ.cashea_total_compras = g('wz_cashea_total_compras');
     WZ.cashea_obs = g('wz_cashea_obs');
+    CASHEA_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = g('wz_'+f.k); });
     WZ.fiador_tiene = (document.querySelector('input[name="wz_fiador"]:checked')||{value:'no'}).value;
     WZ.fiador_nom = g('wz_fiador_nom');
     WZ.fiador_tel = g('wz_fiador_tel');
@@ -1997,6 +1989,12 @@ function _wzNext(){
   _wzScore();
   WZ.step = Math.min(WZ.totalSteps, WZ.step+1);
   _wzRender();
+}
+// El indice del paso 2: lleva a la tarjeta y la marca (24-sep-2026)
+function _wzIrSeccion(n, chip){
+  var el = document.getElementById('wz-sec-'+n);
+  if(el && el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  var nav = chip && chip.parentNode; if(nav) Array.prototype.forEach.call(nav.children, function(a){ a.classList.toggle('is-on', a===chip); });
 }
 function _wzPrev(){
   _wzCollectVisibleValues();
@@ -2026,16 +2024,15 @@ function _wzRenderResultado(){
 
   el.innerHTML =
     // Decisión
-    '<div style="background:'+decClass+';border:1.5px solid '+decBorder+';border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">'
-    +'<div style="font-size:36px;margin-bottom:6px">'+decIco+'</div>'
-    +'<div style="font-size:19px;font-weight:900;color:'+col(s)+';margin-bottom:5px">'+decTxt+'</div>'
-    +'<div style="font-size:12.5px;opacity:.8;max-width:340px;margin:0 auto;line-height:1.55">'+decSub+'</div>'
+    '<div class="wz-dec" style="background:'+decClass+';border-color:'+decBorder+'">'
+    +'<div class="wz-dec-t" style="color:'+col(s)+'">'+decTxt+'</div>'
+    +'<div class="wz-dec-s">'+decSub+'</div>'
     +'</div>'
-    // Score ring (simplificado)
-    +'<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:18px;display:flex;align-items:center;gap:16px;margin-bottom:12px">'
-    +'<div style="text-align:center;flex-shrink:0">'
-    +'<div style="font-size:48px;font-weight:900;letter-spacing:-2px;color:'+col(s)+'">'+s+'</div>'
-    +'<div style="font-size:10px;color:var(--ink3);font-weight:700">/850 · '+lbl(s)+'</div>'
+    // Score y sus factores
+    +'<div class="wz-card wz-score">'
+    +'<div style="text-align:center;flex-shrink:0;min-width:110px">'
+    +'<div class="wz-score-n" style="color:'+col(s)+'">'+s+'</div>'
+    +'<div class="wz-score-l">/850 · '+lbl(s)+'</div>'
     +'</div>'
     +'<div style="flex:1">'
     // Barras de factores
@@ -2048,8 +2045,8 @@ function _wzRenderResultado(){
     }).join('')
     +'</div></div>'
     // Resumen del cliente
-    +'<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:16px;margin-bottom:12px">'
-    +'<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">Resumen del Solicitante</div>'
+    +'<div class="wz-card">'
+    +'<div class="wz-card-h"><span>Resumen del solicitante</span></div>'
     +[
       ['Cliente', WZ.nom||'—'],
       ['Cédula', WZ.ci||'—'],
@@ -2058,13 +2055,18 @@ function _wzRenderResultado(){
       ['Empleo', WZ.emp||'—'],
       ['Ingreso', '$'+(WZ.ing||0)+'/mes'],
     ].map(function(row){
-      return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--rim2);font-size:12.5px"><span style="color:var(--ink3)">'+row[0]+'</span><span style="font-weight:700">'+row[1]+'</span></div>';
+      return '<div class="wz-row"><span>'+row[0]+'</span><span>'+row[1]+'</span></div>';
     }).join('')
     +'</div>'
     // Plan de financiamiento
     +(WZ.precio>0?
-      '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:16px;margin-bottom:12px">'
-      +'<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">Plan de Crédito · Pagasi</div>'
+      '<div class="wz-card">'
+      +'<div class="wz-card-h"><span>Plan de crédito · Pagasi</span></div>'
+      // Lo que el cliente va a pagar, grande, como en la pagina
+      +'<div style="display:grid;grid-template-columns:1.15fr 1fr;gap:14px;padding:14px 16px;border-radius:14px;background:var(--gs);border:1px solid var(--rim2);margin-bottom:12px">'
+      +'<div><div class="wz-score-l" style="margin:0 0 4px">Cuota quincenal</div><div style="font-size:30px;font-weight:900;letter-spacing:-1px;color:var(--p1)">$'+r.cuotaQ.toFixed(2)+'</div><div style="font-size:11px;color:var(--ink3)">'+(r.totalCuotas||((r.plazo||0)*2))+' pagos · '+(r.plazo||0)+' meses</div></div>'
+      +'<div style="border-left:1px solid var(--rim2);padding-left:14px"><div class="wz-score-l" style="margin:0 0 4px">Inicial</div><div style="font-size:26px;font-weight:900;letter-spacing:-1px;color:var(--ink)">$'+r.ini.toFixed(0)+'</div><div style="font-size:11px;color:var(--ink3)">financia $'+r.fin.toFixed(0)+'</div></div>'
+      +'</div>'
       +[
         ['Modelo', WZ.motoModelo||'—'],
         ['Precio catálogo', '$'+WZ.precio.toFixed(0)],
@@ -2072,12 +2074,12 @@ function _wzRenderResultado(){
         [r.mode==='custom'?'Inicial real':'Inicial ('+((r.inicialPct||0)*100).toFixed(0)+'%)', '$'+r.ini.toFixed(0)],
         ['Monto a financiar', '$'+r.fin.toFixed(0)],
         ['Cuota quincenal', '$'+r.cuotaQ.toFixed(2)],
-        ['Cuota / Ingreso', WZ.ratio>0?(WZ.ratio*100).toFixed(0)+'%':'—'],
+        ['Cuota mensual / ingreso', WZ.ratio>0?(WZ.ratio*100).toFixed(0)+'%':'—'],
         ['Plazo', (r.plazo||0)+' meses'],
         ['Total a pagar', '$'+r.totalPagado.toFixed(0)],
       ].map(function(row){
-        var col2color = (row[0]==='Cuota / Ingreso') ? ratioColor : 'var(--ink)';
-        return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--rim2);font-size:12.5px"><span style="color:var(--ink3)">'+row[0]+'</span><span style="font-weight:700;color:'+col2color+'">'+row[1]+'</span></div>';
+        var col2color = (row[0]==='Cuota mensual / ingreso') ? ratioColor : 'var(--ink)';
+        return '<div class="wz-row"><span>'+row[0]+'</span><span style="color:'+col2color+'">'+row[1]+'</span></div>';
       }).join('')
       +'</div>'
       // Editando: la inicial ya se cobro (o no) hace tiempo. Pedir cuenta y referencia
@@ -2184,8 +2186,8 @@ function _wzInicialRealHTML(credId){
   } else {
     cuerpo = '<div style="font-size:12.5px;color:var(--red);font-weight:700">No hay ninguna inicial registrada en este crédito.</div>';
   }
-  return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:16px;margin-bottom:12px">'
-    + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">Inicial ya cobrada</div>'
+  return '<div class="wz-card">'
+    + '<div class="wz-card-h"><span>Inicial ya cobrada</span></div>'
     + cuerpo
     + '<div style="font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.5">Esto es lo que entró de verdad. Desde aquí no se toca: si hay que corregir el monto, la fecha o la cuenta, se hace en <b>Cobranza</b>, sobre ese pago.</div>'
     + '</div>';
@@ -2404,6 +2406,7 @@ function _wzGuardar(){
     cashea_ultima_fecha: WZ.cashea_ultima_fecha||'',
     cashea_total_compras: WZ.cashea_total_compras||'',
     cashea_obs: WZ.cashea_obs||'',
+    ..._casheaExtraDatos(),
     fiador: WZ.fiador_tiene||'no',
     fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'',
@@ -2563,6 +2566,7 @@ function _wzGuardar(){
         cashea_ultima_fecha: WZ.cashea_ultima_fecha||S.creds[_ei].cashea_ultima_fecha||'',
         cashea_total_compras: WZ.cashea_total_compras||S.creds[_ei].cashea_total_compras||'',
         cashea_obs: WZ.cashea_obs||S.creds[_ei].cashea_obs||'',
+        ..._casheaExtraDatos(S.creds[_ei]),
         score: WZ.score||S.creds[_ei].score||0,
         concesionarioId: WZ.concesionarioId||S.creds[_ei].concesionarioId||'',
         f1: WZ.f1||S.creds[_ei].f1||'',
@@ -2682,6 +2686,11 @@ function _wzGuardar(){
     cobrador: (function(){ var l = getCobradoresList(); return (l && l[0]) || 'Admin'; })(),
     score_indexa: WZ.score||0,
     f1:WZ.f1, f2:WZ.f2, f3:WZ.f3, f4:WZ.f4, f5:WZ.f5,
+    // El score del dia de la aprobacion, con los datos con que salio. No se recalcula
+    // nunca: el del cliente si cambia con el tiempo, este es la foto de ese dia.
+    score_aprobacion: WZ.score||0,
+    score_aprobacion_fecha: new Date().toISOString(),
+    score_input: WZ.scoreInput||null,
     emp_tipo: WZ.emp||'',
     uso_moto: WZ.uso||'',
     notas: WZ.obs||'',
@@ -2720,6 +2729,7 @@ function _wzGuardar(){
     cashea_ultimo_art: WZ.cashea_ultimo_art||'', cashea_ultimo_monto: WZ.cashea_ultimo_monto||0,
     cashea_ultima_fecha: WZ.cashea_ultima_fecha||'',
     cashea_total_compras: WZ.cashea_total_compras||'', cashea_obs: WZ.cashea_obs||'',
+    ..._casheaExtraDatos(),
     // ── Paso 2: Fiador ──
     fiador_tiene: WZ.fiador_tiene||'no', fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'', fiador_ci: WZ.fiador_ci||'', fiador_rel: WZ.fiador_rel||'',
@@ -3471,6 +3481,7 @@ function editarCredSinFirma(credId){
   preload['wz_cashea_ultima_fecha'] = _f('cashea_ultima_fecha','cashea_ultima_fecha',''); preload.cashea_ultima_fecha = preload['wz_cashea_ultima_fecha'];
   preload['wz_cashea_total_compras'] = _f('cashea_total_compras','cashea_total_compras',''); preload.cashea_total_compras = preload['wz_cashea_total_compras'];
   preload['wz_cashea_obs'] = _f('cashea_obs','cashea_obs',''); preload.cashea_obs = preload['wz_cashea_obs'];
+  CASHEA_EXTRA.forEach(function(f){ preload['wz_'+f.k] = _f(f.k, f.k, ''); preload[f.k] = preload['wz_'+f.k]; });
   // Fiador
   preload.fiador_tiene = _f('fiador_tiene','fiador','no');
   preload['wz_fiador_nom'] = _f('fiador_nom','fiador_nom',''); preload.fiador_nom = preload['wz_fiador_nom'];

@@ -2510,3 +2510,66 @@ tbody tr:hover td {
 @media (max-width:1100px){ .kx-row{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:600px){ .kx-row{grid-template-columns:1fr} .kx-hero .kx-big{font-size:36px} }
 
+
+/* ─── SOLICITUD (asistente) — la misma familia que el dashboard ───
+   24-sep-2026, Adam: "la visual de la solicitud hay que mejorarla". Era una
+   pared de campos sueltos sobre el fondo, con el paso 2 interminable. Ahora
+   cada bloque es una tarjeta blanca redondeada (como las del dashboard y la
+   barra), la cabecera muestra los pasos con su numero, y el paso 2 tiene un
+   indice fijo para saltar entre Residencia, Empleo, Historial, Cashea...
+   Los campos, los nombres y la logica son los mismos: solo cambia el vestido. */
+#wz-overlay{background:var(--bg)}
+.wz-head{position:sticky;top:0;z-index:10;background:var(--surf);border-bottom:1px solid var(--rim);padding:0 20px;box-shadow:0 6px 24px rgba(37,99,235,.06)}
+.wz-head-in{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:14px;min-height:64px}
+.wz-x{width:36px;height:36px;border-radius:12px;border:1px solid var(--rim);background:var(--surf2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--ink3);flex-shrink:0;transition:.15s}
+.wz-x:hover{border-color:var(--rim2);color:var(--ink)}
+.wz-title{font-size:16px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
+.wz-sub{font-size:11px;color:var(--ink3);font-weight:600}
+.wz-steps{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:8px;padding:10px 0 14px}
+.wz-step{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;color:var(--ink3);white-space:nowrap}
+.wz-step-n{width:26px;height:26px;border-radius:50%;background:var(--surf2);border:1.5px solid var(--rim);color:var(--ink3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;transition:.2s}
+.wz-step.is-on{color:var(--p1);font-weight:800}
+.wz-step.is-on .wz-step-n{background:var(--p1);border-color:var(--p1);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.28)}
+.wz-step.is-done{color:var(--green)}
+.wz-step.is-done .wz-step-n{background:var(--green);border-color:var(--green);color:#fff}
+.wz-step-line{height:2px;flex:1;min-width:10px;background:var(--rim);border-radius:2px;position:relative;overflow:hidden}
+.wz-step-line.is-done::after{content:'';position:absolute;inset:0;background:var(--green)}
+.wz-body{max-width:760px;margin:0 auto;padding:22px 20px 120px}
+.wz-h1{font-size:20px;font-weight:800;letter-spacing:-.4px;color:var(--ink);margin-bottom:3px}
+.wz-h2{font-size:12.5px;color:var(--ink3);margin-bottom:18px}
+.wz-card{background:var(--surf);border:1px solid var(--rim);border-radius:var(--r20);padding:20px 22px;margin-bottom:14px;box-shadow:var(--shadow)}
+.wz-card:empty{display:none}
+.wz-card-accent{border:1.5px solid rgba(37,99,235,.45)}
+.wz-card-h{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+.wz-card-h::before{content:'';width:22px;height:2px;background:var(--p1);border-radius:2px}
+.wz-card-h span{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.6px;color:var(--p1)}
+.wz-card .fsec{font-size:10px!important;font-weight:800!important;letter-spacing:.8px!important;color:var(--ink3)!important;text-transform:uppercase;border:none!important;padding:0!important;margin-bottom:6px!important}
+.wz-card .fg label.fsec{border-bottom:none!important}
+#wz-overlay .fi,#wz-overlay .fs,#wz-overlay .fta{padding:12px 14px;font-size:13.5px;border-radius:12px;background:var(--surf2)}
+#wz-overlay .fi:focus,#wz-overlay .fs:focus,#wz-overlay .fta:focus{background:var(--surf)}
+.wz-nav{position:sticky;top:112px;z-index:5;display:flex;gap:6px;overflow-x:auto;padding:6px 0 10px;margin:-6px 0 8px;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 92%,transparent)}
+.wz-nav::-webkit-scrollbar{display:none}
+.wz-nav a{flex-shrink:0;font-size:11px;font-weight:700;color:var(--ink2);background:var(--surf);border:1px solid var(--rim);border-radius:50px;padding:7px 12px;text-decoration:none;cursor:pointer;transition:.15s}
+.wz-nav a:hover,.wz-nav a.is-on{background:var(--p1);color:#fff;border-color:var(--p1)}
+.wz-foot{position:fixed;bottom:0;left:0;right:0;background:var(--surf);border-top:1px solid var(--rim);padding:12px 20px;z-index:11;box-shadow:0 -8px 30px rgba(37,99,235,.06)}
+.wz-foot-in{max-width:760px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.wz-foot-mid{font-size:11px;color:var(--ink3);font-weight:700}
+.wz-btn{padding:12px 22px;border-radius:50px;font-family:var(--f);font-weight:800;font-size:13px;border:none;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px}
+.wz-btn-g{border:1.5px solid var(--rim);background:var(--surf2);color:var(--ink2)}
+.wz-btn-g:hover{border-color:var(--rim2);background:var(--surf)}
+.wz-btn-p{background:var(--p1);color:#fff;box-shadow:0 6px 18px rgba(37,99,235,.28)}
+.wz-btn-p:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(37,99,235,.34)}
+.wz-btn-ok{background:var(--green);color:#fff;box-shadow:0 6px 18px rgba(6,176,106,.28)}
+.wz-pill{display:flex;align-items:center;gap:10px;background:var(--surf);border:1.5px solid var(--rim2);border-radius:50px;padding:7px 16px}
+/* resultado */
+.wz-dec{border-radius:var(--r20);padding:22px;text-align:center;margin-bottom:14px;border:1.5px solid}
+.wz-dec-t{font-size:19px;font-weight:900;letter-spacing:-.3px;margin-bottom:5px}
+.wz-dec-s{font-size:12.5px;opacity:.85;max-width:380px;margin:0 auto;line-height:1.55}
+.wz-score{display:flex;align-items:center;gap:18px}
+.wz-score-n{font-size:52px;font-weight:900;letter-spacing:-2px;line-height:1}
+.wz-score-l{font-size:10px;color:var(--ink3);font-weight:800;text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
+.wz-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--rim2);font-size:12.5px}
+.wz-row:last-child{border-bottom:none}
+.wz-row span:first-child{color:var(--ink3)}
+.wz-row span:last-child{font-weight:800;color:var(--ink);text-align:right}
+@media (max-width:640px){.wz-step span{display:none}.wz-step.is-on span{display:inline}.wz-card{padding:16px 16px;border-radius:16px}.wz-body{padding:16px 14px 120px}.wz-nav{top:104px}}

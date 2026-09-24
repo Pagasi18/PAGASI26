@@ -823,7 +823,13 @@ function syncTodosEstadosClientes(){
       scoreNumero = parseFloat(scRaw) || 0;
     }
     var scoreInvalido = !scoreNumero || scoreNumero < 300 || scoreNumero > 850 || (typeof scRaw === 'object');
-    if(scoreInvalido && typeof recalcularScoreCliente === 'function'){
+    // 24-sep-2026: este arreglo automatico nunca llego a correr (el recalculo devolvia
+    // un objeto por error). Al arreglar el recalculo, revivirlo habria escrito la ficha
+    // ENTERA de cada cliente sin score en cada arranque y de cada usuario. Los objetos
+    // corruptos los repara el arranque (_sanearScoreCliente) con una escritura minima,
+    // y el score de un cliente se recalcula desde su ficha, a pedido. Queda apagado.
+    var _repararAqui = false;
+    if(_repararAqui && scoreInvalido && typeof recalcularScoreCliente === 'function'){
       try {
         scoreNumero = recalcularScoreCliente(cl, false); // calcular pero no persistir aquí
       } catch(e){ scoreNumero = 0; }
@@ -831,7 +837,7 @@ function syncTodosEstadosClientes(){
 
     var debeGuardar = false;
     if(cl.estado !== nuevoEstado){ cl.estado = nuevoEstado; debeGuardar = true; }
-    if(scoreInvalido && scoreNumero > 0 && scoreNumero !== scRaw){
+    if(_repararAqui && scoreInvalido && scoreNumero > 0 && scoreNumero !== scRaw){
       cl.score_indexa = scoreNumero;
       cl.score_actualizado = new Date().toISOString();
       debeGuardar = true;

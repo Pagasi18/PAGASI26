@@ -185,32 +185,61 @@ function scSimPreset(p){
   scSimular();
 }
 
-// Motor de cálculo reutilizable (usa SCORE_CFG actual)
+// ══════════════════════════════════════════════════════════════════════
+// 24-sep-2026: el score no predecía nada (47% de aciertos en la cartera de la 18)
+// y la causa estaba aquí, no en los pesos. Esta funcion buscaba los datos del
+// cliente con nombres que no existen (tipo_empleo, historial_crediticio,
+// cuenta_bancaria...) cuando la ficha los guarda como trabajo, historial,
+// banco_estado...; y leia "fiador: 'no'" como que SI tenia fiador. Asi que todos
+// salian con el mismo perfil por defecto. Ahora los datos se toman con su nombre
+// real (y con los nombres viejos, por las fichas importadas), y la formula es UNA
+// sola: la misma de la solicitud (ver _wzScore en logic/creditos.js).
+// ══════════════════════════════════════════════════════════════════════
+function scoreInputDeCliente(c, cred){
+  c = c || {};
+  var v = function(){ for(var i=0;i<arguments.length;i++){ var x = arguments[i]; if(x!==undefined && x!==null && x!=='') return x; } return ''; };
+  var si = function(x){ return x===true || x==='si' || x==='sí' || x==='SI'; };
+  if(!cred && typeof S!=='undefined' && S && Array.isArray(S.creds)){
+    // el credito mas reciente del cliente: su cuota y el uso de la moto
+    cred = S.creds.filter(function(x){ return x && !x.eliminado && (x.clienteId===c.id || (c.nombre && x.cli===c.nombre)); })
+                  .sort(function(a,b){ return String(b.fecha||'').localeCompare(String(a.fecha||'')); })[0];
+  }
+  cred = cred || {};
+  var refs = (Array.isArray(c.referencias) && c.referencias.length) || (c.ref1 && c.ref1.nom) || (c.ref2 && c.ref2.nom) || c.ref1_nombre || c.ref2_nombre;
+  return {
+    ing: parseFloat(v(c.ingreso, c.wz_ing, 0))||0,
+    ifam: parseFloat(v(c.ingreso_familiar, c.wz_ifam, 0))||0,
+    cuotaQ: parseFloat(v(cred.cuotaQ, cred.cuota, c.cuotaQ, 0))||0,
+    emp: v(c.trabajo, c.tipo_empleo, c.trabajo_tipo, c.emp, 'informal'),
+    ant: String(v(c.antiguedad, c.antiguedad_laboral, c.ant, '1')),
+    hist: v(c.historial, c.historial_crediticio, c.hist, 'ninguno'),
+    deuda: v(c.deudas, c.deudas_actuales, c.deuda, 'no'),
+    dep: parseInt(v(c.dependientes, c.dep, 0), 10)||0,
+    banco: v(c.banco_estado, c.cuenta_bancaria, c.banco, 'activa'),
+    viv: v(c.vivienda, c.tipo_vivienda, c.viv, 'familiar'),
+    rem: si(v(c.remesas, c.recibe_remesas, c.rem)),
+    fiador: si(v(c.fiador, c.fiador_tiene)) || c.tieneFiador===true,
+    tieneTel: !!(c.tel || c.telefono),
+    tieneRef: !!refs,
+    uso: v(cred.uso_moto, c.uso_moto, 'personal'),
+    conocio: v(c.conocio, ''),
+    cashea: si(c.cashea) ? 'si' : 'no',
+    cashea_nivel: parseInt(c.cashea_nivel, 10)||0,
+    cashea_estado: c.cashea_estado || '',
+    cashea_total_compras: c.cashea_total_compras || '',
+    cashea_deuda: si(c.cashea_deuda) || (parseFloat(c.cashea_monto)||0) > 0 ? 'si' : 'no',
+    cashea_monto: parseFloat(c.cashea_monto)||0,
+    cashea_cuotas_tiempo: c.cashea_cuotas_tiempo || '',
+    cashea_atrasos: c.cashea_atrasos || '',
+    cashea_bajo_nivel: c.cashea_bajo_nivel || ''
+  };
+}
 // Recalcula el score de un cliente a partir de sus datos actuales y la configuración SCORE_CFG vigente
 function recalcularScoreCliente(c, persistir){
   if(!c) return 0;
-  var input = {
-    ing: parseFloat(c.ingreso || c.wz_ing || 0),
-    ifam: parseFloat(c.ingreso_familiar || c.wz_ifam || 0),
-    cuotaQ: parseFloat(c.cuotaQ || 0),
-    emp: c.tipo_empleo || c.trabajo_tipo || c.emp || 'informal',
-    ant: c.antiguedad_laboral || c.ant || '3',
-    hist: c.historial_crediticio || c.hist || 'ninguno',
-    deuda: c.deudas_actuales || c.deuda || 'no',
-    dep: parseInt(c.dependientes || c.dep || 0, 10),
-    banco: c.cuenta_bancaria || c.banco || 'activa',
-    viv: c.tipo_vivienda || c.viv || 'familiar',
-    rem: c.recibe_remesas === 'si' || c.recibe_remesas === true || c.rem === 'si',
-    fiador: !!c.fiador || !!c.tieneFiador,
-    tieneTel: !!(c.tel || c.telefono),
-    tieneRef: !!((c.referencias && c.referencias.length) || c.ref1_nombre || c.ref2_nombre),
-    // Datos Cashea
-    cashea_estado: c.cashea_estado || '',
-    cashea_total_compras: c.cashea_total_compras || '',
-    cashea_deuda: parseFloat(c.cashea_deuda || 0)
-  };
+  var input = scoreInputDeCliente(c);
   var result = calcularScoreConCfg(input);
-  var nuevoScore = result && result.total ? result.total : (result || 0);
+  var nuevoScore = result && (result.score || result.total) ? (result.score || result.total) : 0;
   if(persistir && nuevoScore && c.id){
     c.score_indexa = nuevoScore;
     c.score_actualizado = new Date().toISOString();
@@ -275,9 +304,15 @@ function calcularScoreConCfg(input){
   var fiador = !!input.fiador;
   var tieneTel = input.tieneTel!==false;
   var tieneRef = input.tieneRef!==false;
+  var uso = input.uso||'personal';
+  var conocio = input.conocio||'';
+  var cashea = input.cashea==='si';
 
   var ingEf = Math.max(ing, ifam);
-  var ratio = (cuotaQ>0 && ingEf>0) ? cuotaQ*2/ingEf : 0; // cuota mensual / ingreso
+  // cuota mensual (dos quincenales) / ingreso mensual. La solicitud comparaba la
+  // quincenal contra estos mismos limites, o sea, la mitad: por eso a todos les
+  // salia "ratio ideal" (24-sep-2026).
+  var ratio = (cuotaQ>0 && ingEf>0) ? cuotaQ*2/ingEf : 0;
 
   // f1: historial
   var f1 = {ninguno:50, bueno:100, mora_leve:35, malo:5}[hist]||50;
@@ -285,6 +320,15 @@ function calcularScoreConCfg(input){
   else if(deuda==='graves') f1 = Math.max(0, f1-35);
   if(banco==='activa') f1 = Math.min(100, f1+10);
   else if(banco==='no') f1 = Math.max(0, f1-10);
+  // Cashea: la mejor referencia crediticia que tiene un cliente en Venezuela
+  if(cashea){
+    if(typeof _casheaExtraScore==='function') f1 = f1 + _casheaExtraScore(input);
+    else { var _nv = parseInt(input.cashea_nivel,10)||0; f1 = f1 + (_nv>=3 ? 12 : _nv>=2 ? 7 : 3); }
+    var ce = input.cashea_estado||'';
+    if(ce==='completado') f1 += 15; else if(ce==='al_dia') f1 += 10; else if(ce==='mora_leve') f1 -= 15; else if(ce==='mora_grave') f1 -= 35;
+    if(ce!=='mora_leve' && ce!=='mora_grave'){ var tc = input.cashea_total_compras||''; f1 += tc==='6+' ? 10 : tc==='4-5' ? 6 : tc==='2-3' ? 3 : 0; }
+    if(input.cashea_deuda==='si'){ var cm = parseFloat(input.cashea_monto)||0; f1 -= cm>500 ? 8 : cm>200 ? 4 : 0; }
+  }
   f1 = Math.max(0, Math.min(100, f1));
 
   // f2: capacidad
@@ -314,6 +358,7 @@ function calcularScoreConCfg(input){
   var empBase = {formal:78, publico:70, independiente:65, comerciante:68, delivery:70, remesas:60, informal:38}[emp]||30;
   var antBase = {'1':0, '2':10, '3':22, '5':35}[ant]||0;
   var f3 = Math.min(100, empBase+antBase);
+  if(uso==='delivery') f3 = Math.min(100, f3+15); else if(uso==='negocio') f3 = Math.min(100, f3+7);
   if(rem==='si'&&emp!=='remesas') f3 = Math.min(100, f3+8);
   f3 = Math.max(0, Math.min(100, f3));
 
@@ -328,6 +373,7 @@ function calcularScoreConCfg(input){
 
   // f5: confianza
   var f5 = 50;
+  if(conocio==='referido') f5 = Math.min(100, f5+30); else if(conocio==='anterior') f5 = Math.min(100, f5+22); else if(conocio==='redes') f5 = Math.min(100, f5+5);
   if(deuda==='no') f5 = Math.min(100, f5+10);
   else if(deuda==='graves') f5 = Math.max(0, f5-15);
   if(rem==='si') f5 = Math.min(100, f5+8);
@@ -346,7 +392,8 @@ function calcularScoreConCfg(input){
 
   // Score
   var p = SCORE_CFG.pesos;
-  var raw = (f1*p.f1 + f2*p.f2 + f3*p.f3 + f4*p.f4 + f5*p.f5)/100*10;
+  var tp = (p.f1+p.f2+p.f3+p.f4+p.f5)||100;
+  var raw = (f1*p.f1 + f2*p.f2 + f3*p.f3 + f4*p.f4 + f5*p.f5)/tp*10;
   var score = motivosRechazo.length>0 ? 300 : Math.max(300, Math.min(850, Math.round(300+(raw/1000)*550)));
 
   var decision, decisionColor;

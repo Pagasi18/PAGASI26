@@ -489,6 +489,8 @@ function verCliente(id){
         + '<div class="cf-score-l" style="color:'+scoreColor+';font-size:9px;font-weight:900;letter-spacing:.5px">'+scoreLabel+' ↻</div>'
       : '<div class="cf-score-v" style="color:var(--ink3)">—</div><div class="cf-score-l">Calcular ↻</div>'
     )
+    // El score con que se aprobo el ultimo credito no se mueve (24-sep-2026)
+    + (function(){ var u = creditos.slice().sort(function(a,b){ return String(b.fecha||'').localeCompare(String(a.fecha||'')); })[0]; var sa = u && (u.score_aprobacion || u.score_indexa); return sa ? '<div style="font-size:9px;color:var(--ink3);margin-top:4px">Al aprobar '+esc(u.id)+': <b>'+Math.round(sa)+'</b></div>' : ''; })()
     + '</div>'
     + '</div>'
     + '<div class="cf-action-btns" style="margin-top:12px">'
@@ -732,7 +734,7 @@ function verCliente(id){
     var casheaEstadoCol = {al_dia:'var(--green)',mora_leve:'var(--amber)',mora_grave:'var(--red)',completado:'var(--p1)'}[c.cashea_estado] || 'var(--ink3)';
     html += '<div class="cf-grid-3">'
       + field('Cliente Cashea', H('<span class="cf-field-v" style="color:var(--green)">✓ Sí</span>'))
-      + field('Nivel', c.cashea_nivel ? 'Nivel '+c.cashea_nivel : null)
+      + field('Nivel', c.cashea_nivel ? _casheaNivelNombre(c.cashea_nivel) : null)
       + field('Estado actual', c.cashea_estado ? H('<span class="cf-field-v" style="color:'+casheaEstadoCol+';font-weight:800">'+esc(casheaEstadoLbl)+'</span>') : null)
       + '</div>';
     // Deuda activa
@@ -757,6 +759,24 @@ function verCliente(id){
         + '</div>'
         + '<div style="margin-top:8px">'+field('Total compras históricas', totalComprasLbl)+'</div>'
         + (c.cashea_obs ? '<div style="margin-top:8px"><div class="cf-field-l">Observaciones</div><div class="cf-field-v" style="line-height:1.4;font-style:italic">"'+esc(c.cashea_obs)+'"</div></div>' : '')
+        + '</div>';
+    }
+    // Lo que muestra la app de Cashea (24-sep-2026)
+    var _extra = CASHEA_EXTRA.filter(function(f){ var v = c[f.k]; return v!=null && v!=='' && !(f.tipo==='number' && !(parseFloat(v)>0)); });
+    if(_extra.length){
+      var _ver = c.cashea_verificado, _verCol = _ver==='app' ? 'var(--green)' : (_ver==='captura' ? 'var(--p1)' : 'var(--amber)');
+      html += '<div style="margin-top:10px;padding:10px 12px;background:var(--surf2);border-radius:9px">'
+        + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lo que muestra la app de Cashea</div>'
+        + '<div class="cf-grid-3">'
+        + _extra.filter(function(f){ return f.k!=='cashea_verificado'; }).map(function(f){
+            var v = c[f.k];
+            if(f.tipo==='number') v = /USD/.test(f.et) ? valMoney(v) : String(v);
+            else if(f.tipo==='date') v = new Date(v).toLocaleDateString('es-VE');
+            else v = _casheaEtiqueta(f.k, v);
+            return field(f.et.replace(' (USD)',''), v);
+          }).join('')
+        + '</div>'
+        + (_ver ? '<div style="margin-top:8px"><div class="cf-field-l">Cómo se confirmó</div><div class="cf-field-v" style="color:'+_verCol+';font-weight:800">'+esc(_casheaEtiqueta('cashea_verificado', _ver))+'</div></div>' : '')
         + '</div>';
     }
   } else {
@@ -1442,6 +1462,7 @@ function _cliInitFromCliente(c){
   WZ.cashea_ultima_fecha = WZ.wz_cashea_ultima_fecha = c.cashea_ultima_fecha || '';
   WZ.cashea_total_compras = WZ.wz_cashea_total_compras = c.cashea_total_compras || '';
   WZ.cashea_obs = WZ.wz_cashea_obs = c.cashea_obs || '';
+  CASHEA_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = (c[f.k]==null ? '' : c[f.k]); });
   WZ.fiador_tiene = c.fiador || 'no';
   WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
   WZ.fiador_rif = WZ.wz_fiador_rif = c.fiador_rif || '';
@@ -1621,7 +1642,7 @@ function _cliStep2(){
   )+'</div>'
   +'<div id="wz_cashea_det" style="display:none;background:var(--surf2);border:1px solid var(--rim);border-radius:12px;padding:12px">'
   +_row2(
-    _fg('Nivel Cashea',_sel('wz_cashea_nivel','<option value="">Seleccionar...</option><option value="1">Nivel 1 — Básico</option><option value="2">Nivel 2 — Bronce</option><option value="3">Nivel 3 — Plata</option><option value="4">Nivel 4 — Oro</option>','_wzScore()')),
+    _fg('Nivel Cashea',_sel('wz_cashea_nivel',_casheaNivelOpts(),'_wzScore()')),
     _fg('Estado con Cashea',_sel('wz_cashea_estado','<option value="">Seleccionar...</option><option value="al_dia">Al día</option><option value="mora_leve">Mora < 30 días</option><option value="mora_grave">Mora > 30 días</option><option value="completado">Ya canceló todo</option>','_wzScore()'))
   )
   +_row2(
@@ -1642,6 +1663,7 @@ function _cliStep2(){
     _fg('Fecha de compra',_inp('wz_cashea_ultima_fecha','date','')),
     _fg('Total compras con Cashea',_sel('wz_cashea_total_compras','<option value="">—</option><option value="1">1 producto</option><option value="2-3">2 a 3 productos</option><option value="4-5">4 a 5 productos</option><option value="6+">6 o más</option>','_wzScore()'))
   )
+  +_casheaExtraHtml({row2:_row2, fg:_fg, sel:_sel, inp:_inp, s2:_s2})
   +_fg('Observaciones sobre Cashea',_inp('wz_cashea_obs','text','Ej: Cliente con buen historial, pagó iPhone sin atrasos...'))
   +'</div>'
   +_s('Referencias Personales')
@@ -1682,7 +1704,7 @@ function _cliStep2(){
 }
 
 function _cliHydrate(){
-  var ids=['wz_nom','wz_ci','wz_rif','wz_nacionalidad','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_tdir','wz_viv','wz_empresa','wz_cargo','wz_dir_trabajo','wz_tel_trabajo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_r1n','wz_r1ci','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2ci','wz_r2t','wz_r2r','wz_r2obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rif','wz_fiador_dir','wz_fiador_email','wz_fiador_rel','wz_obs'];
+  var ids=['wz_nom','wz_ci','wz_rif','wz_nacionalidad','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_tdir','wz_viv','wz_empresa','wz_cargo','wz_dir_trabajo','wz_tel_trabajo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_r1n','wz_r1ci','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2ci','wz_r2t','wz_r2r','wz_r2obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rif','wz_fiador_dir','wz_fiador_email','wz_fiador_rel','wz_obs'].concat(_casheaIds());
   ids.forEach(function(id){ var el=document.getElementById(id); if(el && WZ[id]!=null) el.value=WZ[id]; });
   ['wz_emp','wz_ant','wz_conocio','wz_estado','wz_tdir','wz_viv','wz_rem','wz_banco','wz_banco_cobro','wz_ahorro','wz_cashea_nivel','wz_cashea_estado','wz_cashea_deuda','wz_cashea_total_compras','wz_r1r','wz_r2r','wz_fiador_rel','wz_uso','wz_plan_mode','wz_apy_inicial_sel'].forEach(function(id){ var el=document.getElementById(id); if(el && WZ[id]!=null && WZ[id]!=='') el.value=WZ[id]; });
   var cashea = WZ.cashea||'no';
@@ -1754,6 +1776,7 @@ function _cliCollectStep(step){
     WZ.cashea_ultima_fecha = WZ.wz_cashea_ultima_fecha = g('wz_cashea_ultima_fecha');
     WZ.cashea_total_compras = WZ.wz_cashea_total_compras = g('wz_cashea_total_compras');
     WZ.cashea_obs = WZ.wz_cashea_obs = g('wz_cashea_obs');
+    CASHEA_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = g('wz_'+f.k); });
     WZ.fiador_tiene = (document.querySelector('input[name="wz_fiador"]:checked')||{value:'no'}).value;
     WZ.fiador_nom = WZ.wz_fiador_nom = g('wz_fiador_nom');
     WZ.fiador_tel = WZ.wz_fiador_tel = g('wz_fiador_tel');
@@ -1871,6 +1894,7 @@ function _cliGuardar(){
     cashea_ultima_fecha: WZ.cashea_ultima_fecha||'',
     cashea_total_compras: WZ.cashea_total_compras||'',
     cashea_obs: WZ.cashea_obs||'',
+    ..._casheaExtraDatos(),
     fiador: WZ.fiador_tiene||'no',
     fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'',
