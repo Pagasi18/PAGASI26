@@ -1109,6 +1109,25 @@ function _wzVendedorOpts(){
     });
   return opts;
 }
+// Deja la moto del crédito en la misma sede que el crédito. Solo la moto de ESE
+// crédito: una moto sin crédito (inventario) no se toca, y si la moto ya está donde
+// debe, no se escribe nada.
+function _wzMoverMotoConElCredito(cred){
+  try{
+    if(!cred || !cred.concesionarioId || cred.motoId==null) return false;
+    var m = (S.motos||[]).find(function(x){ return x && String(x.id)===String(cred.motoId); });
+    if(!m || m.eliminado) return false;
+    if(String(m.concesionarioId||'') === String(cred.concesionarioId)) return false;
+    var antes = m.concesionarioId || '';
+    m.concesionarioId = cred.concesionarioId;
+    if(DB && DB.updateMoto) DB.updateMoto(m.id, { concesionarioId: cred.concesionarioId });
+    else if(DB && DB.saveMoto) DB.saveMoto(m);
+    if(typeof logActividad==='function')
+      logActividad('moto_sigue_al_credito','motos',String(m.id),{credito:cred.id, antes:antes, ahora:cred.concesionarioId});
+    return true;
+  }catch(e){ console.warn('mover moto con su crédito:', e); return false; }
+}
+
 function _wzSetVendedor(selEl){
   var opt = selEl.options[selEl.selectedIndex];
   WZ.vendedorUid = selEl.value || '';
@@ -2395,6 +2414,12 @@ function _wzGuardar(){
       }
       Object.assign(S.creds[_ei], _upd);
       DB.updateCred(_editId, _upd);
+      // La moto va donde va su crédito. 23-sep-2026, Adam viendo Concesionarios:
+      // "EMPIRE Bello Monte 2 motos y 1 solo crédito... imposible, cada moto está
+      // ligada a un crédito". M-004 se creó en una sede y después se le cambió a
+      // BERA TRINIDAD: el crédito se mudó y su moto se quedó en la sede de antes. Una
+      // sede quedaba con una moto que no es suya y la otra con un crédito sin moto.
+      _wzMoverMotoConElCredito(S.creds[_ei]);
       // ── Re-vincular la moto para no dejarla huérfana ni con el cliente viejo ──
       // (el guardado de edición hacía return sin tocar la moto: si cambiaba el motoId,
       // la moto vieja quedaba con creditoId colgando = huérfana / "disponible").

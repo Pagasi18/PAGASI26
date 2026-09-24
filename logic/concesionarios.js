@@ -371,7 +371,7 @@ function _concRender(){
       html += _concChartHtml();
       setTimeout(function(){ if(typeof _concChartPintar==='function') _concChartPintar(); }, 30);
     }
-    html += _concAvisoAnticiposViejos() + _concAvisoAnticiposSueltos();
+    html += _concAvisoMotosFueraDeSede() + _concAvisoAnticiposViejos() + _concAvisoAnticiposSueltos();
     html += '<div class="card">'
       + '<div class="ch"><div><div class="ct">Concesionarios</div><div class="cs">Saldo = anticipos enviados − lo que puso Pagasi en las motos que salieron</div></div>'
       + '<button class="btn btn-p btn-sm" onclick="_concAbrirDetalleTotal()">Σ Detalle total</button></div>'
@@ -1188,6 +1188,47 @@ function _concAvisoAnticiposViejos(){
     + '<div style="font-size:11.5px;color:var(--ink2);line-height:1.5">Ese dinero salió del banco pero sigue siendo tuyo: está en poder de los concesionarios y se descuenta cuando sale una moto. '
     + 'Mientras estén así, Pagasi se ve '+fmt(tot)+' más pobre de lo que es y ese saldo no se puede usar para pagar motos.</div></div>'
     + '<button class="btn btn-p btn-sm" onclick="_concCorregirAnticiposViejos()">Corregirlos</button></div>';
+}
+
+// ── Motos que quedaron en otra sede que su crédito ──────────────────────────
+// 23-sep-2026, Adam: "empire bello monte 2 motos y 1 solo credito... imposible, cada
+// moto esta ligada a un credito". Cambiar la sede de un crédito no movía su moto: el
+// crédito se mudaba y la moto se quedaba donde estaba. Una sede aparecía con una moto
+// que no es suya y la otra con un crédito sin moto. En PAGASI 18 le pasó a 23.
+// La moto sigue al crédito, y no al revés: la sede del crédito es la que se elige a
+// propósito en la solicitud, y de ella dependen el anticipo que se consume y la
+// comisión.
+function _concMotosFueraDeSede(){
+  var motoById = {};
+  (S.motos||[]).forEach(function(m){ if(m && !m.eliminado) motoById[String(m.id)] = m; });
+  return (S.creds||[]).filter(function(c){
+    if(!c || c.eliminado || c.estado==='cancelado' || c.estado==='rechazado') return false;
+    if(!c.concesionarioId || c.motoId==null) return false;
+    var m = motoById[String(c.motoId)];
+    return !!m && String(m.concesionarioId||'') !== String(c.concesionarioId);
+  });
+}
+function _concAvisoMotosFueraDeSede(){
+  var f = _concMotosFueraDeSede();
+  if(!f.length) return '';
+  var ids = f.slice(0,6).map(function(c){ return c.id; }).join(', ') + (f.length>6 ? '…' : '');
+  return '<div style="background:var(--ambers);border:1px solid var(--amber);border-radius:var(--r12);padding:12px 14px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
+    + '<div style="flex:1;min-width:260px">'
+    + '<div style="font-weight:800;font-size:13px;color:var(--amber);margin-bottom:3px">'
+    +   f.length+' moto'+(f.length===1?'':'s')+' en otra sede que su crédito ('+ids+')</div>'
+    + '<div style="font-size:11.5px;color:var(--ink2);line-height:1.5">Por eso hay sedes con más motos que créditos y otras con créditos sin moto. '
+    + 'Pasa cuando a un crédito se le cambió la sede después de crearlo: el crédito se mudó y su moto no. Al alinearlas, cada moto pasa a la sede de su crédito.</div></div>'
+    + '<button class="btn btn-p btn-sm" onclick="_concAlinearMotos()">Alinearlas</button></div>';
+}
+function _concAlinearMotos(){
+  var f = _concMotosFueraDeSede();
+  if(!f.length){ toast('Todas las motos están en la sede de su crédito','info'); return; }
+  if(!confirm('Se van a mover '+f.length+' moto'+(f.length===1?'':'s')+' a la sede de su crédito.\n\n'
+    + 'No se toca ningún crédito, pago ni gasto: solo la sede de la moto.\n\n¿Alinear?')) return;
+  var n = 0;
+  f.forEach(function(c){ if(typeof _wzMoverMotoConElCredito==='function' && _wzMoverMotoConElCredito(c)) n++; });
+  toast('✓ '+n+' moto'+(n===1?'':'s')+' alineada'+(n===1?'':'s')+' con su crédito','success');
+  nav('concesionarios');
 }
 
 function _concAvisoAnticiposSueltos(){
