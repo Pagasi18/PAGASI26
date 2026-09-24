@@ -46,7 +46,8 @@ S.currentUser = { uid:'u1', nombre:'Prueba', rol:'Administrador', permisos:['cre
 // ── 13. Los dos cuadros no se dibujan al editar ───────────────────────────────
 const creditosSrc = src('logic/creditos.js');
 ok('13. el cuadro de la forma de pago de la moto sale solo si NO se está editando',
-  /window\._wzEditando \? '' : \(\s*\n?\s*'<div id="wz-mpago-wrap"/.test(creditosSrc));
+  /window\._wzEditando \? '' : _wzDineroHtml\(\)/.test(creditosSrc)
+  && /function _wzDineroHtml\(\)[\s\S]{0,1500}id="wz-mpago-wrap"/.test(creditosSrc));
 ok('13. el "Cobro de Inicial" se reemplaza por la inicial real al editar',
   /window\._wzEditando[\s\S]{0,400}_wzInicialRealHTML\(window\._wzEditando\)/.test(creditosSrc));
 
@@ -92,9 +93,17 @@ let difs = ctx._wzDiffSensible({ concesionarioId:'CO-A' }, { concesionarioId:'CO
 ok('14. cambiar la sede sale en el aviso', difs.length === 1);
 ok('14. ...con el nombre de la sede, no con su código',
   difs[0].antes === 'Bello Monte' && difs[0].ahora === 'Boleíta');
-ok('14. el asistente ya no pisa la sede del crédito al editar',
-  /_editandoSede \? WZ\.concesionarioId : S\.concesionarioActivo/.test(creditosSrc)
-  && /if\(!\(window\._wzEditando && WZ\.concesionarioId\)\) WZ\.concesionarioId = disponibles\[0\]\.id;/.test(creditosSrc));
+// Desde el 23-sep-2026 la sede se elige arriba del paso de la moto: se prueba corriendo
+(function(){
+  const antes = S.currentUser;
+  S.currentUser = { uid:'u2', nombre:'Otra', rol:'Vendedor', concesionarios:['CO-B'] };
+  ctx.window._wzEditando = 'CRED-1';
+  vm.runInContext("WZ = { step:3, concesionarioId:'CO-A' };", ctx);
+  const h = ctx._wzSedeHtml();
+  ok('14. el asistente ya no pisa la sede del crédito al editar',
+    ctx.WZ.concesionarioId === 'CO-A' && /value="CO-A" selected/.test(h));
+  S.currentUser = antes; ctx.window._wzEditando = null;
+})();
 
 // ── 15. La inicial en cero ya se aplica ───────────────────────────────────────
 const fin = ctx._wzCredPlanFields({ ini:0, fin:1000, total:1550, cuotaQ:64, cuotaM:129, plazo:12, totalCuotas:24 },

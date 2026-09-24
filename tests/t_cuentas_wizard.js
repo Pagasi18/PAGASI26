@@ -103,8 +103,9 @@ ok('...y la pantalla dice dónde cargarlas',
   ok('si ya hay dos filas (volvió al paso), se respetan', dosFilas.montos.length===0);
 })();
 
-ok('el wizard pide ese reparto al pintar el paso 3',
-  /_mpagoRepartirInicial\('wzmpago', costoBase, iniReal\);/.test(src('logic/creditos.js')));
+// Desde el 23-sep-2026 el wizard ya no pide repartir: arma el pago solo (t_flujo_solicitud.js)
+ok('el wizard arma el pago solo al pintar el paso 3',
+  /function _wzMpagoSync\(\)[\s\S]{0,1800}wrap\.innerHTML = _wzPagoMotoHtml\(costo, ini\);/.test(src('logic/creditos.js')));
 
 // ── La pantalla que lleva horas abierta se entera de las cuentas nuevas ─────
 const cfg=src('logic/configuracion.js');

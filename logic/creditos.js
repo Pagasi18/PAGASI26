@@ -193,7 +193,10 @@ function _wzRender(motoId){
   // calculaba y no se insertaba), asi que el boton "Solicitud" de Inventario no tenia
   // donde mostrarse y el wizard terminaba creando otra moto del catalogo y descontando
   // la compra de nuevo (punto 11, 22-sep-2026).
-  var step2 = (motosDisp.length
+  // La sede va PRIMERO: de ella depende de donde sale el dinero de la moto (su
+  // anticipo). Antes se elegia al final, venia puesta la primera de la lista y nadie la
+  // cambiaba: las motos quedaban en una sede y los creditos en otra (23-sep-2026).
+  var step2 = _wzSedeHtml() + (motosDisp.length
     ? '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Moto del inventario (ya comprada)</label>'
       + '<select class="fs" id="wz_moto_inv" onchange="_wzPickMotoInv(this)">'
       + '<option value="">— Ninguna: es una moto nueva del catálogo —</option>'
@@ -284,15 +287,11 @@ function _wzRender(motoId){
     + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">Plan de crédito automático</div>'
     + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px" id="wz-fin-cells"></div>'
     + '</div>'
-    // ── Bloque de pago de la moto (solo cuando se elige del catálogo, no del inventario) ──
+    // ── El dinero de esta venta: donde pago el cliente la inicial y como se paga la moto ──
     // Al EDITAR no se dibuja: la compra de esta moto ya se registro hace tiempo, y lo
     // que el operario llenaba aqui se tiraba a la basura sin decir nada (el guardado de
     // la edicion pone WZ._pagosMoto = null y nunca crea el gasto). Punto 13, 22-sep-2026.
-    // Los parentesis NO sobran: sin ellos la precedencia se come el paso entero.
-    + (window._wzEditando ? '' : (
-        '<div id="wz-mpago-wrap" style="display:none;margin-top:14px">'
-      +   _mpagoBloqueHtml('wzmpago','Forma de pago de la moto (compra)','Esta moto se está agregando nueva al sistema desde el catálogo. Indica de cuál(es) cuenta(s) o efectivo sale el dinero del costo (precio base real). Puedes dividir el pago entre varias cuentas.')
-      + '</div>'));
+    + (window._wzEditando ? '' : _wzDineroHtml());
 
   // ── PASO 3: Perfil crediticio ──
   // helper para secciones
@@ -517,46 +516,10 @@ function _wzRender(motoId){
   if(WZ.step===3 && WZ.precio>0){
     setTimeout(function(){ _wzActualizarFinPreview(WZ.precio); }, 50);
   }
-  // Restaurar bloque de pago de moto si veníamos del catálogo (no inventario)
-  if(WZ.step===3 && WZ.precio>0 && !WZ.motoInvId && WZ.motoModelo){
-    setTimeout(function(){
-      var wrap = document.getElementById('wz-mpago-wrap');
-      if(wrap){
-        wrap.style.display='block';
-        var pBaseInp = document.getElementById('wz_precio_base_real');
-        var costoBase = pBaseInp && parseFloat(pBaseInp.value)>0 ? parseFloat(pBaseInp.value) : (WZ.precio||0);
-        // Solo precargar si NO hay filas previas (caso primera entrada al paso)
-        if(!Array.isArray(WZ._pagosMoto) || !WZ._pagosMoto.length){
-          var iniReal = 0;
-          try { var pc = getWzPlanConfig(); iniReal = parseFloat(pc&&pc.ini)||0; } catch(e){}
-          _mpagoSetCosto('wzmpago', costoBase, iniReal>0 ? iniReal : null);
-          // Y el resto en su propia fila: lo que financia Pagasi (23-sep-2026)
-          _mpagoRepartirInicial('wzmpago', costoBase, iniReal);
-        } else {
-          _mpagoSetCosto('wzmpago', costoBase);
-        }
-        // Restaurar filas previas si existen
-        if(Array.isArray(WZ._pagosMoto) && WZ._pagosMoto.length){
-          var cont = document.getElementById('wzmpago-rows');
-          if(cont){
-            cont.innerHTML='';
-            WZ._pagosMoto.forEach(function(p, idx){
-              cont.insertAdjacentHTML('beforeend', _mpagoFilaHtml('wzmpago', idx));
-              var rows = cont.querySelectorAll('.mpago-row');
-              var row = rows[rows.length-1];
-              if(row){
-                row.setAttribute('data-touched','1');
-                var c = row.querySelector('.wzmpago-cuenta');
-                var mt = row.querySelector('.wzmpago-monto');
-                if(c) c.value = p.cuenta;
-                if(mt) mt.value = p.monto;
-              }
-            });
-            _mpagoActualizarTotales('wzmpago');
-          }
-        }
-      }
-    }, 80);
+  // El pago de la moto se rearma solo con lo que ya hay en WZ (sede, inicial, cuenta).
+  // Los setTimeout de arriba (moto elegida, plan) corren antes y tambien lo piden.
+  if(WZ.step===3){
+    setTimeout(function(){ _wzMpagoSync(); }, 80);
   }
   // Renderizar resultado si es paso 4
   if(WZ.step===4){
@@ -769,7 +732,9 @@ function _wzHydrate(){
     'wz_precio','wz_precio_base_real','wz_ini_real','wz_cuota_q_custom','wz_plazo_custom',
     'wz_apy_objetivo','wz_apy_plazo','wz_apy_inicial_sel',
     // Selector moto inventario
-    'wz_moto_inv'];
+    'wz_moto_inv',
+    // Referencia de la inicial (la cuenta se marca sola al pintar el desplegable)
+    'wz_ini_ref'];
   ids.forEach(function(id){
     var el=document.getElementById(id);
     if(!el) return;
@@ -851,6 +816,7 @@ function _wzCollectVisibleValues(){
     wz_ini_real:'ini', wz_cuota_q_custom:'cuota', wz_plazo_custom:'plazo',
     wz_plan_mode:'planMode', wz_apy_objetivo:'apyObjetivo', wz_apy_plazo:'apyPlazo',
     wz_apy_inicial_sel:'apyInicialSel', wz_moto_inv:'motoInvId', wz_concesionario_id:'concesionarioId',
+    wz_ini_metodo:'iniMetodo', wz_ini_ref:'iniRef', wz_mpago_resto:'_mpagoCuentaResto',
     wz_cat_marca:'catMarca', wz_cat_modelo:'catModelo', wz_cat_precio:'catPrecio'
   };
   Array.from(ov.querySelectorAll('input[id^="wz_"],select[id^="wz_"],textarea[id^="wz_"]')).forEach(function(el){
@@ -1000,26 +966,256 @@ function _wzActualizarPrecioBaseDesdePrecio(){
   if((!baseInp.value || parseFloat(baseInp.value||0)<=0) && pInp && parseFloat(pInp.value||0)>0){ baseInp.value=parseFloat(pInp.value).toFixed(2); }
 }
 
-// ── Sincronizar costo objetivo del bloque de pago de moto del wizard ──
-function _wzMpagoSync(){
-  var wrap = document.getElementById('wz-mpago-wrap');
-  if(!wrap) return;
+// ══════════════════════════════════════════════════════════════════════
+// EL DINERO DE LA SOLICITUD, SIN PREGUNTAS DE MAS
+// Adam, 23-sep-2026: "se pagaron con anticipo.. como es el flow en la solicitud..
+// no quiero que se equivoquen los vendedores.. deberia salir automatico sin preguntar".
+// Antes el vendedor repartia el costo de la moto fila por fila y elegia cada cuenta,
+// y en el paso 4 le volvian a preguntar donde entro la inicial: podia sacar del banco
+// lo que ya estaba esperando en la sede como anticipo (el dinero salia dos veces) y
+// podia contestar distinto las dos veces. Ahora:
+//  · la sede se elige primero, sin venir puesta (salvo que solo tenga una);
+//  · la inicial se pregunta UNA vez y sirve para el cobro y para la compra;
+//  · lo que financia Pagasi sale solo del anticipo de la sede (ver _mpagoPlanAuto);
+//  · solo si el anticipo no alcanza, o la sede no tiene, se elige una cuenta.
+// ══════════════════════════════════════════════════════════════════════
+
+// Las sedes que puede usar quien hace la solicitud
+function _wzSedesDisponibles(){
+  var u = S.currentUser || {};
+  var asignados = u.concesionarios || [];
+  var todas = (S.concesionarios||[]).filter(function(c){ return c && !c.eliminado && c.activo!==false; });
+  var disp = asignados.length
+    ? todas.filter(function(c){ return asignados.indexOf(c.id) !== -1; })
+    : todas; // admin total
+  // Al EDITAR la sede del credito se ve aunque no sea de las suyas: si no, desaparecia
+  // de la pantalla y se guardaba otra (punto 14, 22-sep-2026)
+  if(window._wzEditando && WZ.concesionarioId
+     && !disp.some(function(c){ return String(c.id)===String(WZ.concesionarioId); })){
+    var laDelCred = (typeof _concGetById==='function') ? _concGetById(WZ.concesionarioId) : null;
+    disp = disp.concat([{ id:WZ.concesionarioId, nombre:(laDelCred&&laDelCred.nombre)||('Sede '+WZ.concesionarioId), ciudad:(laDelCred&&laDelCred.ciudad)||'' }]);
+  }
+  return disp;
+}
+function _wzEsc(v){ return (typeof esc==='function') ? esc(v) : String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _wzMoney(v){ return (typeof fmt==='function') ? fmt(v) : ('$'+(parseFloat(v)||0).toFixed(2)); }
+
+// ¿De que concesionario sale la moto? — arriba del paso de la moto
+function _wzSedeHtml(){
+  var disp = _wzSedesDisponibles();
+  if(!disp.length) return ''; // sin concesionarios creados, no se muestra
+  if(disp.length === 1){
+    // Al EDITAR no se pisa la sede que traia el credito (punto 14, 22-sep-2026)
+    if(!(window._wzEditando && WZ.concesionarioId)) WZ.concesionarioId = disp[0].id;
+    return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:14px 16px;margin-bottom:14px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center">'
+      + '<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1)">Concesionario</div>'
+      + '<div style="font-size:13.5px;font-weight:700;margin-top:3px">'+_wzEsc(disp[0].nombre)+(disp[0].ciudad?' · '+_wzEsc(disp[0].ciudad):'')+'</div></div>'
+      + '<span style="background:rgba(0,184,118,.15);color:var(--green);padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700">SEDE ÚNICA</span>'
+      + '</div>'
+      + '<input type="hidden" id="wz_concesionario_id" value="'+_wzEsc(WZ.concesionarioId)+'">'
+      + '</div>';
+  }
+  // Varias: NO viene ninguna elegida. Antes venia la primera de la lista (o la del
+  // selector de arriba) y la solicitud se guardaba en una sede que nadie eligio.
+  var elegida = WZ.concesionarioId ? String(WZ.concesionarioId) : '';
+  if(elegida && !disp.some(function(c){ return String(c.id)===elegida; })) elegida = '';
+  WZ.concesionarioId = elegida;
+  return '<div style="background:var(--surf);border:1.5px solid var(--p1);border-radius:14px;padding:14px 16px;margin-bottom:14px">'
+    + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:9px">¿De qué concesionario sale la moto? *</div>'
+    + '<select class="fs" id="wz_concesionario_id" onchange="_wzSetSede(this.value)" style="font-size:13px;font-weight:700">'
+    + '<option value=""'+(elegida?'':' selected')+'>— Elegir concesionario —</option>'
+    + disp.map(function(c){
+        return '<option value="'+_wzEsc(c.id)+'"'+(String(c.id)===elegida?' selected':'')+'>'+_wzEsc(c.nombre)+(c.ciudad?' · '+_wzEsc(c.ciudad):'')+'</option>';
+      }).join('')
+    + '</select>'
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:6px;line-height:1.5">De aquí sale la moto y aquí queda el crédito. Si la sede tiene anticipo de Pagasi, la moto se paga de ahí sola.</div>'
+    + '</div>';
+}
+function _wzSetSede(v){
+  WZ.concesionarioId = v || '';
+  WZ['wz_concesionario_id'] = WZ.concesionarioId;
+  _wzMpagoSync();
+}
+
+// La tarjeta "El dinero de esta venta" (solo al crear)
+function _wzDineroHtml(){
+  var esVendConc = (S.currentUser&&S.currentUser.rol)==='Vendedor Concesionario';
+  return '<div id="wz-dinero" style="margin-top:16px;background:var(--surf);border:1.5px solid var(--p1);border-radius:14px;padding:14px 16px">'
+    + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">El dinero de esta venta</div>'
+    + '<div class="fgr">'
+    +   '<div class="fg"><label id="wz_ini_lbl">¿Dónde pagó el cliente la inicial? *</label>'
+    +   '<select class="fs" id="wz_ini_metodo" onchange="WZ.iniMetodo=this.value;_wzMpagoSync()">'+_wzIniMetodoOpts()+'</select></div>'
+    +   '<div class="fg"><label>Referencia / comprobante</label>'
+    +   '<input class="fi" id="wz_ini_ref" placeholder="N° de referencia (opcional)" value="'+_wzEsc(WZ.iniRef||'')+'" oninput="WZ.iniRef=this.value"></div>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:4px">'
+    +   (esVendConc ? 'La inicial queda registrada cuando se apruebe la solicitud.' : 'La inicial entra a esa cuenta al guardar el crédito.')
+    + '</div>'
+    + '<div id="wz-mpago-wrap" style="display:none;margin-top:12px"></div>'
+    + '</div>';
+}
+
+// Lo que cuesta la moto (precio base real) y la inicial del plan, como estan en pantalla
+function _wzCostoMoto(){
   var pBaseInp = document.getElementById('wz_precio_base_real');
   var pInp = document.getElementById('wz_precio');
-  var costo = pBaseInp && parseFloat(pBaseInp.value)>0
-    ? parseFloat(pBaseInp.value)
-    : (pInp && parseFloat(pInp.value)>0 ? parseFloat(pInp.value) : (parseFloat(WZ.precio)||0));
-  // El bloque "forma de pago de la moto" aplica solo a motos del catálogo (no de inventario).
-  // Es autoritativo: muestra/oculta según el estado, así no se pierde al cambiar de plan (global/personalizado/APY).
-  var esCatalogo = !WZ.motoInvId;
-  if(esCatalogo && costo>0){
-    wrap.style.display='block';
-    var iniReal = 0;
-    try { var pc = getWzPlanConfig(); iniReal = parseFloat(pc&&pc.ini)||0; } catch(e){}
-    _mpagoSetCosto('wzmpago', costo, iniReal>0 ? iniReal : null);
-  } else if(!esCatalogo){
-    wrap.style.display='none';
+  if(pBaseInp && parseFloat(pBaseInp.value) > 0) return parseFloat(pBaseInp.value);
+  if(pInp && parseFloat(pInp.value) > 0) return parseFloat(pInp.value);
+  return parseFloat(WZ.precioBaseReal) || parseFloat(WZ.precio) || 0;
+}
+function _wzInicialPlan(){
+  var ini = 0;
+  try { var pc = getWzPlanConfig(); ini = parseFloat(pc && pc.ini) || 0; } catch(e){}
+  return ini;
+}
+function _wzPlanPagoMoto(costo, ini){
+  var cid = WZ.concesionarioId || '';
+  return _mpagoPlanAuto({
+    costo: costo, inicial: ini,
+    cuentaInicial: WZ.iniMetodo || '',
+    concesionarioId: cid,
+    saldoAnticipo: (cid && typeof saldoAnticipoDe==='function') ? saldoAnticipoDe(cid) : 0,
+    cuentaResto: WZ._mpagoCuentaResto || ''
+  });
+}
+// Repartir a mano queda solo para el administrador, para los casos raros
+function _wzPuedePagoManual(){ return (typeof isAdminUser==='function') && isAdminUser(); }
+
+// Como se paga la moto, ya resuelto
+function _wzPagoMotoHtml(costo, ini){
+  var titulo = '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:800;margin-bottom:4px">'
+    + '<span>Cómo se paga la moto</span><span>'+_wzMoney(costo)+'</span></div>';
+  // Sin sede no se sabe si hay anticipo: no se pide ninguna cuenta todavia
+  if(_wzSedesDisponibles().length && !WZ.concesionarioId){
+    return titulo + '<div style="font-size:12px;color:var(--amber);font-weight:700;padding:6px 0">Elige arriba de qué concesionario sale la moto y el pago se arma solo.</div>';
   }
+  var plan = _wzPlanPagoMoto(costo, ini);
+  var sede = (WZ.concesionarioId && typeof _concGetById==='function') ? (_concGetById(WZ.concesionarioId)||{}) : {};
+  var sedeNom = _wzEsc(sede.nombre || 'la sede');
+  var html = titulo + plan.filas.map(function(f){
+    var de;
+    if(f.que === 'inicial'){
+      de = f.cuenta
+        ? 'Sale de <b>'+_wzEsc(f.cuenta)+'</b>, donde la pagó el cliente.'
+        : '<span style="color:var(--amber);font-weight:700">Falta decir arriba dónde la pagó el cliente.</span>';
+    } else if(f.que === 'anticipo'){
+      de = 'Sale del <b>anticipo de '+sedeNom+'</b>. '
+        + (plan.anticipoNoAlcanza ? 'Lo usa todo.' : 'Le quedan '+_wzMoney(plan.quedaAnticipo)+' después de esta moto.');
+    } else {
+      de = '<label style="font-size:11px;display:block;margin:4px 0 3px">¿De qué cuenta sale? *</label>'
+        + '<select class="fs" id="wz_mpago_resto" onchange="WZ._mpagoCuentaResto=this.value;_wzMpagoSync()">'
+        + _mpagoCuentasOpts(WZ._mpagoCuentaResto||'') + '</select>';
+    }
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--rim2)">'
+      + '<div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="font-weight:700">'+f.etiqueta+'</span><span style="font-weight:800">'+_wzMoney(f.monto)+'</span></div>'
+      + '<div style="font-size:11.5px;color:var(--ink3);margin-top:2px;line-height:1.45">'+de+'</div>'
+      + '</div>';
+  }).join('');
+  if(plan.anticipoNoAlcanza){
+    html += '<div style="font-size:11.5px;color:var(--amber);font-weight:700;margin-top:8px;line-height:1.45">'
+      + 'El anticipo de '+sedeNom+' no alcanza: tiene '+_wzMoney(plan.saldoAnticipo)+'. Los '+_wzMoney(plan.resto)+' que faltan salen de la cuenta que elijas.</div>';
+  } else if(plan.resto > 0.005 && WZ.concesionarioId){
+    html += '<div style="font-size:11.5px;color:var(--ink3);margin-top:8px;line-height:1.45">'
+      + sedeNom+' no tiene anticipo de Pagasi: elige de qué cuenta sale lo que financia Pagasi.</div>';
+  }
+  if(_wzPuedePagoManual()){
+    html += '<div style="margin-top:8px;text-align:right"><a href="javascript:void(0)" onclick="_wzMpagoManual(true)" style="font-size:11px;color:var(--ink3)">Repartir a mano (solo administrador)</a></div>';
+  }
+  return html;
+}
+
+// Reparto a mano: las mismas filas de siempre, arrancando con lo que el sistema propone
+function _wzMpagoManual(on){
+  if(on && !_wzPuedePagoManual()) return;
+  WZ._mpagoManual = !!on;
+  WZ._pagosMoto = null;
+  var wrap = document.getElementById('wz-mpago-wrap');
+  if(wrap) wrap.innerHTML = '';
+  _wzMpagoSync();
+}
+function _wzMpagoManualLlenar(costo, ini){
+  var cont = document.getElementById('wzmpago-rows');
+  if(!cont) return;
+  var fuente = (Array.isArray(WZ._pagosMoto) && WZ._pagosMoto.length)
+    ? WZ._pagosMoto
+    : _wzPlanPagoMoto(costo, ini).filas.map(function(f){ return { cuenta:f.cuenta, monto:f.monto }; });
+  if(fuente.length){
+    cont.innerHTML = '';
+    fuente.forEach(function(p, idx){
+      cont.insertAdjacentHTML('beforeend', _mpagoFilaHtml('wzmpago', idx));
+      var rows = cont.querySelectorAll('.mpago-row');
+      var row = rows[rows.length-1];
+      if(!row) return;
+      row.setAttribute('data-touched','1');
+      var c = row.querySelector('.wzmpago-cuenta'), mt = row.querySelector('.wzmpago-monto');
+      if(c) c.value = p.cuenta || '';
+      if(mt) mt.value = p.monto;
+    });
+  }
+  _mpagoSetCosto('wzmpago', costo);
+}
+
+// Pinta de nuevo el pago de la moto con lo que hay en pantalla. Lo llaman el precio,
+// la inicial, el plan, la sede, la moto elegida y la cuenta de la inicial.
+function _wzMpagoSync(){
+  var costo = _wzCostoMoto();
+  var ini = _wzInicialPlan();
+  var lbl = document.getElementById('wz_ini_lbl');
+  if(lbl) lbl.textContent = ini > 0.005
+    ? '¿Dónde pagó el cliente la inicial de '+_wzMoney(ini)+'? *'
+    : '¿Dónde pagó el cliente la inicial?';
+  var wrap = document.getElementById('wz-mpago-wrap');
+  if(!wrap) return;
+  // La moto del inventario ya se pago al ingresarla: no se vuelve a pagar
+  if(WZ.motoInvId || !(costo > 0)){ wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  if(WZ._mpagoManual && _wzPuedePagoManual()){
+    if(!document.getElementById('wzmpago-rows')){
+      wrap.innerHTML = _mpagoBloqueHtml('wzmpago','Pago de la moto, repartido a mano','Estás repartiendo el pago a mano. Revisa que cada parte salga de donde salió de verdad el dinero.')
+        + '<div style="margin-top:8px;text-align:right"><a href="javascript:void(0)" onclick="_wzMpagoManual(false)" style="font-size:11px;color:var(--p1);font-weight:700">Volver a automático</a></div>';
+      _wzMpagoManualLlenar(costo, ini);
+    } else {
+      _mpagoSetCosto('wzmpago', costo);
+    }
+    return;
+  }
+  wrap.innerHTML = _wzPagoMotoHtml(costo, ini);
+}
+
+// Paso 4: lo que ya quedo decidido, para leerlo antes de guardar. No se pregunta nada.
+function _wzResumenDineroHTML(r){
+  var filas = [];
+  var sede = (WZ.concesionarioId && typeof _concGetById==='function') ? _concGetById(WZ.concesionarioId) : null;
+  if(_wzSedesDisponibles().length || WZ.concesionarioId){
+    filas.push(['Concesionario', sede ? _wzEsc(sede.nombre)
+      : (WZ.concesionarioId ? _wzEsc(WZ.concesionarioId) : '<span style="color:var(--red)">sin elegir — vuelve al paso 3</span>')]);
+  }
+  if(!window._wzEditando){
+    var esVendConc = (S.currentUser&&S.currentUser.rol)==='Vendedor Concesionario';
+    var ini = parseFloat(r && r.ini) || 0;
+    if(ini > 0.005){
+      filas.push(['Inicial '+_wzMoney(ini), esVendConc ? 'se registra al aprobar la solicitud'
+        : (WZ.iniMetodo ? 'entra a <b>'+_wzEsc(WZ.iniMetodo)+'</b>'+(WZ.iniRef ? ' · ref. '+_wzEsc(WZ.iniRef) : '')
+                        : '<span style="color:var(--red)">falta la cuenta — vuelve al paso 3</span>')]);
+    }
+    if(Array.isArray(WZ._pagosMoto) && WZ._pagosMoto.length){
+      filas.push(['Pago de la moto', WZ._pagosMoto.map(function(p){
+        return _wzMoney(p.monto)+' de '+_wzEsc((typeof _mpagoNombreCuenta==='function') ? _mpagoNombreCuenta(p.cuenta) : p.cuenta);
+      }).join(' + ')]);
+    } else if(WZ.motoInvId){
+      filas.push(['Pago de la moto', 'ya estaba pagada: es del inventario']);
+    }
+  }
+  if(!filas.length) return '';
+  return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:16px;margin-bottom:12px">'
+    + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">'+(window._wzEditando ? 'Sede' : 'El dinero de esta venta')+'</div>'
+    + filas.map(function(f){
+        return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--rim2);font-size:12.5px">'
+          + '<span style="color:var(--ink3);flex-shrink:0">'+f[0]+'</span><span style="font-weight:700;text-align:right">'+f[1]+'</span></div>';
+      }).join('')
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:8px">Para cambiar algo, vuelve al paso 3 con “← Atrás”.</div>'
+    + '</div>';
 }
 
 // ── Selección de moto del inventario ──
@@ -1049,6 +1245,12 @@ function _wzPickMotoInv(sel){
   _wzActualizarPrecioBaseDesdePrecio();
   WZ.motoInvId = sel.value;
   WZ.motoModelo = moto ? moto.modelo : opt.text.split(' —')[0].trim();
+  // La moto del inventario ya esta en una sede: si no se eligio ninguna, se propone esa
+  if(moto && moto.concesionarioId && !WZ.concesionarioId && !window._wzEditando
+     && _wzSedesDisponibles().some(function(c){ return String(c.id)===String(moto.concesionarioId); })){
+    WZ.concesionarioId = moto.concesionarioId; WZ['wz_concesionario_id'] = moto.concesionarioId;
+    var _scInv = document.getElementById('wz_concesionario_id'); if(_scInv) _scInv.value = moto.concesionarioId;
+  }
   // Precargar campos de la moto en WZ para que _wzFg los muestre
   if(moto){
     WZ.wz_marca        = moto.marca        || '';
@@ -1083,6 +1285,7 @@ function _wzPickMotoInv(sel){
   }
   // Inventario existente: NO mostrar bloque de pago (la moto ya fue pagada al ingresarla)
   if(wrap) wrap.style.display='none';
+  _wzMpagoSync();
   _wzActualizarFinPreview(precio);
   _wzScore();
 }
@@ -1239,7 +1442,9 @@ function _wzPickMotoCat(sel){
     // Concesionario: si la moto del catálogo tiene sede y aún no se eligió una, la sugiere
     if(_catIt && _catIt.sede && (WZ.concesionarioId===undefined || WZ.concesionarioId===null || WZ.concesionarioId==='')){
       var _cc = (S.concesionarios||[]).find(function(c){ return c && !c.eliminado && String(c.nombre)===String(_catIt.sede); });
-      if(_cc){ WZ.concesionarioId = _cc.id; WZ['wz_concesionario_id']=_cc.id; var _sc=document.getElementById('wz_concesionario_id'); if(_sc) _sc.value=_cc.id; }
+      // ...y solo si es una de las que puede usar: si no, el desplegable quedaba en
+      // blanco y el credito se iba a una sede ajena sin que se viera (23-sep-2026)
+      if(_cc && _wzSedesDisponibles().some(function(c){ return String(c.id)===String(_cc.id); })){ WZ.concesionarioId = _cc.id; WZ['wz_concesionario_id']=_cc.id; var _sc=document.getElementById('wz_concesionario_id'); if(_sc) _sc.value=_cc.id; }
     }
   }catch(e){}
   // El precio NO se toma del catálogo (los precios cambian a cada rato):
@@ -1258,21 +1463,9 @@ function _wzCatPrecioSync(){
   WZ.precio = catPrecio;
   WZ.motoModelo = catModelo;
   WZ.motoInvId = null;
-  // Mostrar/poblar el bloque de forma de pago igual que al elegir del catálogo
-  var wrap = document.getElementById('wz-mpago-wrap');
-  if(wrap){
-    if(catPrecio > 0){
-      wrap.style.display='block';
-      _wzActualizarPrecioBaseDesdePrecio();
-      var pBaseInp = document.getElementById('wz_precio_base_real');
-      var costoBase = pBaseInp && parseFloat(pBaseInp.value)>0 ? parseFloat(pBaseInp.value) : catPrecio;
-      var iniReal = 0;
-      try { var pc = getWzPlanConfig(); iniReal = parseFloat(pc&&pc.ini)||0; } catch(e){}
-      _mpagoSetCosto('wzmpago', costoBase, iniReal>0 ? iniReal : null);
-    } else {
-      wrap.style.display='none';
-    }
-  }
+  // El pago de la moto se arma igual que al elegir del catálogo
+  if(catPrecio > 0) _wzActualizarPrecioBaseDesdePrecio();
+  _wzMpagoSync();
   if(catPrecio){ _wzActualizarFinPreview(catPrecio); _wzScore(); }
 }
 
@@ -1672,15 +1865,49 @@ function _wzValidar(){
       WZ.planMode = 'apy';
       window._wzCustomPct = iniSel; // asegurar que el pct quede guardado
     }
+    // La sede no se adivina: de ella sale la moto y su anticipo (23-sep-2026)
+    var _selSede = document.getElementById('wz_concesionario_id');
+    if(_selSede) WZ.concesionarioId = _selSede.value || '';
+    if(!_modoEdicion && _wzSedesDisponibles().length && !WZ.concesionarioId){
+      toast('Elige de qué concesionario sale la moto','error');
+      if(_selSede && _selSede.focus) _selSede.focus();
+      return false;
+    }
+    // La inicial se pregunta una sola vez, aqui (23-sep-2026)
+    var _selIniM = document.getElementById('wz_ini_metodo');
+    if(_selIniM) WZ.iniMetodo = _selIniM.value || '';
+    var _refIniM = document.getElementById('wz_ini_ref');
+    if(_refIniM) WZ.iniRef = _refIniM.value || '';
+    var _iniPlan = _wzInicialPlan();
     // Validar pago de la moto SOLO si el bloque está visible (moto del catálogo)
     // y NO estamos en modo edición de solicitud sin firma
     var _mpagoWrap = document.getElementById('wz-mpago-wrap');
     var _mpagoVisible = _mpagoWrap && _mpagoWrap.style.display !== 'none';
+    var _esVendConcM = (S.currentUser&&S.currentUser.rol)==='Vendedor Concesionario';
+    // El vendedor de concesionario deja la inicial para la aprobacion, salvo que haga
+    // falta para pagar la moto nueva
+    if(!_modoEdicion && _iniPlan > 0.005 && !WZ.iniMetodo && (!_esVendConcM || _mpagoVisible)){
+      toast('Elige dónde pagó el cliente la inicial','error');
+      if(_selIniM && _selIniM.focus) _selIniM.focus();
+      return false;
+    }
     if(_mpagoVisible && !_modoEdicion){
       var _precioBase = parseFloat((document.getElementById('wz_precio_base_real')||{}).value)||precio;
-      var _val = _mpagoValidarContraCosto('wzmpago', _precioBase);
-      if(!_val.ok){ toast(_val.error,'error'); return false; }
-      WZ._pagosMoto = _val.pagos;
+      if(WZ._mpagoManual && _wzPuedePagoManual()){
+        var _val = _mpagoValidarContraCosto('wzmpago', _precioBase);
+        if(!_val.ok){ toast(_val.error,'error'); return false; }
+        WZ._pagosMoto = _val.pagos;
+      } else {
+        var _plan = _wzPlanPagoMoto(_precioBase, _iniPlan);
+        if(_plan.faltan.indexOf('resto') > -1){
+          toast(_plan.deAnticipo > 0 ? 'El anticipo no alcanza: elige de qué cuenta sale el resto'
+                                     : 'Elige de qué cuenta sale lo que financia Pagasi','error');
+          var _selResto = document.getElementById('wz_mpago_resto'); if(_selResto && _selResto.focus) _selResto.focus();
+          return false;
+        }
+        if(_plan.faltan.length){ toast('Elige dónde pagó el cliente la inicial','error'); return false; }
+        WZ._pagosMoto = _plan.pagos;
+      }
     } else {
       WZ._pagosMoto = null; // inventario, precio manual o edición: no se cobra de nuevo
     }
@@ -1851,75 +2078,15 @@ function _wzRenderResultado(){
         return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--rim2);font-size:12.5px"><span style="color:var(--ink3)">'+row[0]+'</span><span style="font-weight:700;color:'+col2color+'">'+row[1]+'</span></div>';
       }).join('')
       +'</div>'
-      + (window._wzEditando
-        // Editando: la inicial ya se cobro (o no) hace tiempo. Pedir cuenta y referencia
-        // aqui hacia creer que se corregia donde entro el dinero, y no se guardaba nada
-        // (punto 13, 22-sep-2026). Se muestra lo que hay, de solo lectura.
-        ? _wzInicialRealHTML(window._wzEditando)
-        : '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:16px;margin-bottom:12px">'
-        +'<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:10px">Cobro de Inicial</div>'
-        +'<div class="fgr">'
-        +'<div class="fg"><label>Método de pago inicial *</label><select class="fs" id="wz_ini_metodo" onchange="WZ.iniMetodo=this.value">'
-        +_wzIniMetodoOpts()
-        +'</select></div>'
-        +'<div class="fg"><label>Referencia / Comprobante</label><input class="fi" id="wz_ini_ref" placeholder="N° de referencia (opcional)"></div>'
-        +'</div>'
-        +'<div style="font-size:11px;color:var(--ink3);margin-top:6px">La inicial se acreditará a la cuenta seleccionada al guardar el crédito.</div>'
-        +'</div>')
+      // Editando: la inicial ya se cobro (o no) hace tiempo. Pedir cuenta y referencia
+      // aqui hacia creer que se corregia donde entro el dinero, y no se guardaba nada
+      // (punto 13, 22-sep-2026). Se muestra lo que hay, de solo lectura.
+      + (window._wzEditando ? _wzInicialRealHTML(window._wzEditando) : '')
     :'')
-    // Selector de concesionario (siempre visible en el último paso, si hay concesionarios creados)
-    + (function(){
-        var u = S.currentUser || {};
-        var asignados = u.concesionarios || [];
-        var todasSedes = (S.concesionarios||[]).filter(function(c){return !c.eliminado && c.activo!==false;});
-        if(!todasSedes.length) return ''; // sin concesionarios creados, no mostrar
-        // Determinar qué sedes puede ver: si tiene asignaciones específicas → solo esas; si no → todas
-        var disponibles;
-        if(asignados.length){
-          disponibles = todasSedes.filter(function(c){ return asignados.indexOf(c.id) !== -1; });
-        } else {
-          disponibles = todasSedes; // admin total
-        }
-        if(!disponibles.length) return '';
-        // Si tiene UNA sola sede asignada → input oculto (forzado a esa)
-        if(disponibles.length === 1){
-          // Pre-asignar en WZ. Al EDITAR no se pisa la sede que traia el credito: se
-          // cambiaba sola a la de quien editaba, y eso mueve comisiones y cuadres por
-          // concesionario sin que nadie lo pida (punto 14, 22-sep-2026).
-          if(!(window._wzEditando && WZ.concesionarioId)) WZ.concesionarioId = disponibles[0].id;
-          return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:14px 16px;margin-bottom:12px">'
-            + '<div style="display:flex;justify-content:space-between;align-items:center">'
-            + '<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1)">Concesionario</div>'
-            + '<div style="font-size:13.5px;font-weight:700;margin-top:3px">'+disponibles[0].nombre+(disponibles[0].ciudad?' · '+disponibles[0].ciudad:'')+'</div></div>'
-            + '<span style="background:rgba(0,184,118,.15);color:var(--green);padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700">SEDE ÚNICA</span>'
-            + '</div>'
-            + '<input type="hidden" id="wz_concesionario_id" value="'+disponibles[0].id+'">'
-            + '</div>';
-        }
-        // Selector cuando puede elegir entre varias
-        // Pre-seleccionado: el del switcher si está dentro de sus disponibles, sino el primero
-        // Al EDITAR manda la sede del credito, no la del switcher de quien edita
-        // (punto 14, 22-sep-2026). Si esa sede no esta entre las suyas, se agrega a la
-        // lista para que se vea: si no, desaparecia de la pantalla y se guardaba otra.
-        var _editandoSede = !!(window._wzEditando && WZ.concesionarioId);
-        if(_editandoSede && !disponibles.find(function(c){return c.id===WZ.concesionarioId;})){
-          var _laDelCred = (typeof _concGetById==='function') ? _concGetById(WZ.concesionarioId) : null;
-          disponibles = disponibles.concat([{ id:WZ.concesionarioId, nombre:(_laDelCred&&_laDelCred.nombre)||('Sede '+WZ.concesionarioId), ciudad:(_laDelCred&&_laDelCred.ciudad)||'' }]);
-        }
-        var preSel = _editandoSede ? WZ.concesionarioId : S.concesionarioActivo;
-        if(preSel && !disponibles.find(function(c){return c.id===preSel;})){ preSel = disponibles[0].id; }
-        if(!preSel) preSel = disponibles[0].id;
-        WZ.concesionarioId = preSel;
-        return '<div style="background:var(--surf);border:1.5px solid var(--p1);border-radius:14px;padding:14px 16px;margin-bottom:12px">'
-          + '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:9px">¿En qué concesionario se hace este crédito?</div>'
-          + '<select class="fs" id="wz_concesionario_id" onchange="WZ.concesionarioId=this.value" style="font-size:13px;font-weight:700">'
-          + disponibles.map(function(c){
-              return '<option value="'+c.id+'" '+(preSel===c.id?'selected':'')+'>'+c.nombre+(c.ciudad?' · '+c.ciudad:'')+'</option>';
-            }).join('')
-          + '</select>'
-          + '<div style="font-size:11px;color:var(--ink3);margin-top:6px;line-height:1.5">El crédito quedará registrado en esta sede. Predeterminado: el concesionario activo en el switcher de arriba.</div>'
-          + '</div>';
-      })();
+    // La sede, la cuenta de la inicial y el pago de la moto se deciden en el paso 3.
+    // Aqui ya no se pregunta nada: antes la inicial se pedia otra vez y la sede venia
+    // puesta en la primera de la lista (23-sep-2026).
+    + _wzResumenDineroHTML(r);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -2067,10 +2234,13 @@ function _wzIniMetodoOpts(){
 // true si hay que registrar la inicial y nadie eligio la cuenta. Solo aplica al crear un
 // credito directo: las solicitudes de concesionario la registran al aprobarse y al editar
 // no se vuelve a cobrar.
+// Desde el 23-sep-2026 la cuenta se elige en el paso 3 y al guardar ya no esta en
+// pantalla: se lee de WZ. Antes, sin el desplegable delante, no se revisaba nada.
 function _wzFaltaCuentaInicial(ini){
   var sel = document.getElementById('wz_ini_metodo');
+  var cuenta = sel ? sel.value : (WZ.iniMetodo || '');
   var esVendConc = (S.currentUser&&S.currentUser.rol)==='Vendedor Concesionario';
-  return !!(sel && !window._wzEditando && !esVendConc && (parseFloat(ini)||0)>0 && !sel.value);
+  return !!(!window._wzEditando && !esVendConc && (parseFloat(ini)||0)>0 && !cuenta);
 }
 function _wzGuardar(){
   _wzCollectVisibleValues();
@@ -2114,8 +2284,13 @@ function _wzGuardar(){
   var _wizardDraft = _wzDraftSnapshot();
   var r = WZ.precio>0 ? getWzPlanConfig() : {mode:'global',precioBaseReal:0,ini:0,fin:0,total:0,cuotaQ:0,totalPagado:0,cuotaM:0,plazo:PLAN.plazo,totalCuotas:PLAN.plazo*2,factor:PLAN.factor,inicialPct:PLAN.inicial,tasaMensual:PLAN.tasaMensual,apy:PLAN.apy,sourcePlan:{plazo:PLAN.plazo, factor:PLAN.factor, inicial:PLAN.inicial, tasaMensual:PLAN.tasaMensual, apy:PLAN.apy}};
   if(_wzFaltaCuentaInicial(r.ini)){
-    toast('Elige en qué cuenta entró la inicial','error');
-    var _selIni = document.getElementById('wz_ini_metodo'); if(_selIni && _selIni.focus) _selIni.focus();
+    toast('Falta decir dónde pagó el cliente la inicial: vuelve al paso 3','error');
+    if(btn){ btn.textContent='Guardar Solicitud'; btn.disabled=false; }
+    return;
+  }
+  // Ni una solicitud nueva sin sede: se guardaba en la primera de la lista (23-sep-2026)
+  if(!window._wzEditando && _wzSedesDisponibles().length && !WZ.concesionarioId){
+    toast('Falta elegir de qué concesionario sale la moto: vuelve al paso 3','error');
     if(btn){ btn.textContent='Guardar Solicitud'; btn.disabled=false; }
     return;
   }
@@ -2700,8 +2875,9 @@ function _wzGuardar(){
   }
 
   // Registrar la inicial también en Pagos
-  var iniMetodo = ($('wz_ini_metodo')&&$('wz_ini_metodo').value) || '';
-  var iniRef = ($('wz_ini_ref')&&$('wz_ini_ref').value) || '';
+  // Se eligio en el paso 3: al guardar ya no esta en pantalla (23-sep-2026)
+  var iniMetodo = ($('wz_ini_metodo')&&$('wz_ini_metodo').value) || WZ.iniMetodo || '';
+  var iniRef = ($('wz_ini_ref')&&$('wz_ini_ref').value) || WZ.iniRef || '';
   var pagoIniId = 'PAG-'+Date.now()+'-'+Math.floor(Math.random()*10000);
   var pagoIni = {
     id:pagoIniId,

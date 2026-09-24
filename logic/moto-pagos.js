@@ -97,6 +97,62 @@ function _mpagoRepartirInicial(prefix, costo, inicial){
   _mpagoActualizarTotales(prefix);
 }
 
+// ── La moto nueva de la solicitud se paga sola ──────────────────────────────────
+// Adam, 23-sep-2026: "se pagaron con anticipo.. como es el flow en la solicitud.. no
+// quiero que se equivoquen los vendedores.. deberia salir automatico sin preguntar".
+// El vendedor tenia que repartir el costo en filas y elegir cada cuenta: podia sacar
+// del banco lo que ya estaba esperando en la sede como anticipo, y el mismo dinero
+// salia dos veces. Ahora el sistema ya sabe todo menos una cosa:
+//  · la inicial sale de la cuenta donde la pago el cliente (se pregunta UNA vez, la
+//    misma respuesta sirve para el cobro y para la compra);
+//  · lo que financia Pagasi sale del anticipo de esa sede, si tiene;
+//  · si el anticipo no alcanza, pone lo que tiene y el resto sale de una cuenta;
+//  · si la sede no tiene anticipo, ahi si se elige la cuenta.
+// Esta funcion no toca la pantalla ni la base: solo dice como se reparte.
+function _mpagoPlanAuto(o){
+  o = o || {};
+  var r2 = function(x){ return Math.round((parseFloat(x)||0)*100)/100; };
+  var costo = Math.max(0, r2(o.costo));
+  var ini = Math.min(Math.max(0, r2(o.inicial)), costo);
+  var fin = r2(costo - ini);
+  var cid = o.concesionarioId ? String(o.concesionarioId) : '';
+  var saldo = cid ? Math.max(0, r2(o.saldoAnticipo)) : 0;
+  var filas = [];
+  if(ini > 0.005) filas.push({ que:'inicial', etiqueta:'Inicial del cliente', monto:ini, cuenta:o.cuentaInicial||'', fija:true });
+  var deAnt = 0;
+  if(fin > 0.005 && saldo > 0.005){
+    deAnt = r2(Math.min(saldo, fin));
+    filas.push({ que:'anticipo', etiqueta:'Lo que financia Pagasi', monto:deAnt, cuenta:'ANT:'+cid, fija:true });
+  }
+  var resto = r2(fin - deAnt);
+  if(resto > 0.005){
+    filas.push({ que:'resto', etiqueta:(deAnt > 0 ? 'Lo que no cubre el anticipo' : 'Lo que financia Pagasi'),
+                 monto:resto, cuenta:o.cuentaResto||'', fija:false });
+  }
+  var faltan = [];
+  if(ini > 0.005 && !o.cuentaInicial) faltan.push('inicial');
+  if(resto > 0.005 && !o.cuentaResto) faltan.push('resto');
+  return {
+    costo: costo, inicial: ini, financiado: fin,
+    deAnticipo: deAnt, resto: resto,
+    saldoAnticipo: saldo, quedaAnticipo: r2(saldo - deAnt),
+    anticipoNoAlcanza: deAnt > 0 && resto > 0.005,
+    filas: filas, faltan: faltan,
+    pagos: faltan.length ? [] : filas.filter(function(f){ return f.monto > 0.005; })
+                                     .map(function(f){ return { cuenta:f.cuenta, monto:f.monto }; })
+  };
+}
+// Solo las cuentas del banco: el resto de una moto no puede salir del anticipo de OTRA
+// sede, que es dinero que esta esperando alli para sus propias motos.
+function _mpagoCuentasOpts(elegida){
+  var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var cuentas = (_cuentasBanc && _cuentasBanc.length) ? _cuentasBanc : [];
+  if(!cuentas.length) return '<option value="" selected>— No hay cuentas cargadas —</option>';
+  var hay = cuentas.some(function(c){ return elegida && c.nombre === elegida; });
+  return '<option value=""'+(hay?'':' selected')+'>— Elegir cuenta —</option>'
+    + cuentas.map(function(c){ return '<option value="'+esc(c.nombre)+'"'+(hay && c.nombre===elegida?' selected':'')+'>'+esc(c.nombre)+'</option>'; }).join('');
+}
+
 function _mpagoAgregarFila(prefix){
   prefix = prefix || _MPAGO_PREFIX;
   var cont = document.getElementById(prefix+'-rows');
