@@ -529,22 +529,24 @@ function _wzRender(motoId){
   +'<div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:10px">Referencia 1</div>'
   +_row2(
     _fg('Nombre',_inp('wz_r1n','text','Nombre y apellido')),
-    _fg('Teléfono',_inp('wz_r1t','tel','0412-0000000'))
+    _fg('Cédula',_inp('wz_r1ci','text','V-12345678','oninput="_wzCedulaInput(event)" autocapitalize="characters"'))
   )
   +_row2(
-    _fg('Relación',_sel('wz_r1r','<option>Familiar directo</option><option>Amigo/a</option><option>Colega</option><option>Vecino/a</option>')),
-    _fg('Observación',_inp('wz_r1obs','text','Notas...'))
-  )+'</div>'
+    _fg('Teléfono',_inp('wz_r1t','tel','0412-0000000')),
+    _fg('Relación',_sel('wz_r1r','<option>Familiar directo</option><option>Amigo/a</option><option>Colega</option><option>Vecino/a</option>'))
+  )
+  +'<div style="margin-bottom:10px">'+_fg('Observación',_inp('wz_r1obs','text','Notas...'))+'</div>'+'</div>'
   +'<div style="background:var(--surf2);border:1px solid var(--rim);border-radius:12px;padding:12px;margin-bottom:10px">'
   +'<div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:10px">Referencia 2</div>'
   +_row2(
     _fg('Nombre',_inp('wz_r2n','text','Nombre y apellido')),
-    _fg('Teléfono',_inp('wz_r2t','tel','0412-0000000'))
+    _fg('Cédula',_inp('wz_r2ci','text','V-12345678','oninput="_wzCedulaInput(event)" autocapitalize="characters"'))
   )
   +_row2(
-    _fg('Relación',_sel('wz_r2r','<option>Familiar directo</option><option>Amigo/a</option><option>Colega</option><option>Vecino/a</option>')),
-    _fg('Observación',_inp('wz_r2obs','text','Notas...'))
-  )+'</div>'
+    _fg('Teléfono',_inp('wz_r2t','tel','0412-0000000')),
+    _fg('Relación',_sel('wz_r2r','<option>Familiar directo</option><option>Amigo/a</option><option>Colega</option><option>Vecino/a</option>'))
+  )
+  +'<div style="margin-bottom:10px">'+_fg('Observación',_inp('wz_r2obs','text','Notas...'))+'</div>'+'</div>'
 
   // ── FIADOR ──
   +_s('Fiador / Garante')
@@ -564,6 +566,11 @@ function _wzRender(motoId){
   +_row2(
     _fg('Cédula del fiador',_inp('wz_fiador_ci','text','V-12345678','oninput="_wzCedulaInput(event)" autocapitalize="characters"')),
     _fg('Relación',_sel('wz_fiador_rel','<option value="familiar">Familiar directo</option><option value="conyuge">Cónyuge / pareja</option><option value="amigo">Amigo/a</option><option value="colega">Colega / socio</option>'))
+  )
+  // Sin direccion ni ingreso, un fiador no garantiza nada (24-sep-2026)
+  +_row2(
+    _fg('Dirección del fiador',_inp('wz_fiador_dir','text','Dirección completa...')),
+    _fg('Ingreso mensual del fiador (USD)',_inp('wz_fiador_ing','number','Ej: 600'))
   )+'</div>'
 
   // ── DOCUMENTOS ──
@@ -596,7 +603,7 @@ function _wzRender(motoId){
 
   var btnNext = WZ.step < 4
     ? '<button class="wz-btn wz-btn-p" onclick="_wzNext()">'+(WZ.step===3?'Calcular score →':'Siguiente →')+'</button>'
-    : '<button class="wz-btn wz-btn-ok" onclick="_wzGuardar()">Guardar solicitud</button>';
+    : '<button class="wz-btn wz-btn-ok" onclick="_wzGuardar()">'+(window._wzEditando ? 'Guardar cambios' : (_wzVaAAprobaciones() ? 'Enviar a aprobación' : 'Guardar solicitud'))+'</button>';
 
   ov.innerHTML =
     '<div class="wz-head"><div class="wz-head-in">'
@@ -838,7 +845,7 @@ function _wzHydrate(){
     // Selector moto inventario
     'wz_moto_inv',
     // Referencia de la inicial (la cuenta se marca sola al pintar el desplegable)
-    'wz_ini_ref'].concat(_casheaIds(), _perfilExtraIds());
+    'wz_ini_ref'].concat(_casheaIds(), _perfilExtraIds(), ['wz_r1ci','wz_r2ci','wz_fiador_dir','wz_fiador_ing']);
   ids.forEach(function(id){
     var el=document.getElementById(id);
     if(!el) return;
@@ -925,6 +932,7 @@ function _wzCollectVisibleValues(){
   };
   CASHEA_EXTRA.forEach(function(f){ alias['wz_'+f.k] = f.k; });
   PERFIL_EXTRA.forEach(function(f){ alias['wz_'+f.k] = f.k; });
+  alias.wz_r1ci='r1ci'; alias.wz_r2ci='r2ci'; alias.wz_fiador_dir='fiador_dir'; alias.wz_fiador_ing='fiador_ing';
   Array.from(ov.querySelectorAll('input[id^="wz_"],select[id^="wz_"],textarea[id^="wz_"]')).forEach(function(el){
     var id = el.id;
     if(!id || el.type==='radio' || el.type==='checkbox') return;
@@ -1028,13 +1036,17 @@ function _wzPickCliente(sel){
   WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
   WZ.fiador_tel = WZ.wz_fiador_tel = c.fiador_tel || '';
   WZ.fiador_ci = WZ.wz_fiador_ci = _wzFmtCedula(c.fiador_ci || '');
+  WZ.fiador_dir = WZ.wz_fiador_dir = c.fiador_dir || '';
+  WZ.fiador_ing = WZ.wz_fiador_ing = c.fiador_ing || '';
   WZ.fiador_rel = WZ.wz_fiador_rel = c.fiador_rel || '';
   // Referencias personales (con aliases wz_* que es lo que _wzHydrate lee)
   WZ.r1n = WZ.wz_r1n = (c.ref1&&c.ref1.nom) || '';
+  WZ.r1ci = WZ.wz_r1ci = (c.ref1&&c.ref1.ci) || '';
   WZ.r1t = WZ.wz_r1t = (c.ref1&&c.ref1.tel) || '';
   WZ.r1r = WZ.wz_r1r = (c.ref1&&c.ref1.rel) || '';
   WZ.r1obs = WZ.wz_r1obs = (c.ref1&&c.ref1.obs) || '';
   WZ.r2n = WZ.wz_r2n = (c.ref2&&c.ref2.nom) || '';
+  WZ.r2ci = WZ.wz_r2ci = (c.ref2&&c.ref2.ci) || '';
   WZ.r2t = WZ.wz_r2t = (c.ref2&&c.ref2.tel) || '';
   WZ.r2r = WZ.wz_r2r = (c.ref2&&c.ref2.rel) || '';
   WZ.r2obs = WZ.wz_r2obs = (c.ref2&&c.ref2.obs) || '';
@@ -2021,8 +2033,9 @@ function _wzValidar(){
     WZ.fiador_tel = g('wz_fiador_tel');
     WZ.fiador_ci = g('wz_fiador_ci');
     WZ.fiador_rel = g('wz_fiador_rel');
-    WZ.r1n = g('wz_r1n'); WZ.r1t = g('wz_r1t'); WZ.r1r = g('wz_r1r'); WZ.r1obs = g('wz_r1obs');
-    WZ.r2n = g('wz_r2n'); WZ.r2t = g('wz_r2t'); WZ.r2r = g('wz_r2r'); WZ.r2obs = g('wz_r2obs');
+    WZ.fiador_dir = g('wz_fiador_dir'); WZ.fiador_ing = g('wz_fiador_ing');
+    WZ.r1n = g('wz_r1n'); WZ.r1t = g('wz_r1t'); WZ.r1r = g('wz_r1r'); WZ.r1obs = g('wz_r1obs'); WZ.r1ci = _wzFmtCedula(g('wz_r1ci'));
+    WZ.r2n = g('wz_r2n'); WZ.r2t = g('wz_r2t'); WZ.r2r = g('wz_r2r'); WZ.r2obs = g('wz_r2obs'); WZ.r2ci = _wzFmtCedula(g('wz_r2ci'));
     WZ.documentos = _wzGetClientDocsArray();
     WZ.docsCount = WZ.documentos.length;
     WZ.impresion = _wzChipVal('wz_impresion_g')||'';
@@ -2050,6 +2063,30 @@ function _wzPrev(){
 }
 
 // ── Renderizar resultado (paso 4) ──
+// Solo el vendedor de concesionario (externo) manda la solicitud a la bandeja de Aprobaciones;
+// las demas ya vienen aprobadas por WhatsApp y nacen activas (Adam, 24-sep-2026).
+function _wzVaAAprobaciones(){ return (S.currentUser&&S.currentUser.rol)==='Vendedor Concesionario'; }
+// Que le dice el paso 4 al vendedor. El score es una guia: no aprueba ni rechaza.
+function _wzDecisionPaso4(score){
+  var motivos = (WZ.scoreMotivos||[]).slice(), faltan = [];
+  if(!(WZ.dir_q||WZ.dir_det||WZ.estado_ubi)) faltan.push('dirección');
+  if(!(WZ.hist||WZ['_chip_wz_hist_g'])) faltan.push('créditos anteriores');
+  if(!(WZ.r1n||WZ.r2n)) faltan.push('una referencia');
+  if(typeof _expedienteEstado==='function'){ var _e = _expedienteEstado(WZ.documentos).filter(function(x){ return !x.ok; }).map(function(x){ return x.et.toLowerCase(); }); if(_e.length) faltan.push(_e.length===4 ? 'los documentos' : _e.join(', ')); }
+  var dudosa = (WZ.impresion||WZ['_chip_wz_impresion_g'])==='dudosa';
+  var revisar = motivos.length>0 || dudosa || (score>0 && score<450);
+  var porque = [];
+  if(motivos.length) porque = porque.concat(motivos);
+  if(dudosa) porque.push('el vendedor la marcó como dudosa');
+  if(score>0 && score<450 && !motivos.length) porque.push('score bajo ('+score+')');
+  var aBandeja = _wzVaAAprobaciones();
+  var detalle = revisar
+    ? 'Conviene revisarla con un gerente antes de guardar: '+porque.join(' · ')+'.'
+    : (aBandeja ? 'Se envía a Aprobaciones y ahí la aprueba un gerente o administrador.' : 'Al guardar, el crédito queda activo con su inicial registrada.')
+      + ' El score ('+score+') es una guía, no decide.';
+  if(faltan.length) detalle += ' Falta: '+faltan.join(', ')+' (se puede completar después).';
+  return { titulo: revisar ? 'Revisar con gerente' : (aBandeja ? 'Lista para enviar a aprobación' : 'Lista para guardar'), color: revisar ? 'amber' : 'green', detalle: detalle, faltan: faltan, revisar: revisar };
+}
 function _wzRenderResultado(){
   var s = WZ.score;
   var el = document.getElementById('wz-resultado-contenido');
@@ -2058,13 +2095,14 @@ function _wzRenderResultado(){
   function col(s){ return s>=625?'var(--green)':s>=450?'var(--amber)':'var(--red)'; }
   function lbl(s){ return s>=750?'Excelente ':s>=625?'Bueno ':s>=450?'Regular ':'Bajo '; }
 
-  var decClass = s>=625?'var(--greens)':s>=450?'var(--ambers)':'var(--reds)';
-  var decBorder = s>=625?'rgba(6,176,106,.3)':s>=450?'rgba(232,152,10,.3)':'rgba(217,59,90,.3)';
-  var decIco = s>=625?'':s>=450?'️':'';
-  var decTxt = s>=625?'Crédito Aprobado':s>=450?'Revisión Manual':'Crédito Rechazado';
-  var decSub = s>=625?'El solicitante cumple los criterios. Puedes proceder con el contrato.'
-    :s>=450?'Perfil con factores de riesgo moderados. Verificar documentos y condiciones.'
-    :'El perfil no cumple los requisitos mínimos.';
+  // 24-sep-2026: el paso 4 decia "Credito Aprobado / Rechazado" por un score que recien
+  // arreglamos, y daba una falsa seguridad. Ahora la solicitud siempre va a Aprobaciones;
+  // aqui se dice si esta lista o si conviene que un gerente la mire con lupa, y que falta.
+  var _dec = _wzDecisionPaso4(s);
+  var decClass = _dec.color==='green'?'var(--greens)':'var(--ambers)';
+  var decBorder = _dec.color==='green'?'rgba(6,176,106,.3)':'rgba(232,152,10,.3)';
+  var decTxt = _dec.titulo, decSub = _dec.detalle;
+  var colDec = _dec.color==='green' ? 'var(--green)' : 'var(--amber)';
 
   var r = WZ.precio>0 ? getWzPlanConfig() : {mode:'global',precioBaseReal:0,ini:0,fin:0,total:0,cuotaQ:0,totalPagado:0,plazo:PLAN.plazo,inicialPct:PLAN.inicial};
   var ratioColor = WZ.ratio<=0.30?'var(--green)':WZ.ratio<=0.40?'var(--amber)':'var(--red)';
@@ -2072,7 +2110,7 @@ function _wzRenderResultado(){
   el.innerHTML =
     // Decisión
     '<div class="wz-dec" style="background:'+decClass+';border-color:'+decBorder+'">'
-    +'<div class="wz-dec-t" style="color:'+col(s)+'">'+decTxt+'</div>'
+    +'<div class="wz-dec-t" style="color:'+colDec+'">'+decTxt+'</div>'
     +'<div class="wz-dec-s">'+decSub+'</div>'
     +'</div>'
     // Score y sus factores
@@ -2460,8 +2498,9 @@ function _wzGuardar(){
     fiador_tel: WZ.fiador_tel||'',
     fiador_ci: WZ.fiador_ci||'',
     fiador_rel: WZ.fiador_rel||'',
-    ref1: {nom:WZ.r1n||'',tel:WZ.r1t||'',rel:WZ.r1r||'',obs:WZ.r1obs||''},
-    ref2: {nom:WZ.r2n||'',tel:WZ.r2t||'',rel:WZ.r2r||'',obs:WZ.r2obs||''},
+    fiador_dir: WZ.fiador_dir||'', fiador_ing: parseFloat(WZ.fiador_ing)||0,
+    ref1: {nom:WZ.r1n||'',ci:WZ.r1ci||'',tel:WZ.r1t||'',rel:WZ.r1r||'',obs:WZ.r1obs||''},
+    ref2: {nom:WZ.r2n||'',ci:WZ.r2ci||'',tel:WZ.r2t||'',rel:WZ.r2r||'',obs:WZ.r2obs||''},
     docs_count: WZ.docsCount||0,
     documentos: _wzGetClientDocsArray(),
     impresion: WZ.impresion||'',
@@ -2595,6 +2634,7 @@ function _wzGuardar(){
         fiador_rel: WZ.fiador_rel||S.creds[_ei].fiador_rel||'',
         fiador_rif: WZ.fiador_rif||S.creds[_ei].fiador_rif||'',
         fiador_dir: WZ.fiador_dir||S.creds[_ei].fiador_dir||'',
+        fiador_ing: parseFloat(WZ.fiador_ing)||S.creds[_ei].fiador_ing||0,
         fiador_email: WZ.fiador_email||S.creds[_ei].fiador_email||'',
         r1n: WZ.r1n||S.creds[_ei].r1n||'', r1ci: WZ.r1ci||S.creds[_ei].r1ci||'',
         r1t: WZ.r1t||S.creds[_ei].r1t||'',
@@ -2729,7 +2769,14 @@ function _wzGuardar(){
     plan: _finNew.plan,
     frecuencia: 'quincenal',
     fecha: hoyLocalISO(),
+    // 24-sep-2026, Adam: la aprobacion se hace por WhatsApp ANTES de crear la solicitud,
+    // asi que el credito nace activo. Solo las del vendedor de concesionario (externo)
+    // pasan por la bandeja de Aprobaciones.
     estado: ((S.currentUser&&S.currentUser.rol)==='Vendedor Concesionario') ? 'pendiente_revision' : 'activo',
+    // Lo que el vendedor contesto en el paso 3: la cuenta donde entro la inicial. Si la
+    // solicitud pasa por Aprobaciones, ahi sale precargada y quien aprueba solo confirma.
+    inicialCuenta: WZ.iniMetodo||'', inicialRef: WZ.iniRef||'',
+    impresionVendedor: WZ.impresion||'',
     pagado: 0,
     mora: 0,
     cobrador: (function(){ var l = getCobradoresList(); return (l && l[0]) || 'Admin'; })(),
@@ -2783,7 +2830,7 @@ function _wzGuardar(){
     // ── Paso 2: Fiador ──
     fiador_tiene: WZ.fiador_tiene||'no', fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'', fiador_ci: WZ.fiador_ci||'', fiador_rel: WZ.fiador_rel||'',
-    fiador_rif: WZ.fiador_rif||'', fiador_dir: WZ.fiador_dir||'', fiador_email: WZ.fiador_email||'',
+    fiador_rif: WZ.fiador_rif||'', fiador_dir: WZ.fiador_dir||'', fiador_email: WZ.fiador_email||'', fiador_ing: parseFloat(WZ.fiador_ing)||0,
     // ── Paso 2: Referencias ──
     r1n: WZ.r1n||'', r1ci: WZ.r1ci||'', r1t: WZ.r1t||'', r1r: WZ.r1r||'', r1obs: WZ.r1obs||'',
     r2n: WZ.r2n||'', r2ci: WZ.r2ci||'', r2t: WZ.r2t||'', r2r: WZ.r2r||'', r2obs: WZ.r2obs||'',
@@ -2931,8 +2978,9 @@ function _wzGuardar(){
   // NO crear pago de inicial ni movimientos — eso se hará al aprobar
   if(newCred.estado === 'pendiente_revision'){
     _wzClose();
-    toast('Solicitud enviada para revisión','success');
-    if(typeof nav==='function') nav('creditos');
+    toast('Solicitud '+credId+' enviada a aprobación','success');
+    if(typeof _sidebarSyncAprobaciones==='function') try{ _sidebarSyncAprobaciones(); }catch(_e){}
+    if(typeof nav==='function') nav((typeof hasModuleAccess==='function' && hasModuleAccess('aprobaciones')) ? 'aprobaciones' : 'creditos');
     return;
   }
 
@@ -3538,6 +3586,8 @@ function editarCredSinFirma(credId){
   preload['wz_fiador_nom'] = _f('fiador_nom','fiador_nom',''); preload.fiador_nom = preload['wz_fiador_nom'];
   preload['wz_fiador_tel'] = _f('fiador_tel','fiador_tel',''); preload.fiador_tel = preload['wz_fiador_tel'];
   preload['wz_fiador_ci'] = _f('fiador_ci','fiador_ci',''); preload.fiador_ci = preload['wz_fiador_ci'];
+  preload['wz_fiador_dir'] = _f('fiador_dir','fiador_dir',''); preload.fiador_dir = preload['wz_fiador_dir'];
+  preload['wz_fiador_ing'] = _f('fiador_ing','fiador_ing',''); preload.fiador_ing = preload['wz_fiador_ing'];
   preload['wz_fiador_rel'] = _f('fiador_rel','fiador_rel',''); preload.fiador_rel = preload['wz_fiador_rel'];
   preload['wz_fiador_rif'] = _f('fiador_rif','fiador_rif',''); preload.fiador_rif = preload['wz_fiador_rif'];
   preload['wz_fiador_dir'] = _f('fiador_dir','fiador_dir',''); preload.fiador_dir = preload['wz_fiador_dir'];
@@ -3548,11 +3598,13 @@ function editarCredSinFirma(credId){
   preload['wz_r1n'] = c.r1n||_ref1.nom||''; preload.r1n = preload['wz_r1n'];
   preload['wz_r1ci'] = c.r1ci||_ref1.ci||''; preload.r1ci = preload['wz_r1ci'];
   preload['wz_r1t'] = c.r1t||_ref1.tel||''; preload.r1t = preload['wz_r1t'];
+  preload['wz_r1ci'] = c.r1ci||_ref1.ci||''; preload.r1ci = preload['wz_r1ci'];
   preload['wz_r1r'] = c.r1r||_ref1.rel||''; preload.r1r = preload['wz_r1r'];
   preload['wz_r1obs'] = c.r1obs||_ref1.obs||''; preload.r1obs = preload['wz_r1obs'];
   preload['wz_r2n'] = c.r2n||_ref2.nom||''; preload.r2n = preload['wz_r2n'];
   preload['wz_r2ci'] = c.r2ci||_ref2.ci||''; preload.r2ci = preload['wz_r2ci'];
   preload['wz_r2t'] = c.r2t||_ref2.tel||''; preload.r2t = preload['wz_r2t'];
+  preload['wz_r2ci'] = c.r2ci||_ref2.ci||''; preload.r2ci = preload['wz_r2ci'];
   preload['wz_r2r'] = c.r2r||_ref2.rel||''; preload.r2r = preload['wz_r2r'];
   preload['wz_r2obs'] = c.r2obs||_ref2.obs||''; preload.r2obs = preload['wz_r2obs'];
   // Documentos — buscar en crédito, luego en cliente

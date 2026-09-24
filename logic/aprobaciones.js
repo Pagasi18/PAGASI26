@@ -24,7 +24,7 @@ function _aprRender(){
     // KPI
     + '<div style="background:rgba(255,165,0,0.07);border:1px solid rgba(255,165,0,0.3);border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:11.5px;color:var(--ink2);line-height:1.6">'
     + '<strong style="color:var(--amber)">Bandeja de aprobaciones.</strong> '
-    + 'Los vendedores en modo concesionario crean créditos que aparecen aquí. Revísalos y aprueba para que pasen a estado activo, o rechaza con una razón.'
+    + 'Aquí llegan las solicitudes de los vendedores de concesionario. Al aprobar se registra la inicial y el crédito pasa a activo; al rechazar se devuelve la compra de la moto. Nadie aprueba la suya, salvo un administrador.'
     + '</div>';
 
   if(pendientes.length === 0){
@@ -49,7 +49,10 @@ function _aprRender(){
         + '<span style="font-size:11px;color:var(--ink3)">creado '+(c.creado||'').slice(0,10)+'</span>'
         + '</div>'
         + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">'+(c.cli||'—')+'</div>'
-        + '<div style="font-size:12px;color:var(--ink2);margin-bottom:8px">'+(c.modelo||'—')+' · $'+(parseFloat(c.precio)||0).toFixed(2)+'</div>'
+        + '<div style="font-size:12px;color:var(--ink2);margin-bottom:8px">'+(c.modelo||'—')+' · $'+(parseFloat(c.precio)||0).toFixed(2)
+        + ' · inicial $'+(parseFloat(c.ini)||0).toFixed(0)+(c.precio ? ' ('+Math.round((parseFloat(c.ini)||0)/(parseFloat(c.precio)||1)*100)+'%)' : '')
+        + (c.inicialCuenta ? ' → '+String(c.inicialCuenta).replace(/[<>]/g,'') : '')
+        + (c.impresionVendedor==='dudosa' ? ' · <span style="color:var(--amber);font-weight:800">el vendedor la marcó dudosa</span>' : '')+'</div>'
         + '<div style="display:grid;grid-template-columns:repeat(4,auto);gap:18px;font-size:11px;margin-top:9px">'
         + '<div><div style="color:var(--ink3);font-weight:700;font-size:9.5px;text-transform:uppercase">Sede</div><div style="font-weight:700;margin-top:1px">'+sedeName+'</div></div>'
         + '<div><div style="color:var(--ink3);font-weight:700;font-size:9.5px;text-transform:uppercase">Vendedor</div><div style="font-weight:700;margin-top:1px">'+(c.creadoPor||'—')+'</div></div>'
@@ -71,6 +74,17 @@ function _aprRender(){
   return html;
 }
 
+// 24-sep-2026, Adam: las solicitudes se aprueban por WhatsApp antes de crearse y nacen
+// activas; aqui llegan solo las del vendedor de concesionario, y "las aprueba todos"
+// (quien tenga acceso). Una salvaguarda de sentido comun: nadie aprueba la suya, salvo
+// un administrador.
+function _aprPuedeDecidir(c){
+  var u = S.currentUser || {};
+  if(typeof isAdminUser==='function' && isAdminUser()) return true;
+  var esSuya = (c.vendedorUid && u.uid && String(c.vendedorUid)===String(u.uid)) || (c.creadoPor && u.nombre && c.creadoPor===u.nombre);
+  if(esSuya){ toast('Esta solicitud la hiciste tú: la tiene que aprobar otra persona','error'); return false; }
+  return true;
+}
 // Aprobar un crédito → pasa a 'activo'.
 // Abre un modal que EXIGE registrar la inicial (monto + método) en el momento
 // de aprobar, para que nunca queden créditos activos sin su pago inicial
@@ -80,21 +94,25 @@ function _aprAprobar(credId){
   var c = (S.creds||[]).find(function(x){return x.id === credId;});
   if(!c){ toast('Crédito no encontrado','error'); return; }
   if(c.estado !== 'pendiente_revision'){ toast('Este crédito no está pendiente','error'); return; }
+  if(!_aprPuedeDecidir(c)) return;
   var iniPlan = parseFloat(c.ini)||0;
   var cuentas = (typeof _cuentasBanc !== 'undefined' && _cuentasBanc && _cuentasBanc.length) ? _cuentasBanc : [];
   // Arranca en "— Elegir cuenta —": antes venia "Efectivo USD", que no es ninguna de
   // las cuentas, y la inicial no aparecia en ningun saldo (punto 8, 19-sep)
   var opts = (cuentas.length ? '<option value="" selected>— Elegir cuenta —</option>' : '<option value="" selected>— No hay cuentas cargadas —</option>')
-    + cuentas.map(function(cu){ return '<option value="'+String(cu.nombre).replace(/"/g,'')+'">'+String(cu.nombre).replace(/[<>]/g,'')+'</option>'; }).join('');
+    + cuentas.map(function(cu){ return '<option value="'+String(cu.nombre).replace(/"/g,'')+'"'+(c.inicialCuenta && cu.nombre===c.inicialCuenta ? ' selected' : '')+'>'+String(cu.nombre).replace(/[<>]/g,'')+'</option>'; }).join('');
+  // Lo que el vendedor contesto en la solicitud sale precargado (24-sep-2026)
+  var _dijo = c.inicialCuenta ? '<div style="font-size:11.5px;color:var(--ink2);margin-bottom:10px">El vendedor indicó que la inicial entró a <b>'+String(c.inicialCuenta).replace(/[<>]/g,'')+'</b>'+(c.inicialRef ? ' (ref. '+String(c.inicialRef).replace(/[<>]/g,'')+')' : '')+'. Confirma o corrige.</div>' : '';
   $('mic').textContent='OK';
   $('mtt').textContent='Aprobar crédito '+credId;
   $('msb').textContent=(c.cli||'—')+' · '+(c.modelo||'—');
   $('modal-box').className='modal';
   $('mbd').innerHTML = '<div style="font-size:12px;color:var(--ink2);line-height:1.6;margin-bottom:12px">Al aprobar, el crédito pasa a <b>ACTIVO</b>. Registra la <b>inicial real recibida</b> para que quede asentada como pago (sin esto, el crédito quedaría activo sin inicial registrada).</div>'
     + '<div style="background:var(--gs);border:1px solid var(--rim2);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px">Inicial según el plan ('+((parseFloat(c.inicialPct)||0)*100).toFixed(0)+'%): <b style="font-family:var(--fd)">'+fmt(iniPlan)+'</b></div>'
+    + _dijo
     + '<div class="fg"><label>Inicial recibida (USD) *</label><input class="fi" id="apr_ini_monto" type="number" step="0.01" value="'+iniPlan.toFixed(2)+'"></div>'
     + '<div class="fg" style="margin-top:8px"><label>Método / cuenta de la inicial *</label><select class="fs" id="apr_ini_metodo">'+opts+'</select></div>'
-    + '<div class="fg" style="margin-top:8px"><label>Referencia (opcional)</label><input class="fi" id="apr_ini_ref" type="text" placeholder="N° de referencia, Binance, etc."></div>'
+    + '<div class="fg" style="margin-top:8px"><label>Referencia (opcional)</label><input class="fi" id="apr_ini_ref" type="text" placeholder="N° de referencia, Binance, etc." value="'+String(c.inicialRef||'').replace(/"/g,'')+'"></div>'
     + '<div id="apr_ini_warn" style="font-size:11px;color:var(--amber);margin-top:8px;display:none"></div>';
   $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cancelar</button>'
     + '<button class="btn btn-p" onclick="_aprAprobarConfirm(\''+credId+'\')">✓ Aprobar y registrar inicial</button>';
@@ -114,6 +132,7 @@ function _aprAprobarConfirm(credId){
   var c = (S.creds||[]).find(function(x){return x.id === credId;});
   if(!c){ toast('Crédito no encontrado','error'); return; }
   if(c.estado !== 'pendiente_revision'){ toast('Este crédito ya no está pendiente','error'); closeM(); return; }
+  if(!_aprPuedeDecidir(c)){ closeM(); return; }
   // Si ya tiene su inicial registrada, aprobar otra vez crearia un segundo deposito
   if((S.pagos||[]).some(function(p){ return p && !p.eliminado && p.cred===c.id && (p.esInicial || p.tipoOperacion==='inicial_credito'); })){
     toast('Este crédito ya tiene su inicial registrada','error'); closeM(); return;

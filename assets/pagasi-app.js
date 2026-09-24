@@ -2951,6 +2951,9 @@ function hasModuleAccess(key){
   if(isVendedorConcesionarioRole()){
     return key === 'motos' || key === 'clientes' || key === 'creditos';
   }
+  // 24-sep-2026, Adam: las solicitudes las aprueba "todos". Quien trabaja con creditos ve
+  // Aprobaciones sin permiso aparte (la salvaguarda de no aprobar la propia esta en el modulo).
+  if(key === 'aprobaciones') return getPermsEfectivos().includes('aprobaciones') || getPermsEfectivos().includes('creditos');
   return getPermsEfectivos().includes(key);
 }
 

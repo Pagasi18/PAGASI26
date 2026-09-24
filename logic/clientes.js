@@ -796,6 +796,8 @@ function verCliente(id){
       + field('Cédula', c.fiador_ci, true)
       + field('Teléfono', c.fiador_tel, true)
       + field('Relación', c.fiador_rel)
+      + field('Dirección', c.fiador_dir)
+      + field('Ingreso mensual', (parseFloat(c.fiador_ing)||0) > 0 ? valMoney(c.fiador_ing) : null)
       + '</div></div>';
   }
   html += '</div>';
@@ -812,6 +814,7 @@ function verCliente(id){
         + '<div class="cf-ref-body">'
         + '<div class="cf-ref-n">'+esc(r.nom||'Sin nombre')+'</div>'
         + '<div class="cf-ref-r">'+esc(r.rel||'—')+'</div>'
+        + (r.ci?'<div class="cf-ref-m" style="font-family:var(--fd)">CI '+esc(r.ci)+'</div>':'')
         + (r.tel?'<div class="cf-ref-m" style="font-family:var(--fd)"> '+esc(r.tel)+'</div>':'')
         + (r.obs?'<div class="cf-ref-m" style="margin-top:4px;font-style:italic">"'+esc(r.obs)+'"</div>':'')
         + '</div></div>';
@@ -1473,6 +1476,7 @@ function _cliInitFromCliente(c){
   WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
   WZ.fiador_rif = WZ.wz_fiador_rif = c.fiador_rif || '';
   WZ.fiador_dir = WZ.wz_fiador_dir = c.fiador_dir || '';
+  WZ.fiador_ing = WZ.wz_fiador_ing = c.fiador_ing || '';
   WZ.fiador_email = WZ.wz_fiador_email = c.fiador_email || '';
   WZ.fiador_tel = WZ.wz_fiador_tel = c.fiador_tel || '';
   WZ.fiador_ci = WZ.wz_fiador_ci = _wzFmtCedula(c.fiador_ci || '');
@@ -1678,7 +1682,7 @@ function _cliStep2(){
   +_row2(_fg('Nombre del fiador',_inp('wz_fiador_nom','text','Nombre y apellido')),_fg('Teléfono',_inp('wz_fiador_tel','tel','0412-0000000')))
   +_row2(_fg('Cédula del fiador',_inp('wz_fiador_ci','text','V-12345678','oninput="_wzCedulaInput(event)" autocapitalize="characters"')),_fg('RIF del fiador',_inp('wz_fiador_rif','text','J-12345678-9')))
   +_row2(_fg('Relación',_sel('wz_fiador_rel','<option value="familiar">Familiar directo</option><option value="conyuge">Cónyuge / pareja</option><option value="amigo">Amigo/a</option><option value="colega">Colega / socio</option>')),_fg('Correo del fiador',_inp('wz_fiador_email','email','correo@ejemplo.com')))
-  +_row2(_fg('Dirección del fiador',_inp('wz_fiador_dir','text','Dirección completa...')),_fg('',''))
+  +_row2(_fg('Dirección del fiador',_inp('wz_fiador_dir','text','Dirección completa...')),_fg('Ingreso mensual del fiador (USD)',_inp('wz_fiador_ing','number','Ej: 600')))
   +'</div>'
   +_s('Notas del Vendedor')
   +'<div style="margin-bottom:10px">'+_fg('Impresión general',
@@ -1690,7 +1694,7 @@ function _cliStep2(){
 }
 
 function _cliHydrate(){
-  var ids=['wz_nom','wz_ci','wz_rif','wz_nacionalidad','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_tdir','wz_viv','wz_empresa','wz_cargo','wz_dir_trabajo','wz_tel_trabajo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_r1n','wz_r1ci','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2ci','wz_r2t','wz_r2r','wz_r2obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rif','wz_fiador_dir','wz_fiador_email','wz_fiador_rel','wz_obs'].concat(_casheaIds(), _perfilExtraIds());
+  var ids=['wz_nom','wz_ci','wz_rif','wz_nacionalidad','wz_tel','wz_wa','wz_email','wz_ciudad','wz_emp','wz_ant','wz_ing','wz_ifam','wz_conocio','wz_estado','wz_ciudad_res','wz_dir_det','wz_dir_q','wz_tdir','wz_viv','wz_empresa','wz_cargo','wz_dir_trabajo','wz_tel_trabajo','wz_rem','wz_banco','wz_banco_nm','wz_banco_cobro','wz_cuenta','wz_ahorro','wz_cashea_nivel','wz_cashea_pago','wz_cashea_estado','wz_cashea_deuda','wz_cashea_monto','wz_cashea_cuotas_pend','wz_cashea_ultimo_art','wz_cashea_ultimo_monto','wz_cashea_ultima_fecha','wz_cashea_total_compras','wz_cashea_obs','wz_r1n','wz_r1ci','wz_r1t','wz_r1r','wz_r1obs','wz_r2n','wz_r2ci','wz_r2t','wz_r2r','wz_r2obs','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rif','wz_fiador_dir','wz_fiador_email','wz_fiador_rel','wz_fiador_ing','wz_obs'].concat(_casheaIds(), _perfilExtraIds());
   ids.forEach(function(id){ var el=document.getElementById(id); if(el && WZ[id]!=null) el.value=WZ[id]; });
   ['wz_emp','wz_ant','wz_conocio','wz_estado','wz_tdir','wz_viv','wz_rem','wz_banco','wz_banco_cobro','wz_ahorro','wz_cashea_nivel','wz_cashea_estado','wz_cashea_deuda','wz_cashea_total_compras','wz_r1r','wz_r2r','wz_fiador_rel','wz_uso','wz_plan_mode','wz_apy_inicial_sel'].forEach(function(id){ var el=document.getElementById(id); if(el && WZ[id]!=null && WZ[id]!=='') el.value=WZ[id]; });
   var cashea = WZ.cashea||'no';
@@ -1767,6 +1771,7 @@ function _cliCollectStep(step){
     WZ.fiador_ci = WZ.wz_fiador_ci = _wzFmtCedula(g('wz_fiador_ci'));
     WZ.fiador_rif = WZ.wz_fiador_rif = g('wz_fiador_rif');
     WZ.fiador_dir = WZ.wz_fiador_dir = g('wz_fiador_dir');
+    WZ.fiador_ing = WZ.wz_fiador_ing = g('wz_fiador_ing');
     WZ.fiador_email = WZ.wz_fiador_email = g('wz_fiador_email');
     WZ.fiador_rel = WZ.wz_fiador_rel = g('wz_fiador_rel');
     WZ.r1n = WZ.wz_r1n = g('wz_r1n'); WZ.r1ci = WZ.wz_r1ci = _wzFmtCedula(g('wz_r1ci')); WZ.r1t = WZ.wz_r1t = g('wz_r1t'); WZ.r1r = WZ.wz_r1r = g('wz_r1r'); WZ.r1obs = WZ.wz_r1obs = g('wz_r1obs');
@@ -1889,6 +1894,7 @@ function _cliGuardar(){
     fiador_ci: WZ.fiador_ci||'',
     fiador_rif: WZ.fiador_rif||'',
     fiador_dir: WZ.fiador_dir||'',
+    fiador_ing: parseFloat(WZ.fiador_ing)||0,
     fiador_email: WZ.fiador_email||'',
     fiador_rel: WZ.fiador_rel||'',
     ref1:{nom:WZ.r1n||'',ci:WZ.r1ci||'',tel:WZ.r1t||'',rel:WZ.r1r||'',obs:WZ.r1obs||''},
