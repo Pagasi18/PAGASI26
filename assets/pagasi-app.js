@@ -2205,6 +2205,8 @@ function startRealtime(){
         // Motos: la foto del servidor manda, sin mezclar con la cache local
         // (asi fue siempre desde que existe el tiempo real).
         S[spec.key] = arr;
+        // Solicitudes web nuevas: aviso en vivo, solo despues de la primera foto (solicitudes-web.js)
+        if(spec.key==='clientes' && typeof _swAvisarNuevos==='function') _swAvisarNuevos(snap, !!_rtPrimeras[spec.col]);
         if(spec.key==='motos') saveMotosCache(S.motos);
         if(spec.key==='concesionarios') _aplicarConcesionarioActivoRealtime();
         _rtMarcarPrimera(spec.col);
@@ -3363,6 +3365,7 @@ function _sidebarSyncAprobaciones(){
 
 function updateBadge(){
   _sidebarSyncAprobaciones();
+  if(typeof _swSidebarBadge==='function') _swSidebarBadge();   // solicitudes web sin atender (solicitudes-web.js)
   const b=$('mora-badge');
   if(b) b.textContent=S.creds.filter(c=>c.mora>0).length;
   var wb=$('sb-badge-wt');

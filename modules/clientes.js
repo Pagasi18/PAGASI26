@@ -3,7 +3,8 @@ PG.clientes = function(){
   // Default: al entrar a la página, mostrar Activos primero
   if(!S.clienteEstadoFiltro) S.clienteEstadoFiltro = 'activo';
   const estado=S.clienteEstadoFiltro;
-  const chips=[['todos','Todos'],['lead','Leads'],['activo','Activos'],['mora','En mora'],['completado','Completados']];
+  const chips=[['todos','Todos'],['lead','Leads'],['activo','Activos'],['mora','En mora'],['completado','Completados']]
+    .concat(typeof _swChip==='function' ? [_swChip()] : []);   // Solicitudes web (solicitudes-web.js)
 
   // Métricas para el banner — filtradas por concesionario activo
   var _CLIS = _concFiltrarClientes(S.clientes||[]);

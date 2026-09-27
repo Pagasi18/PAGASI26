@@ -1,4 +1,8 @@
-/* Existing request validation, scoring, payload and Firebase submission. */
+/* Solicitud corta (27-sep-2026, Adam: "hay que alargar el formato de la pagina de
+   solicitar"). Una sola pantalla con seis datos, errores al lado del campo, borrador
+   en el navegador, pantalla de exito util (numero WEB- y WhatsApp listo) y una segunda
+   pantalla opcional que vive detras de una llave hasta que las Reglas la permitan.
+   No se calcula ningun score aqui: eso lo hace el sistema al aprobar. */
 const CATALOG = PagasiCatalog.motos.map(m => ({ id:m.id, name:m.modelo, sede:m.sedeName, cc:m.cc, type:m.type, price:m.precio }));
 const fM=document.getElementById('fM');
 PagasiSite.populateModels(fM);
@@ -76,7 +80,6 @@ function initFirebaseSolicitar(){
     fbAuth = firebase.auth(fbApp);
     db     = firebase.firestore(fbApp);
     FIREBASE_READY = true;
-    console.log('Firebase OK');
     return true;
   }catch(e){
     console.error('Firebase init failed:',e);
@@ -90,251 +93,282 @@ window.addEventListener('load', _solicitudesCerradasAviso);
 if(document.readyState !== 'loading') _solicitudesCerradasAviso();
 else document.addEventListener('DOMContentLoaded', _solicitudesCerradasAviso);
 
-var cur=1;
-function goS(s){
-  if(cur===1&&s===2){
-    var req=['wz_nom','wz_ci','wz_tel','wz_emp','wz_ing'];
-    for(var i=0;i<req.length;i++){
-      var reqEl=document.getElementById(req[i]);
-      if(!reqEl || !String(reqEl.value||'').trim()){
-        alert('Por favor completa los campos requeridos.');
-        return false;
-      }
-    }
-  }
-  var totalSteps = document.querySelectorAll('.prog .ps').length || 2;
-  document.querySelectorAll('.fs').forEach(function(el){ if(el) el.classList.remove('on'); });
-  document.querySelectorAll('.prog .ps').forEach(function(el){ if(el) el.classList.remove('on'); });
-  cur=s;
-  var fs=document.getElementById('fs'+cur);
-  var pd=document.getElementById('pd'+cur);
-  if(fs) fs.classList.add('on');
-  if(pd) pd.classList.add('on');
-  for(var j=1;j<cur;j++){
-    var doneEl=document.getElementById('pd'+j);
-    if(doneEl) doneEl.classList.add('done');
-  }
-  for(var j=cur;j<=totalSteps;j++){
-    var stepEl=document.getElementById('pd'+j);
-    if(stepEl && j!==cur) stepEl.classList.remove('done');
-    if(stepEl && j===cur) stepEl.classList.remove('done');
-  }
-  return false;
-}
+// ── La segunda pantalla ("Adelanta tu evaluación") ────────────────────────
+// Hoy las Reglas dejan que una sesion anonima CREE un lead y nada mas. Para que el
+// mismo cliente complete su ficha despues de enviarla hace falta la regla
+// esLeadWebAmpliando (firestore.rules) y guardar web_uid al crear. Mientras esa regla
+// no este publicada, esta llave queda en false: la pantalla existe pero no se ofrece,
+// y el lead se crea sin web_uid (con la regla vieja, un campo de mas lo rechazaria).
+var ADELANTAR_EVALUACION = false;
+var WHATSAPP_PAGASI = '584242177798';
 
-
-function calcCrediScore(){
-  var g=function(id){ var el=document.getElementById(id); return el?el.value:''; };
-  var ing=parseFloat(g('wz_ing'))||0;
-  var ifam=parseFloat(g('wz_ifam'))||0;
-  var emp=g('wz_emp')||'';
-  var ant=g('wz_ant')||'';
-  var hist=g('wz_hist_g')||'ninguno';
-  var deuda=g('wz_deuda_g')||'no';
-  var dep=parseInt(g('wz_dep_g')||0,10)||0;
-  var banco=g('wz_banco')||'activa';
-  var viv=g('wz_viv')||'propia';
-  var rem=g('wz_rem')||'no';
-  var conocio=g('wz_conocio')||'';
-  var cashea=g('wz_cashea')||'no';
-  var casheaNivel=parseInt(g('wz_cashea_nivel')||0,10)||0;
-  var fiador=(g('wz_fiador')||'no')==='si';
-  var ingEf=Math.max(ing,ifam);
-  var ratio=0;
-  var f1={ninguno:50,bueno:100,mora_leve:35,malo:5}[hist]||50;
-  if(deuda==='menores')f1=Math.max(0,f1-12); else if(deuda==='graves')f1=Math.max(0,f1-35);
-  if(banco==='activa')f1=Math.min(100,f1+10); else if(banco==='no')f1=Math.max(0,f1-10);
-  if(cashea==='si')f1=Math.min(100,f1+(casheaNivel>=3?18:casheaNivel>=2?10:5));
-  var ingBase={formal:80,publico:70,independiente:60,comerciante:65,delivery:70,remesas:55,informal:30};
-  var f2=ingEf>0?Math.min(100,((ingEf-100)/900)*100+30):0;
-  if(emp)f2=Math.min(100,f2*(ingBase[emp]||50)/70);
-  if(dep===1)f2=Math.max(0,f2-8); else if(dep===2)f2=Math.max(0,f2-18); else if(dep>=3)f2=Math.max(0,f2-28);
-  if(viv==='propia')f2=Math.min(100,f2+10); else if(viv==='alquilada')f2=Math.max(0,f2-8);
-  var empBase={formal:78,publico:70,independiente:65,comerciante:68,delivery:70,remesas:60,informal:38};
-  var antBase={'1':0,'2':10,'3':22,'5':35};
-  var f3=Math.min(100,(empBase[emp]||30)+(antBase[ant]||0));
-  if(rem==='si'&&emp!=='remesas')f3=Math.min(100,f3+8);
-  var f4=25; if(fiador)f4=Math.min(100,f4+45); if(viv==='propia')f4=Math.min(100,f4+15); else if(viv==='familiar')f4=Math.min(100,f4+5); if(banco==='activa')f4=Math.min(100,f4+10); else if(banco==='no')f4=Math.max(0,f4-10);
-  var f5=50; if(conocio==='referido')f5=Math.min(100,f5+30); else if(conocio==='anterior')f5=Math.min(100,f5+22); else if(conocio==='redes')f5=Math.min(100,f5+5); if(deuda==='no')f5=Math.min(100,f5+10); else if(deuda==='graves')f5=Math.max(0,f5-15); if(rem==='si')f5=Math.min(100,f5+8);
-  var hardReject=(ingEf>0&&ingEf<100)||(hist==='malo'&&deuda==='graves');
-  var raw=Math.round((f1*30+f2*30+f3*20+f4*15+f5*5)/100*10);
-  var score=hardReject?300:Math.max(300,Math.min(850,Math.round(300+(raw/1000)*550)));
-  return {score:score,f1:Math.round(f1),f2:Math.round(f2),f3:Math.round(f3),f4:Math.round(f4),f5:Math.round(f5),ratio:ratio};
+// ── Normalizacion: lo que escribe el cliente, como lo guarda el sistema ────
+// "v 12.345.678" → V-12345678. Solo V o E (las de persona); sin letra se asume V.
+function normCedula(s){
+  var t = String(s||'').toUpperCase().replace(/[^0-9VE]/g,'');
+  var letra = /^[VE]/.test(t) ? t.charAt(0) : 'V';
+  var d = t.replace(/[^0-9]/g,'').replace(/^0+/,'');
+  if(d.length < 6 || d.length > 9) return null;
+  return { valor: letra+'-'+d, digitos: d };
 }
+// "+58 414 123 45 67", "4141234567", "0414-1234567" → 0414-1234567. Solo celulares:
+// la respuesta va por WhatsApp.
+function normTel(s){
+  var d = String(s||'').replace(/[^0-9]/g,'');
+  if(d.indexOf('58') === 0 && d.length === 12) d = '0' + d.slice(2);
+  if(d.length === 10 && d.charAt(0) !== '0') d = '0' + d;
+  if(!/^0(412|414|416|424|426)[0-9]{7}$/.test(d)) return null;
+  return { valor: d.slice(0,4)+'-'+d.slice(4), wa: '58'+d.slice(1) };
+}
+function _nombreOk(v){ var p = String(v||'').trim().split(/\s+/).filter(Boolean); return p.length >= 2 && String(v).trim().length >= 5 && !/[0-9]/.test(v); }
 
 // Sin < > " ' ` \ y con & como "y": las Reglas de Firestore rechazan un lead con esos
 // caracteres (con ellos se puede meter codigo en el panel; punto 1, 19-sep).
-// "V-12.345.678" → "WEB-12345678". Sin digitos suficientes, vuelve al numero por hora.
-function _idLead(cedula){
-  var d = String(cedula||'').replace(/[^0-9]/g,'').replace(/^0+/,'');
-  return (d.length>=6 && d.length<=12) ? ('WEB-'+d) : ('WEB-'+Date.now());
-}
-
 function _v(id){ var e=document.getElementById(id); return e ? String(e.value||'').replace(/&/g,' y ').replace(/[<>"'`\\]/g,'').replace(/\s+/g,' ').trim() : ''; }
 function _n(id){ var e=document.getElementById(id); return e ? (parseFloat(e.value)||0) : 0; }
 function _i(id){ var e=document.getElementById(id); return e ? (parseInt(e.value,10)||0) : 0; }
+function _el(id){ return document.getElementById(id); }
 
+// ── Validacion en linea ───────────────────────────────────────────────────
+var CAMPOS1 = [
+  { id:'wz_nom',       ok:function(v){ return _nombreOk(v); },   msg:'Escribe tu nombre y tu apellido.' },
+  { id:'wz_ci',        ok:function(v){ return !!normCedula(v); }, msg:'Cédula de 6 a 9 números, por ejemplo V-12345678.' },
+  { id:'wz_tel',       ok:function(v){ return !!normTel(v); },    msg:'Un celular venezolano: 0412, 0414, 0416, 0424 o 0426.' },
+  { id:'wz_emp',       ok:function(v){ return !!v; },            msg:'Cuéntanos a qué te dedicas.' },
+  { id:'wz_ing_rango', ok:function(v){ return !!v; },            msg:'Elige un rango aproximado. No hace falta el número exacto.' }
+];
+function marcarCampo(id, msg){
+  var el = _el(id); if(!el) return;
+  var fg = el.closest ? el.closest('.fg') : null, err = _el('err_'+id);
+  if(msg){ el.classList.add('is-bad'); if(fg) fg.classList.add('has-err'); el.setAttribute('aria-invalid','true'); }
+  else { el.classList.remove('is-bad'); if(fg) fg.classList.remove('has-err'); el.removeAttribute('aria-invalid'); }
+  if(err) err.textContent = msg || '';
+}
+// Devuelve el primer campo con problema (o null). Con mostrar=true pinta los errores.
+function validarPaso1(mostrar){
+  var primero = null;
+  CAMPOS1.forEach(function(f){
+    var el = _el(f.id), bien = !!el && f.ok(String(el.value||''));
+    if(mostrar) marcarCampo(f.id, bien ? '' : f.msg);
+    if(!bien && !primero) primero = el;
+  });
+  return primero;
+}
+function validarUno(id){
+  var f = CAMPOS1.filter(function(x){ return x.id===id; })[0], el = _el(id);
+  if(!f || !el) return true;
+  var bien = f.ok(String(el.value||''));
+  marcarCampo(id, bien ? '' : f.msg);
+  return bien;
+}
+function mostrarAviso(html){ var a = _el('fAviso'); if(!a) return; a.innerHTML = html || ''; a.classList.toggle('on', !!html); }
+
+// ── Borrador en el navegador: si cierra y vuelve, no empieza de cero ─────
+var BORRADOR_KEY = 'pagasi_solicitud_borrador_v1', BORRADOR_DIAS = 3;
+var CAMPOS_BORRADOR = ['wz_nom','wz_ci','wz_tel','wz_emp','wz_ing_rango','wz_ciudad','fM'];
+function guardarBorrador(){
+  try{
+    var o = { t: Date.now() };
+    CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e && e.value) o[id] = String(e.value).slice(0,120); });
+    if(Object.keys(o).length > 1) localStorage.setItem(BORRADOR_KEY, JSON.stringify(o)); else localStorage.removeItem(BORRADOR_KEY);
+  }catch(e){}
+}
+function cargarBorrador(){
+  try{
+    var o = JSON.parse(localStorage.getItem(BORRADOR_KEY)||'null'); if(!o || !o.t) return false;
+    if(Date.now() - o.t > BORRADOR_DIAS*86400000){ localStorage.removeItem(BORRADOR_KEY); return false; }
+    var puso = false;
+    CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e && o[id] && !e.value){ e.value = o[id]; puso = true; } });
+    if(puso && _el('fM') && typeof _pintarPlan==='function') _pintarPlan();
+    return puso;
+  }catch(e){ return false; }
+}
+function borrarBorrador(){ try{ localStorage.removeItem(BORRADOR_KEY); }catch(e){} }
+
+// ── El plan de la moto elegida, debajo del selector ───────────────────────
+function _pintarPlan(){
+  var caja = _el('fPlan'); if(!caja) return;
+  var m = PagasiCatalog.get(fM.value), p = m && PagasiCatalog.plan(m.id);
+  if(!m || !p){ caja.classList.remove('on'); caja.textContent = ''; return; }
+  caja.innerHTML = '<b>'+PagasiCatalog.money(p.quincenal)+'</b> la quincena · inicial '+PagasiCatalog.money(p.inicial)+' · 12 meses. <span style="color:#64718b">Referencial, lo confirma tu asesor.</span>';
+  caja.classList.add('on');
+}
+
+// ── Lo que se guarda ──────────────────────────────────────────────────────
+// Solo campos que las Reglas admiten (esLeadWeb). Sin score: la web no evalua a nadie;
+// el score lo calcula el sistema con la ficha completa al aprobar.
 function buildClientePayload(){
-  var scoreData=calcCrediScore();
-  var motoSelEl=document.getElementById('fM');
-  var motoId=motoSelEl ? (parseInt(motoSelEl.value,10) || null) : null;
+  var ci = normCedula(_v('wz_ci')), tel = normTel(_v('wz_tel'));
+  var motoId = fM ? (parseInt(fM.value,10) || null) : null;
   var motoData = (motoId != null && !isNaN(motoId)) ? CATALOG.find(function(m){ return m.id===motoId; }) : null;
+  var rango = _el('wz_ing_rango');
+  var rangoTxt = (rango && rango.selectedIndex > 0) ? rango.options[rango.selectedIndex].text : '';
   var now = new Date().toISOString();
+  var notas = ['Solicitud web']
+    .concat(rangoTxt ? ['Ingreso declarado: '+rangoTxt] : [])
+    .concat(motoData ? ['Interesado en '+motoData.name+' ($'+motoData.price.toLocaleString('en-US')+' · '+motoData.sede+')'] : ['Sin moto específica, pide asesoría'])
+    .join(' · ');
   return {
-    // ──── Identificación ────────────────────────────────────────
-    // El numero de la ficha sale de la CEDULA, no de la hora: asi la base misma impide
-    // que la misma persona quede registrada dos veces (el panel si revisaba la cedula,
-    // la web no; punto 21, 21-sep-2026). Sin cedula legible, se usa la hora como antes.
-    id: _idLead(_v('wz_ci')),
+    // El numero de la ficha sale de la CEDULA: la base misma impide que la misma
+    // persona quede registrada dos veces (punto 21, 21-sep-2026).
+    id: 'WEB-' + (ci ? ci.digitos : String(Date.now())),
     nombre: _v('wz_nom'),
-    cedula: _v('wz_ci'),
-    rif: '',
-    nacionalidad: '',
-    // ──── Contacto ──────────────────────────────────────────────
-    tel: _v('wz_tel'),
-    wa: _v('wz_wa') || _v('wz_tel'),
-    email: _v('wz_email'),
-    // ──── Ubicación ─────────────────────────────────────────────
-    ciudad: _v('wz_ciudad_res') || _v('wz_ciudad'),
-    estado_ubi: _v('wz_estado'),
-    dir: _v('wz_dir_det'),
-    tiempo_dir: _v('wz_tdir'),
-    vivienda: _v('wz_viv') || 'propia',
-    // ──── Terremoto (evaluación de riesgo) ─────────────────────
-    terremoto_afectado: _v('wz_terremoto') || 'no',
-    terremoto_danos: (_v('wz_terremoto')==='si') ? (_v('wz_terremoto_danos')||'leves') : '',
-    // ──── Empleo / Ingresos ────────────────────────────────────
+    cedula: ci ? ci.valor : _v('wz_ci'),
+    tel: tel ? tel.valor : _v('wz_tel'),
+    wa: tel ? tel.valor : _v('wz_tel'),
+    ciudad: _v('wz_ciudad'),
     trabajo: _v('wz_emp'),
-    empresa: _v('wz_empresa'),
-    cargo: _v('wz_cargo'),
-    dir_trabajo: '',
-    tel_trabajo: '',
-    antiguedad: _v('wz_ant'),
-    ingreso: _n('wz_ing'),
-    ingreso_familiar: _n('wz_ifam'),
-    remesas: _v('wz_rem') || 'no',
-    dependientes: _i('wz_dep_g'),
-    // ──── Historial crediticio / Banco ──────────────────────────
-    historial: _v('wz_hist_g') || 'ninguno',
-    deudas: _v('wz_deuda_g') || 'no',
-    banco_estado: _v('wz_banco') || 'activa',
-    banco_nombre: _v('wz_banco_nm'),
-    banco_cobro: _v('wz_banco_cobro'),
-    cuenta_digitos: _v('wz_cuenta'),
-    ahorro: _v('wz_ahorro') || 'no',
-    // ──── Cashea (todos los campos del admin) ───────────────────
-    cashea: _v('wz_cashea') || 'no',
-    cashea_nivel: _v('wz_cashea_nivel'),
-    cashea_pago: _v('wz_cashea_pago'),
-    cashea_estado: '',
-    cashea_deuda: 'no',
-    cashea_monto: 0,
-    cashea_cuotas_pend: 0,
-    cashea_ultimo_art: '',
-    cashea_ultimo_monto: 0,
-    cashea_ultima_fecha: '',
-    cashea_total_compras: '',
-    cashea_obs: '',
-    // ──── Fiador ────────────────────────────────────────────────
-    fiador: _v('wz_fiador') || 'no',
-    fiador_nom: _v('wz_fiador_nom'),
-    fiador_tel: _v('wz_fiador_tel'),
-    fiador_ci: _v('wz_fiador_ci'),
-    fiador_rif: '',
-    fiador_dir: '',
-    fiador_email: '',
-    fiador_rel: _v('wz_fiador_rel'),
-    // ──── Referencias ───────────────────────────────────────────
-    ref1: { nom:_v('wz_r1n'), ci:'', tel:_v('wz_r1t'), rel:_v('wz_r1r'), obs:_v('wz_r1obs') },
-    ref2: { nom:_v('wz_r2n'), ci:'', tel:_v('wz_r2t'), rel:_v('wz_r2r'), obs:_v('wz_r2obs') },
-    // ──── Documentos / Notas / Score ────────────────────────────
-    docs_count: 0,
-    documentos: [],
-    impresion: '',
-    notas: motoData ? ('Lead web · Interesado en ' + motoData.name + ' ($' + motoData.price.toLocaleString('en-US') + ' · ' + motoData.sede + ')') : 'Lead web sin moto específica',
-    conocio: _v('wz_conocio'),
-    score_indexa: scoreData.score,
-    f1: scoreData.f1, f2: scoreData.f2, f3: scoreData.f3, f4: scoreData.f4, f5: scoreData.f5,
-    // ──── Moto de interés (extra, útil para el asesor) ──────────
+    ingreso: _n('wz_ing_rango'),          // punto medio del rango, para las pantallas que suman
+    notas: notas,
     moto_interes_id: motoData ? motoData.id : null,
     moto_interes_modelo: motoData ? motoData.name : '',
     moto_interes_precio: motoData ? motoData.price : 0,
     moto_interes_sede: motoData ? motoData.sede : '',
-    // ──── Metadata Pagasi ───────────────────────────────────────
     estado: 'lead',
     origen: 'web',
     creado: now,
     editadoEn: now,
-    editadoPor: 'Lead web'
+    editadoPor: 'Solicitud web'
   };
 }
+// La segunda pantalla: solo lo que el cliente respondio, nada vacio
+function buildExtraPayload(){
+  var o = {}, texto = function(k, id){ var v = _v(id); if(v) o[k] = v; };
+  texto('antiguedad','wz_ant'); texto('empresa','wz_empresa'); texto('vivienda','wz_viv');
+  texto('historial','wz_hist_g'); texto('deudas','wz_deuda_g'); texto('banco_estado','wz_banco');
+  texto('cashea','wz_cashea'); texto('conocio','wz_conocio'); texto('fiador','wz_fiador');
+  if(_v('wz_dep_g')) o.dependientes = _i('wz_dep_g');
+  if(o.cashea === 'si'){ texto('cashea_nivel','wz_cashea_nivel'); texto('cashea_pago','wz_cashea_pago'); }
+  if(o.fiador === 'si'){ texto('fiador_nom','wz_fiador_nom'); texto('fiador_rel','wz_fiador_rel'); }
+  var r1t = normTel(_v('wz_r1t'));
+  if(_v('wz_r1n')) o.ref1 = { nom:_v('wz_r1n'), ci:'', tel:(r1t ? r1t.valor : _v('wz_r1t')), rel:'', obs:'' };
+  o.editadoEn = new Date().toISOString();
+  o.web_ampliado = o.editadoEn;   // una sola vez: la regla no deja una segunda
+  return o;
+}
 
-async function submitF(){
-  if(window.__submittingSolicitud) return;
+// ── Pantallas ─────────────────────────────────────────────────────────────
+var LEAD = null;
+function _pantalla(id){
+  ['fs1','fs2','fOK','fOK2'].forEach(function(k){ var e = _el(k); if(e) e.classList.toggle('on', k===id); });
+  var card = _el('formSolicitud');
+  if(card && card.scrollIntoView){ try{ card.scrollIntoView({ block:'start', behavior:'smooth' }); }catch(e){ card.scrollIntoView(); } }
+  var e = _el(id); if(e){ e.setAttribute('tabindex','-1'); try{ e.focus({ preventScroll:true }); }catch(_e){} }
+}
+function _waHref(texto){ return 'https://wa.me/'+WHATSAPP_PAGASI+'?text='+encodeURIComponent(texto); }
+function mostrarExito(p, duplicada){
+  var nombre = String(p.nombre||'').trim().split(/\s+/)[0] || '';
+  var moto = p.moto_interes_modelo || '';
+  if(_el('okNombre')) _el('okNombre').textContent = nombre || 'ya está';
+  if(_el('okId')) _el('okId').textContent = p.id;
+  if(_el('okTitulo')) _el('okTitulo').innerHTML = duplicada ? 'Ya te tenemos, <span id="okNombre"></span>.' : '¡Listo, <span id="okNombre"></span>!';
+  if(_el('okNombre')) _el('okNombre').textContent = nombre || (duplicada ? 'gracias' : 'ya está');
+  if(_el('okText')) _el('okText').innerHTML = duplicada
+    ? 'Ya hay una solicitud con esta cédula (<span class="fok-id">'+p.id+'</span>). Un asesor te escribe; si prefieres, adelántate por WhatsApp.'
+    : 'Tu solicitud es la <span class="fok-id">'+p.id+'</span>. Guárdala por si nos escribes.';
+  var msg = 'Hola, soy '+(p.nombre||'')+'. Acabo de enviar mi solicitud '+p.id+' por pagasi.io'+(moto ? ' y me interesa la '+moto : '')+'.';
+  ['okWA','okWA2'].forEach(function(id){ var a = _el(id); if(a) a.href = _waHref(msg); });
+  var extra = _el('okExtra'); if(extra) extra.hidden = !(ADELANTAR_EVALUACION && !duplicada && LEAD);
+  _pantalla('fOK');
+}
+
+async function submitF(ev){
+  if(ev && ev.preventDefault) ev.preventDefault();
+  if(window.__submittingSolicitud) return false;
+  mostrarAviso('');
+  var malo = validarPaso1(true);
+  if(malo){ try{ malo.focus(); malo.scrollIntoView({ block:'center', behavior:'smooth' }); }catch(e){} return false; }
   window.__submittingSolicitud = true;
-  var payload=buildClientePayload();
-  // Validación mínima — campos críticos para identificar al lead.
-  // Si falta uno, salimos y permitimos reintentar.
-  if(!payload.nombre || !payload.cedula || !payload.tel){
-    alert('Completa al menos Nombre, Cédula y Teléfono.');
-    window.__submittingSolicitud = false;
-    return;
-  }
-  var btns=document.querySelectorAll('#fs2 .btn');
-  btns.forEach(function(b){b.disabled=true;});
-  var btn=document.getElementById('btnGuardarSolicitud');
-  if(btn) btn.textContent='Guardando...';
+  var btn = _el('btnGuardarSolicitud'), fs1 = _el('fs1');
+  if(btn){ btn.disabled = true; btn.textContent = 'Enviando…'; }
+  if(fs1) fs1.classList.add('fsaving');
+  var payload = null;
   try{
     if((!FIREBASE_READY||!fbAuth||!db) && !initFirebaseSolicitar()) throw new Error('Firebase no disponible');
     if(!fbAuth.currentUser) await fbAuth.signInAnonymously();
-    // El formulario público SÓLO puede crear un lead nuevo. Las reglas de
-    // Firestore ya no dejan que una sesión anónima LEA ni EDITE clientes
-    // existentes, así que no buscamos duplicados desde aquí (eso expondría la
-    // base). Si la misma persona envía dos veces, el equipo unifica el lead
-    // duplicado desde el panel.
+    payload = buildClientePayload();
+    if(ADELANTAR_EVALUACION && fbAuth.currentUser) payload.web_uid = fbAuth.currentUser.uid;
+    // El formulario público SÓLO puede crear un lead nuevo. Las reglas de Firestore no
+    // dejan que una sesión anónima LEA ni EDITE clientes existentes, así que no se
+    // buscan duplicados desde aquí: la base rechaza la segunda con la misma cédula.
     await db.collection('clientes').doc(String(payload.id)).set(payload);
-    // SEGURIDAD: cerrar la sesión anónima para que no quede activa en el navegador
-    // (evita que ese mismo navegador entre luego a /admin con una sesión autenticada).
-    try{ await fbAuth.signOut(); }catch(_e){}
-    document.getElementById('fs2').classList.remove('on');
-    document.getElementById('fOK').style.display='block';
-    document.getElementById('pd2').classList.remove('on');
-    document.getElementById('pd2').classList.add('done');
-    document.getElementById('okText').textContent='Tu solicitud llegó a Pagasi. Un asesor te contactará en menos de 24 horas para finalizar el proceso.';
+    LEAD = { id: payload.id, nombre: payload.nombre, moto: payload.moto_interes_modelo };
+    // SEGURIDAD: la sesión anónima se cierra en cuanto no hace falta, para que no
+    // quede activa en el navegador. Con la segunda pantalla, se cierra al terminarla.
+    if(!ADELANTAR_EVALUACION){ try{ await fbAuth.signOut(); }catch(_e){} }
+    borrarBorrador();
+    mostrarExito(payload, false);
   }catch(err){
-    console.error('submitF:',err);
+    console.error('submitF:', err);
     // La base rechaza por dos motivos: la ficha ya existe (la misma persona mandando otra
-    // vez) o algun dato no paso la validacion. No se puede distinguir desde aqui, asi que
-    // el mensaje cubre los dos y ofrece WhatsApp (antes decia "recibida" siempre).
+    // vez) o algun dato no paso la validacion. No se distingue desde aqui.
     var rechazo = err && (err.code==='permission-denied' || /permission|insufficient/i.test(String(err.message||'')));
-    if(rechazo){
-      var okEl=document.getElementById('fOK'), okTxt=document.getElementById('okText');
-      var fs2=document.getElementById('fs2'), pd2=document.getElementById('pd2');
-      if(fs2) fs2.classList.remove('on');
-      if(pd2){ pd2.classList.remove('on'); pd2.classList.add('done'); }
-      if(okEl) okEl.style.display='block';
-      if(okTxt) okTxt.textContent='Si ya nos enviaste tu solicitud antes, ya la tenemos y un asesor te contactará. Si es la primera vez, revisa que tu cédula y tus datos estén completos o escríbenos por WhatsApp.';
+    if(rechazo && payload){
+      try{ await fbAuth.signOut(); }catch(_e){}
+      borrarBorrador();
+      mostrarExito(payload, true);
     } else {
-      alert('Error: '+(err.message||err));
+      mostrarAviso('No pudimos enviar tu solicitud. Revisa tu conexión e inténtalo otra vez, o <a href="'+_waHref('Hola, intenté enviar mi solicitud por pagasi.io y no me dejó.')+'" target="_blank" rel="noopener">escríbenos por WhatsApp</a>.');
     }
   }finally{
     window.__submittingSolicitud = false;
-    btns.forEach(function(b){b.disabled=false;});
-    if(btn) btn.textContent='Guardar en Pagasi';
+    if(btn){ btn.disabled = false; btn.textContent = 'Enviar solicitud'; }
+    if(fs1) fs1.classList.remove('fsaving');
   }
+  return false;
+}
+
+async function guardarExtra(){
+  if(!LEAD || window.__submittingSolicitud) return;
+  window.__submittingSolicitud = true;
+  var btn = _el('btnGuardarExtra'), fs2 = _el('fs2');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
+  if(fs2) fs2.classList.add('fsaving');
+  try{
+    if(!db || !fbAuth || !fbAuth.currentUser) throw new Error('Sesión cerrada');
+    await db.collection('clientes').doc(String(LEAD.id)).update(buildExtraPayload());
+    try{ await fbAuth.signOut(); }catch(_e){}
+    _pantalla('fOK2');
+  }catch(err){
+    console.error('guardarExtra:', err);
+    mostrarAviso('No se pudo guardar esta parte, pero tu solicitud ya está enviada. Puedes contarnos el resto por WhatsApp.');
+    var av = _el('fAviso'); if(av && fs2) fs2.insertBefore(av, fs2.firstChild);
+  }finally{
+    window.__submittingSolicitud = false;
+    if(btn){ btn.disabled = false; btn.textContent = 'Guardar y terminar'; }
+    if(fs2) fs2.classList.remove('fsaving');
+  }
+}
+async function omitirExtra(){
+  try{ if(fbAuth && fbAuth.currentUser) await fbAuth.signOut(); }catch(_e){}
+  var extra = _el('okExtra'); if(extra) extra.hidden = true;
+  _pantalla('fOK');
 }
 
 (function(){
-  function bindSolicitudButtons(){
-    var b1=document.getElementById('btnContinuarSolicitud');
-    if(b1) b1.addEventListener('click', function(ev){ ev.preventDefault(); goS(2); });
-    var b2=document.getElementById('btnAtrasSolicitud');
-    if(b2) b2.addEventListener('click', function(ev){ ev.preventDefault(); goS(1); });
-
+  function arrancar(){
+    var form = _el('formSolicitud');
+    if(form) form.addEventListener('submit', submitF);
+    CAMPOS1.forEach(function(f){
+      var el = _el(f.id); if(!el) return;
+      el.addEventListener('blur', function(){ if(String(el.value||'').trim()) validarUno(f.id); });
+      el.addEventListener('input', function(){ if(el.classList.contains('is-bad')) validarUno(f.id); });
+      el.addEventListener('change', function(){ validarUno(f.id); });
+    });
+    // Al salir de cedula y telefono se dejan escritos como los guarda el sistema
+    var ci = _el('wz_ci'); if(ci) ci.addEventListener('blur', function(){ var n = normCedula(ci.value); if(n) ci.value = n.valor; });
+    var tel = _el('wz_tel'); if(tel) tel.addEventListener('blur', function(){ var n = normTel(tel.value); if(n) tel.value = n.valor; });
+    CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e){ e.addEventListener('input', guardarBorrador); e.addEventListener('change', guardarBorrador); } });
+    if(fM){ fM.addEventListener('change', _pintarPlan); }
+    cargarBorrador();
+    _pintarPlan();
+    // Segunda pantalla
+    var b = _el('btnAdelantar'); if(b) b.addEventListener('click', function(){ mostrarAviso(''); _pantalla('fs2'); });
+    var o = _el('btnOmitir'); if(o) o.addEventListener('click', omitirExtra);
+    var g = _el('btnGuardarExtra'); if(g) g.addEventListener('click', guardarExtra);
+    var ca = _el('wz_cashea'); if(ca) ca.addEventListener('change', function(){ var w = _el('casheaWrap'); if(w) w.hidden = ca.value !== 'si'; });
+    var fi = _el('wz_fiador'); if(fi) fi.addEventListener('change', function(){ var w = _el('fiadorWrap'); if(w) w.hidden = fi.value !== 'si'; });
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bindSolicitudButtons);
-  else bindSolicitudButtons();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', arrancar);
+  else arrancar();
 })();
-
-function setR(on,off){var a=document.getElementById(on), b=document.getElementById(off); if(a)a.classList.add('on'); if(b)b.classList.remove('on');}
-function showUp(inp,zId){}

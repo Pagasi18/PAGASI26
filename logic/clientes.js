@@ -33,6 +33,7 @@ function getClienteEstados(c){
 function clienteMatchesFiltro(c, filtro){
   filtro=filtro||'todos';
   if(filtro==='todos') return true;
+  if(filtro==='web') return typeof _swEsLeadWeb==='function' && _swEsLeadWeb(c);   // solicitudes-web.js
   var info=getClienteEstados(c).estados;
   return info.indexOf(filtro)>=0;
 }
@@ -500,6 +501,9 @@ function verCliente(id){
     + (creditosActivos.length ? '<button class="cf-action" style="background:var(--p1);color:#fff;border-color:var(--p1);font-weight:800" onclick="closeM();openPagoRapido(\''+creditosActivos[0].id+'\')"> Registrar pago</button>' : '')
     + '</div>'
     + '</div>';
+
+  // De donde vino y que quiere, si entro por la web (solicitudes-web.js)
+  html += (typeof _swFichaHtml==='function') ? _swFichaHtml(c) : '';
 
   // ── KPIs ──
   html += '<div class="cf-kpis">'

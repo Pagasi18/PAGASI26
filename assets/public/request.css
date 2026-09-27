@@ -1,0 +1,45 @@
+/* Solicitud corta (27-sep-2026). Solo vive en PAGASI 26: la 18 ya no recibe solicitudes.
+   Encima de site.css: una sola pantalla, errores al lado del campo, exito util. */
+.pg-request .fcard{border-radius:24px;box-shadow:0 10px 30px -18px rgba(6,92,255,.25)}
+.pg-request .ft{font-size:30px;letter-spacing:-1px}
+.pg-request .fsub{font-size:14px;line-height:1.6;margin-bottom:22px}
+.pg-request .fl{font-size:12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.pg-request .fopt{font-weight:600;color:var(--pg-muted);font-size:11px;white-space:nowrap}
+.pg-request input,.pg-request select{font-size:15px;min-height:50px;border-radius:12px;border-color:#cfdaec;transition:border-color .15s,box-shadow .15s}
+.pg-request input:focus,.pg-request select:focus{outline:0;border-color:var(--pg-blue);box-shadow:0 0 0 3px rgba(6,92,255,.14)}
+.pg-request .is-bad{border-color:#e5484d!important;box-shadow:0 0 0 3px rgba(229,72,77,.12)!important}
+.pg-request .ferr{display:none;color:#c8323a;font-size:12px;font-weight:700;margin-top:6px;line-height:1.4}
+.pg-request .fg.has-err .ferr{display:block}
+.pg-request .fplan{display:none;margin-top:8px;padding:10px 12px;border-radius:12px;background:#edf4ff;color:#1d3f7a;font-size:13px;line-height:1.5}
+.pg-request .fplan.on{display:block}
+.pg-request .fplan b{color:var(--pg-blue);font-size:16px}
+.pg-request .faviso{display:none;margin:0 0 14px;padding:12px 14px;border-radius:12px;background:#fff4f4;border:1px solid #f3c2c5;color:#8a1f26;font-size:13px;line-height:1.5}
+.pg-request .faviso.on{display:block}
+.pg-request .faviso a{color:#8a1f26;font-weight:800}
+.pg-request .fnav{margin-top:18px}
+.pg-request .btn{border-radius:14px;font-size:15px;min-height:54px}
+.pg-request .btn-s{background:#edf4ff;color:var(--pg-blue)}
+.pg-request .fmini{font-size:12px;color:var(--pg-muted);text-align:center;margin:12px 0 0;line-height:1.5}
+.pg-request .fsaving{opacity:.6;pointer-events:none}
+.pg-request .fok{text-align:center;padding:12px 0 4px}
+.pg-request .fok-ico{width:64px;height:64px;border-radius:50%;background:#e7f8ee;color:#12873f;display:grid;place-items:center;font-size:30px;font-weight:800;margin:0 auto 14px}
+.pg-request .fok .ft{font-size:28px}
+.pg-request .fok .fsub{margin-bottom:6px}
+.pg-request .fok-id{display:inline-block;font-weight:800;color:var(--pg-blue);background:#edf4ff;border-radius:8px;padding:2px 8px;letter-spacing:.3px;white-space:nowrap}
+.pg-request .fpasos{text-align:left;margin:22px auto 24px;padding:0;list-style:none;max-width:460px;counter-reset:p}
+.pg-request .fpasos li{position:relative;padding:0 0 14px 44px;font-size:14px;line-height:1.5;color:var(--pg-muted);counter-increment:p}
+.pg-request .fpasos li b{color:var(--pg-ink)}
+.pg-request .fpasos li:before{content:counter(p,decimal-leading-zero);position:absolute;left:0;top:-1px;width:30px;height:30px;border-radius:50%;background:var(--pg-blue);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center}
+.pg-request .fok .btn{display:inline-flex;min-width:300px}
+.pg-request .fextra{margin-top:22px;padding:18px;border-radius:16px;background:var(--pg-soft);border:1px solid var(--pg-line);text-align:left}
+.pg-request .fextra p{margin:0 0 12px;font-size:14px;color:var(--pg-ink);line-height:1.5}
+.pg-request .fsec{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--pg-blue);margin:20px 0 12px;padding-top:18px;border-top:1px solid var(--pg-line)}
+.pg-request .fsec.first{margin-top:0;padding-top:0;border:0}
+.pg-request .fs[hidden]{display:none!important}
+@media(max-width:650px){
+  .pg-request .ft{font-size:26px}
+  .pg-request .fok .btn{min-width:0;width:100%}
+  .pg-request .fl{font-size:12px}
+  .pg-request .fmini{font-size:11px}
+}
+.pg-request .fs:focus{outline:none}

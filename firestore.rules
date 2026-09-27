@@ -79,8 +79,10 @@ service cloud.firestore {
           'fiador_rif', 'fiador_dir', 'fiador_email', 'fiador_rel', 'ref1', 'ref2', 'docs_count',
           'documentos', 'impresion', 'notas', 'conocio', 'score_indexa', 'f1', 'f2', 'f3', 'f4',
           'f5', 'moto_interes_id', 'moto_interes_modelo', 'moto_interes_precio',
-          'moto_interes_sede', 'estado', 'origen', 'creado', 'editadoEn', 'editadoPor'
+          'moto_interes_sede', 'estado', 'origen', 'creado', 'editadoEn', 'editadoPor',
+          'web_uid'
         ])
+        && d.get('web_uid', '') is string && d.get('web_uid', '').size() <= 128
         && r1.keys().hasOnly(['nom','ci','tel','rel','obs'])
         && r2.keys().hasOnly(['nom','ci','tel','rel','obs'])
         && d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 120
@@ -95,6 +97,35 @@ service cloud.firestore {
         && d.get('moto_interes_precio', 0) is number
         && (d.get('moto_interes_id', null) == null || d.get('moto_interes_id', null) is int)
         && d.get('documentos', []).size() == 0;
+    }
+    // La segunda pantalla de solicitar.html ("Adelanta tu evaluacion", 27-sep-2026):
+    // el MISMO lead, desde la MISMA sesion anonima que lo creo (web_uid), completa su
+    // ficha UNA vez. Solo estos campos, solo mientras siga siendo lead, y con la misma
+    // limpieza de texto que al crearlo. Nada de leer, nada de tocar otras fichas.
+    function esLeadWebAmpliando() {
+      let antes = resource.data;
+      let d = request.resource.data;
+      let r1 = d.get('ref1', {});
+      let textos = d.get('antiguedad', '') + d.get('empresa', '') + d.get('vivienda', '') +
+          d.get('historial', '') + d.get('deudas', '') + d.get('banco_estado', '') +
+          d.get('cashea', '') + d.get('cashea_nivel', '') + d.get('cashea_pago', '') +
+          d.get('fiador', '') + d.get('fiador_nom', '') + d.get('fiador_rel', '') +
+          d.get('conocio', '') + d.get('editadoEn', '') + d.get('web_ampliado', '') +
+          r1.get('nom', '') + r1.get('ci', '') + r1.get('tel', '') + r1.get('rel', '') + r1.get('obs', '');
+      return request.auth != null
+        && antes.get('origen', '') == 'web' && antes.get('estado', '') == 'lead'
+        && antes.get('web_uid', '') != '' && antes.get('web_uid', '') == request.auth.uid
+        && antes.get('web_ampliado', '') == ''
+        && d.diff(antes).affectedKeys().hasOnly([
+          'antiguedad', 'empresa', 'vivienda', 'dependientes', 'historial', 'deudas',
+          'banco_estado', 'cashea', 'cashea_nivel', 'cashea_pago', 'fiador', 'fiador_nom',
+          'fiador_rel', 'conocio', 'ref1', 'editadoEn', 'web_ampliado'
+        ])
+        && d.get('web_ampliado', '') is string && d.get('web_ampliado', '').size() > 0
+        && d.get('dependientes', 0) is number
+        && r1.keys().hasOnly(['nom','ci','tel','rel','obs'])
+        && textos.size() <= 1500
+        && textos.matches("[^<>\"'`&\\\\]*");
     }
 
     // == Identidad del CLIENTE (portal micuenta.html) ==
@@ -306,7 +337,7 @@ service cloud.firestore {
       allow get:    if esStaff() || esClienteDe(id);
       allow list:   if esStaff();
       allow create: if esStaff() || esLeadWeb(id);
-      allow update: if esStaff();
+      allow update: if esStaff() || esLeadWebAmpliando();
       allow delete: if esAdmin();
     }
 
