@@ -444,6 +444,97 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   cx.S.clientes = [Object.assign({}, lead, { web_fin:null, webAtendidaEn:'', web_cerrado:false })];
   ok('la pestaña de Clientes dice cuántas hay', cx._swChip()[0] === 'web' && /Solicitudes web · 1/.test(cx._swChip()[1]));
 
+  // ── De punta a punta: la web → la ficha → "Crear solicitud" en el panel ──
+  // (integracion con PAGASI 18, 27-sep-2026) Lo que la pagina deja escrito en la base tiene
+  // que aparecerle YA ESCRITO al empleado en el asistente. Se llenan las 9 partes con la
+  // pagina, se toma la ficha que quedo en la base falsa y se abre con el panel de verdad
+  // (admin.html entero), igual que el boton "Crear solicitud" de la bandeja.
+  {
+    const c2 = { ls: localStorageFalso(), auth: crearAuth(), base: crearBase() };
+    const Q = pagina(c2), E = Q._dom;
+    await esperar();
+    E.wz_nom.value = 'Carlos Pérez'; E.wz_ci.value = 'v 12.345.678'; E.wz_tel.value = '0414 123 45 67'; E.wz_emp.value = 'delivery'; E.wz_ing_rango.value = '225'; E.wz_estado.value = 'La Guaira'; E.fM.value = '1';
+    await Q.submitF({ preventDefault(){} });
+    Q.irA(0);
+    Q.elegir('wz_uso', 'negocio'); Q.elegir('wz_moto_previa', 'pagada'); await Q.siguiente(false);
+    E.wz_empresa.value = 'Yummy'; E.wz_cargo.value = 'Motorizado'; Q.elegir('wz_ant', '5'); E.wz_dir_trabajo.value = 'Chacao'; await Q.siguiente(false);
+    Q.elegir('wz_dia_cobro', 'quincenal'); E.wz_monto.value = '200'; Q.elegir('wz_rem', 'si'); E.wz_ifam.value = '300'; Q.elegir('wz_dep', '2'); Q.elegir('wz_ahorro', 'bs'); Q.elegir('wz_inicial', '400-700'); await Q.siguiente(false);
+    Q.elegir('wz_hist', 'mora_leve'); Q.elegir('wz_deuda', 'menores'); E.wz_deuda_mensual.value = '80'; Q.elegir('wz_banco', 'poca'); Q.elegir('wz_banco_nm', 'Banesco', true); await Q.siguiente(false);
+    Q.elegir('wz_cashea', 'si'); Q.elegir('wz_cashea_nivel', '5'); Q.elegir('wz_cashea_estado', 'mora_leve'); E.wz_cashea_linea.value = '700';
+    Q.elegir('wz_cashea_deuda', 'si'); E.wz_cashea_monto.value = '120'; E.wz_cashea_cuotas_pend.value = '3'; E.wz_cashea_compras_activas.value = '2'; E.wz_cashea_prox_monto.value = '40'; await Q.siguiente(false);
+    E.wz_ciudad_res.value = 'Catia La Mar'; E.wz_dir_det.value = 'Calle 3, casa 12'; E.wz_dir_ref.value = 'frente a la panadería'; Q.elegir('wz_tdir', '4'); Q.elegir('wz_viv', 'propia'); await Q.siguiente(false);
+    E.wz_r1n.value = 'María González'; E.wz_r1t.value = '04241112233'; Q.elegir('wz_r1r', 'Colega');
+    E.wz_r2n.value = 'Luis Díaz'; E.wz_r2t.value = '0212 555 12 34'; Q.elegir('wz_r2r', 'Vecino/a'); await Q.siguiente(false);
+    Q.elegir('wz_fiador', 'si'); E.wz_fiador_nom.value = 'José Rodríguez'; E.wz_fiador_tel.value = '0412 765 43 21'; Q.elegir('wz_fiador_rel', 'colega');
+    E.wz_fiador_ci.value = 'v-9.876.543'; E.wz_fiador_dir.value = 'Catia'; E.wz_fiador_ing.value = '600'; await Q.siguiente(false);
+    E.wz_fn_d.value = '05'; E.wz_fn_m.value = '03'; E.wz_fn_a.value = '1995'; E.wz_email.value = 'carlos@gmail.com'; E.wz_rif.value = 'V-12345678-9'; Q.elegir('wz_conocio', 'vitrina'); await Q.siguiente(false);
+    await Q.siguiente(false);   // Terminar
+    const L = JSON.parse(JSON.stringify(c2.base.almacen['clientes/WEB-12345678']));
+    ok('punta a punta: la página llenó las 9 partes y terminó', L.web_paso === 9 && L.web_fin === 'TS' && L.fiador === 'si' && L.cashea === 'si');
+    const fueraReglas = Object.keys(L).filter(k => CREAR.indexOf(k) === -1 && EDITABLES.indexOf(k) === -1);
+    ok('...y todo lo que escribió está en las listas de las Reglas' + (fueraReglas.length ? ' (fuera: '+fueraReglas.join(', ')+')' : ''), fueraReglas.length === 0);
+
+    // El panel entero, como lo carga admin.html
+    const el2 = () => ({ innerHTML:'', textContent:'', value:'', className:'', style:{}, classList:{add(){},remove(){},contains(){return false;},toggle(){}}, children:[], options:[], appendChild(){}, remove(){}, setAttribute(){}, getAttribute(){ return null; }, addEventListener(){}, focus(){}, closest(){ return null; }, querySelector(){ return null; }, querySelectorAll(){ return []; } });
+    const F = {}; ['mic','mtt','msb','modal-box','mbd','mft','ov','wz-overlay'].forEach(id => F[id] = el2());
+    const pend = [];
+    const ax = { console:{log(){},warn(){},error(){}}, setTimeout(f){ pend.push(f); return 0; }, clearTimeout(){}, setInterval(){ return 0; }, clearInterval(){}, requestAnimationFrame(){ return 0; },
+      document:{ getElementById(id){ return F[id] || null; }, querySelector(){ return null; }, querySelectorAll(){ return []; }, createElement(){ return el2(); }, head:el2(), body:el2(), documentElement:el2(), addEventListener(){}, removeEventListener(){} },
+      navigator:{ userAgent:'node', language:'es' }, location:{ href:'https://pagasi.io/admin.html', search:'', hash:'', pathname:'/admin.html' },
+      localStorage:{ getItem(){ return null; }, setItem(){}, removeItem(){} }, sessionStorage:{ getItem(){ return null; }, setItem(){}, removeItem(){} },
+      fetch(){ return Promise.resolve({ ok:true, json:() => Promise.resolve({}) }); }, alert(){}, prompt(){ return ''; }, confirm(){ return true; }, open(){ return { document:{ write(){}, close(){} } }; },
+      db:null, storage:null, firebase:undefined, innerWidth:1440, innerHeight:900, PG:{} };
+    ax.MutationObserver = ax.IntersectionObserver = ax.ResizeObserver = function(){ return { observe(){}, disconnect(){}, unobserve(){} }; };
+    ax.addEventListener = ax.removeEventListener = ax.scrollTo = function(){};
+    ax.matchMedia = function(){ return { matches:false, addListener(){}, addEventListener(){} }; };
+    ax.getComputedStyle = function(){ return { getPropertyValue(){ return ''; } }; };
+    ax.history = { state:null, pushState(){}, replaceState(){}, back(){} }; ax.window = ax;
+    const scripts = [...src('admin.html').matchAll(/src="((?:assets|logic|modules)\/[^"?]+\.js)/g)].map(m => m[1]);
+    vm.createContext(ax); vm.runInContext(scripts.map(f => src(f)).join('\n;\n'), ax, { filename:'admin.js' });
+    ax.toast = ax.nav = ax.closeM = ax.setMicon = function(){}; ax._puedeVender = () => true;
+    const guardadas = [];
+    ax.DB.saveCliente = o => { guardadas.push(JSON.parse(JSON.stringify(o))); return Promise.resolve(); };
+    ax.DB.crearCred = () => Promise.resolve();
+    ax.S.clientes = [L]; ax.S.creds = []; ax.S.motos = []; ax.S.currentUser = { uid:'u-liz', nombre:'Liz', rol:'Administrador', permisos:[] };
+    ax.window._wzEditando = null;
+    ok('...la bandeja lo muestra terminado, con uso, inicial, cobro y la cifra exacta con su rango', /Terminó el formulario/.test(ax._swFichaHtml(L)) && /Para su negocio/.test(ax._swFichaHtml(L)) && /\$400 a \$700/.test(ax._swFichaHtml(L)) && /\$400(,00)?\/mes \(marcó \$150 a \$300\)/.test(ax._swFichaHtml(L)));
+    ax._swCrearSolicitud('WEB-12345678'); pend.splice(0).forEach(f => f());
+    const W = ax.WZ;
+    ok('..."Crear solicitud" abre el asistente con el lead elegido', W.clienteSel === 'WEB-12345678');
+    vm.runInContext('WZ.step=2;', ax); ax._wzRender(); const p2 = F['wz-overlay'].innerHTML;
+    // campo del asistente → lo que escribio la web
+    const ENC = { wz_nom:'nombre', wz_ci:'cedula', wz_tel:'tel', wz_wa:'wa', wz_email:'email', wz_ciudad:'ciudad', wz_conocio:'conocio', wz_estado:'estado_ubi',
+      wz_ciudad_res:'ciudad', wz_dir_det:'dir', wz_tdir:'tiempo_dir', wz_viv:'vivienda', wz_empresa:'empresa', wz_cargo:'cargo', wz_ing:'ingreso', wz_ifam:'ingreso_familiar',
+      wz_ant:'antiguedad', wz_rem:'remesas', wz_ahorro:'ahorro', wz_banco:'banco_estado', wz_banco_nm:'banco_nombre',
+      wz_cashea_nivel:'cashea_nivel', wz_cashea_estado:'cashea_estado', wz_cashea_deuda:'cashea_deuda', wz_cashea_monto:'cashea_monto', wz_cashea_cuotas_pend:'cashea_cuotas_pend',
+      wz_cashea_linea:'cashea_linea', wz_cashea_compras_activas:'cashea_compras_activas', wz_cashea_prox_monto:'cashea_prox_monto',
+      wz_fiador_nom:'fiador_nom', wz_fiador_tel:'fiador_tel', wz_fiador_ci:'fiador_ci', wz_fiador_rel:'fiador_rel', wz_fiador_dir:'fiador_dir', wz_fiador_ing:'fiador_ing',
+      wz_fecha_nacimiento:'fecha_nacimiento', wz_dia_cobro:'dia_cobro', wz_deuda_mensual:'deuda_mensual', wz_moto_previa:'moto_previa' };
+    const REF = { wz_r1n:['ref1','nom'], wz_r1t:['ref1','tel'], wz_r1r:['ref1','rel'], wz_r2n:['ref2','nom'], wz_r2t:['ref2','tel'], wz_r2r:['ref2','rel'] };
+    Object.keys(ENC).concat(Object.keys(REF)).forEach(id => F[id] = el2());
+    ax._wzHydrate();
+    const valor = id => ENC[id] ? L[ENC[id]] : L[REF[id][0]][REF[id][1]];
+    const distintos = Object.keys(ENC).concat(Object.keys(REF)).filter(id => valor(id) == null || String(F[id].value) !== String(valor(id)));
+    ok('...cada respuesta aparece escrita en su campo del asistente' + (distintos.length ? ' (fallan: '+distintos.map(id => id+'='+JSON.stringify(F[id].value)).join(', ')+')' : ''), distintos.length === 0);
+    ok('...trabajo, dependientes, historial y deudas marcados; Cashea y fiador en "Sí"', W['_chip_wz_emp_g'] === L.trabajo && W['_chip_wz_dep_g'] === String(L.dependientes) && W['_chip_wz_hist_g'] === L.historial && W['_chip_wz_deuda_g'] === L.deudas && W.cashea === 'si' && W.fiador_tiene === 'si');
+    ok('...con la cifra exacta del ingreso no pide confirmarla', p2.indexOf('wz_pista_ingreso') === -1);
+    vm.runInContext('WZ.step=3;', ax); ax._wzRender(); const p3 = F['wz-overlay'].innerHTML; F.wz_uso = el2(); ax._wzHydrate();
+    ok('...paso 3: el uso de la moto puesto, y la moto y la inicial como pistas', F.wz_uso.value === L.uso_moto && /El cliente quiere: NEW HORSE 150 · EK Bello Monte/.test(p3) && /El cliente dice que tiene: entre \$400 y \$700/.test(p3));
+    // Cada campo que escribe la web tiene destino en el panel: si la web gana uno nuevo, aqui se ve
+    const DESTINO = Object.values(ENC).concat(['ref1','ref2','trabajo','dependientes','historial','deudas','cashea','fiador','uso_moto',
+      'moto_interes_id','moto_interes_modelo','moto_interes_precio','moto_interes_sede','inicial_rango','ingreso_rango','ingreso_exacto',   // pistas y bandeja
+      'rif','dir_trabajo',                                                                                                              // ficha y contrato
+      'id','estado','origen','creado','editadoEn','editadoPor','web_uid','web_ts','web_paso','web_act','web_n','web_fin']);
+    const sinDestino = Object.keys(L).filter(k => DESTINO.indexOf(k) === -1);
+    ok('...ningún dato de la web se queda sin destino en el panel' + (sinDestino.length ? ' (sin destino: '+sinDestino.join(', ')+')' : ''), sinDestino.length === 0);
+    vm.runInContext('WZ.step = 4; WZ.precio = 0;', ax);
+    ax._wzGuardar();
+    await new Promise(r => setTimeout(r, 30)); pend.splice(0).forEach(f => { try{ f(); }catch(e){} });
+    const gl = guardadas.find(o => o.id === 'WEB-12345678');
+    ok('...al crear el crédito se cierra el formulario y no se pierden el RIF ni la dirección del trabajo', !!gl && gl.web_cerrado === true && gl.web_cerrado_por === 'Liz' && gl.rif === L.rif && gl.dir_trabajo === L.dir_trabajo);
+    ok('...y la bandeja lo reconoce: "Ya tiene crédito", ya no "Sin atender"', ax._swTieneCredito(ax.S.clientes[0]) && /Ya tiene crédito/.test(ax._swFichaHtml(ax.S.clientes[0])) && ax._swPendientes().length === 0);
+  }
+
   // ── Los ganchos en los archivos compartidos ──
   ok('admin.html carga solicitudes-web.js', /logic\/solicitudes-web\.js\?v=/.test(src('admin.html')));
   ok('Clientes tiene la pestaña y el filtro', /_swChip/.test(src('modules/clientes.js')) && /filtro==='web'/.test(src('logic/clientes.js')));
