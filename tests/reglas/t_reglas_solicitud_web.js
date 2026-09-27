@@ -1,6 +1,11 @@
 // Reglas de Firestore de la solicitud web POR PARTES (27-sep-2026), probadas contra el
-// EMULADOR oficial (no simuladas). Corre en GitHub Actions (reglas-probar.yml, a mano):
-// en la Mac no hay Java. Solo de PAGASI 26: preparar-clon-26.sh lo conserva.
+// EMULADOR oficial (no simuladas). Corre en GitHub Actions (reglas-probar.yml, a mano o al
+// subir la rama solicitud-web): en la Mac no hay Java. Solo de PAGASI 26: preparar-clon-26.sh
+// lo conserva.
+// Revision del 27-sep-2026: se suman los casos que faltaban (cambiar cedula, origen, web_ts,
+// ingreso_rango o la moto; reabrir con web_cerrado:false; textos largos y con ' ` & \; fiador
+// "si" sin telefono en una sola escritura; lead ya "activo"; la parte 1 sin moto y sin estado),
+// el 0422 de Digitel, y el borrado de lo que dependia de un "si" que paso a "no".
 //  · Crear (esLeadWeb): solo la parte 1, sesion anonima, web_uid de ESA sesion, web_ts
 //    del servidor, cedula amarrada al id, y en UN lote con el marcador web_sesiones/{uid}
 //    (una solicitud por sesion). Nada de notas, score, impresion, obs ni documentos.
@@ -56,6 +61,13 @@ const meta = (paso, extra) => Object.assign({ web_paso: paso, web_act: serverTim
     await setDoc(doc(db, 'clientes/WEB-30000004'), abierto('30000004', 'anonObs', { ref1: { nom: 'Maria', ci: '', tel: '0424-1112233', rel: 'Amigo/a', obs: 'Llamada: la conoce hace 10 años' } }));
     await setDoc(doc(db, 'clientes/WEB-30000005'), abierto('30000005', 'anonTope', { web_n: 80 }));
     await setDoc(doc(db, 'clientes/WEB-30000006'), abierto('30000006', 'anonDias', { web_ts: hace(6) }));
+    // Uno que dijo "si" a todo (deudas, banco, Cashea con deuda, fiador) para probar el borrado
+    await setDoc(doc(db, 'clientes/WEB-30000007'), abierto('30000007', 'anonBor', { uso_moto: 'delivery', empresa: 'Yummy',
+      deudas: 'graves', deuda_mensual: 300, banco_estado: 'activa', banco_nombre: 'Banesco',
+      cashea: 'si', cashea_nivel: '4', cashea_estado: 'al_dia', cashea_linea: 600, cashea_deuda: 'si', cashea_monto: 400, cashea_cuotas_pend: 4, cashea_compras_activas: 2, cashea_prox_monto: 45,
+      fiador: 'si', fiador_nom: 'José Rodríguez', fiador_tel: '0412-7654321', fiador_rel: 'amigo', fiador_ci: 'V-9876543', fiador_dir: 'Catia', fiador_ing: 600 }));
+    await setDoc(doc(db, 'clientes/WEB-30000008'), abierto('30000008', 'anonActivo', { estado: 'activo' }));
+    await setDoc(doc(db, 'clientes/WEB-30000009'), abierto('30000009', 'anonFia'));
     // Un lead del formulario de antes: sin web_uid ni web_ts
     await setDoc(doc(db, 'clientes/WEB-1789798989431'), { id: 'WEB-1789798989431', nombre: 'LEAD VIEJO', cedula: 'V-1111111', tel: '04141234567', estado: 'lead', origen: 'web', notas: 'Solicitud web' });
   });
@@ -96,6 +108,10 @@ const meta = (paso, extra) => Object.assign({ web_paso: paso, web_act: serverTim
   await prueba('una sesión por SMS (no anónima) no crea leads web', assertFails(crear(sms, 'sms1', lead('20000022', 'sms1'))));
   await prueba('sin sesión → rechazado', assertFails(setDoc(doc(nadie, 'clientes/WEB-20000023'), lead('20000023', 'x'))));
   u = otra(); await prueba('otra sesión nueva con otra cédula sí crea la suya', assertSucceeds(crear(anon(u), u, lead('20000024', u, { estado_ubi: 'Anzoátegui' }))));
+  u = otra(); await prueba('la parte 1 sin moto (id null, textos vacíos, precio 0), como la manda request.js', assertSucceeds(crear(anon(u), u, lead('20000025', u, { moto_interes_id: null, moto_interes_modelo: '', moto_interes_precio: 0, moto_interes_sede: '' }))));
+  u = otra(); await prueba('la parte 1 sin estado_ubi', assertSucceeds(crear(anon(u), u, sin(lead('20000026', u), 'estado_ubi'))));
+  u = otra(); await prueba('WhatsApp 0422 (Digitel, desde julio de 2025) → aceptado', assertSucceeds(crear(anon(u), u, lead('20000027', u, { tel: '0422-1234567', wa: '0422-1234567' }))));
+  u = otra(); await prueba('un prefijo que no existe (0425) → rechazado', assertFails(crear(anon(u), u, lead('20000028', u, { tel: '0425-1234567', wa: '0425-1234567' }))));
   await prueba('la sesión anónima no lee su propia ficha', assertFails(getDoc(doc(A, 'clientes/WEB-12345678'))));
   await prueba('...ni lista clientes', assertFails(getDocs(collection(A, 'clientes'))));
   await prueba('...ni lee su marcador', assertFails(getDoc(doc(A, 'web_sesiones/anonA'))));
@@ -116,13 +132,22 @@ const meta = (paso, extra) => Object.assign({ web_paso: paso, web_act: serverTim
   await prueba('desde OTRA sesión anónima → rechazado', assertFails(updateDoc(doc(anon('anonB'), 'clientes/WEB-12345678'), meta(3, { empresa: 'Otra' }))));
   await prueba('cambiar el teléfono → rechazado (la ficha es de quien la creó)', assertFails(updateDoc(L, meta(9, { tel: '0424-9999999' }))));
   await prueba('cambiar el WhatsApp → rechazado', assertFails(updateDoc(L, meta(9, { wa: '0424-9999999' }))));
-  await prueba('cambiar el nombre o la cédula → rechazado', assertFails(updateDoc(L, meta(9, { nombre: 'Otro Nombre' }))));
+  await prueba('cambiar el nombre → rechazado', assertFails(updateDoc(L, meta(9, { nombre: 'Otro Nombre' }))));
+  await prueba('cambiar la cédula → rechazado', assertFails(updateDoc(L, meta(9, { cedula: 'V-12345679' }))));
+  await prueba('cambiar el origen → rechazado', assertFails(updateDoc(L, meta(9, { origen: 'panel' }))));
+  await prueba('mover web_ts (para estirar los 7 días) → rechazado', assertFails(updateDoc(L, meta(9, { web_ts: Timestamp.fromMillis(Date.now() + 30 * 86400000) }))));
+  await prueba('cambiar el rango de ingreso de la parte 1 → rechazado', assertFails(updateDoc(L, meta(9, { ingreso_rango: 'Más de $800' }))));
+  await prueba('cambiar la moto de interés o su precio → rechazado', assertFails(updateDoc(L, meta(9, { moto_interes_precio: 1 }))));
+  await prueba('cambiar la fecha de creado → rechazado', assertFails(updateDoc(L, meta(9, { creado: '2099-12-31T23:59:59.999Z' }))));
+  await prueba('reabrirse con web_cerrado:false → rechazado', assertFails(updateDoc(L, meta(9, { web_cerrado: false }))));
   await prueba('ponerse "activo" → rechazado', assertFails(updateDoc(L, meta(9, { estado: 'activo' }))));
   await prueba('escribir notas o score → rechazado', assertFails(updateDoc(L, meta(9, { notas: 'aprobar', score_indexa: 900 }))));
   await prueba('cambiar web_uid → rechazado', assertFails(updateDoc(L, meta(9, { web_uid: 'anonB' }))));
   await prueba('cambiar el estado (es de la parte 1) → rechazado', assertFails(updateDoc(L, meta(9, { estado_ubi: 'Zulia' }))));
   await prueba("un '<' en un texto → rechazado", assertFails(updateDoc(L, meta(3, { empresa: 'Yummy <script>' }))));
   await prueba('comillas en la dirección → rechazado', assertFails(updateDoc(L, meta(6, { dir: 'Petare" onmouseover="x' }))));
+  for (const c of ["'", '`', '&', '\\']) await prueba('un ' + c + ' en la dirección → rechazado', assertFails(updateDoc(L, meta(6, { dir: 'Calle ' + c + ' 3' }))));
+  await prueba('una empresa de 121 letras (el tope es 120) → rechazado', assertFails(updateDoc(L, meta(3, { empresa: 'x'.repeat(121) }))));
   await prueba('código fuera de la lista (uso "carreras") → rechazado', assertFails(updateDoc(L, meta(2, { uso_moto: 'carreras' }))));
   await prueba('nivel de Cashea 0 → rechazado (van de 1 a 6)', assertFails(updateDoc(L, meta(5, { cashea_nivel: '0' }))));
   await prueba('nivel de Cashea como número → rechazado (va como texto)', assertFails(updateDoc(L, meta(5, { cashea_nivel: 4 }))));
@@ -138,6 +163,7 @@ const meta = (paso, extra) => Object.assign({ web_paso: paso, web_act: serverTim
   await prueba('referencia con cédula → rechazado', assertFails(updateDoc(L, meta(7, { ref1: { nom: 'María', ci: 'V-123456', tel: '', rel: '', obs: '' } }))));
   await prueba('borrarle el teléfono al fiador que dijo "si" → rechazado', assertFails(updateDoc(L, meta(8, { fiador_tel: '' }))));
   await prueba('fiador "tal vez" → rechazado', assertFails(updateDoc(L, meta(8, { fiador: 'tal vez' }))));
+  await prueba('fiador "si" con nombre y sin teléfono en una sola escritura → rechazado', assertFails(updateDoc(doc(anon('anonFia'), 'clientes/WEB-30000009'), meta(8, { fiador: 'si', fiador_nom: 'Ana Gómez' }))));
   await prueba('borrar un campo → rechazado', assertFails(updateDoc(L, meta(9, { uso_moto: deleteField() }))));
   await prueba('sin sumar web_n → rechazado', assertFails(updateDoc(L, { uso_moto: 'negocio', web_paso: 9, web_act: serverTimestamp(), web_n: 1, editadoEn: new Date().toISOString() })));
   await prueba('web_act con la hora del teléfono → rechazado', assertFails(updateDoc(L, meta(9, { web_act: Timestamp.now() }))));
@@ -154,6 +180,21 @@ const meta = (paso, extra) => Object.assign({ web_paso: paso, web_act: serverTim
   await prueba('una referencia que el equipo ya verificó no se pisa', assertFails(updateDoc(doc(anon('anonObs'), 'clientes/WEB-30000004'), meta(7, { ref1: { nom: 'Otra', ci: '', tel: '', rel: '', obs: '' } }))));
   await prueba('...pero el resto sí se puede llenar', assertSucceeds(updateDoc(doc(anon('anonObs'), 'clientes/WEB-30000004'), meta(2, { uso_moto: 'personal' }))));
   await prueba('con 80 escrituras ya no hay más', assertFails(updateDoc(doc(anon('anonTope'), 'clientes/WEB-30000005'), meta(2, { uso_moto: 'personal' }))));
+  await prueba('el equipo ya lo pasó a "activo" → la web ya no escribe', assertFails(updateDoc(doc(anon('anonActivo'), 'clientes/WEB-30000008'), meta(2, { uso_moto: 'personal' }))));
+
+  // ── Corregirse a "No": se borra lo que dependía del "Sí" (y nada más) ──
+  const LB = doc(anon('anonBor'), 'clientes/WEB-30000007');
+  await prueba('borrar la deuda mensual mientras dice que debe → rechazado', assertFails(updateDoc(LB, meta(5, { deuda_mensual: deleteField() }))));
+  await prueba('borrar el banco mientras dice que tiene cuenta → rechazado', assertFails(updateDoc(LB, meta(5, { banco_nombre: deleteField() }))));
+  await prueba('borrar el monto de Cashea mientras dice que debe → rechazado', assertFails(updateDoc(LB, meta(5, { cashea_monto: deleteField() }))));
+  await prueba('borrar el nivel de Cashea mientras dice que lo usa → rechazado', assertFails(updateDoc(LB, meta(5, { cashea_nivel: deleteField() }))));
+  await prueba('borrar el nombre del fiador mientras dice que tiene → rechazado', assertFails(updateDoc(LB, meta(8, { fiador_nom: deleteField() }))));
+  await prueba('borrar un campo que no depende de nada (empresa) → rechazado', assertFails(updateDoc(LB, meta(3, { empresa: deleteField() }))));
+  await prueba('deudas "no" y se borra la deuda mensual', assertSucceeds(updateDoc(LB, meta(5, { deudas: 'no', deuda_mensual: deleteField() }))));
+  await prueba('sin cuenta y se borra el nombre del banco', assertSucceeds(updateDoc(LB, meta(5, { banco_estado: 'no', banco_nombre: deleteField() }))));
+  await prueba('ya no debe en Cashea y se borran monto, cuotas, compras y próxima cuota', assertSucceeds(updateDoc(LB, meta(5, { cashea_deuda: 'no', cashea_monto: deleteField(), cashea_cuotas_pend: deleteField(), cashea_compras_activas: deleteField(), cashea_prox_monto: deleteField() }))));
+  await prueba('no usa Cashea y se borra nivel, estado, línea y deuda', assertSucceeds(updateDoc(LB, meta(5, { cashea: 'no', cashea_nivel: deleteField(), cashea_estado: deleteField(), cashea_linea: deleteField(), cashea_deuda: deleteField() }))));
+  await prueba('no tiene fiador y se borra todo lo del fiador', assertSucceeds(updateDoc(LB, meta(8, { fiador: 'no', fiador_nom: deleteField(), fiador_tel: deleteField(), fiador_rel: deleteField(), fiador_ci: deleteField(), fiador_dir: deleteField(), fiador_ing: deleteField() }))));
   await prueba('un lead del formulario de antes (sin web_uid) no se edita desde la web', assertFails(updateDoc(doc(anon('anonA'), 'clientes/WEB-1789798989431'), meta(2, { uso_moto: 'personal' }))));
 
   // ── El equipo sigue igual ──

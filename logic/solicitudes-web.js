@@ -197,7 +197,9 @@ function _swFichaHtml(c){
     + '<div class="cf-section-h"><div class="cf-section-t">Solicitud web · '+_swEsc(c.id)+'</div>'
     + '<span class="bdg" style="background:'+estado[1]+';color:'+estado[2]+'">'+estado[0]+'</span></div>'
     + '<div class="cf-grid-3">'
-    + f('Llegó', _swCuando(c.creado))
+    // La hora del servidor (web_ts), no la del telefono: creado la escribe la pagina y se
+    // puede falsear (revision del 27-sep-2026; _cliCreado vive en logic/clientes.js)
+    + f('Llegó', _swCuando(typeof _cliCreado === 'function' ? _cliCreado(c) : (c.web_ts || c.creado)))
     + f('Formulario', _swAvance(c))
     + f('Moto de interés', c.moto_interes_modelo ? c.moto_interes_modelo+(c.moto_interes_sede?' · '+c.moto_interes_sede:'') : 'Pide asesoría')
     + f('Uso de la moto', _swTxt(SW_USO, c.uso_moto))

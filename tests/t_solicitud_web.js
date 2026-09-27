@@ -22,12 +22,12 @@ function elemento(tag){
 }
 
 // ── La base falsa: lotes, update() con increment/serverTimestamp, y "Reglas" minimas ──
-const FV = { serverTimestamp(){ return { __ts:true }; }, increment(n){ return { __inc:n }; } };
+const FV = { serverTimestamp(){ return { __ts:true }; }, increment(n){ return { __inc:n }; }, delete(){ return { __del:true }; } };
 function negado(){ const e = new Error('Missing or insufficient permissions.'); e.code = 'permission-denied'; return e; }
-function aplicar(doc, d){ Object.keys(d).forEach(k => { const v = d[k]; if(v && v.__inc) doc[k] = (doc[k]||0) + v.__inc; else if(v && v.__ts) doc[k] = 'TS'; else doc[k] = v; }); return doc; }
+function aplicar(doc, d){ Object.keys(d).forEach(k => { const v = d[k]; if(v && v.__inc) doc[k] = (doc[k]||0) + v.__inc; else if(v && v.__ts) doc[k] = 'TS'; else if(v && v.__del) delete doc[k]; else doc[k] = v; }); return doc; }
 function crearBase(){
   const almacen = {}, log = [];
-  const b = { almacen, log, rechazar:null, colgar:false };
+  const b = { almacen, log, rechazar:null, colgar:false, colgarLote:false, soltarLote:null };
   const ref = (col, id) => { const ruta = col+'/'+id; return { ruta, update(d){
     log.push({ tipo:'update', ruta, datos:d });
     if(b.colgar) return new Promise(() => {});
@@ -42,6 +42,7 @@ function crearBase(){
     collection(col){ return { doc(id){ return ref(col, id); } }; },
     batch(){ const ops = []; return { set(r, d){ ops.push([r, d]); }, async commit(){
       log.push({ tipo:'lote', rutas: ops.map(o => o[0].ruta), datos: ops.map(o => o[1]) });
+      if(b.colgarLote) await new Promise(r => { b.soltarLote = r; });   // sin señal: llega cuando se suelte
       if(ops.some(o => almacen[o[0].ruta])) throw negado();          // ya existe: la cedula o el marcador
       ops.forEach(o => { almacen[o[0].ruta] = aplicar({}, o[1]); });
     } }; }
@@ -204,7 +205,7 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   P.elegir('wz_banco', 'activa'); P.elegir('wz_banco_nm', 'Banesco', true); P.elegir('wz_banco_nm', 'Mercantil', true);
   await P.siguiente(false);
   u = ultimo();
-  ok('créditos y banco: la deuda escondida no viaja y los bancos van juntos', u.datos.historial === 'bueno' && u.datos.deudas === 'no' && !('deuda_mensual' in u.datos) && u.datos.banco_estado === 'activa' && u.datos.banco_nombre === 'Banesco, Mercantil');
+  ok('créditos y banco: con deudas "no" la deuda mensual se BORRA (no viaja un monto) y los bancos van juntos', u.datos.historial === 'bueno' && u.datos.deudas === 'no' && u.datos.deuda_mensual && u.datos.deuda_mensual.__del === true && u.datos.banco_estado === 'activa' && u.datos.banco_nombre === 'Banesco, Mercantil');
   ok('Cashea es su propia pantalla dentro de la parte 5', D.p5c.hidden === false && D.wzPaso.textContent === 'Parte 5 de 9 · Tu Cashea' && D.w_cashea.hidden === true);
   P.elegir('wz_cashea', 'si'); P.elegir('wz_cashea_nivel', '4'); P.elegir('wz_cashea_estado', 'al_dia'); D.wz_cashea_linea.value = '600';
   P.elegir('wz_cashea_deuda', 'si'); D.wz_cashea_monto.value = '350'; D.wz_cashea_cuotas_pend.value = '4'; D.wz_cashea_compras_activas.value = '2'; D.wz_cashea_prox_monto.value = '45';
@@ -353,7 +354,7 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   ok('"Elegir de mis contactos" nace escondido (solo aparece si el navegador lo tiene)', (html.match(/data-contacto="[a-z0-9]+" hidden>Elegir de mis contactos/g) || []).length === 3 && /navigator\.contacts\.select/.test(src('assets/public/request-ui.js')));
   ok('el lenguaje de la calle: "¿Cuántas personas viven de lo que tú ganas?" y la dirección con barrio', /¿Cuántas personas viven de lo que tú ganas\?/.test(html) && /barrio José Félix Ribas/.test(html));
   ok('la página no usa alert() ni guarda la sesión con signOut entre partes', !/alert\(/.test(rq) && (rq.match(/signOut\(\)/g) || []).length === 1);
-  ok('la hoja de estilo y los scripts van versionados', /assets\/public\/request\.css\?v=26-/.test(html) && /request\.js\?v=26-20260927-2/.test(html));
+  ok('la hoja de estilo y los scripts van versionados', /assets\/public\/request\.css\?v=26-/.test(html) && /request\.js\?v=26-20260927-3/.test(html));
 
   // ── Los valores: los mismos de las Reglas y los del asistente ──
   const O = P.OPC, q = l => '[' + l.map(x => "'"+x+"'").join(', ') + ']';
@@ -535,6 +536,128 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
     ok('...y la bandeja lo reconoce: "Ya tiene crédito", ya no "Sin atender"', ax._swTieneCredito(ax.S.clientes[0]) && /Ya tiene crédito/.test(ax._swFichaHtml(ax.S.clientes[0])) && ax._swPendientes().length === 0);
   }
 
+  // ══ Revision del 27-sep-2026 ══
+  {
+    const R = src('assets/public/request.js'), H = src('solicitar.html');
+    // 0422
+    const P0 = pagina({ ls: localStorageFalso(), auth: crearAuth(), base: crearBase() }); await esperar();
+    ok('0422 (Digitel) vale para el WhatsApp del cliente', P0.normTel('0422-1234567') && P0.normTel('0422-1234567').valor === '0422-1234567' && P0.normTel('0425-1234567') === null);
+    ok('...lo dice el mensaje y lo aceptan las Reglas', /0412, 0414, 0416, 0422, 0424 o 0426/.test(R) && /d\.tel\.matches\('0\(412\|414\|416\|422\|424\|426\)-\[0-9\]\{7\}'\)/.test(reglas));
+    // Coma de miles
+    const Dm = P0._dom; Dm.wz_m = elemento('m');
+    const leer = v => { Dm.wz_m.value = v; return P0._monto('wz_m'); };
+    ok('"1,200" → 1200, "$1,500" → 1500, "1,200.50" → 1200.5 (antes daban 1.2 y 1.5); "45,5" sigue siendo 45.5', leer('1,200') === 1200 && leer('$1,500') === 1500 && leer('1,200.50') === 1200.5 && leer('45,5') === 45.5 && leer('1.200,50') === 1200.5);
+    // V / E
+    ok('la cédula tiene su selector V/E al lado (el teclado numérico no tiene la E)', /<select id="wz_ci_tipo"[^>]*><option value="V">V<\/option><option value="E">E<\/option><\/select><input type="text" id="wz_ci" inputmode="numeric"/.test(H) && /<select id="wz_fiador_ci_tipo"/.test(H));
+    ok('...sin letra escrita usa la del selector; la letra escrita gana', P0.normCedula('81234567', 'E').valor === 'E-81234567' && P0.normCedula('81234567', 'V').valor === 'V-81234567' && P0.normCedula('E-81234567', 'V').valor === 'E-81234567' && P0.normCedula('81234567').valor === 'V-81234567');
+    Dm.wz_nom.value = 'Pierre Dubois'; Dm.wz_ci_tipo.value = 'E'; Dm.wz_ci.value = '81234567'; Dm.wz_tel.value = '0422-1234567'; Dm.wz_emp.value = 'formal'; Dm.wz_ing_rango.value = '400'; Dm.wz_estado.value = 'Zulia';
+    const pe = P0.buildClientePayload('anon-e');
+    ok('...y el lead de un extranjero sale con E-', pe.cedula === 'E-81234567' && pe.id === 'WEB-81234567' && pe.tel === '0422-1234567');
+    // Boton y errores accesibles
+    ok('"Enviar solicitud" nace deshabilitado en el HTML (sin JS no hay envío nativo) y la página lo habilita', /id="btnGuardarSolicitud"[^>]*disabled>Enviar solicitud</.test(H) && P0._dom.btnGuardarSolicitud.disabled === false);
+    ok('cada error de la página se anuncia (aria-live) y se une a su campo (aria-describedby)', (H.match(/class="ferr"(?! aria-live="polite")/g) || []).length === 0 && (H.match(/class="ferr" aria-live="polite"/g) || []).length >= 50);
+    P0.marcarCampo('wz_tel', 'Revisa el número');
+    const telAttrs = Object.assign({}, Dm.wz_tel.attrs); P0.marcarCampo('wz_tel', '');
+    ok('...marcarCampo pone y quita aria-describedby="err_<id>"', telAttrs['aria-describedby'] === 'err_wz_tel' && telAttrs['aria-invalid'] === 'true' && !('aria-describedby' in Dm.wz_tel.attrs));
+    // Fecha que no existe
+    Dm.wz_fn_d.value = '31'; Dm.wz_fn_m.value = '02'; Dm.wz_fn_a.value = '1995';
+    const ef = P0.datosPantalla('p9', true).errores;
+    Dm.wz_fn_d.value = '31'; Dm.wz_fn_m.value = ''; Dm.wz_fn_a.value = '';
+    const ef2 = P0.datosPantalla('p9', true).errores;
+    ok('31 de febrero: "Esa fecha no existe: revisa el día" (no "Completa…"); si falta algo, "Completa…"', ef.length === 1 && /Esa fecha no existe/.test(ef[0][1]) && /Completa el día, el mes y el año/.test(ef2[0][1]));
+
+    // ── Borrar mis respuestas y hacer otra: nada de la persona anterior ──
+    const cB = { ls: localStorageFalso(), auth: crearAuth(), base: crearBase() };
+    let PA = pagina(cB), DA = PA._dom; await esperar();
+    const etapas = []; PA.PagasiSolicitudUI = { etapa(i){ etapas.push(i); } };
+    DA.wz_nom.value = 'Carlos Pérez'; DA.wz_ci.value = '12345678'; DA.wz_tel.value = '04141234567'; DA.wz_emp.value = 'delivery'; DA.wz_ing_rango.value = '400'; DA.wz_estado.value = 'Miranda';
+    await PA.submitF({ preventDefault(){} });
+    PA.irA(0); for(let k = 0; k < 5; k++) await PA.siguiente(true);   // hasta la parte 6
+    DA.wz_dir_det.value = 'Petare, callejon Los Mangos, casa 25'; DA.wz_ciudad_res.value = 'Sucre'; await PA.siguiente(false);
+    DA.wz_r1n.value = 'Maria Gonzalez'; DA.wz_r1t.value = '0424-1112233'; await PA.siguiente(false);
+    PA.elegir('wz_fiador', 'si'); DA.wz_fiador_nom.value = 'José Rodríguez'; DA.wz_fiador_tel.value = '0412 765 43 21'; DA.wz_fiador_ci_tipo.value = 'E'; DA.wz_fiador_ci.value = '81234567';
+    await PA.salir();
+    await PA.borrarDeAqui();
+    ok('"Borrar mis respuestas de aquí": sale el final "borrado" y el lateral lo sabe', DA.fOK.cls.has('on') && /borramos tus respuestas/i.test(DA.okTitulo.textContent) && etapas.length && etapas[etapas.length-1].etapa === 'fin' && etapas[etapas.length-1].tipo === 'borrado');
+    const quedan = ['wz_nom','wz_ci','wz_tel','wz_dir_det','wz_ciudad_res','wz_r1n','wz_r1t','wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador','wz_emp','wz_estado'].filter(id => DA[id].value);
+    ok('...y la página queda en blanco (nada de la persona anterior)' + (quedan.length ? ' (quedan: '+quedan.join(', ')+')' : ''), quedan.length === 0 && DA.wz_ci_tipo.value === 'V' && DA.wz_fiador_ci_tipo.value === 'V');
+    PA.hacerOtra();
+    ok('"Hacer otra solicitud" abre la parte 1 vacía', DA.fs1.cls.has('on') && !DA.wz_nom.value && !DA.wz_ci.value && !DA.wz_tel.value);
+    DA.wz_nom.value = 'Ana Ruiz'; DA.wz_ci.value = '23456789'; DA.wz_tel.value = '0424-7654321'; DA.wz_emp.value = 'formal'; DA.wz_ing_rango.value = '225'; DA.wz_estado.value = 'Lara';
+    await PA.submitF({ preventDefault(){} });
+    PA.irA(0); for(let k = 0; k < 9; k++) await PA.siguiente(false);
+    const B2 = cB.base.almacen['clientes/WEB-23456789'];
+    ok('...la persona nueva toca "Siguiente" en todo y su ficha no trae la dirección, la referencia ni el fiador de la otra', !!B2 && !B2.dir && !B2.ciudad && !B2.ref1 && !B2.fiador_nom && B2.web_paso === 9);
+
+    // ── Corregirse a "No" borra lo que dependía del "Sí" ──
+    const cC = { ls: localStorageFalso(), auth: crearAuth(), base: crearBase() };
+    let PC = pagina(cC), DC = PC._dom; await esperar();
+    DC.wz_nom.value = 'Luis Mora'; DC.wz_ci.value = '34567890'; DC.wz_tel.value = '0414-5556677'; DC.wz_emp.value = 'formal'; DC.wz_ing_rango.value = '400'; DC.wz_estado.value = 'Lara';
+    await PC.submitF({ preventDefault(){} });
+    PC.irA(3);   // parte 5
+    PC.elegir('wz_deuda', 'graves'); DC.wz_deuda_mensual.value = '300'; PC.elegir('wz_banco', 'activa'); PC.elegir('wz_banco_nm', 'Banesco', true);
+    await PC.siguiente(false);
+    PC.elegir('wz_cashea', 'si'); PC.elegir('wz_cashea_nivel', '4'); PC.elegir('wz_cashea_deuda', 'si'); DC.wz_cashea_monto.value = '400'; DC.wz_cashea_cuotas_pend.value = '4';
+    await PC.siguiente(false);
+    const LC = () => cC.base.almacen['clientes/WEB-34567890'];
+    ok('primero dice que debe, que tiene banco y que debe en Cashea', LC().deuda_mensual === 300 && LC().banco_nombre === 'Banesco' && LC().cashea_monto === 400);
+    PC.irA(3); PC.elegir('wz_deuda', 'no'); PC.elegir('wz_banco', 'no');
+    await PC.siguiente(false);
+    PC.elegir('wz_cashea_deuda', 'no');
+    await PC.siguiente(false);
+    ok('...se corrige a "No": la deuda mensual, el banco y lo que debía en Cashea se borran de la ficha', LC().deudas === 'no' && !('deuda_mensual' in LC()) && LC().banco_estado === 'no' && !('banco_nombre' in LC()) && LC().cashea_deuda === 'no' && !('cashea_monto' in LC()) && !('cashea_cuotas_pend' in LC()) && LC().cashea_nivel === '4');
+    PC.irA(4); PC.elegir('wz_cashea', 'no'); await PC.siguiente(false);
+    ok('..."No uso Cashea" borra nivel y deuda de Cashea', LC().cashea === 'no' && !('cashea_nivel' in LC()) && !('cashea_deuda' in LC()));
+    PC.irA(7); PC.elegir('wz_fiador', 'si'); DC.wz_fiador_nom.value = 'José Rodríguez'; DC.wz_fiador_tel.value = '0412 765 43 21'; await PC.siguiente(false);
+    ok('...el fiador con nombre y teléfono se guarda', LC().fiador === 'si' && LC().fiador_nom === 'José Rodríguez');
+    PC.irA(7); PC.elegir('wz_fiador', 'no'); await PC.siguiente(false);
+    ok('..."No tengo" borra su nombre y su teléfono (el contrato lo imprimía igual)', LC().fiador === 'no' && !('fiador_nom' in LC()) && !('fiador_tel' in LC()));
+    ok('las Reglas dejan borrar esos campos SOLO si su respuesta queda en "no"', /!\('deuda_mensual' in d\) && d\.get\('deudas', ''\) == 'no'/.test(reglas) && /function sinDeudaCashea\(d\)/.test(reglas) && /!\('fiador_nom' in d\) && d\.get\('fiador', ''\) == 'no'/.test(reglas));
+
+    // ── Monto que no calza con el rango: se pregunta una vez ──
+    PC.irA(2); PC.elegir('wz_dia_cobro', 'mensual'); DC.wz_monto.value = '100';
+    await PC.siguiente(false);
+    ok('marcó "$300 a $500" y escribe 100 al mes: "¿Seguro?…" y no avanza', DC.p4.hidden === false && /¿Seguro\? Eso da \$100 al mes y al principio marcaste \$300 a \$500/.test(DC.err_wz_monto.textContent));
+    await PC.siguiente(false);
+    ok('...si toca Siguiente otra vez, se guarda como lo dijo', DC.p5.hidden === false && LC().ingreso === 100 && LC().ingreso_exacto === true);
+
+    // ── Sin señal en la parte 1: avisa y sigue esperando el MISMO lote ──
+    const cD = { ls: localStorageFalso(), auth: crearAuth(), base: crearBase() };
+    let PD = pagina(cD), DD = PD._dom; await esperar();
+    DD.wz_nom.value = 'Rosa Pérez'; DD.wz_ci.value = '45678901'; DD.wz_tel.value = '0416-1112233'; DD.wz_emp.value = 'informal'; DD.wz_ing_rango.value = '225'; DD.wz_estado.value = 'Sucre';
+    cD.base.colgarLote = true; PD._vencerTiempos = true;
+    const enviando = PD.submitF({ preventDefault(){} });
+    await esperar();
+    ok('sin señal: a los 20 s avisa que se enviará apenas vuelva, con WhatsApp', /Estás sin señal/.test(DD.fAviso.innerHTML) && /wa\.me/.test(DD.fAviso.innerHTML) && DD.btnGuardarSolicitud.textContent === 'Esperando señal…');
+    await PD.submitF({ preventDefault(){} });
+    ok('...no manda un segundo lote mientras espera', cD.base.log.filter(x => x.tipo === 'lote').length === 1);
+    PD._vencerTiempos = false; cD.base.soltarLote(); await enviando;
+    ok('...y cuando llega, sigue solo a "ya nos llegó"', DD.fMas.cls.has('on') && !!cD.base.almacen['clientes/WEB-45678901'] && DD.fAviso.innerHTML === '' && DD.btnGuardarSolicitud.disabled === false);
+
+    // ── Pausa: el mismo navegador, y dentro de Instagram el mismo enlace ──
+    PD.irA(0); await PD.salir();
+    ok('la pausa dice "en este mismo navegador del teléfono" (no solo "teléfono")', /este mismo navegador del teléfono/.test(DD.pausaComo.textContent) && DD.pausaWA.cls.has('btn-s'));
+    PD.navigator = { userAgent:'Mozilla/5.0 Instagram 300.0' }; PD.irA(0); await PD.salir();
+    ok('...dentro de Instagram: "por el mismo enlace de Instagram" y WhatsApp como botón principal', /mismo enlace de Instagram o Facebook/.test(DD.pausaComo.textContent) && DD.pausaWA.cls.has('btn-p') && !DD.pausaWA.cls.has('btn-s'));
+
+    // ── El lateral en los finales ──
+    const cE = { ls: localStorageFalso(), auth: crearAuth(), base: crearBase() };
+    cE.base.almacen['clientes/WEB-56789012'] = { id:'WEB-56789012' };
+    let PE = pagina(cE), DE = PE._dom; await esperar();
+    const etE = []; PE.PagasiSolicitudUI = { etapa(i){ etE.push(i); } };
+    DE.wz_nom.value = 'Juan Díaz'; DE.wz_ci.value = '56789012'; DE.wz_tel.value = '0412-9998877'; DE.wz_emp.value = 'informal'; DE.wz_ing_rango.value = '225'; DE.wz_estado.value = 'Sucre';
+    await PE.submitF({ preventDefault(){} });
+    ok('"duplicado": el lateral recibe el tipo de final', etE.length && etE[etE.length-1].etapa === 'fin' && etE[etE.length-1].tipo === 'duplicado');
+    const UI = src('assets/public/request-ui.js');
+    ok('...y para "duplicado" y "perdida" dice "Escríbenos por WhatsApp", no "Te escribimos"', /info\.tipo==='duplicado'\|\|info\.tipo==='perdida'/.test(UI) && /<h2>Escríbenos por WhatsApp<\/h2>/.test(UI));
+
+    // ── La bandeja: "Llegó" con la hora del servidor ──
+    const ws = Math.floor(Date.UTC(2026, 8, 27, 13, 5, 0) / 1000);
+    const esperado = new Date(ws * 1000).toLocaleDateString('es-VE', { day:'2-digit', month:'short' });
+    const fichaW = cx._swFichaHtml({ id:'WEB-67890123', nombre:'X Y', origen:'web', estado:'lead', creado:'2099-12-31T23:59:59.999Z', web_ts:{ seconds: ws } });
+    ok('"Llegó" usa web_ts (la hora del servidor), no el creado del teléfono', fichaW.indexOf(esperado) > -1 && fichaW.indexOf(new Date('2099-12-31T23:59:59.999Z').toLocaleDateString('es-VE', { day:'2-digit', month:'short' })) === -1);
+  }
+
   // ── Los ganchos en los archivos compartidos ──
   ok('admin.html carga solicitudes-web.js', /logic\/solicitudes-web\.js\?v=/.test(src('admin.html')));
   ok('Clientes tiene la pestaña y el filtro', /_swChip/.test(src('modules/clientes.js')) && /filtro==='web'/.test(src('logic/clientes.js')));
@@ -548,11 +671,14 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   if(fs.existsSync(rutaClon)){
     const clon = fs.readFileSync(rutaClon, 'utf8');
     const solo = (/SOLO_26="([^"]+)"/.exec(clon) || [,''])[1].replace(/\\\n/g, ' ').split(/\s+/).filter(Boolean);
-    ok('preparar-clon-26.sh conserva las pruebas de reglas y su workflow', ['tests/reglas/t_reglas_solicitud_web.js', '.github/workflows/reglas-probar.yml', 'firestore.rules', 'solicitar.html'].every(f => solo.indexOf(f) > -1));
+    ok('preparar-clon-26.sh conserva las pruebas de reglas, su base de la 18 y su workflow', ['tests/reglas/t_reglas_solicitud_web.js', 'tests/reglas/base-18.rules', '.github/workflows/reglas-probar.yml', 'firestore.rules', 'solicitar.html'].every(f => solo.indexOf(f) > -1));
+    const trozoBase = clon.slice(clon.indexOf('if [ -f tests/reglas/base-18.rules ]'), clon.indexOf('Los ganchos solo si la bandeja existe'));
+    ok('...y SE PARA si las Reglas de la 18 cambiaron desde esa base (antes solo contaba líneas)', /diff -q tests\/reglas\/base-18\.rules <\(git -C "\$ORIG" show "\$RAMA:firestore\.rules"\)/.test(trozoBase) && /exit 1/.test(trozoBase));
     ok('...y los restaura DESPUÉS de borrar los workflows de PAGASI 18', clon.indexOf('rm -rf reportes .github/workflows') > -1 && clon.indexOf('rm -rf reportes .github/workflows') < clon.indexOf('for f in $SOLO_26'));
   }
   const wf = src('.github/workflows/reglas-probar.yml');
-  ok('el workflow de reglas es manual, sin secretos, y corre las de la solicitud web', /workflow_dispatch/.test(wf) && !/secrets\./.test(wf) && /t_reglas_solicitud_web\.js/.test(wf) && /t_reglas_gps_cliente\.js/.test(wf));
+  ok('el workflow de reglas: a mano o al subir solicitud-web con cambios en las Reglas, sin secretos, y corre las de la solicitud web', /workflow_dispatch/.test(wf) && /push:\s*\n\s*branches: \[solicitud-web\]/.test(wf) && /- 'firestore\.rules'/.test(wf) && !/secrets\./.test(wf) && /t_reglas_solicitud_web\.js/.test(wf) && /t_reglas_gps_cliente\.js/.test(wf));
+  ok('la base de las Reglas de la 18 está guardada en la 26', fs.existsSync(path.join(ROOT, 'tests/reglas/base-18.rules')) && /esStaff\(\)/.test(src('tests/reglas/base-18.rules')));
 
   console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
   if(fail) process.exitCode = 1;

@@ -27,6 +27,14 @@
     if(!area) return;
     if(etapaActual==='parte1'){ summary(); return; }
     if(etapaActual==='fin'){
+      // Revision del 27-sep-2026: en "duplicado" (no se pudo registrar) y "perdida" (no se
+      // puede seguir desde aqui) la tarjeta dice "escribenos", y el lateral decia lo contrario
+      // ("te escribimos"): quien no quedo registrado esperaba un mensaje que no iba a llegar.
+      if(info.tipo==='duplicado'||info.tipo==='perdida'){
+        const wa='https://wa.me/584242177798?text='+encodeURIComponent('Hola, intenté hacer mi solicitud por pagasi.io y no pude terminarla.');
+        area.innerHTML='<h2>Escríbenos por WhatsApp</h2><p class="pg-note">Desde aquí no pudimos seguir con tu solicitud. Un asesor te atiende por WhatsApp.</p><a class="pg-button pg-button-full" href="'+wa+'" target="_blank" rel="noopener" style="margin-top:16px">Escribir por WhatsApp</a>';
+        return;
+      }
       area.innerHTML='<h2>Ya está en manos de un asesor</h2><p class="pg-note">Te escribimos por WhatsApp. Mientras tanto puedes seguir mirando el catálogo.</p><a class="pg-link" href="catalogo.html" style="margin-top:20px">Ver el catálogo →</a>';
       return;
     }

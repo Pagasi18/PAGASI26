@@ -101,3 +101,8 @@
   .pg-request .fq-t{font-size:15px}
   .pg-request .ffecha{grid-template-columns:1fr 1.4fr 1.2fr}
 }
+
+/* La cedula con su letra al lado (revision del 27-sep-2026): el teclado numerico no tiene la E */
+.pg-request .fci{display:grid;grid-template-columns:70px minmax(0,1fr);gap:8px}
+.pg-request .fci select{padding-left:12px;padding-right:6px;font-weight:800}
+.pg-request button[type=submit]:disabled{opacity:.6;cursor:wait}

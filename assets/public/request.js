@@ -142,21 +142,26 @@ var FACTOR_COBRO = { semanal:4.3, diario:26, quincenal:2, mensual:1, variable:1 
 var UNIDAD_COBRO = { semanal:'en una semana normal', diario:'en un día normal', quincenal:'en una quincena', mensual:'en un mes', variable:'en un mes normal' };
 
 // ── Normalizacion: lo que escribe el cliente, como lo guarda el sistema ────
-// "v 12.345.678" → V-12345678. Solo V o E (las de persona); sin letra se asume V.
-function normCedula(s){
+// "v 12.345.678" → V-12345678. Solo V o E (las de persona); sin letra se usa la del selector
+// V/E que esta al lado del campo (letra), y si no hay, V. Revision del 27-sep-2026: el campo
+// abre el teclado numerico, que en Android no tiene letras, y a un extranjero se le ponia V-
+// sin preguntarle.
+function normCedula(s, letraSel){
   var t = String(s||'').toUpperCase().replace(/[^0-9VE]/g,'');
-  var letra = /^[VE]/.test(t) ? t.charAt(0) : 'V';
+  var letra = /^[VE]/.test(t) ? t.charAt(0) : (letraSel === 'E' ? 'E' : 'V');
   var d = t.replace(/[^0-9]/g,'').replace(/^0+/,'');
   if(d.length < 6 || d.length > 9) return null;
   return { valor: letra+'-'+d, digitos: d };
 }
 // "+58 414 123 45 67", "4141234567", "0414-1234567" → 0414-1234567. Solo celulares:
-// la respuesta va por WhatsApp.
+// la respuesta va por WhatsApp. 0422 es el prefijo nuevo de Digitel (julio de 2025): sin el,
+// un cliente con esa linea no podia enviar ni la parte 1 (revision del 27-sep-2026). La misma
+// lista esta en firestore.rules (esLeadWeb).
 function normTel(s){
   var d = String(s||'').replace(/[^0-9]/g,'');
   if(d.indexOf('58') === 0 && d.length === 12) d = '0' + d.slice(2);
   if(d.length === 10 && d.charAt(0) !== '0') d = '0' + d;
-  if(!/^0(412|414|416|424|426)[0-9]{7}$/.test(d)) return null;
+  if(!/^0(412|414|416|422|424|426)[0-9]{7}$/.test(d)) return null;
   return { valor: d.slice(0,4)+'-'+d.slice(4), wa: '58'+d.slice(1) };
 }
 // Referencias y fiador: cualquier telefono venezolano de 11 numeros (tambien fijos)
@@ -178,10 +183,14 @@ function _raw(id){ var e=document.getElementById(id); return e ? String(e.value=
 function _n(id){ var e=document.getElementById(id); return e ? (parseFloat(e.value)||0) : 0; }
 function _el(id){ return document.getElementById(id); }
 // Un monto como lo escribe la gente: "80", "$ 80", "1.200", "45,5". null = vacio, NaN = no se entiende
+// Revision del 27-sep-2026: "1,200" y "$1,500" (coma de miles, como en los teclados en ingles)
+// se leian como 1,2 y 1,5: un ingreso de US$ 1 marcado como exacto, que cae en el rechazo
+// automatico por ingreso minimo. Coma seguida de grupos de TRES cifras es de miles.
 function _monto(id){
   var s = _raw(id).replace(/[$\s]/g,'');
   if(!s) return null;
   if(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g,'').replace(',', '.');
+  else if(/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g,'');
   else s = s.replace(',', '.');
   if(!/^\d+(\.\d+)?$/.test(s)) return NaN;
   return parseFloat(s);
@@ -190,17 +199,20 @@ function _monto(id){
 // ── Validacion en linea (parte 1) ─────────────────────────────────────────
 var CAMPOS1 = [
   { id:'wz_nom',       ok:function(v){ return _nombreOk(v); },   msg:'Escribe tu nombre y tu apellido.' },
-  { id:'wz_ci',        ok:function(v){ return !!normCedula(v); }, msg:'Cédula de 6 a 9 números, por ejemplo V-12345678.' },
-  { id:'wz_tel',       ok:function(v){ return !!normTel(v); },    msg:'Un celular venezolano: 0412, 0414, 0416, 0424 o 0426.' },
+  { id:'wz_ci',        ok:function(v){ return !!normCedula(v); }, msg:'Cédula de 6 a 9 números, por ejemplo 12345678.' },
+  { id:'wz_tel',       ok:function(v){ return !!normTel(v); },    msg:'Un celular venezolano: 0412, 0414, 0416, 0422, 0424 o 0426.' },
   { id:'wz_emp',       ok:function(v){ return TRABAJOS.indexOf(v) > -1; }, msg:'Cuéntanos a qué te dedicas.' },
   { id:'wz_ing_rango', ok:function(v){ return !!RANGOS_INGRESO[v]; },     msg:'Elige un rango aproximado. No hace falta el número exacto.' },
   { id:'wz_estado',    ok:function(v){ return ESTADOS_VE.indexOf(v) > -1; }, msg:'Elige el estado donde vives.' }
 ];
+// El error va al lado del campo y, desde la revision del 27-sep-2026, tambien unido a el con
+// aria-describedby (y los .ferr con aria-live en solicitar.html): TalkBack decia "no valido"
+// sin decir por que.
 function marcarCampo(id, msg){
   var el = _el(id); if(!el) return;
   var fg = el.closest ? el.closest('.fg, .fq') : null, err = _el('err_'+id);
-  if(msg){ el.classList.add('is-bad'); if(fg) fg.classList.add('has-err'); el.setAttribute('aria-invalid','true'); }
-  else { el.classList.remove('is-bad'); if(fg) fg.classList.remove('has-err'); el.removeAttribute('aria-invalid'); }
+  if(msg){ el.classList.add('is-bad'); if(fg) fg.classList.add('has-err'); el.setAttribute('aria-invalid','true'); if(err) el.setAttribute('aria-describedby', 'err_'+id); }
+  else { el.classList.remove('is-bad'); if(fg) fg.classList.remove('has-err'); el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); }
   if(err) err.textContent = msg || '';
 }
 // Devuelve el primer campo con problema (o null). Con mostrar=true pinta los errores.
@@ -241,7 +253,7 @@ function _pintarPlan(){
 // Solo lo que admite esLeadWeb. Ya no van notas (el rango viaja en ingreso_rango),
 // score, f1..f5, impresion, documentos ni conocio: eso lo escribe el equipo.
 function buildClientePayload(uid){
-  var ci = normCedula(_v('wz_ci')), tel = normTel(_v('wz_tel'));
+  var ci = normCedula(_v('wz_ci'), _raw('wz_ci_tipo')), tel = normTel(_v('wz_tel'));
   var motoId = fM ? (parseInt(fM.value,10) || null) : null;
   var motoData = (motoId != null && !isNaN(motoId)) ? CATALOG.find(function(m){ return m.id===motoId; }) : null;
   var rango = _raw('wz_ing_rango'), estado = _raw('wz_estado'), trabajo = _raw('wz_emp');
@@ -296,8 +308,21 @@ var CAMPOS_WIZ = ['wz_uso','wz_moto_previa','wz_empresa','wz_cargo','wz_ant','wz
   'wz_cashea_cuotas_pend','wz_cashea_compras_activas','wz_cashea_prox_monto',
   'wz_ciudad_res','wz_dir_det','wz_dir_ref','wz_tdir','wz_viv',
   'wz_r1n','wz_r1t','wz_r1r','wz_r2n','wz_r2t','wz_r2r',
-  'wz_fiador','wz_fiador_nom','wz_fiador_tel','wz_fiador_rel','wz_fiador_ci','wz_fiador_dir','wz_fiador_ing',
+  'wz_fiador','wz_fiador_nom','wz_fiador_tel','wz_fiador_rel','wz_fiador_ci_tipo','wz_fiador_ci','wz_fiador_dir','wz_fiador_ing',
   'wz_fn_d','wz_fn_m','wz_fn_a','wz_email','wz_rif','wz_conocio'];
+
+// Revision del 27-sep-2026: si el cliente cambia a "No" una respuesta de la que dependen otras
+// (debe, tiene banco, usa Cashea, debe en Cashea, tiene fiador), lo que habia dicho con el "Si"
+// se quedaba en la ficha: el asistente lo precargaba y el monto de Cashea volvia a restar en el
+// score aunque dijo que no debe nada. Ahora esos campos se BORRAN (las Reglas lo permiten solo
+// cuando la respuesta de la que dependen queda en "no"). BORRAR es una marca local: se cambia
+// por FieldValue.delete() justo al enviar (guardarPantalla), asi el borrador y la firma de lo
+// guardado siguen siendo texto.
+var BORRAR = { __borrar: true };
+function _esBorrar(v){ return !!v && v.__borrar === true; }
+// El monto mensual que no calza con el rango de la parte 1 (menos de la mitad del minimo): se
+// pregunta una vez, por si se equivoco de unidad o de numero (revision del 27-sep-2026).
+var RANGO_MIN = { 'Menos de $150':0, '$150 a $300':150, '$300 a $500':300, '$500 a $800':500, 'Más de $800':800 };
 
 // Lo que se guarda de una pantalla: SOLO lo contestado (nunca '' ni 0 por un vacio).
 // Con validar=true tambien devuelve los errores para pintarlos al lado del campo; con
@@ -306,6 +331,7 @@ function datosPantalla(pid, validar){
   var o = {}, errores = [];
   var err = function(id, msg){ errores.push([id, msg]); };
   var codigo = function(k, id, lista){ var v = _raw(id); if(v && lista.indexOf(v) > -1) o[k] = v; return o[k] || ''; };
+  var borrar = function(){ for(var i = 0; i < arguments.length; i++) o[arguments[i]] = BORRAR; };
   var texto = function(k, id, max){ var v = _v(id).slice(0, max); if(v) o[k] = v; };
   var monto = function(k, id, entero){
     var n = _monto(id); if(n === null) return;
@@ -327,7 +353,12 @@ function datosPantalla(pid, validar){
     var n = _monto('wz_monto');
     if(n !== null){
       var mes = isNaN(n) ? NaN : Math.round(n * FACTOR_COBRO[dia || 'mensual']);
+      var rango = (LEAD && LEAD.ingreso_rango) || '', minimo = RANGO_MIN[rango] || 0;
       if(isNaN(mes) || mes > 100000) err('wz_monto', 'Escribe solo el número, por ejemplo 80.');
+      else if(validar && mes > 0 && minimo && mes < minimo / 2 && ESTADO.montoVisto !== _raw('wz_monto')+'|'+dia){
+        ESTADO.montoVisto = _raw('wz_monto')+'|'+dia;
+        err('wz_monto', '¿Seguro? Eso da $'+mes+' al mes y al principio marcaste '+rango+'. Revisa el número; si está bien, toca Siguiente otra vez.');
+      }
       else if(mes > 0){ o.ingreso = mes; o.ingreso_exacto = true; }
     }
     codigo('remesas', 'wz_rem', OPC.si_no);
@@ -339,20 +370,26 @@ function datosPantalla(pid, validar){
     codigo('historial', 'wz_hist', OPC.historial);
     var deu = codigo('deudas', 'wz_deuda', OPC.deudas);
     if(deu && deu !== 'no') monto('deuda_mensual', 'wz_deuda_mensual');
+    else if(deu === 'no') borrar('deuda_mensual');
     var ban = codigo('banco_estado', 'wz_banco', OPC.banco_estado);
     if(ban && ban !== 'no') texto('banco_nombre', 'wz_banco_nm', 160);
+    else if(ban === 'no') borrar('banco_nombre');
   } else if(pid === 'p5c'){
     // Cashea: solo los campos que se quedan (decision de Adam del 27-sep)
-    if(codigo('cashea', 'wz_cashea', OPC.si_no) === 'si'){
+    var usaCashea = codigo('cashea', 'wz_cashea', OPC.si_no);
+    if(usaCashea === 'si'){
       codigo('cashea_nivel', 'wz_cashea_nivel', OPC.cashea_nivel);
       codigo('cashea_estado', 'wz_cashea_estado', OPC.cashea_estado);
       monto('cashea_linea', 'wz_cashea_linea');
-      if(codigo('cashea_deuda', 'wz_cashea_deuda', OPC.si_no) === 'si'){
+      var debeCashea = codigo('cashea_deuda', 'wz_cashea_deuda', OPC.si_no);
+      if(debeCashea === 'si'){
         monto('cashea_monto', 'wz_cashea_monto');
         monto('cashea_cuotas_pend', 'wz_cashea_cuotas_pend', true);
         monto('cashea_compras_activas', 'wz_cashea_compras_activas', true);
         monto('cashea_prox_monto', 'wz_cashea_prox_monto');
-      }
+      } else if(debeCashea === 'no') borrar('cashea_monto', 'cashea_cuotas_pend', 'cashea_compras_activas', 'cashea_prox_monto');
+    } else if(usaCashea === 'no'){
+      borrar('cashea_nivel', 'cashea_estado', 'cashea_linea', 'cashea_deuda', 'cashea_monto', 'cashea_cuotas_pend', 'cashea_compras_activas', 'cashea_prox_monto');
     }
   } else if(pid === 'p6'){
     texto('ciudad', 'wz_ciudad_res', 80);
@@ -391,17 +428,24 @@ function datosPantalla(pid, validar){
         if(ftel) o.fiador_tel = ftel;
         codigo('fiador_rel', 'wz_fiador_rel', OPC.fiador_rel);
         var fciTxt = _v('wz_fiador_ci');
-        if(fciTxt){ var fci = normCedula(fciTxt); if(fci) o.fiador_ci = fci.valor; else err('wz_fiador_ci', 'Revisa la cédula: por ejemplo V-12345678.'); }
+        if(fciTxt){ var fci = normCedula(fciTxt, _raw('wz_fiador_ci_tipo')); if(fci) o.fiador_ci = fci.valor; else err('wz_fiador_ci', 'Revisa la cédula: por ejemplo 12345678.'); }
         texto('fiador_dir', 'wz_fiador_dir', 200);
         monto('fiador_ing', 'wz_fiador_ing');
         if(ftel) o.fiador = 'si';
       }
+    } else if(fi === 'no'){
+      // "No tengo": lo que habia escrito del fiador se borra (el contrato imprime el fiador por
+      // su nombre, aunque diga que no tiene).
+      borrar('fiador_nom', 'fiador_tel', 'fiador_rel', 'fiador_ci', 'fiador_dir', 'fiador_ing');
     }
   } else if(pid === 'p9'){
     var d = _raw('wz_fn_d'), m = _raw('wz_fn_m'), a = _raw('wz_fn_a');
     if(d || m || a){
       var f = fechaNacimiento(d, m, a);
-      if(f) o.fecha_nacimiento = f; else err('wz_fn_d', 'Completa el día, el mes y el año.');
+      // Con los tres elegidos, lo que falla es la fecha (31 de febrero), no que falte algo
+      // (revision del 27-sep-2026)
+      if(f) o.fecha_nacimiento = f;
+      else err('wz_fn_d', (d && m && a) ? 'Esa fecha no existe: revisa el día.' : 'Completa el día, el mes y el año.');
     }
     var mail = _limpia(_raw('wz_email')).replace(/\s/g,'').toLowerCase();
     if(mail){
@@ -442,7 +486,7 @@ var ESTADO = { i:0, paso:1, guardado:{}, pend:{}, ocupado:false };
 // reenviar lo que se quedo sin señal. Solo texto, nunca fotos. Vence con la ventana de
 // las Reglas (7 dias) y se borra al Terminar, al salir y al borrar desde el telefono.
 var BORRADOR_KEY = 'pagasi_solicitud_borrador_v1', BORRADOR_DIAS = 7;
-var CAMPOS_BORRADOR = ['wz_nom','wz_ci','wz_tel','wz_emp','wz_ing_rango','wz_estado','fM'];
+var CAMPOS_BORRADOR = ['wz_nom','wz_ci_tipo','wz_ci','wz_tel','wz_emp','wz_ing_rango','wz_estado','fM'];
 function guardarBorrador(){
   try{
     var o = { t: Date.now() };
@@ -453,9 +497,9 @@ function guardarBorrador(){
       o.i = ESTADO.i; o.parte = PANTALLAS[ESTADO.i] ? PANTALLAS[ESTADO.i].parte : 2; o.paso = ESTADO.paso;
       o.guardado = ESTADO.guardado; o.pend = ESTADO.pend;
       o.v = {};
-      CAMPOS_WIZ.forEach(function(id){ var e = _el(id); if(e && e.value) o.v[id] = String(e.value).slice(0,300); });
+      CAMPOS_WIZ.forEach(function(id){ var e = _el(id); if(e && e.value && !(id === 'wz_fiador_ci_tipo' && e.value === 'V')) o.v[id] = String(e.value).slice(0,300); });
     } else {
-      CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e && e.value) o[id] = String(e.value).slice(0,120); });
+      CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e && e.value && !(id === 'wz_ci_tipo' && e.value === 'V')) o[id] = String(e.value).slice(0,120); });
       if(Object.keys(o).length <= 1){ localStorage.removeItem(BORRADOR_KEY); return; }
     }
     localStorage.setItem(BORRADOR_KEY, JSON.stringify(o));
@@ -477,7 +521,8 @@ function cargarBorrador(o){
     o = o || leerBorrador(); if(!o || o.leadId) return false;
     if(borradorVencido(o)){ borrarBorrador(); return false; }
     var puso = false;
-    CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e && o[id] && !e.value){ e.value = o[id]; puso = true; } });
+    // La letra de la cedula siempre tiene valor (V): se pone la del borrador igual
+    CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e && o[id] && (!e.value || id === 'wz_ci_tipo')){ e.value = o[id]; puso = true; } });
     if(puso && _el('fM') && typeof _pintarPlan==='function') _pintarPlan();
     return puso;
   }catch(e){ return false; }
@@ -516,11 +561,11 @@ function _pantalla(id){
   if(card && card.scrollIntoView){ try{ card.scrollIntoView({ block:'start', behavior:'smooth' }); }catch(e){ card.scrollIntoView(); } }
   var e = _el(id); if(e){ e.setAttribute('tabindex','-1'); try{ e.focus({ preventScroll:true }); }catch(_e){} }
 }
-function _ui(etapa){
+function _ui(etapa, tipo){
   try{
     if(window.PagasiSolicitudUI && typeof window.PagasiSolicitudUI.etapa === 'function'){
       var p = PANTALLAS[ESTADO.i] || PANTALLAS[0];
-      window.PagasiSolicitudUI.etapa({ etapa: etapa, leadId: LEAD ? LEAD.id : '', parte: p.parte, total: TOTAL_PARTES });
+      window.PagasiSolicitudUI.etapa({ etapa: etapa, tipo: tipo || '', leadId: LEAD ? LEAD.id : '', parte: p.parte, total: TOTAL_PARTES });
     }
   }catch(e){}
 }
@@ -561,8 +606,27 @@ function mostrarFin(tipo){
   var a = _el('okWA'); if(a) a.href = _waHref(msg);
   _ocultar('btnNueva', tipo !== 'perdida' && tipo !== 'borrado');   // el telefono queda libre para otra persona
   _pantalla('fOK');
-  _ui('fin');
   LEAD = null; ESTADO = { i:0, paso:1, guardado:{}, pend:{}, ocupado:false };
+  _ui('fin', tipo);   // el lateral no promete que le escriben cuando no pudo registrarse
+  limpiarFormulario();
+}
+// Revision del 27-sep-2026: "Borrar mis respuestas de aquí" borraba el borrador del telefono,
+// pero los campos de la pagina seguian llenos, y "Hacer otra solicitud" abria la parte 1 con
+// el nombre, la cedula y el telefono de la persona anterior; las partes 2 a 9 guardaban su
+// direccion, sus referencias y su fiador, y si la persona nueva tocaba "Siguiente" se iban a
+// SU ficha. Ahora cada final deja la pagina en blanco (el mensaje de WhatsApp ya se armo).
+function limpiarFormulario(){
+  CAMPOS_BORRADOR.concat(CAMPOS_WIZ).forEach(function(id){
+    var e = _el(id); if(!e) return;
+    e.value = (id === 'wz_ci_tipo' || id === 'wz_fiador_ci_tipo') ? 'V' : '';
+    marcarCampo(id, '');
+  });
+  if(fM){ fM.value = (requestedMoto && PagasiCatalog.get(requestedMoto)) ? requestedMoto : ''; }
+  _ocultar('w_fiador_mas', true); _ocultar('btnFiadorMas', false);
+  _ocultar('fnAviso', true);
+  mostrarAviso(''); avisoWiz('');
+  condiciones(); pintarBotones();
+  if(typeof _pintarPlan === 'function') _pintarPlan();
 }
 
 // ── Parte 1: enviar ───────────────────────────────────────────────────────
@@ -589,7 +653,17 @@ async function submitF(ev){
     var lote = db.batch();
     lote.set(db.collection('clientes').doc(String(payload.id)), payload);
     lote.set(db.collection('web_sesiones').doc(uid), { leadId: payload.id, ts: _FV().serverTimestamp() });
-    await lote.commit();
+    // Revision del 27-sep-2026: Firestore no resuelve el lote mientras no hay señal, y el boton
+    // se quedaba en "Enviando…" para siempre, sin decir nada. A los 20 s se avisa y se sigue
+    // esperando el MISMO lote (no se manda otro: caeria como "duplicado"); cuando llega, sigue
+    // solo. __submittingSolicitud se suelta recien cuando el lote termina.
+    var envio = lote.commit();
+    if(await _conTiempo(envio, 20000) === _TIEMPO){
+      mostrarAviso('Estás sin señal: tu solicitud se enviará apenas vuelva. No cierres esta página. Si prefieres, <a href="'+_waHref('Hola, intenté enviar mi solicitud por pagasi.io y no tengo señal.')+'" target="_blank" rel="noopener">escríbenos por WhatsApp</a>.');
+      if(btn) btn.textContent = 'Esperando señal…';
+      await envio;
+      mostrarAviso('');
+    }
     LEAD = { id: payload.id, uid: uid, nombre: payload.nombre, creado: Date.now(), trabajo: payload.trabajo,
              ingreso_rango: payload.ingreso_rango, estado_ubi: payload.estado_ubi || '', moto: payload.moto_interes_modelo };
     ESTADO = { i:0, paso:1, guardado:{}, pend:{}, ocupado:false };
@@ -744,8 +818,10 @@ async function guardarPantalla(p, datos, forzar){
   if(!forzar && paso === ESTADO.paso && (firma === ESTADO.guardado[p.id] || (vacio && ESTADO.guardado[p.id] == null))) return 'igual';
   var meta = function(){ return { web_paso: paso, web_act: _FV().serverTimestamp(), web_n: _FV().increment(1), editadoEn: new Date().toISOString() }; };
   var ref = db.collection('clientes').doc(String(LEAD.id));
+  var envio = {};
+  Object.keys(datos).forEach(function(k){ envio[k] = _esBorrar(datos[k]) ? _FV().delete() : datos[k]; });
   try{
-    var prom = ref.update(Object.assign({}, datos, meta()));
+    var prom = ref.update(Object.assign(envio, meta()));
     var r = await _conTiempo(prom, 15000);
     ESTADO.guardado[p.id] = firma; ESTADO.paso = paso;
     if(r === _TIEMPO){
@@ -833,9 +909,16 @@ async function salir(){
 function _fechaLimite(){
   try{ return new Date((LEAD.creado || Date.now()) + VENTANA_DIAS*86400000).toLocaleDateString('es-VE', { weekday:'long', day:'numeric', month:'long' }); }catch(e){ return 'la semana que viene'; }
 }
+// Revision del 27-sep-2026: para seguir hace falta el MISMO navegador (la sesion y el borrador
+// viven ahi), no solo el mismo telefono. Quien empezo dentro de Instagram o Facebook y despues
+// escribe la direccion en Chrome cae en "No podemos seguir desde aqui": a ese se le dice que
+// vuelva por el mismo enlace y WhatsApp pasa a ser el boton principal.
 function mostrarPausa(){
   _texto('pausaFecha', _fechaLimite());
+  var app = _enApp();
+  _texto('pausaComo', app ? 'vuelve a entrar por el mismo enlace de Instagram o Facebook, dentro de la aplicación,' : 'vuelve a abrir pagasi.io/solicitar en este mismo navegador del teléfono');
   var a = _el('pausaWA'); if(a) a.href = _waHref('Hola, soy '+(LEAD.nombre||'')+'. Empecé mi solicitud '+LEAD.id+' por pagasi.io y prefiero terminarla por aquí.');
+  if(a && a.classList){ a.classList.toggle('btn-p', app); a.classList.toggle('btn-s', !app); }
   _pantalla('fPausa');
   _ui('pausa');
 }
@@ -907,6 +990,7 @@ async function seguirDondeQuede(){
 }
 function hacerOtra(){
   borrarBorrador();
+  limpiarFormulario();
   _pantalla('fs1');
   _ui('parte1');
 }
@@ -966,7 +1050,7 @@ async function elegirContacto(quien){
       el.addEventListener('change', function(){ validarUno(f.id); });
     });
     // Al salir de cedula y telefono se dejan escritos como los guarda el sistema
-    var ci = _el('wz_ci'); if(ci) ci.addEventListener('blur', function(){ var n = normCedula(ci.value); if(n) ci.value = n.valor; });
+    var ci = _el('wz_ci'); if(ci) ci.addEventListener('blur', function(){ var t = _el('wz_ci_tipo'), n = normCedula(ci.value, t ? t.value : 'V'); if(n){ if(t) t.value = n.valor.charAt(0); ci.value = n.digitos; } });
     var tel = _el('wz_tel'); if(tel) tel.addEventListener('blur', function(){ var n = normTel(tel.value); if(n) tel.value = n.valor; });
     CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e){ e.addEventListener('input', function(){ if(!LEAD) guardarBorrador(); }); e.addEventListener('change', function(){ if(!LEAD) guardarBorrador(); }); } });
     if(fM){ fM.addEventListener('change', _pintarPlan); }
@@ -983,6 +1067,15 @@ async function elegirContacto(quien){
     on('btnPausaBorrar', borrarDeAqui);
     on('btnNueva', hacerOtra);
     on('btnFiadorMas', function(){ _ocultar('w_fiador_mas', false); _ocultar('btnFiadorMas', true); });
+    // Revision del 27-sep-2026: el boton "Enviar solicitud" nace deshabilitado en el HTML. Con
+    // señal lenta la parte 1 se podia llenar antes de que existiera este oyente, y el envio
+    // nativo del navegador recargaba la pagina (con lo escrito perdido). Se habilita aqui.
+    var bEnv = _el('btnGuardarSolicitud'); if(bEnv && !SOLICITUDES_CERRADAS && !_SIN_LLAVE) bEnv.disabled = false;
+    // La cedula: si escriben la letra en el campo, pasa al selector V/E
+    [['wz_ci','wz_ci_tipo'],['wz_fiador_ci','wz_fiador_ci_tipo']].forEach(function(par){
+      var c = _el(par[0]), t = _el(par[1]); if(!c || !t) return;
+      c.addEventListener('blur', function(){ var m = /^\s*([VvEe])/.exec(c.value||''); if(m){ t.value = m[1].toUpperCase(); c.value = String(c.value).replace(/^\s*[VvEe]\s*-?\s*/, ''); } });
+    });
     llenarFechas();
     _pintarPlan();
     retomar().then(function(){ if(!LEAD) _pintarPlan(); }).catch(function(e){ console.warn('retomar:', e); });

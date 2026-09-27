@@ -2,7 +2,14 @@ name: Probar reglas de Firestore (emulador)
 
 # Corre las reglas del repo (firestore.rules) en el emulador oficial de
 # Firebase y las prueba. No toca la base real, no usa secretos ni publica
-# nada. Solo a mano (Actions → este workflow → Run workflow).
+# nada. A mano (Actions → este workflow → Run workflow) o solo al subir la
+# rama solicitud-web con cambios en las Reglas o en sus pruebas.
+#
+# Por que tambien con push (revision del 27-sep-2026): GitHub solo deja lanzar
+# a mano un workflow que ya existe en la rama por defecto, y en main de PAGASI
+# 26 no hay carpeta .github (preparar-clon-26.sh borra los workflows de la 18).
+# Con workflow_dispatch solo, el boton "Run workflow" nunca aparecia y las
+# Reglas no se probaban nunca en el emulador.
 #
 # Es la copia de PAGASI 26 del workflow de PAGASI 18 (27-sep-2026). Aqui NO
 # corre tests/reglas/t_reglas_seguridad.js: esa prueba arma el lead web viejo
@@ -12,6 +19,12 @@ name: Probar reglas de Firestore (emulador)
 # regenerar la copia desde PAGASI 18.
 on:
   workflow_dispatch:
+  push:
+    branches: [solicitud-web]
+    paths:
+      - 'firestore.rules'
+      - 'tests/reglas/**'
+      - '.github/workflows/reglas-probar.yml'
 
 permissions:
   contents: read
