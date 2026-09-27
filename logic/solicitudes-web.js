@@ -134,7 +134,7 @@ function _swFichaHtml(c){
     + f('Atendida por', c.webAtendidaPor ? c.webAtendidaPor+' · '+_swCuando(c.webAtendidaEn) : '')
     + '</div>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
-    + (wa ? '<a class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366" href="'+wa+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">WhatsApp con mensaje listo</a>' : '')
+    + (wa ? '<a class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;text-decoration:none" href="'+wa+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">WhatsApp con mensaje listo</a>' : '')
     + (puedeVender && !conCred ? '<button type="button" class="btn btn-p btn-sm" onclick="_swCrearSolicitud(\''+idSeguro+'\')">Crear solicitud</button>' : '')
     + (pend ? '<button type="button" class="btn btn-g btn-sm" onclick="_swMarcarAtendida(\''+idSeguro+'\')">Marcar atendida</button>'
             : (!conCred && c.webAtendidaEn ? '<button type="button" class="btn btn-g btn-sm" onclick="_swMarcarAtendida(\''+idSeguro+'\', true)">Volver a pendiente</button>' : ''))
