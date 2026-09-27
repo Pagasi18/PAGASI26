@@ -206,6 +206,12 @@ function scoreInputDeCliente(c, cred){
   }
   cred = cred || {};
   var refs = (Array.isArray(c.referencias) && c.referencias.length) || (c.ref1 && c.ref1.nom) || (c.ref2 && c.ref2.nom) || c.ref1_nombre || c.ref2_nombre;
+  // 27-sep-2026: el banco y las deudas que la ficha no tiene van VACIOS ("sin dato", sin
+  // bono ni castigo), igual que en la solicitud. Antes contaban como "cuenta activa" y "sin
+  // deudas". El fiador marcado "si" cuenta solo si la ficha tiene su nombre; las fichas
+  // viejas importadas sin el campo fiador_nom siguen contando como antes.
+  var tieneFiadorMarcado = si(v(c.fiador, c.fiador_tiene)) || c.tieneFiador===true;
+  var fiadorConNombre = !Object.prototype.hasOwnProperty.call(c, 'fiador_nom') || String(c.fiador_nom||'').trim()!=='';
   return {
     ing: parseFloat(v(c.ingreso, c.wz_ing, 0))||0,
     ifam: parseFloat(v(c.ingreso_familiar, c.wz_ifam, 0))||0,
@@ -213,12 +219,12 @@ function scoreInputDeCliente(c, cred){
     emp: v(c.trabajo, c.tipo_empleo, c.trabajo_tipo, c.emp, 'informal'),
     ant: String(v(c.antiguedad, c.antiguedad_laboral, c.ant, '1')),
     hist: v(c.historial, c.historial_crediticio, c.hist, 'ninguno'),
-    deuda: v(c.deudas, c.deudas_actuales, c.deuda, 'no'),
+    deuda: v(c.deudas, c.deudas_actuales, c.deuda, ''),
     dep: parseInt(v(c.dependientes, c.dep, 0), 10)||0,
-    banco: v(c.banco_estado, c.cuenta_bancaria, c.banco, 'activa'),
+    banco: v(c.banco_estado, c.cuenta_bancaria, c.banco, ''),
     viv: v(c.vivienda, c.tipo_vivienda, c.viv, 'familiar'),
     rem: si(v(c.remesas, c.recibe_remesas, c.rem)),
-    fiador: si(v(c.fiador, c.fiador_tiene)) || c.tieneFiador===true,
+    fiador: tieneFiadorMarcado && fiadorConNombre,
     tieneTel: !!(c.tel || c.telefono),
     tieneRef: !!refs,
     uso: v(cred.uso_moto, c.uso_moto, 'personal'),
@@ -226,12 +232,8 @@ function scoreInputDeCliente(c, cred){
     cashea: si(c.cashea) ? 'si' : 'no',
     cashea_nivel: parseInt(c.cashea_nivel, 10)||0,
     cashea_estado: c.cashea_estado || '',
-    cashea_total_compras: c.cashea_total_compras || '',
     cashea_deuda: si(c.cashea_deuda) || (parseFloat(c.cashea_monto)||0) > 0 ? 'si' : 'no',
-    cashea_monto: parseFloat(c.cashea_monto)||0,
-    cashea_cuotas_tiempo: c.cashea_cuotas_tiempo || '',
-    cashea_atrasos: c.cashea_atrasos || '',
-    cashea_bajo_nivel: c.cashea_bajo_nivel || ''
+    cashea_monto: parseFloat(c.cashea_monto)||0
   };
 }
 // Recalcula el score de un cliente a partir de sus datos actuales y la configuración SCORE_CFG vigente
@@ -294,11 +296,17 @@ function calcularScoreConCfg(input){
   var ifam = parseFloat(input.ifam||0);
   var cuotaQ = parseFloat(input.cuotaQ||0);
   var emp = input.emp||'informal';
-  var ant = String(input.ant||'3');
+  // 27-sep-2026: un dato vacio es "sin dato" y vale neutro. Antes la antiguedad vacia
+  // contaba como 1 a 3 años (+22 en estabilidad), el banco vacio como "activa" (+10 en
+  // historial y +10 en garantias) y las deudas vacias como "sin deudas" (+10 en confianza):
+  // saltarse preguntas daba mas puntos que contestarlas. Ahora: antiguedad vacia = la base
+  // (0), historial vacio = "sin historial" (50, la base de siempre), vivienda vacia =
+  // "familiar" (la de siempre), y banco y deudas vacios no suman ni restan.
+  var ant = String(input.ant||'');
   var hist = input.hist||'ninguno';
-  var deuda = input.deuda||'no';
-  var dep = parseInt(input.dep||0, 10);
-  var banco = input.banco||'activa';
+  var deuda = input.deuda||'';
+  var dep = parseInt(input.dep||0, 10)||0;
+  var banco = input.banco||'';
   var viv = input.viv||'familiar';
   var rem = input.rem?'si':'no';
   var fiador = !!input.fiador;
@@ -326,7 +334,7 @@ function calcularScoreConCfg(input){
     else { var _nv = parseInt(input.cashea_nivel,10)||0; f1 = f1 + (_nv>=3 ? 12 : _nv>=2 ? 7 : 3); }
     var ce = input.cashea_estado||'';
     if(ce==='completado') f1 += 15; else if(ce==='al_dia') f1 += 10; else if(ce==='mora_leve') f1 -= 15; else if(ce==='mora_grave') f1 -= 35;
-    if(ce!=='mora_leve' && ce!=='mora_grave'){ var tc = input.cashea_total_compras||''; f1 += tc==='6+' ? 10 : tc==='4-5' ? 6 : tc==='2-3' ? 3 : 0; }
+    // El total de compras con Cashea ya no se pregunta ni pesa (27-sep-2026)
     if(input.cashea_deuda==='si'){ var cm = parseFloat(input.cashea_monto)||0; f1 -= cm>500 ? 8 : cm>200 ? 4 : 0; }
   }
   f1 = Math.max(0, Math.min(100, f1));
