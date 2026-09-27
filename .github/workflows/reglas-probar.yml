@@ -1,0 +1,37 @@
+name: Probar reglas de Firestore (emulador)
+
+# Corre las reglas del repo (firestore.rules) en el emulador oficial de
+# Firebase y las prueba. No toca la base real, no usa secretos ni publica
+# nada. Solo a mano (Actions → este workflow → Run workflow).
+#
+# Es la copia de PAGASI 26 del workflow de PAGASI 18 (27-sep-2026). Aqui NO
+# corre tests/reglas/t_reglas_seguridad.js: esa prueba arma el lead web viejo
+# de un solo paso (74 campos, con score, notas y obs), que las Reglas de la 26
+# ya no aceptan a proposito. El lead por partes lo prueba
+# t_reglas_solicitud_web.js. preparar-clon-26.sh conserva este archivo al
+# regenerar la copia desde PAGASI 18.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Instalar herramientas de prueba
+        run: npm install --no-save --no-audit --no-fund firebase-tools@13 @firebase/rules-unit-testing@3 firebase@10
+      - name: Probar reglas del GPS en Mi cuenta
+        run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_gps_cliente.js"
+      - name: Probar reglas de la solicitud web por partes
+        run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_solicitud_web.js"

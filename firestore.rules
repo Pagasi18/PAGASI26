@@ -27,105 +27,181 @@ service cloud.firestore {
         && ( get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'Administrador'
           || get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin' );
     }
-    // == Lead del formulario publico (punto 1, 19-sep-2026) ==
-    // Cualquiera en internet (sesion anonima) puede crear un lead, asi que aqui se
-    // fija EXACTAMENTE que trae: estos campos y ninguno mas, textos y numeros de su
-    // tipo, y SIN los caracteres con los que se mete codigo en el panel
-    // (< > " ' ` \ &). El formulario ya los quita; quien escriba directo en la base
-    // con otra cosa queda rechazado. La lista sale de buildClientePayload()
-    // (assets/public/request.js): si el formulario gana un campo, hay que sumarlo aqui.
-    // Los textos se revisan JUNTOS (una sola cadena): uno por uno pasaba el limite de
-    // 1.000 expresiones por pedido de Firebase y rechazaba hasta el lead bueno.
+    // == Lead del formulario publico: la solicitud por partes (27-sep-2026) ==
+    // solicitar.html se llena por partes. La parte 1 CREA el lead; las partes 2 a 9 lo
+    // COMPLETAN, siempre desde la misma sesion anonima que lo creo (web_uid). Cualquiera
+    // en internet puede llegar hasta aqui, asi que cada campo tiene su lista cerrada de
+    // valores, su tope de largo y el filtro de caracteres con los que se mete codigo en
+    // el panel (< > " ' ` \ &). La lista de campos sale de assets/public/request.js
+    // (buildClientePayload y datosPantalla): si el formulario gana un campo, va aqui.
+    // Reemplaza a esLeadWebAmpliando (una sola edicion) y al esLeadWeb de un paso, que
+    // dejaba a un anonimo escribir notas, score, impresion y las obs de las referencias:
+    // con score 700 el lead salia como "aprobacion automatica" (revision del 27-sep).
+    function textoWebOk(v, max) {
+      return v is string && v.size() <= max && v.matches("[^<>\"'`&\\\\]*");
+    }
+    function montoWebOk(v) {
+      return v is number && v >= 0 && v <= 100000;
+    }
+    function isoWebOk(v) {
+      return v is string && v.matches('20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9:.]{8,12}Z');
+    }
+    function estadosVe() {
+      return ['Caracas (D.C.)', 'Amazonas', 'Anzoátegui', 'Apure', 'Aragua', 'Barinas',
+        'Bolívar', 'Carabobo', 'Cojedes', 'Delta Amacuro', 'Falcón', 'Guárico', 'La Guaira',
+        'Lara', 'Mérida', 'Miranda', 'Monagas', 'Nueva Esparta', 'Portuguesa', 'Sucre',
+        'Táchira', 'Trujillo', 'Yaracuy', 'Zulia'];
+    }
+    // -- Parte 1: CREAR. Solo estos campos, amarrados a la sesion y a la cedula --
+    // El id es WEB-<digitos de la cedula> y la cedula de adentro tiene que ser esa misma
+    // (antes se podia crear WEB-12345678 con cedula V-99999999). web_ts es la hora del
+    // SERVIDOR: de ahi se cuentan los 7 dias para completar. Una solicitud por sesion:
+    // el marcador web_sesiones/{uid} va en el MISMO lote y no se puede reescribir.
     function esLeadWeb(id) {
       let d = request.resource.data;
-      let r1 = d.get('ref1', {});
-      let r2 = d.get('ref2', {});
-      let textos = d.nombre
-          + d.get('cedula', '') + d.get('rif', '') + d.get('nacionalidad', '') + d.get('tel', '') +
-          d.get('wa', '') + d.get('email', '') + d.get('ciudad', '') + d.get('estado_ubi', '') +
-          d.get('dir', '') + d.get('tiempo_dir', '') + d.get('vivienda', '') +
-          d.get('terremoto_afectado', '') + d.get('terremoto_danos', '') + d.get('trabajo', '') +
-          d.get('empresa', '') + d.get('cargo', '') + d.get('dir_trabajo', '') +
-          d.get('tel_trabajo', '') + d.get('antiguedad', '') + d.get('remesas', '') +
-          d.get('historial', '') + d.get('deudas', '') + d.get('banco_estado', '') +
-          d.get('banco_nombre', '') + d.get('banco_cobro', '') + d.get('cuenta_digitos', '') +
-          d.get('ahorro', '') + d.get('cashea', '') + d.get('cashea_nivel', '') +
-          d.get('cashea_pago', '') + d.get('cashea_estado', '') + d.get('cashea_deuda', '') +
-          d.get('cashea_ultimo_art', '') + d.get('cashea_ultima_fecha', '') +
-          d.get('cashea_total_compras', '') + d.get('cashea_obs', '') + d.get('fiador', '') +
-          d.get('fiador_nom', '') + d.get('fiador_tel', '') + d.get('fiador_ci', '') +
-          d.get('fiador_rif', '') + d.get('fiador_dir', '') + d.get('fiador_email', '') +
-          d.get('fiador_rel', '') + d.get('impresion', '') + d.get('notas', '') +
-          d.get('conocio', '') + d.get('moto_interes_modelo', '') +
-          d.get('moto_interes_sede', '') + d.get('creado', '') + d.get('editadoEn', '') +
-          d.get('editadoPor', '') + r1.get('nom', '') + r1.get('ci', '') + r1.get('tel', '') +
-          r1.get('rel', '') + r1.get('obs', '') + r2.get('nom', '') + r2.get('ci', '') +
-          r2.get('tel', '') + r2.get('rel', '') + r2.get('obs', '');
       return request.auth != null
-        && d.estado == 'lead'
-        && d.origen == 'web'
-        // WEB-<cedula> (nuevo, para que la misma persona no quede dos veces) o
-        // WEB-<hora> (como venia). Punto 21, 21-sep-2026.
-        && id.matches('WEB-[0-9]{6,16}') && d.id == id
-        && d.keys().hasOnly([
-          'id', 'nombre', 'cedula', 'rif', 'nacionalidad', 'tel', 'wa', 'email', 'ciudad',
-          'estado_ubi', 'dir', 'tiempo_dir', 'vivienda', 'terremoto_afectado', 'terremoto_danos',
-          'trabajo', 'empresa', 'cargo', 'dir_trabajo', 'tel_trabajo', 'antiguedad', 'ingreso',
-          'ingreso_familiar', 'remesas', 'dependientes', 'historial', 'deudas', 'banco_estado',
-          'banco_nombre', 'banco_cobro', 'cuenta_digitos', 'ahorro', 'cashea', 'cashea_nivel',
-          'cashea_pago', 'cashea_estado', 'cashea_deuda', 'cashea_monto', 'cashea_cuotas_pend',
-          'cashea_ultimo_art', 'cashea_ultimo_monto', 'cashea_ultima_fecha',
-          'cashea_total_compras', 'cashea_obs', 'fiador', 'fiador_nom', 'fiador_tel', 'fiador_ci',
-          'fiador_rif', 'fiador_dir', 'fiador_email', 'fiador_rel', 'ref1', 'ref2', 'docs_count',
-          'documentos', 'impresion', 'notas', 'conocio', 'score_indexa', 'f1', 'f2', 'f3', 'f4',
-          'f5', 'moto_interes_id', 'moto_interes_modelo', 'moto_interes_precio',
-          'moto_interes_sede', 'estado', 'origen', 'creado', 'editadoEn', 'editadoPor',
-          'web_uid'
-        ])
-        && d.get('web_uid', '') is string && d.get('web_uid', '').size() <= 128
-        && r1.keys().hasOnly(['nom','ci','tel','rel','obs'])
-        && r2.keys().hasOnly(['nom','ci','tel','rel','obs'])
-        && d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 120
-        && textos.size() <= 4000
-        && textos.matches("[^<>\"'`&\\\\]*")
-        && d.get('ingreso', 0) is number && d.get('ingreso_familiar', 0) is number
-        && d.get('dependientes', 0) is number && d.get('cashea_monto', 0) is number
-        && d.get('cashea_cuotas_pend', 0) is number && d.get('cashea_ultimo_monto', 0) is number
-        && d.get('docs_count', 0) is number && d.get('score_indexa', 0) is number
-        && d.get('f1', 0) is number && d.get('f2', 0) is number && d.get('f3', 0) is number
-        && d.get('f4', 0) is number && d.get('f5', 0) is number
-        && d.get('moto_interes_precio', 0) is number
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && id.matches('WEB-[1-9][0-9]{5,8}') && d.id == id
+        && d.keys().hasOnly(['id', 'nombre', 'cedula', 'tel', 'wa', 'trabajo', 'ingreso',
+             'ingreso_rango', 'estado_ubi', 'moto_interes_id', 'moto_interes_modelo',
+             'moto_interes_precio', 'moto_interes_sede', 'estado', 'origen', 'creado',
+             'editadoEn', 'editadoPor', 'web_uid', 'web_ts', 'web_paso'])
+        && d.keys().hasAll(['id', 'nombre', 'cedula', 'tel', 'wa', 'trabajo', 'ingreso',
+             'ingreso_rango', 'estado', 'origen', 'creado', 'web_uid', 'web_ts', 'web_paso'])
+        && d.estado == 'lead' && d.origen == 'web'
+        && d.web_uid == request.auth.uid
+        && d.web_ts == request.time
+        && d.web_paso == 1
+        && d.get('editadoPor', 'Solicitud web') == 'Solicitud web'
+        && textoWebOk(d.nombre, 120) && d.nombre.size() >= 5
+        && d.cedula is string && d.cedula.matches('[VE]-[1-9][0-9]{5,8}')
+        && d.cedula.split('-')[1] == id.split('-')[1]
+        && d.tel is string && d.tel.matches('0(412|414|416|424|426)-[0-9]{7}')
+        && d.wa == d.tel
+        && d.trabajo in ['formal', 'publico', 'delivery', 'independiente', 'comerciante', 'remesas', 'informal']
+        && d.ingreso_rango in ['Menos de $150', '$150 a $300', '$300 a $500', '$500 a $800', 'Más de $800']
+        && d.ingreso in [100, 225, 400, 650, 1000]
+        && d.get('estado_ubi', 'Caracas (D.C.)') in estadosVe()
+        && isoWebOk(d.creado)
+        && (!d.keys().hasAny(['editadoEn']) || isoWebOk(d.editadoEn))
+        && textoWebOk(d.get('moto_interes_modelo', ''), 80)
+        && textoWebOk(d.get('moto_interes_sede', ''), 80)
+        && montoWebOk(d.get('moto_interes_precio', 0))
         && (d.get('moto_interes_id', null) == null || d.get('moto_interes_id', null) is int)
-        && d.get('documentos', []).size() == 0;
+        && existsAfter(/databases/$(database)/documents/web_sesiones/$(request.auth.uid))
+        && getAfter(/databases/$(database)/documents/web_sesiones/$(request.auth.uid)).data.leadId == id;
     }
-    // La segunda pantalla de solicitar.html ("Adelanta tu evaluacion", 27-sep-2026):
-    // el MISMO lead, desde la MISMA sesion anonima que lo creo (web_uid), completa su
-    // ficha UNA vez. Solo estos campos, solo mientras siga siendo lead, y con la misma
-    // limpieza de texto que al crearlo. Nada de leer, nada de tocar otras fichas.
-    function esLeadWebAmpliando() {
+    // -- Partes 2 a 9: COMPLETAR, las veces que haga falta --
+    // Solo la MISMA sesion anonima, mientras sea lead web vivo: ni cerrado por el equipo
+    // (web_cerrado), ni terminado por el cliente (web_fin), ni eliminado, y dentro de los
+    // 7 dias desde web_ts. Solo estos campos: nunca nombre, cedula, tel, wa, estado,
+    // origen, id, web_uid, web_ts, notas, score ni lo que escribe el equipo. Cada campo
+    // se revisa SOLO si esta escritura lo cambia: si el equipo ya corrigio otro con una
+    // coma o una comilla, el cliente puede seguir llenando lo suyo.
+    function camposWebEditables() {
+      return ['uso_moto', 'moto_previa',
+        'empresa', 'cargo', 'antiguedad', 'dir_trabajo',
+        'dia_cobro', 'ingreso', 'ingreso_exacto', 'remesas', 'ingreso_familiar', 'dependientes',
+        'ahorro', 'inicial_rango',
+        'historial', 'deudas', 'deuda_mensual', 'banco_estado', 'banco_nombre',
+        'cashea', 'cashea_nivel', 'cashea_estado', 'cashea_deuda', 'cashea_monto',
+        'cashea_cuotas_pend', 'cashea_linea', 'cashea_compras_activas', 'cashea_prox_monto',
+        'ciudad', 'dir', 'tiempo_dir', 'vivienda',
+        'ref1', 'ref2',
+        'fiador', 'fiador_nom', 'fiador_tel', 'fiador_rel', 'fiador_ci', 'fiador_dir', 'fiador_ing',
+        'fecha_nacimiento', 'email', 'rif', 'conocio',
+        'web_paso', 'web_act', 'web_n', 'editadoEn', 'web_fin'];
+    }
+    // Referencia: nombre, telefono y que es tuyo. Sin cedula ni observacion (la obs es la
+    // nota de la llamada de verificacion, del equipo), y no se pisa si el equipo ya
+    // escribio en ella.
+    function refWebOk(r, r0) {
+      return r is map
+        && r.keys().hasOnly(['nom', 'ci', 'tel', 'rel', 'obs'])
+        && r.get('ci', '') == '' && r.get('obs', '') == ''
+        && r0.get('ci', '') == '' && r0.get('obs', '') == ''
+        && textoWebOk(r.get('nom', ''), 80) && textoWebOk(r.get('tel', ''), 20)
+        && r.get('rel', '') in ['', 'Familiar directo', 'Amigo/a', 'Colega', 'Vecino/a'];
+    }
+    function esLeadWebEditando() {
       let antes = resource.data;
       let d = request.resource.data;
-      let r1 = d.get('ref1', {});
-      let textos = d.get('antiguedad', '') + d.get('empresa', '') + d.get('vivienda', '') +
-          d.get('historial', '') + d.get('deudas', '') + d.get('banco_estado', '') +
-          d.get('cashea', '') + d.get('cashea_nivel', '') + d.get('cashea_pago', '') +
-          d.get('fiador', '') + d.get('fiador_nom', '') + d.get('fiador_rel', '') +
-          d.get('conocio', '') + d.get('editadoEn', '') + d.get('web_ampliado', '') +
-          r1.get('nom', '') + r1.get('ci', '') + r1.get('tel', '') + r1.get('rel', '') + r1.get('obs', '');
+      let cambia = d.diff(antes).affectedKeys();
       return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
         && antes.get('origen', '') == 'web' && antes.get('estado', '') == 'lead'
         && antes.get('web_uid', '') != '' && antes.get('web_uid', '') == request.auth.uid
-        && antes.get('web_ampliado', '') == ''
-        && d.diff(antes).affectedKeys().hasOnly([
-          'antiguedad', 'empresa', 'vivienda', 'dependientes', 'historial', 'deudas',
-          'banco_estado', 'cashea', 'cashea_nivel', 'cashea_pago', 'fiador', 'fiador_nom',
-          'fiador_rel', 'conocio', 'ref1', 'editadoEn', 'web_ampliado'
-        ])
-        && d.get('web_ampliado', '') is string && d.get('web_ampliado', '').size() > 0
-        && d.get('dependientes', 0) is number
-        && r1.keys().hasOnly(['nom','ci','tel','rel','obs'])
-        && textos.size() <= 1500
-        && textos.matches("[^<>\"'`&\\\\]*");
+        && antes.get('eliminado', false) != true
+        && antes.get('web_cerrado', false) != true
+        && antes.get('web_fin', null) == null
+        && antes.get('web_ts', null) is timestamp
+        && request.time < antes.web_ts + duration.value(7, 'd')
+        // affectedKeys cuenta lo que se agrega, cambia O BORRA: tampoco quita campos del equipo
+        && cambia.hasOnly(camposWebEditables())
+        // cada escritura suma 1 y hay tope: nadie reescribe un lead mil veces
+        && d.get('web_n', 0) == antes.get('web_n', 0) + 1 && d.web_n <= 80
+        && d.web_act == request.time
+        && d.web_paso is int && d.web_paso >= 1 && d.web_paso <= 9
+        && isoWebOk(d.editadoEn)
+        && (!cambia.hasAny(['web_fin']) || d.web_fin == request.time)
+        // Parte 2: tu moto
+        && (!cambia.hasAny(['uso_moto']) || d.uso_moto in ['personal', 'delivery', 'negocio'])
+        && (!cambia.hasAny(['moto_previa']) || d.moto_previa in ['no', 'pagada', 'tiene', 'perdida'])
+        // Parte 3: tu trabajo
+        && (!cambia.hasAny(['empresa']) || textoWebOk(d.empresa, 120))
+        && (!cambia.hasAny(['cargo']) || textoWebOk(d.cargo, 80))
+        && (!cambia.hasAny(['antiguedad']) || d.antiguedad in ['1', '2', '3', '5'])
+        && (!cambia.hasAny(['dir_trabajo']) || textoWebOk(d.dir_trabajo, 200))
+        // Parte 4: tu plata
+        && (!cambia.hasAny(['dia_cobro']) || d.dia_cobro in ['quincenal', 'semanal', 'diario', 'mensual', 'variable'])
+        && (!cambia.hasAny(['ingreso']) || montoWebOk(d.ingreso))
+        && (!cambia.hasAny(['ingreso_exacto']) || d.ingreso_exacto == true)
+        && (!cambia.hasAny(['remesas']) || d.remesas in ['si', 'no'])
+        && (!cambia.hasAny(['ingreso_familiar']) || montoWebOk(d.ingreso_familiar))
+        && (!cambia.hasAny(['dependientes']) || d.dependientes in [0, 1, 2, 3])
+        && (!cambia.hasAny(['ahorro']) || d.ahorro in ['no', 'usd', 'bs'])
+        && (!cambia.hasAny(['inicial_rango']) || d.inicial_rango in ['nada', '<200', '200-400', '400-700', '700+'])
+        // Parte 5: creditos, banco y Cashea (solo los campos de Cashea que quedan, decision del 27-sep)
+        && (!cambia.hasAny(['historial']) || d.historial in ['ninguno', 'bueno', 'mora_leve', 'malo'])
+        && (!cambia.hasAny(['deudas']) || d.deudas in ['no', 'menores', 'graves'])
+        && (!cambia.hasAny(['deuda_mensual']) || montoWebOk(d.deuda_mensual))
+        && (!cambia.hasAny(['banco_estado']) || d.banco_estado in ['activa', 'poca', 'no'])
+        && (!cambia.hasAny(['banco_nombre']) || textoWebOk(d.banco_nombre, 160))
+        && (!cambia.hasAny(['cashea']) || d.cashea in ['si', 'no'])
+        && (!cambia.hasAny(['cashea_nivel']) || d.cashea_nivel in ['1', '2', '3', '4', '5', '6'])
+        && (!cambia.hasAny(['cashea_estado']) || d.cashea_estado in ['al_dia', 'mora_leve', 'mora_grave', 'completado'])
+        && (!cambia.hasAny(['cashea_deuda']) || d.cashea_deuda in ['si', 'no'])
+        && (!cambia.hasAny(['cashea_monto']) || montoWebOk(d.cashea_monto))
+        && (!cambia.hasAny(['cashea_cuotas_pend']) || montoWebOk(d.cashea_cuotas_pend))
+        && (!cambia.hasAny(['cashea_linea']) || montoWebOk(d.cashea_linea))
+        && (!cambia.hasAny(['cashea_compras_activas']) || montoWebOk(d.cashea_compras_activas))
+        && (!cambia.hasAny(['cashea_prox_monto']) || montoWebOk(d.cashea_prox_monto))
+        // Parte 6: donde vives
+        && (!cambia.hasAny(['ciudad']) || textoWebOk(d.ciudad, 80))
+        && (!cambia.hasAny(['dir']) || textoWebOk(d.dir, 300))
+        && (!cambia.hasAny(['tiempo_dir']) || d.tiempo_dir in ['1', '2', '3', '4'])
+        && (!cambia.hasAny(['vivienda']) || d.vivienda in ['propia', 'alquilada', 'familiar', 'otro'])
+        // Parte 7: referencias
+        && (!cambia.hasAny(['ref1']) || refWebOk(d.ref1, antes.get('ref1', {})))
+        && (!cambia.hasAny(['ref2']) || refWebOk(d.ref2, antes.get('ref2', {})))
+        // Parte 8: fiador. 'si' solo con nombre y telefono (y no se le puede borrar el
+        // telefono despues): decir que hay fiador suma al score, y sin como llamarlo no
+        // garantiza nada.
+        && (!cambia.hasAny(['fiador']) || d.fiador in ['si', 'no'])
+        && (!cambia.hasAny(['fiador', 'fiador_nom', 'fiador_tel']) || d.get('fiador', '') != 'si'
+             || (d.get('fiador_nom', '') != '' && d.get('fiador_tel', '') != ''))
+        && (!cambia.hasAny(['fiador_nom']) || textoWebOk(d.fiador_nom, 80))
+        && (!cambia.hasAny(['fiador_tel']) || textoWebOk(d.fiador_tel, 20))
+        && (!cambia.hasAny(['fiador_rel']) || d.fiador_rel in ['familiar', 'conyuge', 'amigo', 'colega'])
+        && (!cambia.hasAny(['fiador_ci']) || (d.fiador_ci is string && d.fiador_ci.matches('[VE]-[1-9][0-9]{5,8}')))
+        && (!cambia.hasAny(['fiador_dir']) || textoWebOk(d.fiador_dir, 200))
+        && (!cambia.hasAny(['fiador_ing']) || montoWebOk(d.fiador_ing))
+        // Parte 9: sobre ti
+        && (!cambia.hasAny(['fecha_nacimiento']) || (d.fecha_nacimiento is string
+             && d.fecha_nacimiento.matches('(19|20)[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')))
+        && (!cambia.hasAny(['email']) || (textoWebOk(d.email, 100) && d.email.matches('[^@ ]+@[^@ ]+[.][^@ ]+')))
+        && (!cambia.hasAny(['rif']) || textoWebOk(d.rif, 20))
+        && (!cambia.hasAny(['conocio']) || d.conocio in ['referido', 'redes', 'vitrina', 'google', 'anterior', 'otro']);
     }
 
     // == Identidad del CLIENTE (portal micuenta.html) ==
@@ -332,12 +408,30 @@ service cloud.firestore {
 
     // == Clientes ==
     // Staff ve todo. El cliente lee UNICAMENTE su propia ficha (nunca list).
-    // El formulario publico puede CREAR un lead (no leer, no editar, no borrar).
+    // El formulario publico CREA su lead (parte 1) y lo COMPLETA por partes desde la
+    // misma sesion; nunca lo lee (ni el suyo: la ficha tiene notas del equipo), no toca
+    // fichas ajenas y no borra.
     match /clientes/{id} {
       allow get:    if esStaff() || esClienteDe(id);
       allow list:   if esStaff();
       allow create: if esStaff() || esLeadWeb(id);
-      allow update: if esStaff() || esLeadWebAmpliando();
+      allow update: if esStaff() || esLeadWebEditando();
+      allow delete: if esAdmin();
+    }
+    // Una solicitud web por sesion anonima (27-sep-2026). El marcador se crea en el MISMO
+    // lote que el lead y no se puede reescribir: sin esto, un script con una sola sesion
+    // ocupaba miles de cedulas y la persona real veia "ya te tenemos".
+    match /web_sesiones/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && request.resource.data.keys().hasOnly(['leadId', 'ts'])
+        && request.resource.data.ts == request.time
+        && request.resource.data.leadId is string
+        && request.resource.data.leadId.matches('WEB-[1-9][0-9]{5,8}')
+        && existsAfter(/databases/$(database)/documents/clientes/$(request.resource.data.leadId))
+        && getAfter(/databases/$(database)/documents/clientes/$(request.resource.data.leadId)).data.get('web_uid', '') == uid;
+      allow read: if esStaff();
+      allow update: if false;
       allow delete: if esAdmin();
     }
 
