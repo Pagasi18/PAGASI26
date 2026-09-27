@@ -191,14 +191,14 @@ function _protectDatos(credId){
     // ── Comprador ──
     cliNom: V(cli.nombre || c.cli, 28), cliCi: V(_draCedulaTxt(cli.cedula || cli.ci), 11),
     cliRif: V(T(cli.rif) || _draCedulaTxt(cli.cedula||cli.ci), 12),
-    cliDir: V(cli.direccion, 40), cliCiudad: V(cli.ciudad, 14),
-    cliEmail: V(cli.email, 22), cliTel: V(cli.tel || cli.wa, 14), cliProf: V(cli.trabajo || cli.profesion || cli.ocupacion, 16),
+    cliDir: V(E(_ctrDomicilio(cli)), 40), cliCiudad: V(cli.ciudad, 14),
+    cliEmail: V(cli.email, 22), cliTel: V(cli.tel || cli.wa, 14), cliProf: V(E(_ctrOficio(cli)), 16),
     // ── Fiador ──
     hayFiador: !!T(cli.fiador_nom),
     fiaNom: V(cli.fiador_nom, 28), fiaCi: V(_draCedulaTxt(cli.fiador_ci), 11), fiaDir: V(cli.fiador_dir, 40),
     fiaEmail: V(cli.fiador_email, 22), fiaTel: V(cli.fiador_tel, 14), fiaProf: V(E(dc.fiadorProfesion), 16),
     // 'de profesion u oficio X, ' solo cuando se sabe: una raya en el encabezado se ve mal
-    cliProfFrase: T(cli.trabajo || cli.profesion || cli.ocupacion) ? 'de profesión u oficio <strong>'+E(cli.trabajo || cli.profesion || cli.ocupacion)+'</strong>, ' : '',
+    cliProfFrase: T(_ctrOficio(cli)) ? 'de profesión u oficio <strong>'+E(_ctrOficio(cli))+'</strong>, ' : '',
     fiaProfFrase: T(dc.fiadorProfesion) ? 'de profesión u oficio <strong>'+E(dc.fiadorProfesion)+'</strong>, ' : '',
     // ── Concesionario (no firma, pero se identifica en los considerandos) ──
     concNom: V(conc.nombre, 26), concRif: V(conc.rif, 12),
@@ -233,7 +233,7 @@ function _protectDatos(credId){
     facturaFecha: V(fmt(new Date((dc.facturaFecha || c.fecha || fechaLocalISOhoy())+'T12:00:00')), 10),
     certOrigenNum: V(E(dc.certOrigenNum), 14),
     poliza: V([E(dc.polizaCia), E(dc.polizaNum)].filter(Boolean).join(' · '), 22),
-    actividad: V(E(dc.actividad || cli.trabajo || cli.profesion || cli.ocupacion), 16),
+    actividad: V(E(dc.actividad || _ctrActividad(cli)), 16),
     ingresoMensual: V((dc.ingresoMensual || cli.ingreso) ? 'US$ '+num(dc.ingresoMensual || cli.ingreso) : '', 12),
     // PEP en NO por defecto: si alguien lo es, se tacha y se marca SI a mano
     pepNo: dc.pep==='si' ? '(&nbsp;&nbsp;)' : '(&nbsp;X&nbsp;)',

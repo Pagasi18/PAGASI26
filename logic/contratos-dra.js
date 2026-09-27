@@ -69,7 +69,7 @@ var _DRA_CUERPO = [
   function(D){ return `(a) 	a las direcciones de correo electrónico (“E-Mail”) abajo indicadas en la Sección 10.2; en el entendido de que, en este caso, las mismas se entenderán perfeccionadas, válidas y efectivamente realizadas al día hábil siguiente (a partir de las 00:00 am (hora de Venezuela), de ese día); o`; },
   function(D){ return `(b)  	a las direcciones físicas de oficina abajo indicadas en la Sección 10.2; en el entendido de que, en este caso, las mismas se entenderán perfeccionadas, válidas y efectivamente realizadas única y exclusivamente si la Parte a quien se dirige la comunicación continúa laborando o prestando servicios en la oficina a la cual se dirige la comunicación. En este caso la notificación se entenderá recibida al día hábil siguiente de la fecha de recepción (a partir de las 00:00 am (hora de Venezuela), de ese día).`; },
   function(D){ return `10.2	Direcciones y Destino de las Notificaciones. Las Partes escogen como destino válido para practicar las notificaciones, comunicaciones, citaciones y/o entregas bajo este Contrato, las siguientes direcciones físicas y de E-Mail:`; },
-  function(D){ return _draContacto('(a) Al Comprador:', D.cli.email, D.cli.direccion, D.cli.tel); },
+  function(D){ return _draContacto('(a) Al Comprador:', D.cli.email, _ctrDomicilio(D.cli), D.cli.tel); },
   function(D){ return _draContacto('(b) A Pagasi:', D.emp.email, D.emp.direccion, D.emp.tel); },
   function(D){ return _draContacto('(c) Al Concesionario:', D.conc.email, D.conc.direccion, D.conc.telefono); },
   function(D){ return `Cualquier modificación de estas direcciones físicas, de E-Mail y de datos de contacto telefónicos, será comunicada entre las Partes de inmediato.`; },
@@ -386,7 +386,7 @@ function _draDatos(credId){
     dias:'<strong>'+dias+'</strong>', diasLetras:'<strong>'+_draEnLetras(dias)+'</strong>',
     medios: V((typeof _cuentasBanc!=='undefined' && _cuentasBanc && _cuentasBanc.length)
               ? _cuentasBanc.map(function(x){return x.nombre;}).join(', ') : '', 40),
-    cliEmail: V(cli.email, 20), cliDir: V(cli.direccion, 26), cliTel: V(cli.tel, 14),
+    cliEmail: V(cli.email, 20), cliDir: V(_ctrDomicilio(cli), 26), cliTel: V(cli.tel, 14),
     empEmail: V(emp.email, 20), empDir: V(emp.direccion, 26), empTel: V(emp.tel, 14),
     concEmail: V(conc.email, 20), concDir: V(conc.direccion, 26), concTel: V(conc.telefono, 14),
     diaNum: '<strong>'+fc.getDate()+'</strong>', mesAnio: '<strong>'+MESES[fc.getMonth()]+' de '+fc.getFullYear()+'</strong>'

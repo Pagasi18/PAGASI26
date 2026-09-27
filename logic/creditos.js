@@ -149,7 +149,10 @@ function openAddCred(motoId=null){
   // una de esas rutas quede abierta para que un credito nuevo aterrice en la
   // compania equivocada. Deshacerlo despues no es borrar una fila: es la moto, los
   // gastos, el contrato y la numeracion.
-  if(typeof _puedeVender==='function' && !_puedeVender()){
+  // EDITAR un credito que ya existe no es vender: esa puerta sigue abierta
+  // (25-sep-2026: un cliente de PAGASI 18 vino a cambiar de moto y no se podia).
+  var _editandoExistente = !!window._wzEditando;
+  if(!_editandoExistente && typeof _puedeVender==='function' && !_puedeVender()){
     if(typeof _avisarNoVende==='function') _avisarNoVende();
     return;
   }
