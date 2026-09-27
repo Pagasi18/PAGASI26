@@ -77,6 +77,10 @@ const cre=src('logic/creditos.js');
 ok('el asistente se cierra en su propia puerta',
   /function openAddCred\(motoId=null\)\{[\s\S]{0,700}_puedeVender==='function' && !_puedeVender\(\)\)\{[\s\S]{0,120}return;/.test(cre));
 ok('...y avisa en vez de no hacer nada', /_avisarNoVende==='function'\) _avisarNoVende\(\);/.test(cre));
+// Editar un crédito que YA existe no es vender: en PAGASI 18 se sigue pudiendo
+// (25-sep-2026, un cliente vino a cambiar de moto y el botón Editar solo avisaba).
+ok('editar un crédito existente pasa la puerta aunque la compañía no venda',
+  /var _editandoExistente = !!window\._wzEditando;\s*if\(!_editandoExistente && typeof _puedeVender==='function' && !_puedeVender\(\)\)\{/.test(cre));
 
 // Y los botones no ofrecen lo que no se puede hacer
 ok('el botón de arriba desaparece', /lbl === 'Nueva Solicitud' && !_puedeVender\(\)\) lbl = '';/.test(app));

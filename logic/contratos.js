@@ -15,6 +15,48 @@ function _datoReal(v){
   return _CONTRATO_VACIOS.indexOf(k)>-1 ? '' : t;
 }
 
+
+// ── Domicilio y oficio del cliente, tal como los guarda la ficha (27-sep-2026) ──
+// El contrato Protect y el de reserva de dominio leian cli.direccion, un campo que
+// ninguna ficha de cliente tiene: la direccion se guarda en 'dir', con 'ciudad' y
+// 'estado_ubi' aparte. Todos esos contratos salian "domiciliado(a) en N/A", tambien
+// en la 1.7 (donde pernocta la moto) y en las notificaciones. La muestra se veia
+// bien porque sus datos de prueba traian 'direccion' inventada.
+// Y la profesion salia como el codigo del tipo de empleo ("delivery", "formal").
+var _CTR_OFICIO = { formal:'Empleado(a) del sector privado', publico:'Empleado(a) público(a)',
+  delivery:'Motorizado(a) de delivery', independiente:'Trabajador(a) independiente',
+  comerciante:'Comerciante', informal:'Trabajador(a) por cuenta propia' };
+// Para "actividad economica de la que salen los fondos" las remesas si cuentan
+var _CTR_ACTIVIDAD = { formal:_CTR_OFICIO.formal, publico:_CTR_OFICIO.publico, delivery:_CTR_OFICIO.delivery,
+  independiente:_CTR_OFICIO.independiente, comerciante:_CTR_OFICIO.comerciante, informal:_CTR_OFICIO.informal,
+  remesas:'Remesas familiares' };
+function _ctrDomicilio(cli){
+  cli = cli || {};
+  var partes = [];
+  [cli.dir, cli.ciudad, cli.estado_ubi].forEach(function(x){
+    var s = _datoReal(x); if(!s) return;
+    // la ciudad no se repite si ya viene escrita dentro de la direccion
+    var k = s.toLowerCase();
+    if(partes.some(function(p){ return p.toLowerCase().indexOf(k) >= 0; })) return;
+    partes.push(s);
+  });
+  return partes.length ? partes.join(', ') : _datoReal(cli.direccion);
+}
+// El cargo que escribio el cliente manda ("Vendedor", "Mecánico"); si no hay, el
+// nombre del tipo de empleo. Un texto viejo que no es codigo se respeta tal cual.
+function _ctrOficio(cli){
+  cli = cli || {};
+  var t = String(cli.trabajo||'').trim();
+  return _datoReal(cli.cargo) || _CTR_OFICIO[t] || _datoReal(cli.profesion) || _datoReal(cli.ocupacion)
+      || (_CTR_ACTIVIDAD[t] ? '' : _datoReal(t));
+}
+function _ctrActividad(cli){
+  cli = cli || {};
+  var t = String(cli.trabajo||'').trim(), cargo = _datoReal(cli.cargo), emp = _datoReal(cli.empresa);
+  if(cargo) return emp ? cargo + ', ' + emp : cargo;
+  return _CTR_ACTIVIDAD[t] || _datoReal(cli.profesion) || _datoReal(cli.ocupacion) || _datoReal(t);
+}
+
 // ══════════════════════════════════════════════════════════════════
 // QUIEN FIRMA: LA COMPANIA, DESDE CONFIGURACION
 // ══════════════════════════════════════════════════════════════════
