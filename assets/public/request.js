@@ -378,16 +378,24 @@ function datosPantalla(pid, validar){
       delete o.fiador;   // 'si' solo con nombre y telefono (abajo)
       var fnom = _v('wz_fiador_nom').slice(0, 80), ftxt = _v('wz_fiador_tel');
       var ftel = ftxt ? normTelLibre(ftxt) : '';
-      if(ftxt && !ftel) err('wz_fiador_tel', 'Revisa el número: por ejemplo 0414-1234567.');
-      if(fnom && !ftxt) err('wz_fiador_tel', 'Escribe su teléfono para poder llamarlo.');
-      if(fnom) o.fiador_nom = fnom;
-      if(ftel) o.fiador_tel = ftel;
-      codigo('fiador_rel', 'wz_fiador_rel', OPC.fiador_rel);
-      var fciTxt = _v('wz_fiador_ci');
-      if(fciTxt){ var fci = normCedula(fciTxt); if(fci) o.fiador_ci = fci.valor; else err('wz_fiador_ci', 'Revisa la cédula: por ejemplo V-12345678.'); }
-      texto('fiador_dir', 'wz_fiador_dir', 200);
-      monto('fiador_ing', 'wz_fiador_ing');
-      if(fnom && ftel) o.fiador = 'si';
+      if(!fnom){
+        // Sin nombre no se guarda nada del fiador, igual que con las referencias: el panel
+        // (asistente y ficha) abre el fiador por su nombre, y un telefono o una cedula
+        // sueltos no se veian en ningun lado (integracion con PAGASI 18, 27-sep-2026).
+        if(ftxt || _v('wz_fiador_ci') || _v('wz_fiador_dir') || _raw('wz_fiador_ing') || _raw('wz_fiador_rel'))
+          err('wz_fiador_nom', 'Escribe también su nombre.');
+      } else {
+        if(ftxt && !ftel) err('wz_fiador_tel', 'Revisa el número: por ejemplo 0414-1234567.');
+        if(!ftxt) err('wz_fiador_tel', 'Escribe su teléfono para poder llamarlo.');
+        o.fiador_nom = fnom;
+        if(ftel) o.fiador_tel = ftel;
+        codigo('fiador_rel', 'wz_fiador_rel', OPC.fiador_rel);
+        var fciTxt = _v('wz_fiador_ci');
+        if(fciTxt){ var fci = normCedula(fciTxt); if(fci) o.fiador_ci = fci.valor; else err('wz_fiador_ci', 'Revisa la cédula: por ejemplo V-12345678.'); }
+        texto('fiador_dir', 'wz_fiador_dir', 200);
+        monto('fiador_ing', 'wz_fiador_ing');
+        if(ftel) o.fiador = 'si';
+      }
     }
   } else if(pid === 'p9'){
     var d = _raw('wz_fn_d'), m = _raw('wz_fn_m'), a = _raw('wz_fn_a');

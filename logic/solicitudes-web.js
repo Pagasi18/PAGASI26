@@ -21,8 +21,18 @@
 
 var SW_PARTES = 9;   // el formulario de solicitar.html tiene 9 partes
 function _swEsLeadWeb(c){ return !!c && !c.eliminado && c.origen === 'web'; }
+// El credito guarda su cliente en clienteId (_wzGuardar en logic/creditos.js); cliId es de
+// los creditos viejos. Se buscaba solo cliId, asi que un credito nuevo se reconocia nada
+// mas por el nombre, y otro cliente con el mismo nombre y credito dejaba este lead como
+// "Ya tiene credito". Por nombre solo los creditos que no traen ninguno de los dos
+// (integracion con PAGASI 18, 27-sep-2026).
 function _swTieneCredito(c){
-  return (S.creds||[]).some(function(cr){ return cr && !cr.eliminado && (String(cr.cliId||'') === String(c.id) || (cr.cli && cr.cli === c.nombre)); });
+  return (S.creds||[]).some(function(cr){
+    if(!cr || cr.eliminado) return false;
+    var cid = (cr.clienteId != null && String(cr.clienteId) !== '') ? cr.clienteId : cr.cliId;
+    if(cid != null && String(cid) !== '') return String(cid) === String(c.id);
+    return !!cr.cli && cr.cli === c.nombre;
+  });
 }
 // "Sin atender" solo si nadie la marco, no esta cerrada y no tiene credito
 function _swPendiente(c){ return _swEsLeadWeb(c) && !c.webAtendidaEn && !c.web_cerrado && !_swTieneCredito(c); }

@@ -231,7 +231,11 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   ok('las referencias van sin cédula ni observación (esas son del equipo)', JSON.stringify(u.datos.ref1) === JSON.stringify({ nom:'María González', ci:'', tel:'0424-1112233', rel:'Amigo/a', obs:'' }) && u.datos.ref2.nom === 'Pedro Díaz' && u.datos.ref2.tel === '' && u.datos.ref2.rel === '');
 
   // ── Parte 8: fiador ──
-  P.elegir('wz_fiador', 'si'); D.wz_fiador_nom.value = 'José Rodríguez';
+  P.elegir('wz_fiador', 'si'); D.wz_fiador_tel.value = '0412 765 43 21';
+  await P.siguiente(false);
+  ok('fiador con teléfono y sin nombre: se pide el nombre y no avanza', D.p8.hidden === false && /nombre/.test(D.err_wz_fiador_nom.textContent));
+  ok('...y con "No sé esto" no viaja nada suelto del fiador (el panel lo abre por su nombre)', Object.keys(P.datosPantalla('p8', false).datos).length === 0);
+  D.wz_fiador_tel.value = ''; D.wz_fiador_nom.value = 'José Rodríguez';
   await P.siguiente(false);
   ok('fiador con nombre y sin teléfono: se pide el teléfono', D.p8.hidden === false && /teléfono/.test(D.err_wz_fiador_tel.textContent));
   D.wz_fiador_tel.value = '0412 765 43 21'; P.elegir('wz_fiador_rel', 'conyuge'); D.wz_fiador_ci.value = 'v-9.876.543'; D.wz_fiador_ing.value = '600';
@@ -390,8 +394,12 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   const otro = { id:'C-1', nombre:'Pedro', origen:'panel' };
   cx.S.clientes = [lead, otro];
   ok('pendientes: solo los leads web sin atender, sin cerrar y sin crédito', cx._swPendientes().length === 1 && cx._swPendientes()[0].id === 'WEB-12345678');
-  cx.S.creds = [{ id:'M-001', cliId:'WEB-12345678', estado:'activo' }];
-  ok('...con crédito ya no cuenta', cx._swPendientes().length === 0);
+  cx.S.creds = [{ id:'M-001', clienteId:'WEB-12345678', cli:'CARLOS PÉREZ', estado:'activo' }];
+  ok('...con crédito ya no cuenta (el crédito lo amarra por clienteId, como lo guarda el asistente)', cx._swPendientes().length === 0);
+  cx.S.creds = [{ id:'C-0009', cliId:'WEB-12345678', estado:'activo' }];
+  ok('...ni con un crédito viejo que usa cliId', cx._swPendientes().length === 0);
+  cx.S.creds = [{ id:'M-002', clienteId:'C-77', cli:'Carlos Pérez', estado:'activo' }];
+  ok('...pero el crédito de OTRO cliente con el mismo nombre no lo marca', cx._swPendientes().length === 1 && !/Ya tiene crédito/.test(cx._swFichaHtml(lead)));
   cx.S.creds = []; lead.webAtendidaEn = '2026-09-27T11:00:00.000Z'; lead.webAtendidaPor = 'Samantha';
   ok('...marcada como atendida tampoco', cx._swPendientes().length === 0);
   lead.webAtendidaEn = ''; lead.webAtendidaPor = ''; lead.web_cerrado = true;
