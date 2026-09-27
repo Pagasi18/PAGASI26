@@ -149,7 +149,8 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   const uid = comp.auth.currentUser && comp.auth.currentUser.uid;
   ok('...el lead lleva el uid de ESA sesión', comp.base.almacen['clientes/WEB-12345678'].web_uid === uid && lote.rutas[1] === 'web_sesiones/'+uid);
   ok('la sesión NO se cierra después de la parte 1', !!comp.auth.currentUser);
-  ok('sale "ya nos llegó" con el número, "Seguir con mi solicitud" y la salida por WhatsApp', D.fMas.cls.has('on') && D.masId.textContent === 'WEB-12345678' && D.masNombre.textContent === 'Carlos');
+  ok('después de la parte 1 entra DIRECTO a la parte 2, sin pantalla de "¿seguimos?" (Adam, 27-sep)', D.fsWiz.cls.has('on') && D.p2.hidden === false && !D.fMas);
+  ok('...con el aviso de que la solicitud ya llegó, con su número', D.wzAviso.cls.has('on') && /WEB-12345678 ya nos llegó/.test(D.wzAviso.textContent) && /tu asesor/.test(D.wzAviso.textContent));
   let b = JSON.parse(comp.ls.getItem(BK));
   ok('el borrador guarda la solicitud (leadId, sesión, parte) y ya no la cédula ni el teléfono', b.leadId === 'WEB-12345678' && b.uid === uid && b.parte === 2 && !b.wz_ci && !b.wz_tel && b.trabajo === 'delivery');
   await P.submitF({ preventDefault(){} });
@@ -252,7 +253,7 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   ok('una fecha que no existe (31 de febrero) no se guarda', P.fechaNacimiento('31','02','2000') === '');
 
   // ── Terminar ──
-  ok('la última pantalla dice "Terminar", sin "No sé esto"', D.pFin.hidden === false && D.btnSiguiente.textContent === 'Terminar' && D.btnNoSe.hidden === true && /parte 9 de 9|Parte 9 de 9/.test(D.wzPaso.textContent));
+  ok('la última pantalla dice "Terminar", sin "No sé esto"', D.pFin.hidden === false && D.btnSiguiente.textContent === 'Terminar' && !D.btnNoSe && /parte 9 de 9|Parte 9 de 9/.test(D.wzPaso.textContent));
   ok('...con el resumen de las partes y "Cambiar"', /Parte 3 · Tu trabajo/.test(D.finResumen.innerHTML) && /data-ir="1"/.test(D.finResumen.innerHTML) && /Contestada/.test(D.finResumen.innerHTML));
   // Todo lo que mando la pagina: solo campos que las Reglas dejan, y nada vacio
   const envios = comp.base.log.filter(x => x.tipo === 'update');
@@ -323,12 +324,11 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
   comp4.auth.currentUser = { uid:'vieja' };
   P = pagina(comp4); await esperar();
   ok('sesión anónima suelta sin borrador: se cierra al cargar', comp4.auth.currentUser === null);
-  // "Prefiero que me escriban por WhatsApp"
+  // Sin salidas: ni "Prefiero que me escriban" ni "Salir y terminar después" ni "No sé esto"
   const comp5 = { ls: localStorageFalso(), auth: crearAuth(), base: crearBase() };
   P = pagina(comp5); Q = P._dom; await esperar();
   llenarEn(Q, 'V-50111222'); await P.submitF({ preventDefault(){} });
-  await P.prefieroWhatsApp();
-  ok('"Prefiero que me escriban por WhatsApp": cierra la sesión, borra el borrador y deja el WhatsApp con el número', comp5.auth.currentUser === null && comp5.ls.getItem(BK) === null && /WEB-50111222/.test(decodeURIComponent(Q.okWA.href)) && Q.okPasos.hidden === false);
+  ok('la página ya no ofrece salirse a mitad de camino (Adam: "la idea es que la hagan")', typeof P.prefieroWhatsApp === 'undefined' && !Q.btnPrefieroWA && !Q.btnSalir && !Q.btnNoSe && !Q.fMas && !!comp5.auth.currentUser);
   // Borrador de la parte 1 (todavia sin enviar)
   const comp6 = { ls: localStorageFalso(), auth: crearAuth(), base: crearBase() };
   P = pagina(comp6); Q = P._dom; await esperar();
@@ -347,14 +347,15 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
     !/type="file"/.test(html) && ['terremoto','wz_pep','cargo público','cuenta_digitos','wz_cuenta','banco_cobro','wz_r1ci','wz_r2ci','selfie','Selfie'].every(s => html.indexOf(s) === -1)
     && ['terremoto_afectado','terremoto_danos','pep_detalle',"'pep'",'cuenta_digitos','banco_cobro','web_docs','storage('].every(s => rq.indexOf(s) === -1));
   ok('el aviso fijo: nunca claves, códigos por mensaje ni números de cuenta', html.split('Nunca te pedimos claves, códigos que te lleguen por mensaje ni números de cuenta').length >= 3);
-  ok('la pantalla de "ya nos llegó" invita a seguir con un botón grande y deja WhatsApp como enlace chico',
-    /Contesta unas preguntas más \(10 a 15 minutos\) y tu asesor no tendrá que preguntarte nada\. Todo es opcional\./.test(html) && /id="btnSeguirSolicitud" class="btn btn-p fbig">Seguir con mi solicitud</.test(html) && /id="btnPrefieroWA" class="flink">Prefiero que me escriban por WhatsApp</.test(html));
-  ok('cada parte tiene Siguiente, "No sé esto, siguiente", Atrás y "Salir y terminar después"', /id="btnSiguiente"[^>]*>Siguiente</.test(html) && />No sé esto, siguiente</.test(html) && /id="btnAtras"[^>]*>Atrás</.test(html) && />Salir y terminar después</.test(html));
+  ok('no hay pantalla de "¿seguimos?" ni salidas: sin fMas, sin "Prefiero que me escriban", sin "No sé esto", sin "Salir y terminar después"',
+    ['id="fMas"','btnPrefieroWA','btnSeguirSolicitud','Todo es opcional','No sé esto, siguiente','Salir y terminar después','btnNoSe','btnSalir'].every(s => html.indexOf(s) === -1));
+  ok('cada parte tiene solo Atrás y Siguiente', /id="btnSiguiente"[^>]*>Siguiente</.test(html) && /id="btnAtras"[^>]*>Atrás</.test(html));
+  ok('la portada ya no promete "1 minuto": empieza con seis datos y sigue paso a paso', /Empiezas con seis datos y sigues paso a paso/.test(html) && html.indexOf('Tu moto en 1 minuto') === -1);
   ok('la última pantalla: "Todo lo que llenaste ya nos llegó. Toca Terminar para avisarle a tu asesor"', /Todo lo que llenaste ya nos llegó\. Toca <b>Terminar<\/b> para avisarle a tu asesor\./.test(html));
   ok('"Elegir de mis contactos" nace escondido (solo aparece si el navegador lo tiene)', (html.match(/data-contacto="[a-z0-9]+" hidden>Elegir de mis contactos/g) || []).length === 3 && /navigator\.contacts\.select/.test(src('assets/public/request-ui.js')));
   ok('el lenguaje de la calle: "¿Cuántas personas viven de lo que tú ganas?" y la dirección con barrio', /¿Cuántas personas viven de lo que tú ganas\?/.test(html) && /barrio José Félix Ribas/.test(html));
   ok('la página no usa alert() ni guarda la sesión con signOut entre partes', !/alert\(/.test(rq) && (rq.match(/signOut\(\)/g) || []).length === 1);
-  ok('la hoja de estilo y los scripts van versionados', /assets\/public\/request\.css\?v=26-/.test(html) && /request\.js\?v=26-20260927-3/.test(html));
+  ok('la hoja de estilo y los scripts van versionados', /assets\/public\/request\.css\?v=26-/.test(html) && /request\.js\?v=26-\d{8}-\d+/.test(html) && /request-ui\.js\?v=26-\d{8}-\d+/.test(html));
 
   // ── Los valores: los mismos de las Reglas y los del asistente ──
   const O = P.OPC, q = l => '[' + l.map(x => "'"+x+"'").join(', ') + ']';
@@ -632,7 +633,7 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
     await PD.submitF({ preventDefault(){} });
     ok('...no manda un segundo lote mientras espera', cD.base.log.filter(x => x.tipo === 'lote').length === 1);
     PD._vencerTiempos = false; cD.base.soltarLote(); await enviando;
-    ok('...y cuando llega, sigue solo a "ya nos llegó"', DD.fMas.cls.has('on') && !!cD.base.almacen['clientes/WEB-45678901'] && DD.fAviso.innerHTML === '' && DD.btnGuardarSolicitud.disabled === false);
+    ok('...y cuando llega, sigue solo a la parte 2', DD.fsWiz.cls.has('on') && DD.p2.hidden === false && !!cD.base.almacen['clientes/WEB-45678901'] && DD.fAviso.innerHTML === '' && DD.btnGuardarSolicitud.disabled === false);
 
     // ── Pausa: el mismo navegador, y dentro de Instagram el mismo enlace ──
     PD.irA(0); await PD.salir();

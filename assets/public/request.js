@@ -1,7 +1,8 @@
 /* Solicitud por partes (27-sep-2026, Adam: "quitarle trabajo al empleado").
    La parte 1 son los seis datos de siempre y CREA el lead WEB-<cedula>, asi nadie se
    pierde aunque se vaya ahi mismo. Despues se ofrece seguir: partes 2 a 9, una por
-   pantalla, todo opcional, y cada "Siguiente" guarda en la ficha SOLO lo que contesto.
+   pantalla, y cada "Siguiente" guarda en la ficha SOLO lo que contesto. Sin salidas a mitad
+   de camino (Adam, 27-sep-2026): despues de la parte 1 se sigue directo a la 2.
    Lo que llene el cliente le aparece ya escrito al empleado en "Nueva solicitud".
    No se piden fotos ni documentos, ni cuenta bancaria, ni la pregunta del terremoto
    ni la de cargo publico (decisiones de Adam del 27-sep). No se calcula ningun score:
@@ -554,7 +555,7 @@ function _conTiempo(p, ms){
 }
 
 // ── Pantallas ─────────────────────────────────────────────────────────────
-var PANTALLAS_FS = ['fs1','fMas','fsWiz','fRet','fPausa','fOK'];
+var PANTALLAS_FS = ['fs1','fsWiz','fRet','fPausa','fOK'];
 function _pantalla(id){
   PANTALLAS_FS.forEach(function(k){ var e = _el(k); if(e) e.classList.toggle('on', k===id); });
   var card = _el('formSolicitud');
@@ -574,16 +575,6 @@ function _texto(id, t){ var e = _el(id); if(e) e.textContent = t; }
 function _ocultar(id, si){ var e = _el(id); if(e) e.hidden = !!si; }
 function _enApp(){ try{ return /Instagram|FBAN|FBAV|FB_IAB/i.test(navigator.userAgent||''); }catch(e){ return false; } }
 
-// Despues de la parte 1: ya llego, ¿seguimos?
-function mostrarMas(){
-  _texto('masNombre', _primerNombre(LEAD.nombre) || 'ya está');
-  _texto('masId', LEAD.id);
-  _ocultar('masApp', !_enApp());
-  _pantalla('fMas');
-  _ui('mas');
-}
-// Los finales. Nunca se confirma que una cedula ya existe: el mensaje de "duplicado" es
-// neutro, porque cualquiera podria probar cedulas para saber quien pidio credito.
 function mostrarFin(tipo){
   var L = LEAD || {}, nombre = _primerNombre(L.nombre), id = L.id || '';
   var t = {
@@ -668,7 +659,11 @@ async function submitF(ev){
              ingreso_rango: payload.ingreso_rango, estado_ubi: payload.estado_ubi || '', moto: payload.moto_interes_modelo };
     ESTADO = { i:0, paso:1, guardado:{}, pend:{}, ocupado:false };
     guardarBorrador();
-    mostrarMas();
+    // Adam, 27-sep-2026: "no le des la opcion al cliente de no hacer la solicitud, la idea es
+    // que la hagan". Sin pantalla de "¿seguimos?": se entra directo a la parte 2 con un aviso
+    // de que la solicitud ya llego.
+    irA(0);
+    avisoWiz('Tu solicitud '+LEAD.id+' ya nos llegó. Sigue con estas preguntas: así tu asesor te escribe con todo listo.'+(_enApp() ? ' Termínala de una vez desde aquí.' : ''), true);
   }catch(err){
     console.error('submitF:', err);
     if(_esRechazo(err) && payload){
@@ -773,7 +768,6 @@ function progreso(){
   var bar = _el('wzBar'); if(bar) bar.setAttribute('aria-valuenow', String(pct));
   // Navegacion: sin "Atrás" en la primera, y la ultima dice "Terminar"
   _ocultar('btnAtras', ESTADO.i === 0);
-  _ocultar('btnNoSe', !!p.fin);
   _texto('btnSiguiente', p.fin ? 'Terminar' : 'Siguiente');
 }
 function pintarResumen(){
@@ -863,7 +857,7 @@ async function reenviarPendientes(){
 }
 function _ocupado(si, texto){
   ESTADO.ocupado = si;
-  ['btnSiguiente','btnAtras','btnNoSe','btnSalir'].forEach(function(id){ var b = _el(id); if(b) b.disabled = si; });
+  ['btnSiguiente','btnAtras'].forEach(function(id){ var b = _el(id); if(b) b.disabled = si; });
   var w = _el('fsWiz'); if(w) w.classList.toggle('fsaving', si);
   if(texto) _texto('btnSiguiente', texto);
 }
@@ -944,7 +938,6 @@ async function terminar(){
     else avisoWiz('No pudimos avisarle a tu asesor. Revisa tu conexión y toca Terminar otra vez.');
   }finally{ _ocupado(false); if(LEAD) progreso(); }
 }
-async function prefieroWhatsApp(){ await cerrarSesion(); borrarBorrador(); mostrarFin('whatsapp'); }
 async function borrarDeAqui(){ await cerrarSesion(); borrarBorrador(); mostrarFin('borrado'); }
 
 // ── Retomar en el mismo telefono ──────────────────────────────────────────
@@ -1055,12 +1048,8 @@ async function elegirContacto(quien){
     CAMPOS_BORRADOR.forEach(function(id){ var e = _el(id); if(e){ e.addEventListener('input', function(){ if(!LEAD) guardarBorrador(); }); e.addEventListener('change', function(){ if(!LEAD) guardarBorrador(); }); } });
     if(fM){ fM.addEventListener('change', _pintarPlan); }
     var on = function(id, fn){ var b = _el(id); if(b) b.addEventListener('click', fn); };
-    on('btnSeguirSolicitud', function(){ irA(0); });
-    on('btnPrefieroWA', prefieroWhatsApp);
     on('btnSiguiente', function(){ siguiente(false); });
-    on('btnNoSe', function(){ siguiente(true); });
     on('btnAtras', atras);
-    on('btnSalir', salir);
     on('btnRetSeguir', seguirDondeQuede);
     on('btnRetBorrar', borrarDeAqui);
     on('btnPausaSeguir', function(){ irA(ESTADO.i); });

@@ -42,7 +42,7 @@
     area.innerHTML='<h2>Tu solicitud</h2>'
       +(info.leadId?'<p class="pg-summary-id">'+esc(info.leadId)+'</p>':'')
       +donde
-      +'<p class="pg-note">Lo que llenes se guarda cada vez que tocas <b>Siguiente</b>. Puedes parar cuando quieras: lo que falte lo vemos por WhatsApp.</p>';
+      +'<p class="pg-note">Lo que llenes se guarda cada vez que tocas <b>Siguiente</b>. Al terminar, tu asesor te escribe con todo listo.</p>';
   }
   if(select){ select.addEventListener('change',summary); }
   summary();
