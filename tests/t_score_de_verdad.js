@@ -20,8 +20,8 @@ const S = ctx.S; S.creds = []; S.clientes = [];
 
 // ── 1. La solicitud ya no pierde los datos al cambiar de paso ──
 // Como queda WZ al llegar al paso 4: los campos del paso 1 y 2 ya no están en pantalla.
-// Desde el 27-sep-2026 el fiador cuenta solo si tiene nombre: el WZ de prueba lo trae.
-function wz(extra){ vm.runInContext("WZ = " + JSON.stringify(Object.assign({ step:4, precio:0, wz_ing:'900', ing:900, wz_ifam:'', wz_emp:'formal', emp:'formal', wz_ant:'5', ant:'5', wz_banco:'no', wz_viv:'alquilada', wz_rem:'no', wz_conocio:'referido', fiador_tiene:'si', fiador_nom:'Pedro Fiador', cashea:'no', _chip_wz_hist_g:'bueno', _chip_wz_deuda_g:'no', _chip_wz_dep_g:'0', wz_tel:'0412', wz_uso:'delivery' }, extra||{})) + ";", ctx); ctx._wzScore(); return ctx.WZ; }
+// Desde el 27-sep-2026 el fiador cuenta solo si tiene nombre y telefono: el WZ de prueba los trae.
+function wz(extra){ vm.runInContext("WZ = " + JSON.stringify(Object.assign({ step:4, precio:0, wz_ing:'900', ing:900, wz_ifam:'', wz_emp:'formal', emp:'formal', wz_ant:'5', ant:'5', wz_banco:'no', wz_viv:'alquilada', wz_rem:'no', wz_conocio:'referido', fiador_tiene:'si', fiador_nom:'Pedro Fiador', fiador_tel:'0412-5550000', cashea:'no', _chip_wz_hist_g:'bueno', _chip_wz_deuda_g:'no', _chip_wz_dep_g:'0', wz_tel:'0412', wz_uso:'delivery' }, extra||{})) + ";", ctx); ctx._wzScore(); return ctx.WZ; }
 let W = wz();
 ok('la capacidad de pago ya no es 10: el ingreso de 900 llega a la fórmula', W.f2 >= 15 && W.f2 !== 10);
 ok('las garantías ya no son 50: el fiador cuenta (+45) y "sin banco" resta (−10)', W.f4 === 60);

@@ -663,7 +663,9 @@ function initFB(){
 }
 
 /* ── Telefono venezolano -> E.164 (+584141234567) ─────────────────────── */
-var PREFIJOS = ['412','414','416','424','426'];
+// 0422: el prefijo nuevo de Digitel (julio de 2025). Sin el, un cliente con esa linea no
+// podia entrar a Mi cuenta por SMS (revision del 27-sep-2026).
+var PREFIJOS = ['412','414','416','422','424','426'];
 function telE164(v){
   var d = soloDigitos(v);
   if(d.indexOf('58')===0 && d.length===12) d = d.slice(2);

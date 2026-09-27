@@ -284,7 +284,9 @@ function portalCompMarcar(compId, estado, nota){
 var _PORTAL_PLAN = null;   // resultado del analisis, listo para aplicar
 
 // Prefijos de celular en Venezuela (los fijos no reciben SMS)
-var _PORTAL_PREFIJOS = ['412','414','416','424','426'];
+// 0422 es el prefijo nuevo de Digitel (julio de 2025): sin el, esa ficha quedaba "sin
+// telefono" para el portal (revision del 27-sep-2026). Misma lista que micuenta.html.
+var _PORTAL_PREFIJOS = ['412','414','416','422','424','426'];
 
 function _pTelE164(v){
   var d = String(v==null?'':v).replace(/\D/g,'');

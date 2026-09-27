@@ -202,7 +202,7 @@ function openAddPago(preCredId){
         }
 
         // ── Punto 5: Marcar cliente como premium si pagó sin mora ──
-        var cliIdx=S.clientes.findIndex(function(cl){return cl.nombre===S.creds[ci].cli;});
+        var cliIdx=S.clientes.findIndex(function(cl){return cl && _credEsDeCliente(S.creds[ci], cl);});   // por clienteId (revision del 27-sep-2026)
         if(cliIdx>=0){
           var tuvomora=(S.creds[ci].tuvoMoraHistorica===true)||S.pagos.some(function(p){return p.cred===credId&&p.mora>0;});
           if(!tuvomora && !(S.creds[ci].mora>0)){
@@ -789,14 +789,28 @@ function ejecutarDelPago(){
 }
 
 
+// De quien es un credito (revision del 27-sep-2026). Se buscaba solo por el NOMBRE: un lead
+// de la web que todavia estaba llenando el formulario, con el mismo nombre que otro cliente
+// con credito, pasaba a 'activo' al abrir el panel; desde ahi las Reglas le rechazaban las
+// partes siguientes y el cliente veia "Tu asesor ya tiene tu solicitud". Ahora manda el
+// clienteId (o cliId, en los creditos viejos); por nombre solo el credito que no trae
+// ninguno, y nunca contra un lead web abierto (esos se atan por clienteId al crear el
+// credito). La misma regla que _swTieneCredito en la bandeja de la 26.
+function _credEsDeCliente(cr, cl){
+  if(!cr || !cl) return false;
+  var cid = (cr.clienteId != null && String(cr.clienteId) !== '') ? cr.clienteId : cr.cliId;
+  if(cid != null && String(cid) !== '') return String(cid) === String(cl.id);
+  if(cl.origen === 'web' && cl.estado === 'lead' && cl.web_cerrado !== true) return false;
+  return !!cr.cli && cr.cli === cl.nombre;
+}
 function syncEstadoClientePorCredito(credId){
   var cred=S.creds.find(function(x){return x.id===credId;});
   if(!cred) return;
-  var cliIdx=S.clientes.findIndex(function(cl){return cl.nombre===cred.cli;});
+  var cliIdx=S.clientes.findIndex(function(cl){return cl && !cl.eliminado && _credEsDeCliente(cred, cl);});
   if(cliIdx<0) return;
-  var nombre=S.clientes[cliIdx].nombre;
-  var tieneActivos=S.creds.some(function(cr){return !cr.eliminado && cr.cli===nombre && (cr.estado==='activo' || cr.estado==='mora');});
-  var tieneCompletados=S.creds.some(function(cr){return !cr.eliminado && cr.cli===nombre && cr.estado==='completado';});
+  var cl0=S.clientes[cliIdx];
+  var tieneActivos=S.creds.some(function(cr){return !cr.eliminado && _credEsDeCliente(cr, cl0) && (cr.estado==='activo' || cr.estado==='mora');});
+  var tieneCompletados=S.creds.some(function(cr){return !cr.eliminado && _credEsDeCliente(cr, cl0) && cr.estado==='completado';});
   var nuevoEstado=tieneActivos ? 'activo' : (tieneCompletados ? 'solvente' : (S.clientes[cliIdx].estado||'activo'));
   if(S.clientes[cliIdx].estado!==nuevoEstado){
     S.clientes[cliIdx].estado=nuevoEstado;
@@ -808,9 +822,8 @@ function syncEstadoClientePorCredito(credId){
 function syncTodosEstadosClientes(){
   S.clientes.forEach(function(cl){
     if(!cl || cl.eliminado) return;
-    var nombre=cl.nombre;
-    var tieneActivos=S.creds.some(function(cr){return !cr.eliminado && cr.cli===nombre && (cr.estado==='activo' || cr.estado==='mora');});
-    var tieneCompletados=S.creds.some(function(cr){return !cr.eliminado && cr.cli===nombre && cr.estado==='completado';});
+    var tieneActivos=S.creds.some(function(cr){return !cr.eliminado && _credEsDeCliente(cr, cl) && (cr.estado==='activo' || cr.estado==='mora');});
+    var tieneCompletados=S.creds.some(function(cr){return !cr.eliminado && _credEsDeCliente(cr, cl) && cr.estado==='completado';});
     var nuevoEstado=tieneActivos ? 'activo' : (tieneCompletados ? 'solvente' : (cl.estado||'activo'));
 
     // ── AUTO-REPARAR SCORE ──

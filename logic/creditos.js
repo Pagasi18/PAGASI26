@@ -185,20 +185,52 @@ function _wzPistaIngreso(){
   if(!r || WZ.ingreso_exacto===true) return '';
   return _wzPista('wz_pista_ingreso', 'Marcó '+_wzEsc(r.charAt(0).toLowerCase()+r.slice(1))+': confirma la cifra');
 }
+// Revision del 27-sep-2026: el empleado confirmaba la cifra (300 en vez del 225 del rango
+// "$150 a $300"), pero la ficha no la marcaba como exacta: la bandeja seguia mostrando solo el
+// rango y, al editar el credito, la pista "confirma la cifra" volvia a salir al lado del 300.
+// La cifra esta confirmada si el empleado la escribio o si ya no es el punto medio del rango
+// que puso la web (los mismos de assets/public/request.js en la 26).
+var INGRESO_RANGO_MEDIO = { 'Menos de $150':100, '$150 a $300':225, '$300 a $500':400, '$500 a $800':650, 'Más de $800':1000 };
+function _wzIngTocado(){
+  WZ._ingTocado = true;
+  var p = document.getElementById('wz_pista_ingreso'); if(p && p.style) p.style.display = 'none';
+}
+function _wzIngresoConfirmado(){
+  if(!WZ.ingreso_rango) return false;          // no vino de la web: no hay rango que confirmar
+  if(WZ.ingreso_exacto === true) return true;
+  var ing = parseFloat(WZ.ing)||0; if(ing <= 0) return false;
+  if(WZ._ingTocado) return true;
+  var medio = INGRESO_RANGO_MEDIO[String(WZ.ingreso_rango)];
+  return medio != null && ing !== medio;
+}
 
 // 27-sep-2026: si el empleado escribia a mano la cedula de alguien que ya tiene ficha (casi
 // siempre un lead de la web), no pasaba nada: el asistente la encontraba recien al guardar,
 // cuando ya se habia vuelto a escribir todo. Ahora, al salir del campo, se ofrece cargarla.
 // Se compara solo por los digitos (V-12.345.678 = 12345678).
+// Revision del 27-sep-2026: la misma cedula puede tener DOS fichas (en la 26 se copiaron los
+// clientes de la 18, y el cliente de antes que vuelve llena la web: queda la ficha vieja
+// numerica y el lead WEB-...). Se tomaba la primera que aparecia (la vieja) y bastaba con
+// entrar y salir del campo, con el lead web ya cargado desde "Crear solicitud", para que
+// ofreciera cambiarse a la vieja: se perdia lo que escribio el cliente, el credito quedaba en
+// la ficha vieja y el lead seguia abierto en la bandeja. Ahora se miran TODAS: si una ya esta
+// elegida no se pregunta nada, y si hay que elegir se prefiere el lead web abierto y la
+// pregunta dice cual se carga.
 function _wzCedulaFicha(el){
   if(window._wzEditando) return;   // editando un credito: su cliente ya esta amarrado
   var dig = String((el && el.value) || '').replace(/[^0-9]/g,'');
   if(dig.length < 5) return;
-  var c = (S.clientes||[]).find(function(x){ return x && !x.eliminado && String(x.cedula||'').replace(/[^0-9]/g,'') === dig; });
-  if(!c || String(WZ.clienteSel||'') === String(c.id)) return;
+  var todas = (S.clientes||[]).filter(function(x){ return x && !x.eliminado && String(x.cedula||'').replace(/[^0-9]/g,'') === dig; });
+  if(!todas.length) return;
+  var sel = String(WZ.clienteSel||'');
+  if(sel && todas.some(function(x){ return String(x.id) === sel; })) return;
+  var webAbierto = function(x){ return x.origen === 'web' && x.web_cerrado !== true; };
+  var c = todas.filter(webAbierto)[0] || todas[0];
   if(WZ._ciOfrecida === dig) return;   // ya dijo que no: no se le vuelve a preguntar
   WZ._ciOfrecida = dig;
-  if(confirm('Esta cédula ya tiene ficha ('+c.id+'). ¿Cargar sus datos?')) _wzCliPick(c.id);
+  var quien = (c.nombre ? c.nombre+', ' : '') + c.id + (webAbierto(c) ? ', solicitud web' : '');
+  var otras = todas.length > 1 ? ' (tiene '+todas.length+' fichas con esta cédula: se carga esta)' : '';
+  if(confirm('Esta cédula ya tiene ficha ('+quien+')'+otras+'. ¿Cargar sus datos?')) _wzCliPick(c.id);
 }
 
 function openAddCred(motoId=null){
@@ -391,7 +423,10 @@ function _wzRender(motoId){
     + '<input type="hidden" id="wz_precio" value="">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'
     + '<div class="fg"><label class="fsec" style="display:block;margin-bottom:5px">Uso de la moto *</label>'
+    // Revision del 27-sep-2026: sin opcion vacia salia "Personal" aunque nadie lo hubiera
+    // contestado, y el credito se guardaba con uso 'personal' como si el cliente lo dijo.
     + '<select class="fs" id="wz_uso" onchange="_wzScore()">'
+    + '<option value="">—</option>'
     + '<option value="personal">Personal</option>'
     + '<option value="delivery">Delivery / Trabajo</option>'
     + '<option value="negocio">Negocio</option>'
@@ -489,8 +524,10 @@ function _wzRender(motoId){
   // 27-sep-2026: las listas que no tenian opcion vacia mostraban (y guardaban) "Propia", "No",
   // "Activa" o "Familiar directo" aunque nadie lo hubiera contestado. Con el cliente llenando
   // la web, lo que no contesto tiene que verse vacio: "—" es "sin dato".
+  // "Seleccionar..." valia "0" y se guardaba tiempo_dir '0' sin que nadie contestara (la web
+  // solo manda '1' a '4'). Vacio es "sin dato" (revision del 27-sep-2026).
   +_row2(
-    _fg('Tiempo en esta dirección',_sel('wz_tdir','<option value="0">Seleccionar...</option><option value="1">Menos de 1 año</option><option value="2">1–3 años</option><option value="3">3–5 años</option><option value="4">Más de 5 años</option>','_wzScore()')),
+    _fg('Tiempo en esta dirección',_sel('wz_tdir','<option value="">Seleccionar...</option><option value="1">Menos de 1 año</option><option value="2">1–3 años</option><option value="3">3–5 años</option><option value="4">Más de 5 años</option>','_wzScore()')),
     _fg('Tipo de vivienda',_sel('wz_viv','<option value="">—</option><option value="propia">Propia</option><option value="alquilada">Alquilada</option><option value="familiar">Familiar / prestada</option><option value="otro">Otro</option>','_wzScore()'))
   )
   +_row2(
@@ -511,7 +548,7 @@ function _wzRender(motoId){
     _fg('Cargo / Actividad',_inp('wz_cargo','text','Ej: Motorizado, Vendedor'))
   )
   +_row2(
-    _fg('Ingreso mensual propio (USD) *',_inp('wz_ing','number','0','oninput="_wzScore()" min="0" step="10"')+_wzPistaIngreso()),
+    _fg('Ingreso mensual propio (USD) *',_inp('wz_ing','number','0','oninput="_wzIngTocado();_wzScore()" min="0" step="10"')+_wzPistaIngreso()),
     _fg('Antigüedad laboral',_sel('wz_ant','<option value="">Seleccionar...</option><option value="1">Menos de 6 meses</option><option value="2">6m – 1 año</option><option value="3">1 a 3 años</option><option value="5">Más de 3 años</option>','_wzScore()'))
   )
   +_row2(
@@ -556,7 +593,9 @@ function _wzRender(motoId){
   +'<div style="margin-bottom:10px">'+_fg('¿Tiene cuenta Cashea?',
     '<div style="display:flex;gap:8px">'
     +'<label style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surf2);border:1.5px solid var(--rim);border-radius:10px;padding:10px 12px;cursor:pointer">'
-    +'<input type="radio" name="wz_cashea" value="no" checked onchange="_wzToggleCashea(\'no\')" style="accent-color:var(--p1)"> Sin Cashea</label>'
+    // Sin marcar de entrada (revision del 27-sep-2026): "Sin Cashea" marcado por defecto se
+    // guardaba como respuesta del cliente aunque nadie se lo hubiera preguntado.
+    +'<input type="radio" name="wz_cashea" value="no" onchange="_wzToggleCashea(\'no\')" style="accent-color:var(--p1)"> Sin Cashea</label>'
     +'<label style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surf2);border:1.5px solid var(--rim);border-radius:10px;padding:10px 12px;cursor:pointer">'
     +'<input type="radio" name="wz_cashea" value="si" onchange="_wzToggleCashea(\'si\')" style="accent-color:var(--p1)"> Tiene Cashea</label>'
     +'</div>'
@@ -610,7 +649,7 @@ function _wzRender(motoId){
   +'<div style="margin-bottom:10px">'+_fg('¿Presenta fiador?',
     '<div style="display:flex;gap:8px">'
     +'<label style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surf2);border:1.5px solid var(--rim);border-radius:10px;padding:10px 12px;cursor:pointer">'
-    +'<input type="radio" name="wz_fiador" value="no" checked onchange="_wzToggleFiador(\'no\');_wzScore()" style="accent-color:var(--p1)"> Sin fiador</label>'
+    +'<input type="radio" name="wz_fiador" value="no" onchange="_wzToggleFiador(\'no\');_wzScore()" style="accent-color:var(--p1)"> Sin fiador</label>'
     +'<label style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surf2);border:1.5px solid var(--rim);border-radius:10px;padding:10px 12px;cursor:pointer">'
     +'<input type="radio" name="wz_fiador" value="si" onchange="_wzToggleFiador(\'si\');_wzScore()" style="accent-color:var(--p1)"> Tiene fiador</label>'
     +'</div>'
@@ -911,10 +950,11 @@ function _wzHydrate(){
   });
   ['wz_emp','wz_ant','wz_conocio','wz_estado','wz_tdir','wz_viv','wz_terremoto','wz_terremoto_danos','wz_rem','wz_banco','wz_banco_cobro','wz_ahorro','wz_cashea_nivel','wz_cashea_estado','wz_cashea_deuda','wz_r1r','wz_r2r','wz_fiador_rel'].forEach(function(id){ var el=document.getElementById(id); if(el && WZ[id]!=null && WZ[id]!=='') el.value=WZ[id]; });
   if(typeof _wzTerremotoToggle==='function') _wzTerremotoToggle();
-  var cashea = WZ.cashea||'no';
-  var casheaRadio=document.querySelector('input[name="wz_cashea"][value="'+cashea+'"]'); if(casheaRadio) casheaRadio.checked=true; if(document.getElementById('wz_cashea_det')) _wzToggleCashea(cashea); if(WZ.cashea_deuda==='si') _wzToggleCasheaDeuda('si');
-  var fiador = WZ.fiador_tiene||'no';
-  var fiadorRadio=document.querySelector('input[name="wz_fiador"][value="'+fiador+'"]'); if(fiadorRadio) fiadorRadio.checked=true; if(document.getElementById('wz_fiador_det')) _wzToggleFiador(fiador);
+  // Sin respuesta, ningun radio marcado (revision del 27-sep-2026)
+  var cashea = WZ.cashea||'';
+  var casheaRadio=cashea && document.querySelector('input[name="wz_cashea"][value="'+cashea+'"]'); if(casheaRadio) casheaRadio.checked=true; if(document.getElementById('wz_cashea_det')) _wzToggleCashea(cashea); if(WZ.cashea_deuda==='si') _wzToggleCasheaDeuda('si');
+  var fiador = WZ.fiador_tiene||'';
+  var fiadorRadio=fiador && document.querySelector('input[name="wz_fiador"][value="'+fiador+'"]'); if(fiadorRadio) fiadorRadio.checked=true; if(document.getElementById('wz_fiador_det')) _wzToggleFiador(fiador);
   function pick(group,val){ if(val==null || val==='') return; var container=document.getElementById(group); if(container){ Array.from(container.children).forEach(function(el){ if((el.getAttribute('onclick')||'').indexOf("'"+String(val)+"'")>=0) _wzChip(el,group,String(val)); }); } }
   pick('wz_emp_g', WZ.emp||WZ['_chip_wz_emp_g']);
   pick('wz_hist_g', WZ.hist||WZ['_chip_wz_hist_g']);
@@ -942,11 +982,11 @@ function _wzHydrate(){
   }
   // Restaurar radios de cashea y fiador desde WZ al editar
   (function(){
-    var casheaVal = WZ.cashea||'no';
-    var casheaRadio = document.querySelector('input[name="wz_cashea"][value="'+casheaVal+'"]');
+    var casheaVal = WZ.cashea||'';
+    var casheaRadio = casheaVal && document.querySelector('input[name="wz_cashea"][value="'+casheaVal+'"]');
     if(casheaRadio){ casheaRadio.checked=true; if(typeof _wzToggleCashea==='function') _wzToggleCashea(casheaVal); }
-    var fiadorVal = WZ.fiador_tiene||'no';
-    var fiadorRadio = document.querySelector('input[name="wz_fiador"][value="'+fiadorVal+'"]');
+    var fiadorVal = WZ.fiador_tiene||'';
+    var fiadorRadio = fiadorVal && document.querySelector('input[name="wz_fiador"][value="'+fiadorVal+'"]');
     if(fiadorRadio){ fiadorRadio.checked=true; if(typeof _wzToggleFiador==='function') _wzToggleFiador(fiadorVal); }
     // Restaurar documentos en lista visual
     if(Array.isArray(WZ.documentos) && WZ.documentos.length){
@@ -1078,7 +1118,7 @@ function _wzPickCliente(sel){
   WZ.cuenta = WZ.wz_cuenta = c.cuenta_digitos || '';
   WZ.ahorro = WZ.wz_ahorro = c.ahorro || '';
   // Cashea
-  WZ.cashea = c.cashea || 'no';
+  WZ.cashea = c.cashea || '';   // sin dato, sin marcar (revision del 27-sep-2026)
   WZ.cashea_nivel = WZ.wz_cashea_nivel = c.cashea_nivel || '';
   WZ.cashea_estado = WZ.wz_cashea_estado = c.cashea_estado || '';
   WZ.cashea_deuda = WZ.wz_cashea_deuda = c.cashea_deuda || '';
@@ -1095,13 +1135,15 @@ function _wzPickCliente(sel){
   WZ.inicial_rango = c.inicial_rango || '';
   WZ.ingreso_rango = c.ingreso_rango || '';
   WZ.ingreso_exacto = c.ingreso_exacto === true;
+  WZ._ingTocado = false;
   // Fiador
   // 27-sep-2026: la web guarda el nombre del fiador aunque el cliente no haya puesto su
   // telefono ("No se esto, siguiente"), pero sin fiador:'si' (las Reglas piden nombre y
   // telefono para eso). Con 'no' el bloque quedaba cerrado y el empleado no veia el nombre
   // que ya escribio el cliente. Se abre igual que en la ficha (verCliente): el empleado le
   // pide el telefono o lo pasa a "No".
-  WZ.fiador_tiene = c.fiador || (String(c.fiador_nom||'').trim() ? 'si' : 'no');
+  // Sin nada del fiador queda sin marcar: "no contesto" no es "no tiene" (revision del 27-sep).
+  WZ.fiador_tiene = c.fiador || (String(c.fiador_nom||'').trim() ? 'si' : '');
   WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
   WZ.fiador_tel = WZ.wz_fiador_tel = c.fiador_tel || '';
   WZ.fiador_ci = WZ.wz_fiador_ci = _wzFmtCedula(c.fiador_ci || '');
@@ -1788,6 +1830,15 @@ function _wzToggleFiador(v){
   var el=document.getElementById('wz_fiador_det');
   if(el) el.style.display=v==='si'?'block':'none';
 }
+// Lo que se guarda como "tiene fiador" en la ficha y en el credito (revision del 27-sep-2026).
+// La misma regla de la web y de las Reglas: 'si' solo con nombre Y telefono. Con el nombre
+// solo (el cliente lo dejo a medias en la web) queda vacio, que es "sin confirmar": al volver
+// a abrir la ficha el bloque sale abierto con el nombre, como hoy. 'no' si dijo que no.
+function _wzFiadorValor(){
+  var t = WZ.fiador_tiene;
+  if(t === 'si') return (String(WZ.fiador_nom||'').trim() && String(WZ.fiador_tel||'').trim()) ? 'si' : '';
+  return t === 'no' ? 'no' : '';
+}
 
 // ── Address autocomplete (Nominatim) ──
 var _wzAddrTimer=null;
@@ -1863,8 +1914,9 @@ function _wzScore(){
   // 27-sep-2026: lo que no se contesto va VACIO a la formula, que lo trata como "sin dato"
   // (ver calcularScoreConCfg). Antes aqui se rellenaba con la mejor respuesta: vivienda
   // "propia", banco "activa", "sin deudas". Saltarse una pregunta subia el score.
-  // Y el fiador cuenta solo si tiene nombre: marcar "Tiene fiador" sin datos sumaba +45 en
-  // garantias y el contrato salia sin fiador.
+  // Y el fiador cuenta solo si tiene nombre Y telefono (la misma regla de la web y de las
+  // Reglas): marcar "Tiene fiador" sin datos sumaba +45 en garantias, y el que el cliente
+  // dejo a medias en la web (nombre sin telefono) tambien (revision del 27-sep-2026).
   var input = {
     ing: parseFloat(v('wz_ing','ing'))||0,
     ifam: parseFloat(v('wz_ifam','ifam'))||0,
@@ -1877,7 +1929,7 @@ function _wzScore(){
     banco: v('wz_banco','banco')||'',
     viv: v('wz_viv','viv')||'',
     rem: (v('wz_rem','rem')||'no')==='si',
-    fiador: radio('wz_fiador','fiador_tiene','no')==='si' && String(v('wz_fiador_nom','fiador_nom')||'').trim()!=='',
+    fiador: radio('wz_fiador','fiador_tiene','no')==='si' && String(v('wz_fiador_nom','fiador_nom')||'').trim()!=='' && String(v('wz_fiador_tel','fiador_tel')||'').trim()!=='',
     tieneTel: !!(v('wz_tel','tel')),
     tieneRef: !!(v('wz_r1n','r1n') || v('wz_r2n','r2n')),
     uso: v('wz_uso','uso')||'personal',
@@ -1937,11 +1989,31 @@ function _wzValidar(){
     var ing2 = parseFloat((document.getElementById('wz_ing')||{}).value)||0;
     if(ing2<=0){ toast('El ingreso mensual es obligatorio','error'); return false; }
   }
+  if(s===2){
+    // La cifra que confirmo el empleado ya es la exacta (ver _wzIngresoConfirmado)
+    if(_wzIngresoConfirmado()) WZ.ingreso_exacto = true;
+    // Revision del 27-sep-2026: el fiador que el cliente dejo a medias en la web (nombre sin
+    // telefono) se abria en "Tiene fiador", sumaba en el score y nada avisaba que faltaba el
+    // telefono. No se vuelve obligatorio: se pregunta una vez por fiador, y si sigue sin el,
+    // no suma ni se guarda como fiador.
+    var _fnom = String(WZ.fiador_nom||'').trim();
+    if(WZ.fiador_tiene==='si' && _fnom && !String(WZ.fiador_tel||'').trim() && WZ._fiadorSinTelOk !== _fnom){
+      if(!confirm('Falta el teléfono del fiador ('+_fnom+'). Sin él no cuenta en el score ni queda como fiador. ¿Seguir sin su teléfono?')){
+        var _ft = document.getElementById('wz_fiador_tel'); if(_ft && _ft.focus) _ft.focus();
+        return false;
+      }
+      WZ._fiadorSinTelOk = _fnom;
+    }
+  }
   if(s===3){
     // Vendedor obligatorio (para atribuir la comisión de venta)
     var _vsel = document.getElementById('wz_vendedor');
     if(_vsel){ if(_vsel.value){ _wzSetVendedor(_vsel); } }
     if(!WZ.vendedorNombre && !_modoEdicion){ toast('Selecciona el vendedor de la moto','error'); return false; }
+    // "Uso de la moto *" ya era obligatorio, pero siempre salia "Personal" puesto. Ahora que
+    // empieza en "—" si el cliente no lo dijo, se pide (revision del 27-sep-2026).
+    var _usoEl = document.getElementById('wz_uso');
+    if(_usoEl && !_usoEl.value && !_modoEdicion){ toast('Elige el uso de la moto','error'); if(_usoEl.focus) _usoEl.focus(); return false; }
     // Sin moto no hay solicitud: ni del inventario, ni del catalogo, ni una nueva que se
     // este agregando. Antes se guardaba el credito con el modelo vacio y sin moto, y la
     // forma de pago declarada se tiraba (revisado el 22-sep-2026).
@@ -2088,7 +2160,7 @@ function _wzValidar(){
     WZ.banco_cobro = g('wz_banco_cobro');
     WZ.cuenta = g('wz_cuenta');
     WZ.ahorro = g('wz_ahorro');
-    WZ.cashea = (document.querySelector('input[name="wz_cashea"]:checked')||{value:'no'}).value;
+    WZ.cashea = (document.querySelector('input[name="wz_cashea"]:checked')||{value:WZ.cashea||''}).value;
     WZ.cashea_nivel = g('wz_cashea_nivel');
     WZ.cashea_estado = g('wz_cashea_estado');
     WZ.cashea_deuda = g('wz_cashea_deuda');
@@ -2096,7 +2168,7 @@ function _wzValidar(){
     WZ.cashea_cuotas_pend = g('wz_cashea_cuotas_pend');
     WZ.cashea_obs = g('wz_cashea_obs');
     CASHEA_EXTRA.forEach(function(f){ WZ[f.k] = WZ['wz_'+f.k] = g('wz_'+f.k); });
-    WZ.fiador_tiene = (document.querySelector('input[name="wz_fiador"]:checked')||{value:'no'}).value;
+    WZ.fiador_tiene = (document.querySelector('input[name="wz_fiador"]:checked')||{value:WZ.fiador_tiene||''}).value;
     WZ.fiador_nom = g('wz_fiador_nom');
     WZ.fiador_tel = g('wz_fiador_tel');
     WZ.fiador_ci = g('wz_fiador_ci');
@@ -2504,13 +2576,16 @@ function _wzGuardar(){
     if(WZ.cargo) existing.cargo = WZ.cargo;
     if(WZ.dir_trabajo) existing.dir_trabajo = WZ.dir_trabajo;
     if(WZ.tel_trabajo) existing.tel_trabajo = WZ.tel_trabajo;
-    if(WZ.ing) existing.ingreso = WZ.ing;
+    if(WZ.ing){
+      existing.ingreso = WZ.ing;
+      if(existing.ingreso_rango && _wzIngresoConfirmado()) existing.ingreso_exacto = true;
+    }
     if(WZ.ifam) existing.ingreso_familiar = WZ.ifam;
     if(WZ.ant) existing.antiguedad = WZ.ant;
     if(WZ.score) existing.score_indexa = WZ.score;
     if(WZ.r1n){ existing.ref1 = {nom:WZ.r1n||'',ci:WZ.r1ci||'',tel:WZ.r1t||'',rel:WZ.r1r||'',obs:WZ.r1obs||''}; }
     if(WZ.r2n){ existing.ref2 = {nom:WZ.r2n||'',ci:WZ.r2ci||'',tel:WZ.r2t||'',rel:WZ.r2r||'',obs:WZ.r2obs||''}; }
-    if(WZ.fiador_nom){ existing.fiador = WZ.fiador_tiene||existing.fiador; existing.fiador_nom = WZ.fiador_nom; existing.fiador_ci = WZ.fiador_ci; existing.fiador_tel = WZ.fiador_tel; existing.fiador_dir = WZ.fiador_dir;
+    if(WZ.fiador_nom){ existing.fiador = WZ.fiador_tiene ? _wzFiadorValor() : existing.fiador; existing.fiador_nom = WZ.fiador_nom; existing.fiador_ci = WZ.fiador_ci; existing.fiador_tel = WZ.fiador_tel; existing.fiador_dir = WZ.fiador_dir;
       // El asistente no pide el RIF ni el correo del fiador: si no los trae, no se pisan con
       // undefined los que puso el cliente (el contrato de justo despues salia con N/A).
       if(WZ.fiador_rif) existing.fiador_rif = WZ.fiador_rif;
@@ -2560,7 +2635,7 @@ function _wzGuardar(){
     banco_cobro: WZ.banco_cobro||'',
     cuenta_digitos: WZ.cuenta||'',
     ahorro: WZ.ahorro||'',
-    cashea: WZ.cashea||'no',
+    cashea: WZ.cashea||'',   // sin dato, vacio (revision del 27-sep-2026)
     cashea_nivel: WZ.cashea_nivel||'',
     cashea_estado: WZ.cashea_estado||'',
     cashea_deuda: WZ.cashea_deuda||'',
@@ -2569,7 +2644,7 @@ function _wzGuardar(){
     cashea_obs: WZ.cashea_obs||'',
     ..._casheaExtraDatos(),
     ..._perfilExtraDatos(),
-    fiador: WZ.fiador_tiene||'no',
+    fiador: _wzFiadorValor(),   // 'si' solo con nombre y telefono (revision del 27-sep-2026)
     fiador_nom: WZ.fiador_nom||'',
     fiador_tel: WZ.fiador_tel||'',
     fiador_ci: WZ.fiador_ci||'',
@@ -2703,7 +2778,7 @@ function _wzGuardar(){
         ahorro: WZ.ahorro||S.creds[_ei].ahorro||'',
         cashea: WZ.cashea||S.creds[_ei].cashea||'no',
         cashea_nivel: WZ.cashea_nivel||S.creds[_ei].cashea_nivel||'',
-        fiador_tiene: WZ.fiador_tiene||S.creds[_ei].fiador_tiene||'no',
+        fiador_tiene: WZ.fiador_tiene ? _wzFiadorValor() : (S.creds[_ei].fiador_tiene||''),
         fiador_nom: WZ.fiador_nom||S.creds[_ei].fiador_nom||'',
         fiador_tel: WZ.fiador_tel||S.creds[_ei].fiador_tel||'',
         fiador_ci: WZ.fiador_ci||S.creds[_ei].fiador_ci||'',
@@ -2890,14 +2965,14 @@ function _wzGuardar(){
     banco_cobro: WZ.banco_cobro||'', cuenta: WZ.cuenta||'',
     ahorro: WZ.ahorro||'',
     // ── Paso 2: Cashea ── (sin los 12 datos que se quitaron el 27-sep-2026)
-    cashea: WZ.cashea||'no', cashea_nivel: WZ.cashea_nivel||'',
+    cashea: WZ.cashea||'', cashea_nivel: WZ.cashea_nivel||'',
     cashea_estado: WZ.cashea_estado||'', cashea_deuda: WZ.cashea_deuda||'',
     cashea_monto: WZ.cashea_monto||0, cashea_cuotas_pend: WZ.cashea_cuotas_pend||0,
     cashea_obs: WZ.cashea_obs||'',
     ..._casheaExtraDatos(),
     ..._perfilExtraDatos(),
     // ── Paso 2: Fiador ──
-    fiador_tiene: WZ.fiador_tiene||'no', fiador_nom: WZ.fiador_nom||'',
+    fiador_tiene: _wzFiadorValor(), fiador_nom: WZ.fiador_nom||'',   // 'si' solo con telefono (revision del 27-sep)
     fiador_tel: WZ.fiador_tel||'', fiador_ci: WZ.fiador_ci||'', fiador_rel: WZ.fiador_rel||'',
     fiador_rif: WZ.fiador_rif||'', fiador_dir: WZ.fiador_dir||'', fiador_email: WZ.fiador_email||'', fiador_ing: parseFloat(WZ.fiador_ing)||0,
     // ── Paso 2: Referencias ──

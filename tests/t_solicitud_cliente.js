@@ -3,7 +3,7 @@
 // del lead. Decisiones del día: Cashea se recorta (12 datos fuera, en la web y en el
 // sistema; los datos viejos NO se borran de la base), "Certificación de ingreso" como forma
 // de comprobar el ingreso, lo que no se contestó se ve y se guarda vacío (y no suma puntos),
-// el fiador cuenta solo con nombre, los 24 estados, y al hacer el crédito el formulario
+// el fiador cuenta solo con nombre (y teléfono, revisión), los 24 estados, y al hacer el crédito el formulario
 // web de ese cliente se cierra (web_cerrado).
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const ROOT = path.join(__dirname, '..');
@@ -179,7 +179,8 @@ setTimeout(function(){
   reiniciar(); Object.assign(S.clientes[1], { fiador:'no', fiador_nom:'ANA GOMEZ' }); ctx._wzCliPick('WEB-23456789');
   ok('...pero si después contestó "No tengo", gana el "No"', WZ().fiador_tiene === 'no');
   reiniciar(); ctx._wzCliPick('WEB-23456789');
-  ok('...y sin nada del fiador sigue en "No"', WZ().fiador_tiene === 'no');
+  // Revision del 27-sep-2026: sin nada del fiador queda SIN MARCAR ("no contestó" no es "no tiene")
+  ok('...y sin nada del fiador queda sin marcar', WZ().fiador_tiene === '');
 
   // ── El vacío es "sin dato" en el score ──
   reiniciar(); ctx._wzCliPick('WEB-23456789'); vm.runInContext('WZ.step=2;', ctx); ctx._wzScore();
@@ -196,12 +197,16 @@ setTimeout(function(){
   ok('saltarse las preguntas ya no da más puntos que contestarlas bien', saltado < todoBien);
   ok('la ficha también: banco y deudas que no tiene no suman', ctx.scoreInputDeCliente({ nombre:'X' }, {}).banco === '' && ctx.scoreInputDeCliente({ nombre:'X' }, {}).deuda === '');
 
-  // ── El fiador cuenta solo con nombre ──
-  reiniciar(); vm.runInContext("WZ.step=2; WZ.fiador_tiene='si'; WZ.fiador_nom='';", ctx); ctx._wzScore();
+  // ── El fiador cuenta solo con nombre y teléfono (revision del 27-sep-2026) ──
+  reiniciar(); vm.runInContext("WZ.step=2; WZ.fiador_tiene='si'; WZ.fiador_nom=''; WZ.fiador_tel='0412-5550000';", ctx); ctx._wzScore();
   const sinNombre = WZ().scoreInput.fiador;
-  vm.runInContext("WZ.fiador_nom='CARLOS';", ctx); ctx._wzScore();
-  ok('marcar "Tiene fiador" sin su nombre ya no suma; con nombre sí', sinNombre === false && WZ().scoreInput.fiador === true);
-  ok('en la ficha igual; las fichas viejas sin el campo siguen contando', ctx.scoreInputDeCliente({ fiador:'si', fiador_nom:'' }, {}).fiador === false
+  vm.runInContext("WZ.fiador_nom='CARLOS'; WZ.fiador_tel='';", ctx); ctx._wzScore();
+  const sinTel = WZ().scoreInput.fiador;
+  vm.runInContext("WZ.fiador_tel='0412-5550000';", ctx); ctx._wzScore();
+  ok('marcar "Tiene fiador" sin su nombre o sin su teléfono ya no suma; con los dos sí', sinNombre === false && sinTel === false && WZ().scoreInput.fiador === true);
+  ok('en la ficha igual; las fichas viejas sin esos campos siguen contando', ctx.scoreInputDeCliente({ fiador:'si', fiador_nom:'' }, {}).fiador === false
+    && ctx.scoreInputDeCliente({ fiador:'si', fiador_nom:'Ana', fiador_tel:'' }, {}).fiador === false
+    && ctx.scoreInputDeCliente({ fiador:'si', fiador_nom:'Ana', fiador_tel:'0412-5550000' }, {}).fiador === true
     && ctx.scoreInputDeCliente({ fiador:'si', fiador_nom:'Ana' }, {}).fiador === true && ctx.scoreInputDeCliente({ fiador:'si' }, {}).fiador === true);
 
   // ── Cédula escrita a mano ──
@@ -209,7 +214,7 @@ setTimeout(function(){
   let h1 = html();
   ok('paso 1: la cédula busca la ficha al salir del campo', /id="wz_ci"[^>]*onblur="_wzCedulaFicha\(this\)"/.test(h1));
   ctx._wzCedulaFicha({ value:'V-12.345.678' });
-  ok('ofrece "Esta cédula ya tiene ficha (WEB-12345678). ¿Cargar sus datos?"', preguntas[0] === 'Esta cédula ya tiene ficha (WEB-12345678). ¿Cargar sus datos?');
+  ok('ofrece "Esta cédula ya tiene ficha (MARIA PEREZ, WEB-12345678, solicitud web). ¿Cargar sus datos?"', preguntas[0] === 'Esta cédula ya tiene ficha (MARIA PEREZ, WEB-12345678, solicitud web). ¿Cargar sus datos?');
   ok('...y al aceptar carga la ficha (como el buscador)', WZ().clienteSel === 'WEB-12345678' && WZ().nom === 'MARIA PEREZ' && WZ().uso === 'delivery');
   preguntas.length = 0; ctx._wzCedulaFicha({ value:'V-12345678' });
   ok('si ya está elegida, no vuelve a preguntar', preguntas.length === 0);

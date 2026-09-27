@@ -208,10 +208,13 @@ function scoreInputDeCliente(c, cred){
   var refs = (Array.isArray(c.referencias) && c.referencias.length) || (c.ref1 && c.ref1.nom) || (c.ref2 && c.ref2.nom) || c.ref1_nombre || c.ref2_nombre;
   // 27-sep-2026: el banco y las deudas que la ficha no tiene van VACIOS ("sin dato", sin
   // bono ni castigo), igual que en la solicitud. Antes contaban como "cuenta activa" y "sin
-  // deudas". El fiador marcado "si" cuenta solo si la ficha tiene su nombre; las fichas
-  // viejas importadas sin el campo fiador_nom siguen contando como antes.
+  // deudas". El fiador marcado "si" cuenta solo si la ficha tiene su nombre y (revision del
+  // 27-sep-2026) su telefono, la misma regla de la web y del asistente; las fichas viejas
+  // importadas sin esos campos siguen contando como antes.
   var tieneFiadorMarcado = si(v(c.fiador, c.fiador_tiene)) || c.tieneFiador===true;
-  var fiadorConNombre = !Object.prototype.hasOwnProperty.call(c, 'fiador_nom') || String(c.fiador_nom||'').trim()!=='';
+  var _tieneCampo = function(k){ return Object.prototype.hasOwnProperty.call(c, k); };
+  var fiadorConNombre = (!_tieneCampo('fiador_nom') || String(c.fiador_nom||'').trim()!=='')
+                     && (!_tieneCampo('fiador_tel') || String(c.fiador_tel||'').trim()!=='');
   return {
     ing: parseFloat(v(c.ingreso, c.wz_ing, 0))||0,
     ifam: parseFloat(v(c.ingreso_familiar, c.wz_ifam, 0))||0,
@@ -232,7 +235,9 @@ function scoreInputDeCliente(c, cred){
     cashea: si(c.cashea) ? 'si' : 'no',
     cashea_nivel: parseInt(c.cashea_nivel, 10)||0,
     cashea_estado: c.cashea_estado || '',
-    cashea_deuda: si(c.cashea_deuda) || (parseFloat(c.cashea_monto)||0) > 0 ? 'si' : 'no',
+    // Un "no" explicito gana al monto que quedo de antes: el cliente que en la web cambio a
+    // "no debo nada" dejaba su monto viejo y aqui volvia a restar (revision del 27-sep-2026).
+    cashea_deuda: si(c.cashea_deuda) || (c.cashea_deuda !== 'no' && (parseFloat(c.cashea_monto)||0) > 0) ? 'si' : 'no',
     cashea_monto: parseFloat(c.cashea_monto)||0
   };
 }
