@@ -307,6 +307,13 @@ service cloud.firestore {
     }
     function permiso(p) { return esStaff() && permisos().hasAny([p]); }
     function puedeAnular() { return esAdmin() || permiso('perm_delete'); }
+    // Editar el dinero de un pago ya registrado (monto, fecha, cuenta, a que credito va) es
+    // cosa de administradores (Adam, 28-sep-2026). El resto del staff lo registra, lo
+    // confirma, le pone sede o factura, y lo anula solo con permiso de eliminar.
+    function cambiaDineroPago() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['monto', 'fecha', 'metodo', 'cuenta', 'cred', 'cli', 'tasaBs']);
+    }
     // true si esta escritura anula un registro o lo revive
     function cambiaAnulacion() {
       return request.resource.data.get('eliminado', false) != resource.data.get('eliminado', false);
@@ -455,7 +462,8 @@ service cloud.firestore {
     // clienteId, y los pagos de esos creditos). Escribir: solo staff.
     match /creditos/{id}          { allow read: if esStaff() || esClienteDe(resource.data.clienteId); allow create, update: if esStaff(); allow delete: if esAdmin(); }
     match /pagos/{id}             { allow read: if esStaff() || esMiCredito(resource.data.cred); allow create: if esStaff();
-                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
+                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroPago() || esAdmin());
+                                    allow delete: if esAdmin(); }
     // Borrar o restaurar una moto mueve su compra: mismo permiso que anular un gasto
     match /motos/{id}             { allow read, create: if esStaff();
                                     allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
