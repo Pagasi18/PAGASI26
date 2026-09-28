@@ -314,6 +314,17 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasAny(['monto', 'fecha', 'metodo', 'cuenta', 'cred', 'cli', 'tasaBs']);
     }
+    // Lo mismo en Cuentas: el monto, la fecha, la cuenta o el tipo de un movimiento o de
+    // un gasto ya registrados los cambia solo un administrador (Adam, 28-sep-2026:
+    // "igual para cuentas"). El concepto, las marcas y la anulacion siguen como estaban.
+    function cambiaDineroMov() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['monto', 'fecha', 'cuentaOrigen', 'cuentaDestino', 'tipo', 'tasaBs']);
+    }
+    function cambiaDineroEgreso() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['monto', 'fecha', 'cuenta', 'forma', 'cuentaOrigen', 'tasaBs']);
+    }
     // true si esta escritura anula un registro o lo revive
     function cambiaAnulacion() {
       return request.resource.data.get('eliminado', false) != resource.data.get('eliminado', false);
@@ -473,9 +484,11 @@ service cloud.firestore {
     // Anular (o revivir) un movimiento o un gasto mueve el saldo de una cuenta: pide el
     // permiso de eliminar, el mismo que muestra la app (punto 9).
     match /movimientos/{id}       { allow read, create: if esStaff();
-                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
+                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroMov() || esAdmin());
+                                    allow delete: if esAdmin(); }
     match /egresos/{id}           { allow read, create: if esStaff();
-                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
+                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroEgreso() || esAdmin());
+                                    allow delete: if esAdmin(); }
     match /concesionarios/{id}    { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
     match /tareas/{id}            { allow read, create, update, delete: if esStaff(); }
     match /recursos/{id}          { allow read, create, update, delete: if esStaff(); }
