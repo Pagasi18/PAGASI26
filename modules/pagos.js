@@ -562,7 +562,7 @@ PG.pagos = function(){
       <td class="tds">${p.cobrador}</td>
       <td><span class="bdg ${sbg(p.estado)}">${p.estado}</span></td>
       <td>${facCol}</td>
-      <td onclick="event.stopPropagation()"><div style="display:flex;gap:4px">${p.estado==='pendiente'?`<button class="btn btn-s btn-xs" onclick="confirmarPago('${p.id}')">✓</button>`:''}<button class="btn btn-p btn-xs" onclick="openEditPago('${p.id}')" title="Editar">Editar</button><button class="btn btn-d btn-xs" onclick="confirmarDelPago('${p.id}')" title="Eliminar">Eliminar</button></div></td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:4px">${p.estado==='pendiente'?`<button class="btn btn-s btn-xs" onclick="confirmarPago('${p.id}')">✓</button>`:''}${isAdminUser()?`<button class="btn btn-p btn-xs" onclick="openEditPago('${p.id}')" title="Editar">Editar</button>`:''}<button class="btn btn-d btn-xs" onclick="confirmarDelPago('${p.id}')" title="Eliminar">Eliminar</button></div></td>
     </tr>`;
     }).join('')})()}
     ${filtered.length===0?`<tr><td colspan="11" style="text-align:center;padding:30px 0;color:var(--ink3);font-size:13px">Sin pagos con este filtro</td></tr>`:''}

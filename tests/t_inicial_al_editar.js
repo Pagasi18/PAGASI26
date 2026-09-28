@@ -29,7 +29,7 @@ ctx.DB.savePago = p => { guardados.pagos.push(JSON.parse(JSON.stringify(p))); re
 ctx.DB.saveMovimiento = m => { guardados.movs.push(JSON.parse(JSON.stringify(m))); return Promise.resolve(true); };
 ctx.toast = (m) => { avisos.push(String(m)); };
 ctx.recalcularCreditoDesdePagos = () => { ctx.__recalculado = true; };
-S.currentUser = { nombre:'Adam' };
+S.currentUser = { nombre:'Adam', rol:'Administrador' };
 
 function escena(){
   S.creds = [{ id:'M-041', cli:'PASTOR PRUEBA', estado:'activo', ini:420, precio:1200 }];

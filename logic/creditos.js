@@ -2435,6 +2435,10 @@ function _wzOfrecerCorregirInicial(credId, iniAntes, iniNueva){
     var p = pagos[0], montoPago = parseFloat(p.monto)||0;
     if(Math.abs(montoPago - iniNueva) < 0.01) return false;
     var M = function(v){ return (typeof fmt==='function') ? fmt(v) : ('$'+(parseFloat(v)||0).toFixed(2)); };
+    if(typeof isAdminUser==='function' && !isAdminUser()){
+      if(typeof toast==='function') toast('El plan quedó en '+M(iniNueva)+' pero el pago de la inicial registrado dice '+M(montoPago)+': solo un administrador puede corregir ese pago','info');
+      return false;
+    }
     var ok = confirm('INICIAL DE '+credId+'\n\n'
       + 'El plan ahora dice '+M(iniNueva)+', pero el pago de la inicial registrado el '+(p.fecha||'—')+' en '+(p.metodo||p.cuenta||'la cuenta')+' dice '+M(montoPago)+'.\n\n'
       + '¿El cliente pagó de verdad '+M(iniNueva)+'?\n\n'

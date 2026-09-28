@@ -1300,6 +1300,9 @@ function openPagoRapido(credId){
 
 
 function openEditPago(pagoId){
+  // Editar el dinero de un pago (monto, fecha, cuenta) es cosa de administradores
+  // (Adam, 28-sep-2026). Los demas registran y confirman; lo que este mal lo corrige un admin.
+  if(typeof isAdminUser==='function' && !isAdminUser()){ toast('Solo un administrador puede editar un pago. Pídele la corrección a un administrador.','error'); return; }
   var p = S.pagos.find(function(x){return x.id===pagoId;}); if(!p) return;
   setMicon('editar'); $('mtt').textContent='Editar Pago'; $('msb').textContent=pagoId+' · '+p.cli;
   $('modal-box').className='modal';

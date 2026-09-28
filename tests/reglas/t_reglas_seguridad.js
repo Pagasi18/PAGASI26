@@ -126,6 +126,13 @@ const lead = (id, cambios) => Object.assign({}, LEAD, { id }, cambios || {});
   await prueba('...ni un movimiento de cuenta', assertFails(updateDoc(doc(gerente, 'movimientos/MOV-1'), { eliminado: true })));
   await prueba('...ni un pago', assertFails(updateDoc(doc(cobrador, 'pagos/PAG-1'), { eliminado: true })));
   await prueba('pero sí puede editar un gasto sin anularlo', assertSucceeds(updateDoc(doc(gerente, 'egresos/EG-1'), { concepto: 'Alquiler oficina' })));
+  // El dinero de un pago ya registrado lo corrige solo un administrador (28-sep-2026)
+  await prueba('un cobrador NO cambia el monto de un pago', assertFails(updateDoc(doc(cobrador, 'pagos/PAG-1'), { monto: 40 })));
+  await prueba('...ni la fecha, la cuenta o el crédito al que va', assertFails(updateDoc(doc(cobrador, 'pagos/PAG-1'), { fecha: '2026-01-01', metodo: 'Efectivo' })));
+  await prueba('un gerente tampoco', assertFails(updateDoc(doc(gerente, 'pagos/PAG-1'), { monto: 40 })));
+  await prueba('pero el cobrador sí confirma un pago pendiente', assertSucceeds(updateDoc(doc(cobrador, 'pagos/PAG-1'), { estado: 'confirmado', referencia: '1234' })));
+  await prueba('...y le pone la sede', assertSucceeds(updateDoc(doc(cobrador, 'pagos/PAG-1'), { concesionarioId: 'C1' })));
+  await prueba('el admin sí corrige el monto', assertSucceeds(updateDoc(doc(admin, 'pagos/PAG-1'), { monto: 40, editadoPor: 'Admin' })));
   await prueba('y el admin sí anula', assertSucceeds(updateDoc(doc(admin, 'egresos/EG-1'), { eliminado: true, eliminadoPor: 'Admin' })));
   await prueba('...y también revive lo anulado', assertSucceeds(updateDoc(doc(admin, 'egresos/EG-1'), { eliminado: false })));
   await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestore(), 'movimientos/MOV-2'), { id: 'MOV-2', tipo: 'retiro', monto: 100, eliminado: true }); });
