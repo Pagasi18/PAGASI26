@@ -2414,8 +2414,48 @@ function _wzInicialRealHTML(credId){
   return '<div class="wz-card">'
     + '<div class="wz-card-h"><span>Inicial ya cobrada</span></div>'
     + cuerpo
-    + '<div style="font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.5">Esto es lo que entró de verdad. Desde aquí no se toca: si hay que corregir el monto, la fecha o la cuenta, se hace en <b>Cobranza</b>, sobre ese pago.</div>'
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.5">Esto es lo que entró de verdad. Si cambias la inicial del plan, al guardar se te ofrece corregir este pago; la fecha o la cuenta se corrigen en <b>Cobranza</b>, sobre ese pago.</div>'
     + '</div>';
+}
+
+// Al editar un credito y cambiar la inicial del plan, el pago de la inicial ya
+// registrado (y su movimiento en la cuenta) se quedaban con la cifra vieja: el credito
+// decia $420 y el pago seguia en $497 (M-041, 28-sep-2026). El aviso mandaba a
+// Cobranza, pero lo natural es arreglarlo aqui. Si hay UN solo pago inicial confirmado y
+// no coincide con la cifra nueva, se pregunta y se corrigen el pago y su movimiento;
+// con varios pagos iniciales se sigue mandando a Cobranza, que ahi se ven uno por uno.
+function _wzOfrecerCorregirInicial(credId, iniAntes, iniNueva){
+  try{
+    iniAntes = parseFloat(iniAntes)||0; iniNueva = parseFloat(iniNueva)||0;
+    if(Math.abs(iniAntes - iniNueva) < 0.01) return false;
+    var esIni = function(p){ return p.esInicial || p.tipoOperacion==='inicial_credito' || (p.concepto && String(p.concepto).indexOf('Inicial · ')===0); };
+    var pagos = (S.pagos||[]).filter(function(p){ return p && !p.eliminado && p.cred===credId && p.estado==='confirmado' && esIni(p); });
+    if(pagos.length > 1){ if(typeof toast==='function') toast('Este crédito tiene '+pagos.length+' pagos de inicial: revísalos en Cobranza','info'); return false; }
+    if(!pagos.length) return false;
+    var p = pagos[0], montoPago = parseFloat(p.monto)||0;
+    if(Math.abs(montoPago - iniNueva) < 0.01) return false;
+    var M = function(v){ return (typeof fmt==='function') ? fmt(v) : ('$'+(parseFloat(v)||0).toFixed(2)); };
+    var ok = confirm('INICIAL DE '+credId+'\n\n'
+      + 'El plan ahora dice '+M(iniNueva)+', pero el pago de la inicial registrado el '+(p.fecha||'—')+' en '+(p.metodo||p.cuenta||'la cuenta')+' dice '+M(montoPago)+'.\n\n'
+      + '¿El cliente pagó de verdad '+M(iniNueva)+'?\n\n'
+      + 'Aceptar  = corregir el pago y su movimiento en la cuenta a '+M(iniNueva)+'\n'
+      + 'Cancelar = dejar el pago en '+M(montoPago)+' (se puede corregir en Cobranza)');
+    if(!ok) return false;
+    var quien = (S.currentUser&&S.currentUser.nombre)||'Admin', cuando = new Date().toISOString();
+    p.montoAnterior = montoPago; p.monto = iniNueva; p.editadoPor = quien; p.editadoEn = cuando; p.editadoDesde = 'credito';
+    if(typeof DB!=='undefined' && DB && DB.savePago) DB.savePago(p);
+    var movs = 0;
+    (S.movimientos||[]).forEach(function(m){
+      if(!m || m.eliminado || m.conceptoPago !== p.id) return;
+      m.montoAnterior = parseFloat(m.monto)||0; m.monto = iniNueva; m.editadoPor = quien; m.editadoEn = cuando;
+      if(typeof DB!=='undefined' && DB && DB.saveMovimiento) DB.saveMovimiento(m);
+      movs++;
+    });
+    if(typeof recalcularCreditoDesdePagos==='function') recalcularCreditoDesdePagos(credId);
+    if(typeof logActividad==='function') logActividad('inicial_corregida','creditos',String(credId),{antes:montoPago, ahora:iniNueva, pago:p.id, movimientos:movs});
+    if(typeof toast==='function') toast('Inicial corregida a '+M(iniNueva)+': el pago'+(movs?' y el movimiento en '+(p.metodo||p.cuenta||'la cuenta'):'')+' ya coinciden con el plan','success');
+    return true;
+  }catch(e){ console.warn('corregir inicial al editar:', e && e.message); return false; }
 }
 
 function _wzConfirmarCambios(difs, credId){
@@ -2435,8 +2475,8 @@ function _wzConfirmarCambios(difs, credId){
     if(_cob > 0){
       L.push('OJO CON LA INICIAL:');
       L.push('  ya hay ' + (typeof fmt==='function' ? fmt(_cob) : _cob) + ' cobrados y registrados en una cuenta.');
-      L.push('  Ese pago NO se va a mover: solo cambia la cifra del plan.');
-      L.push('  Si el dinero tambien esta mal, corrigelo en Cobranza → el pago inicial.');
+      L.push('  Al guardar te voy a preguntar si ese pago tambien se corrige a la cifra nueva.');
+      L.push('  (Si prefieres, el pago se corrige aparte en Cobranza → el pago inicial.)');
       L.push('');
     }
   }
@@ -2829,6 +2869,7 @@ function _wzGuardar(){
         if(Object.keys(_cliUpd).length && DB.updateCliente) DB.updateCliente(existing.id, _cliUpd);
         else if(Object.keys(_cliUpd).length){ Object.assign(existing, _cliUpd); DB.saveCliente(existing); }
       }
+      var _iniAntes = parseFloat(S.creds[_ei].ini)||0;
       Object.assign(S.creds[_ei], _upd);
       DB.updateCred(_editId, _upd);
       // La moto va donde va su crédito. 23-sep-2026, Adam viendo Concesionarios:
@@ -2875,6 +2916,8 @@ function _wzGuardar(){
         }
       }catch(_e){ console.warn('re-vinculo moto (edit):', _e && _e.message); }
       syncEstadoClientePorCredito && syncEstadoClientePorCredito(_editId);
+      // Si cambio la inicial del plan, el pago registrado se ofrece corregir aqui mismo
+      _wzOfrecerCorregirInicial(_editId, _iniAntes, parseFloat(_upd.ini)||0);
     }
     _wzClose();
     toast('Solicitud actualizada correctamente','success');

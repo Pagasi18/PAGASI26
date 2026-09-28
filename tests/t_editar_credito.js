@@ -118,7 +118,7 @@ S.pagos = [{ id:'P1', cred:'CRED-1', monto:300, fecha:'2026-05-01', metodo:'Bina
 preguntas.length = 0; ctx.__respuesta = true;
 ctx._wzConfirmarCambios([{ etiqueta:'Inicial', antes:300, ahora:100, num:true }], 'CRED-1');
 ok('15. si cambia la inicial y ya hay uno cobrado, el aviso lo dice',
-  /OJO CON LA INICIAL/.test(preguntas[0]) && /NO se va a mover/.test(preguntas[0]));
+  /OJO CON LA INICIAL/.test(preguntas[0]) && /te voy a preguntar si ese pago tambien se corrige/.test(preguntas[0]));
 ok('15. ...y manda a corregirlo donde se corrige de verdad', /Cobranza/.test(preguntas[0]));
 preguntas.length = 0;
 ctx._wzConfirmarCambios([{ etiqueta:'Precio', antes:1000, ahora:1100, num:true }], 'CRED-1');
