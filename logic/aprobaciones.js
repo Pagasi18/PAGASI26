@@ -53,6 +53,7 @@ function _aprRender(){
         + ' · inicial $'+(parseFloat(c.ini)||0).toFixed(0)+(c.precio ? ' ('+Math.round((parseFloat(c.ini)||0)/(parseFloat(c.precio)||1)*100)+'%)' : '')
         + (c.inicialCuenta ? ' → '+String(c.inicialCuenta).replace(/[<>]/g,'') : '')
         + (c.impresionVendedor==='dudosa' ? ' · <span style="color:var(--amber);font-weight:800">el vendedor la marcó dudosa</span>' : '')+'</div>'
+        + (typeof _riesgoResumenHtml==='function' ? _riesgoResumenHtml(c) : '')
         + '<div style="display:grid;grid-template-columns:repeat(4,auto);gap:18px;font-size:11px;margin-top:9px">'
         + '<div><div style="color:var(--ink3);font-weight:700;font-size:9.5px;text-transform:uppercase">Sede</div><div style="font-weight:700;margin-top:1px">'+sedeName+'</div></div>'
         + '<div><div style="color:var(--ink3);font-weight:700;font-size:9.5px;text-transform:uppercase">Vendedor</div><div style="font-weight:700;margin-top:1px">'+(c.creadoPor||'—')+'</div></div>'

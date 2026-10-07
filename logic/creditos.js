@@ -216,7 +216,145 @@ function _wzIngresoConfirmado(){
 // la ficha vieja y el lead seguia abierto en la bandeja. Ahora se miran TODAS: si una ya esta
 // elegida no se pregunta nada, y si hay que elegir se prefiere el lead web abierto y la
 // pregunta dice cual se carga.
+// ══════════════════════════════════════════════════════════════════════
+// AVISOS DE RIESGO AL CREAR: FIADOR REPETIDO Y CLIENTE CON CREDITO
+// 7-oct-2026, Adam: "una persona se volvio fiador de 14 motos y nada lo advirtio".
+// Solo AVISA, no bloquea: "nosotros decidimos si si o no". El panel ya tiene la
+// cartera entera en memoria (S.creds, S.clientes), asi que es una pasada sin consultas.
+// Las llaves son los digitos de la cedula sin ceros adelante (la web los quita y el
+// panel los conserva) y los ultimos 10 digitos del telefono (con o sin 58 / 0).
+// ══════════════════════════════════════════════════════════════════════
+var _RIESGO_CUENTA = ['activo','mora','pendiente_revision','recuperado','recuperada'];
+function _riesgoCiKey(v){ return String(v==null?'':v).replace(/[^0-9]/g,'').replace(/^0+/,''); }
+function _riesgoTelKey(v){ var d=String(v==null?'':v).replace(/[^0-9]/g,''); return d.length>10 ? d.slice(-10) : d; }
+function _riesgoNomKey(v){ return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim(); }
+// El vendedor externo de un concesionario no ve nombres ni mora de clientes de otras sedes:
+// a el le basta saber que hay otro credito y cual es.
+function _riesgoVeDetalle(){ return (S.currentUser&&S.currentUser.rol)!=='Vendedor Concesionario'; }
+function _riesgoEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+function _riesgoEstadoTxt(c){
+  var e=String((c&&c.estado)||''), m=parseFloat(c&&c.mora)||0;
+  if(e==='recuperado' || e==='recuperada') return 'moto recuperada';
+  if(e==='pendiente_revision') return 'pendiente de aprobación';
+  if(e==='mora' || m>0) return 'en mora'+(m>0 ? ' '+Math.round(m)+' días' : '');
+  if(e==='activo') return 'al día';
+  return e || '—';
+}
+// Creditos donde esta cedula o este telefono ya figura como fiador (sin contar el que se edita)
+function _riesgoFiadorEn(ci, tel, excluirId){
+  var ck=_riesgoCiKey(ci), tk=_riesgoTelKey(tel);
+  if(ck.length<5) ck=''; if(tk.length<7) tk='';
+  if(!ck && !tk) return [];
+  return (S.creds||[]).filter(function(c){
+    if(!c || c.eliminado) return false;
+    if(excluirId && String(c.id)===String(excluirId)) return false;
+    if(_RIESGO_CUENTA.indexOf(String(c.estado||''))<0) return false;
+    if(String(c.fiador_tiene||'')==='no') return false;   // se guardo "sin fiador": la cedula que quedo pegada no cuenta
+    var fc=_riesgoCiKey(c.fiador_ci), ft=_riesgoTelKey(c.fiador_tel);
+    return (ck && fc===ck) || (tk && ft.length>=7 && ft===tk);
+  });
+}
+// Creditos que ya tiene una persona: por id de ficha (clienteId, o cliId en los viejos),
+// juntando todas las fichas con la misma cedula, y por nombre solo si el credito no trae id.
+function _riesgoCreditosDeCliente(cli, excluirId){
+  if(!cli) return [];
+  var ck=_riesgoCiKey(cli.cedula); if(ck.length<5) ck='';
+  // Una ficha borrada sigue identificando a la persona: lo que se filtra es el credito, no la ficha
+  var fichas=(S.clientes||[]).filter(function(x){
+    if(!x) return false;
+    if(cli.id!=null && String(x.id)===String(cli.id)) return true;
+    return !!ck && _riesgoCiKey(x.cedula)===ck;
+  });
+  var ids=fichas.map(function(x){ return String(x.id); });
+  if(cli.id!=null && String(cli.id)!=='' && ids.indexOf(String(cli.id))<0) ids.push(String(cli.id));
+  var nombres=fichas.map(function(x){ return _riesgoNomKey(x.nombre); }).filter(Boolean);
+  var nk=_riesgoNomKey(cli.nombre); if(nk && nombres.indexOf(nk)<0) nombres.push(nk);
+  if(!ids.length && !nombres.length) return [];
+  var conocidos={}; (S.clientes||[]).forEach(function(x){ if(x && x.id!=null) conocidos[String(x.id)]=1; });
+  return (S.creds||[]).filter(function(c){
+    if(!c || c.eliminado) return false;
+    if(excluirId && String(c.id)===String(excluirId)) return false;
+    if(_RIESGO_CUENTA.indexOf(String(c.estado||''))<0) return false;
+    var cid=(c.clienteId!=null && String(c.clienteId)!=='') ? c.clienteId : c.cliId;
+    if(cid!=null && String(cid)!==''){
+      if(ids.indexOf(String(cid))>-1) return true;
+      if(conocidos[String(cid)]) return false;   // es de otra ficha que si existe
+    }
+    return !!c.cli && nombres.indexOf(_riesgoNomKey(c.cli))>-1;   // sin id, o con un id que ya no existe
+  });
+}
+function _riesgoLista(creds, campo){
+  var det=_riesgoVeDetalle();
+  return creds.map(function(c){ return c.id+' ('+(det ? String(c[campo]||'—')+' · ' : '')+_riesgoEstadoTxt(c)+')'; }).join(', ');
+}
+// Para el confirm(): con 14 creditos la lista entera no cabe en el dialogo
+function _riesgoListaCorta(creds, campo){
+  if(creds.length<=5) return _riesgoLista(creds, campo);
+  return _riesgoLista(creds.slice(0,5), campo)+' y '+(creds.length-5)+' más';
+}
+function _riesgoClave(creds){ return creds.map(function(c){ return c.id; }).sort().join('|'); }
+function _riesgoPintar(id, html){
+  var el=document.getElementById(id); if(!el) return;
+  if(!html){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='block'; el.innerHTML=html;
+}
+var _RIESGO_CAJA='background:rgba(255,165,0,.12);border:1.5px solid var(--amber);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--ink)';
+// Paso 2: el fiador que se esta escribiendo, contra la cartera
+function _wzFiadorLista(){
+  var g=function(id, respaldo){ var el=document.getElementById(id); return el ? el.value : (respaldo||''); };
+  var ci=g('wz_fiador_ci', WZ.fiador_ci), tel=g('wz_fiador_tel', WZ.fiador_tel);
+  return _riesgoFiadorEn(ci, tel, window._wzEditando||null);
+}
+function _wzFiadorAviso(){
+  if(!document.getElementById('wz_fiador_aviso')) return;
+  var l=_wzFiadorLista();
+  _riesgoPintar('wz_fiador_aviso', l.length
+    ? '⚠️ Esta persona ya es fiador de '+l.length+' crédito'+(l.length>1?'s':'')+': <b>'+_riesgoEsc(_riesgoLista(l,'cli'))+'</b>. Puedes seguir; queda anotado en el crédito.'
+    : '');
+}
+// Paso 1: el cliente elegido (o la cedula escrita a mano), contra la cartera
+function _wzClienteLista(){
+  var cli=null, sel=String(WZ.clienteSel||'');
+  if(sel) cli=(S.clientes||[]).find(function(x){ return String(x.id)===sel; })||null;
+  if(!cli){
+    var el=document.getElementById('wz_ci'); var ci=el ? el.value : (WZ.ci||'');
+    if(_riesgoCiKey(ci).length>=5) cli={ id:null, cedula:ci, nombre:'' };
+  }
+  return cli ? _riesgoCreditosDeCliente(cli, window._wzEditando||null) : [];
+}
+function _wzClienteAviso(){
+  if(!document.getElementById('wz_cli_aviso')) return;
+  var l=_wzClienteLista();
+  _riesgoPintar('wz_cli_aviso', l.length
+    ? '⚠️ Este cliente ya tiene '+l.length+' crédito'+(l.length>1?'s':'')+': <b>'+_riesgoEsc(_riesgoLista(l,'modelo'))+'</b>. Puedes seguir; queda anotado en el crédito.'
+    : '');
+}
+// Bandeja de Aprobaciones: lo mismo, calculado sobre el credito ya guardado
+function _riesgoResumenHtml(c){
+  if(!c) return '';
+  var cli=null, cid=(c.clienteId!=null && String(c.clienteId)!=='') ? c.clienteId : c.cliId;
+  if(cid!=null && String(cid)!=='') cli=(S.clientes||[]).find(function(x){ return String(x.id)===String(cid); })||null;
+  if(!cli && c.cli) cli={ id:null, cedula:'', nombre:String(c.cli) };
+  var otros=cli ? _riesgoCreditosDeCliente(cli, c.id) : [];
+  var fia=(String(c.fiador_tiene||'')!=='no' && (c.fiador_ci||c.fiador_tel)) ? _riesgoFiadorEn(c.fiador_ci, c.fiador_tel, c.id) : [];
+  if(!otros.length && !fia.length) return '';
+  var h='<div style="'+_RIESGO_CAJA+';margin-top:8px">';
+  if(otros.length) h+='<div>⚠️ El cliente ya tiene '+otros.length+' crédito'+(otros.length>1?'s':'')+': <b>'+_riesgoEsc(_riesgoLista(otros,'modelo'))+'</b></div>';
+  if(fia.length) h+='<div>⚠️ El fiador ya respalda '+fia.length+' crédito'+(fia.length>1?'s':'')+': <b>'+_riesgoEsc(_riesgoLista(fia,'cli'))+'</b></div>';
+  return h+'</div>';
+}
+// Lo que el operario acepto, escrito en el credito: quien aprueba despues lo lee
+function _wzRiesgoAvisosGuardar(){
+  var out=[];
+  try{
+    var rc=_wzClienteLista(); if(rc.length) out.push('El cliente ya tenía '+rc.length+' crédito'+(rc.length>1?'s':'')+': '+_riesgoLista(rc,'modelo'));
+    var rf=(WZ.fiador_tiene==='si') ? _wzFiadorLista() : []; if(rf.length) out.push('El fiador ya respaldaba '+rf.length+' crédito'+(rf.length>1?'s':'')+': '+_riesgoLista(rf,'cli'));
+  }catch(e){}
+  return out;
+}
+
 function _wzCedulaFicha(el){
+  if(typeof _wzClienteAviso==='function') _wzClienteAviso();   // ¿ya tiene credito? (7-oct-2026)
   if(window._wzEditando) return;   // editando un credito: su cliente ya esta amarrado
   var dig = String((el && el.value) || '').replace(/[^0-9]/g,'');
   if(dig.length < 5) return;
@@ -345,6 +483,7 @@ function _wzRender(motoId){
     + '<input type="hidden" id="wz_cliente_sel" value="">'
     + '<div id="wz_cli_dd" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--surf);border:1px solid var(--rim);border-radius:9px;max-height:280px;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.12);z-index:100"></div>'
     + '</div>'
+    + '<div id="wz_cli_aviso" style="display:none;margin-top:8px;background:rgba(255,165,0,.12);border:1.5px solid var(--amber);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--ink)"></div>'
     + '<div style="font-size:11px;color:var(--ink3);margin-top:6px">Busca un cliente existente o deja vacío para crear uno nuevo con los datos de abajo.</div></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
     + _wzFg('Nombre completo *','wz_nom','text','Ej: Carlos Pérez','',true)
@@ -657,17 +796,20 @@ function _wzRender(motoId){
   +'<div id="wz_fiador_det" style="display:none">'
   +_row2(
     _fg('Nombre del fiador',_inp('wz_fiador_nom','text','Nombre y apellido')),
-    _fg('Teléfono',_inp('wz_fiador_tel','tel','0412-0000000'))
+    _fg('Teléfono',_inp('wz_fiador_tel','tel','0412-0000000','onblur="_wzFiadorAviso()"'))
   )
   +_row2(
-    _fg('Cédula del fiador',_inp('wz_fiador_ci','text','V-12345678','oninput="_wzCedulaInput(event)" autocapitalize="characters"')),
+    _fg('Cédula del fiador',_inp('wz_fiador_ci','text','V-12345678','oninput="_wzCedulaInput(event)" onblur="_wzFiadorAviso()" autocapitalize="characters"')),
     _fg('Relación',_sel('wz_fiador_rel','<option value="">—</option><option value="familiar">Familiar directo</option><option value="conyuge">Cónyuge / pareja</option><option value="amigo">Amigo/a</option><option value="colega">Colega / socio</option>'))
   )
   // Sin direccion ni ingreso, un fiador no garantiza nada (24-sep-2026)
   +_row2(
     _fg('Dirección del fiador',_inp('wz_fiador_dir','text','Dirección completa...')),
     _fg('Ingreso mensual del fiador (USD)',_inp('wz_fiador_ing','number','Ej: 600'))
-  )+'</div>'
+  )
+  // Si esta persona ya respalda otro credito, se dice aqui (7-oct-2026)
+  +'<div id="wz_fiador_aviso" style="display:none;margin-bottom:10px;'+_RIESGO_CAJA+'"></div>'
+  +'</div>'
 
   // ── DOCUMENTOS ──
   +_s('Documentos del Expediente')
@@ -885,6 +1027,7 @@ function _wzCliPick(id){
   if(typeof _wzPickCliente === 'function'){
     _wzPickCliente({ value: String(id) });
   }
+  _wzClienteAviso();
 }
 
 // Limpiar la selección de cliente (volver al modo búsqueda)
@@ -899,6 +1042,7 @@ function _wzCliClear(){
   if(typeof _wzPickCliente === 'function'){
     _wzPickCliente({ value: '' });
   }
+  _wzClienteAviso();
 }
 
 // Hidratar el chip si ya había un cliente seleccionado (al volver al paso 1)
@@ -997,6 +1141,8 @@ function _wzHydrate(){
   _wzScore();
   // Sincronizar el buscador de cliente (mostrar chip si ya había selección)
   if(typeof _wzCliHidratar === 'function') _wzCliHidratar();
+  if(typeof _wzClienteAviso==='function') _wzClienteAviso();
+  if(typeof _wzFiadorAviso==='function') _wzFiadorAviso();
 }
 
 function _wzCollectVisibleValues(){
@@ -1981,6 +2127,12 @@ function _wzValidar(){
     if(!g('wz_nom')){ toast('El nombre es obligatorio','error'); return false; }
     if(!g('wz_ci')){ toast('La cédula es obligatoria','error'); return false; }
     if(!g('wz_tel')){ toast('El teléfono es obligatorio','error'); return false; }
+    // Cliente que ya tiene credito: se avisa UNA vez y se sigue si el operario acepta (7-oct-2026)
+    var _rc=_wzClienteLista();
+    if(_rc.length && WZ._cliCredOk!==_riesgoClave(_rc)){
+      if(!confirm('Este cliente ya tiene '+_rc.length+' crédito'+(_rc.length>1?'s':'')+': '+_riesgoListaCorta(_rc,'modelo')+'.\n\n¿Seguir con la solicitud?')) return false;
+      WZ._cliCredOk=_riesgoClave(_rc);
+    }
   }
   // Empleo e ingreso eran obligatorios en el paso 1; ahora viven solo en el paso 2 y se
   // exigen ahi, igual que antes (24-sep-2026). No se agrego ningun obligatorio nuevo.
@@ -2003,6 +2155,23 @@ function _wzValidar(){
         return false;
       }
       WZ._fiadorSinTelOk = _fnom;
+    }
+    // Fiador que ya respalda otro credito: se avisa UNA vez y se sigue si el operario acepta (7-oct-2026)
+    // Al editar, solo si el fiador cambio: el que ya estaba se acepto cuando se creo el credito
+    var _fiadorIgual=false;
+    if(_modoEdicion){
+      var _cEd=(S.creds||[]).find(function(x){ return x && String(x.id)===String(window._wzEditando); });
+      _fiadorIgual=!!_cEd && _riesgoCiKey(_cEd.fiador_ci)===_riesgoCiKey(WZ.fiador_ci) && _riesgoTelKey(_cEd.fiador_tel)===_riesgoTelKey(WZ.fiador_tel);
+    }
+    if(WZ.fiador_tiene==='si' && !_fiadorIgual){
+      var _rf=_wzFiadorLista();
+      if(_rf.length && WZ._fiadorRepOk!==_riesgoClave(_rf)){
+        if(!confirm('Esta persona ya es fiador de '+_rf.length+' crédito'+(_rf.length>1?'s':'')+': '+_riesgoListaCorta(_rf,'cli')+'.\n\n¿Seguir con este fiador?')){
+          var _fc=document.getElementById('wz_fiador_ci'); if(_fc && _fc.focus) _fc.focus();
+          return false;
+        }
+        WZ._fiadorRepOk=_riesgoClave(_rf);
+      }
     }
   }
   if(s===3){
@@ -3022,6 +3191,7 @@ function _wzGuardar(){
     fiador_tiene: _wzFiadorValor(), fiador_nom: WZ.fiador_nom||'',   // 'si' solo con telefono (revision del 27-sep)
     fiador_tel: WZ.fiador_tel||'', fiador_ci: WZ.fiador_ci||'', fiador_rel: WZ.fiador_rel||'',
     fiador_rif: WZ.fiador_rif||'', fiador_dir: WZ.fiador_dir||'', fiador_email: WZ.fiador_email||'', fiador_ing: parseFloat(WZ.fiador_ing)||0,
+    riesgo_avisos: _wzRiesgoAvisosGuardar(),   // avisos de fiador repetido / cliente con credito que se aceptaron (7-oct-2026)
     // ── Paso 2: Referencias ──
     r1n: WZ.r1n||'', r1ci: WZ.r1ci||'', r1t: WZ.r1t||'', r1r: WZ.r1r||'', r1obs: WZ.r1obs||'',
     r2n: WZ.r2n||'', r2ci: WZ.r2ci||'', r2t: WZ.r2t||'', r2r: WZ.r2r||'', r2obs: WZ.r2obs||'',
@@ -3063,7 +3233,7 @@ function _wzGuardar(){
 
   // Todo lo que sigue solo se ejecuta si el credito se guardo (crearCred OK).
   function _altaCreditoContinuar(){
-  if(typeof logActividad==='function') logActividad('credito_creado','creditos',newCred.id,{cliente:newCred.cli, modelo:newCred.modelo||'', total:newCred.total||newCred.fin||0});
+  if(typeof logActividad==='function') logActividad('credito_creado','creditos',newCred.id,{cliente:newCred.cli, modelo:newCred.modelo||'', total:newCred.total||newCred.fin||0, avisos:(newCred.riesgo_avisos||[]).join(' | ')});
 
   // Marcar moto como financiada o crearla desde catálogo
   if(WZ.motoInvId){
