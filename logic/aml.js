@@ -9,8 +9,8 @@
 //    Cumplimiento apruebe a los PEP antes de firmar;
 //  · informar a la UNIF todas las transacciones en efectivo del mes (art. 17).
 // Las listas las baja cada dia bot/listas-sanciones.js a data/listas-sanciones.json.
-// Lo que encuentra se guarda en la ficha (aml_listas). Solo un administrador (el Oficial
-// de Cumplimiento) descarta o confirma una coincidencia, siempre con una nota.
+// Lo que encuentra se guarda en la ficha (aml_listas; la del fiador en aml_fiador). Solo un
+// administrador (el Oficial de Cumplimiento) descarta o confirma una coincidencia, con nota.
 
 var AML_URL_LISTAS = 'data/listas-sanciones.json';
 var AML_UMBRAL_EFECTIVO = 1000;   // US$: desde aqui el manual pide declarar el origen
@@ -92,10 +92,52 @@ function amlResultado(c, coincidencias, L, quien){
   return r;
 }
 function _amlQuien(){ return (S.currentUser && (S.currentUser.nombre || S.currentUser.email)) || 'Sistema'; }
-function _amlGuardar(c, r){
-  c.aml_listas = r;
-  if(typeof DB !== 'undefined' && DB && DB.saveCliente) return DB.saveCliente({ id: c.id, aml_listas: r });
+function _amlGuardar(c, r, rf){
+  var o = { id: c.id };
+  if(r){ c.aml_listas = r; o.aml_listas = r; }
+  if(rf){ c.aml_fiador = rf; o.aml_fiador = rf; }
+  if(typeof DB !== 'undefined' && DB && DB.saveCliente) return DB.saveCliente(o);
   return Promise.resolve(false);
+}
+// ── Fiadores ──────────────────────────────────────────────────────────
+// El manual pide revisar al fiador igual que al cliente. Se revisan el de la ficha y los de
+// sus creditos vigentes, y el resultado va a la ficha del cliente (aml_fiador): el credito
+// no se toca porque DB.saveCred reescribe el documento entero.
+function amlFiadoresDe(c){
+  var out = [], vistos = Object.create(null);
+  var sumar = function(nom, ci, tiene){
+    nom = String(nom || '').trim();
+    if(!nom || String(tiene || '') === 'no') return;
+    var k = amlNorm(nom) + '|' + amlDigitos(ci);
+    if(vistos[k]) return; vistos[k] = 1;
+    out.push({ nombre: nom, cedula: ci || '' });
+  };
+  if(!c) return out;
+  sumar(c.fiador_nom, c.fiador_ci, c.fiador);
+  (S.creds || []).forEach(function(cr){
+    if(!cr || cr.eliminado || String(cr.clienteId || cr.cliId || '') !== String(c.id)) return;
+    if(cr.estado !== 'activo' && cr.estado !== 'mora') return;
+    sumar(cr.fiador_nom, cr.fiador_ci, cr.fiador_tiene);
+  });
+  return out;
+}
+function amlBuscarFiadores(c, L){
+  var out = [], vistos = Object.create(null);
+  amlFiadoresDe(c).forEach(function(f){
+    amlBuscar(f.nombre, f.cedula, L).forEach(function(x){
+      if(vistos[x.id]) return; vistos[x.id] = 1;
+      out.push(Object.assign({}, x, { fiador: f.nombre, fiadorCedula: f.cedula }));
+    });
+  });
+  return out;
+}
+// Resultado del fiador, con la misma regla de "lo ya resuelto no vuelve a saltar"
+function _amlResultadoFiador(c, L, quien){
+  var f = amlFiadoresDe(c);
+  if(!f.length && !c.aml_fiador) return null;
+  var r = amlResultado({ aml_listas: c.aml_fiador }, amlBuscarFiadores(c, L), L, quien);
+  r.fiadores = f.length;
+  return r;
 }
 // Revisa un cliente y guarda el resultado. Devuelve el resultado (o null si no se pudo).
 function amlRevisarCliente(c, opts){
@@ -103,9 +145,12 @@ function amlRevisarCliente(c, opts){
   if(!c || c.eliminado || !c.nombre) return Promise.resolve(null);
   return amlCargarListas().then(function(L){
     var r = amlResultado(c, amlBuscar(c.nombre, c.cedula || c.ci, L), L, _amlQuien());
-    return Promise.resolve(_amlGuardar(c, r)).then(function(){
+    var rf = _amlResultadoFiador(c, L, _amlQuien());
+    return Promise.resolve(_amlGuardar(c, r, rf)).then(function(){
       if(!opts.silencio && r.estado === 'pendiente' && typeof toast === 'function')
         toast('⚠️ ' + c.nombre + ': posible coincidencia en lista de sanciones. No entregar la moto hasta que el Oficial de Cumplimiento la revise.', 'warn');
+      if(!opts.silencio && rf && rf.estado === 'pendiente' && typeof toast === 'function')
+        toast('⚠️ El fiador de ' + c.nombre + ' tiene una posible coincidencia en lista de sanciones. No entregar la moto hasta que el Oficial de Cumplimiento la revise.', 'warn');
       return r;
     });
   }).catch(function(err){
@@ -121,36 +166,41 @@ function amlTrasGuardarCliente(c){
 function amlRevisarCartera(){
   var lista = (S.clientes || []).filter(function(c){ return c && !c.eliminado && c.nombre; });
   return amlCargarListas().then(function(L){
-    var pend = 0, nuevas = 0;
+    var pend = 0, nuevas = 0, fiadores = 0;
     var cola = lista.map(function(c){
-      var antes = c.aml_listas && c.aml_listas.estado;
+      var antes = c.aml_listas && c.aml_listas.estado, antesF = c.aml_fiador && c.aml_fiador.estado;
       var r = amlResultado(c, amlBuscar(c.nombre, c.cedula || c.ci, L), L, _amlQuien());
+      var rf = _amlResultadoFiador(c, L, _amlQuien());
       if(r.estado === 'pendiente'){ pend++; if(antes !== 'pendiente') nuevas++; }
-      return _amlGuardar(c, r);
+      if(rf){ fiadores += rf.fiadores; if(rf.estado === 'pendiente'){ pend++; if(antesF !== 'pendiente') nuevas++; } }
+      return _amlGuardar(c, r, rf);
     });
-    return Promise.all(cola).then(function(){ return { revisados: lista.length, pendientes: pend, nuevas: nuevas, listas: L.generado }; });
+    return Promise.all(cola).then(function(){ return { revisados: lista.length, fiadores: fiadores, pendientes: pend, nuevas: nuevas, listas: L.generado }; });
   });
 }
 
 // ── Lo que hace el Oficial de Cumplimiento ───────────────────────────────
 function _amlEsOficial(){ return typeof isAdminUser !== 'function' || isAdminUser(); }
-function amlResolver(cid, accion, nota){
+// que: 'fiador' resuelve la coincidencia del fiador; si no, la del cliente
+function amlResolver(cid, accion, nota, que){
   if(!_amlEsOficial()){ if(typeof toast === 'function') toast('Solo el Oficial de Cumplimiento (un administrador) resuelve coincidencias', 'error'); return false; }
   var c = (S.clientes || []).find(function(x){ return String(x.id) === String(cid); });
-  if(!c || !c.aml_listas || !c.aml_listas.coincidencias || !c.aml_listas.coincidencias.length) return false;
+  var esF = que === 'fiador', prev = c && (esF ? c.aml_fiador : c.aml_listas);
+  if(!c || !prev || !prev.coincidencias || !prev.coincidencias.length) return false;
+  var quien = esF ? 'el fiador de ' + c.nombre + ' (' + prev.coincidencias.map(function(x){ return x.fiador; }).filter(function(v, i, a){ return v && a.indexOf(v) === i; }).join(', ') + ')' : c.nombre;
   if(nota == null && typeof prompt === 'function'){
     nota = prompt(accion === 'confirmar'
-      ? 'CONFIRMAR coincidencia de ' + c.nombre + '.\n\nNo se continúa la relación, se conserva todo y se reporta a la UNIF. No se le avisa al cliente.\n\nNota (obligatoria):'
-      : 'DESCARTAR coincidencia de ' + c.nombre + ' (no es la misma persona).\n\n¿Por qué? (obligatorio: cédula distinta, fecha de nacimiento, nacionalidad...):');
+      ? 'CONFIRMAR coincidencia de ' + quien + '.\n\nNo se continúa la relación, se conserva todo y se reporta a la UNIF. No se le avisa al cliente.\n\nNota (obligatoria):'
+      : 'DESCARTAR coincidencia de ' + quien + ' (no es la misma persona).\n\n¿Por qué? (obligatorio: cédula distinta, fecha de nacimiento, nacionalidad...):');
   }
   if(!nota || !String(nota).trim()){ if(typeof toast === 'function') toast('Hace falta una nota para resolverla', 'error'); return false; }
-  var r = Object.assign({}, c.aml_listas, {
+  var r = Object.assign({}, prev, {
     estado: accion === 'confirmar' ? 'confirmada' : 'descartada', nota: String(nota).trim(),
     resueltoPor: _amlQuien(), resueltoEn: new Date().toISOString(),
-    idsResueltos: c.aml_listas.coincidencias.map(function(x){ return x.id; }).sort()
+    idsResueltos: prev.coincidencias.map(function(x){ return x.id; }).sort()
   });
-  _amlGuardar(c, r);
-  if(typeof logActividad === 'function') logActividad('aml_' + (accion === 'confirmar' ? 'confirmada' : 'descartada'), 'cumplimiento', String(c.id), { nota: r.nota });
+  if(esF) _amlGuardar(c, null, r); else _amlGuardar(c, r);
+  if(typeof logActividad === 'function') logActividad('aml_' + (esF ? 'fiador_' : '') + (accion === 'confirmar' ? 'confirmada' : 'descartada'), 'cumplimiento', String(c.id), { nota: r.nota });
   if(typeof toast === 'function') toast(accion === 'confirmar' ? 'Coincidencia confirmada: reportar a la UNIF' : 'Coincidencia descartada', accion === 'confirmar' ? 'warn' : 'success');
   return true;
 }
@@ -223,7 +273,7 @@ function amlAlertas(hoyISO){
   return out.sort(function(a, b){ return String(b.fecha).localeCompare(String(a.fecha)); });
 }
 function amlPendientes(){
-  return (S.clientes || []).filter(function(c){ return c && !c.eliminado && ((c.aml_listas && c.aml_listas.estado === 'pendiente') || (c.pep === 'si' && !c.pep_aprobadoEn)); }).length;
+  return (S.clientes || []).filter(function(c){ return c && !c.eliminado && ((c.aml_listas && c.aml_listas.estado === 'pendiente') || (c.aml_fiador && c.aml_fiador.estado === 'pendiente') || (c.pep === 'si' && !c.pep_aprobadoEn)); }).length;
 }
 
 // ── En la ficha del cliente ────────────────────────────────────────────
@@ -237,6 +287,14 @@ function _amlFichaHtml(c){
       + (oficial ? '<div style="display:flex;gap:6px;margin-top:8px"><button type="button" class="btn btn-g btn-xs" onclick="amlResolver(\'' + id + '\',\'descartar\');closeM();verCliente(\'' + id + '\')">Descartar (no es la misma persona)</button><button type="button" class="btn btn-d btn-xs" onclick="amlResolver(\'' + id + '\',\'confirmar\');closeM();verCliente(\'' + id + '\')">Confirmar</button></div>' : ''));
   } else if(r && r.estado === 'confirmada'){
     partes.push('<div style="font-weight:800;color:var(--red)">Coincidencia CONFIRMADA en lista de sanciones · no continuar la relación · reportar a la UNIF · no avisar al cliente</div><div style="font-size:12px;margin-top:4px">' + _amlEsc(r.nota) + ' · ' + _amlEsc(r.resueltoPor) + '</div>');
+  }
+  var rf = c.aml_fiador;
+  if(rf && rf.estado === 'pendiente'){
+    partes.push('<div style="font-weight:800;color:var(--red)">El fiador tiene una posible coincidencia en lista de sanciones · no entregar la moto ni firmar hasta que el Oficial de Cumplimiento la revise</div>'
+      + (rf.coincidencias || []).map(function(x){ return '<div style="font-size:12px;margin-top:4px">Fiador <b>' + _amlEsc(x.fiador) + '</b> · ' + _amlEsc(x.lista) + ' · <b>' + _amlEsc(x.nombre) + '</b> · ' + _amlEsc(x.programa) + (x.detalle ? ' · ' + _amlEsc(x.detalle) : '') + ' · coincide por ' + _amlEsc(x.tipo) + '</div>'; }).join('')
+      + (oficial ? '<div style="display:flex;gap:6px;margin-top:8px"><button type="button" class="btn btn-g btn-xs" onclick="amlResolver(\'' + id + '\',\'descartar\',null,\'fiador\');closeM();verCliente(\'' + id + '\')">Descartar (no es la misma persona)</button><button type="button" class="btn btn-d btn-xs" onclick="amlResolver(\'' + id + '\',\'confirmar\',null,\'fiador\');closeM();verCliente(\'' + id + '\')">Confirmar</button></div>' : ''));
+  } else if(rf && rf.estado === 'confirmada'){
+    partes.push('<div style="font-weight:800;color:var(--red)">Fiador con coincidencia CONFIRMADA en lista de sanciones · no continuar la relación · reportar a la UNIF · no avisar al cliente</div><div style="font-size:12px;margin-top:4px">' + _amlEsc(rf.nota) + ' · ' + _amlEsc(rf.resueltoPor) + '</div>');
   }
   if(c.pep === 'si'){
     partes.push('<div style="font-weight:800;color:var(--amber)">Persona expuesta políticamente' + (c.pep_detalle ? ': ' + _amlEsc(c.pep_detalle) : '') + '</div>'

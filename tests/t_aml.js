@@ -106,6 +106,27 @@ ok('alerta: efectivo de US$ 1.000 o más', al.some(a => a.tipo === 'efectivo' &&
 ok('alerta: cancelación anticipada', al.some(a => a.tipo === 'liquidacion'));
 ok('alerta: cliente con crédito activo que nunca se revisó contra las listas', al.some(a => a.tipo === 'sin_revision' && a.cliente === 'Luis Prueba'));
 
+// ── Fiadores: se revisan igual que el cliente y el resultado va a la ficha del cliente ──
+S.currentUser = { nombre:'Adam', rol:'Administrador' };
+const cf = { id:'C4', nombre:'Ana Gómez', cedula:'V-20333444', fiador:'si', fiador_nom:'Henry Rangel Silva', fiador_ci:'V-5.764.952' };
+S.clientes.push(cf);
+S.creds.push({ id:'M-4', cli:'Ana Gómez', clienteId:'C4', estado:'activo', fiador_tiene:'si', fiador_nom:'Henry Rangel Silva', fiador_ci:'V-5764952' },
+  { id:'M-5', cli:'Ana Gómez', clienteId:'C4', estado:'mora', fiador_tiene:'si', fiador_nom:'Carlos Alberto Moreno', fiador_ci:'V-20111222' },
+  { id:'M-6', cli:'Ana Gómez', clienteId:'C4', estado:'cancelado', fiador_tiene:'si', fiador_nom:'María Elena García López', fiador_ci:'' },
+  { id:'M-7', cli:'Ana Gómez', clienteId:'C4', estado:'activo', fiador_tiene:'no', fiador_nom:'Abu Bakr Al Baghdadi' });
+ok('fiadores: el de la ficha y los de créditos vigentes, sin repetir y sin los "sin fiador"', JSON.stringify(ctx.amlFiadoresDe(cf).map(f => f.nombre)) === '["Henry Rangel Silva","Carlos Alberto Moreno"]');
+let rf = ctx._amlResultadoFiador(cf, L, 'Adam');
+ok('fiador con la cédula de la lista: pendiente, y dice cuál fiador es', rf.estado === 'pendiente' && rf.fiadores === 2 && rf.coincidencias.some(x => x.tipo === 'documento' && x.fiador === 'Henry Rangel Silva'));
+cf.aml_fiador = rf;
+const fichaF = ctx._amlFichaHtml(cf);
+ok('la ficha del cliente avisa del fiador y el oficial puede resolverla', /El fiador tiene una posible coincidencia/.test(fichaF) && /amlResolver\('C4','descartar',null,'fiador'\)/.test(fichaF));
+ok('Cumplimiento muestra al fiador y a quién respalda', /Fiador:<\/b> Henry Rangel Silva/.test(ctx.PG.cumplimiento()) && /respalda a/.test(ctx.PG.cumplimiento()));
+respuestas.prompt = 'Es el sancionado: misma cédula';
+ok('el oficial confirma la del fiador sin tocar la del cliente', ctx.amlResolver('C4', 'confirmar', null, 'fiador') === true && cf.aml_fiador.estado === 'confirmada' && !cf.aml_listas);
+ok('...y se guarda en la ficha del cliente, no en el crédito', guardados.some(g => g.id === 'C4' && g.aml_fiador && g.aml_fiador.estado === 'confirmada' && !('aml_listas' in g)));
+ok('lo ya resuelto del fiador no vuelve a saltar', ctx._amlResultadoFiador(cf, L, 'Sistema').estado === 'confirmada');
+ok('cliente que dijo "sin fiador": no se revisa el nombre que quedó pegado', ctx._amlResultadoFiador({ id:'C9', nombre:'X Y', fiador:'no', fiador_nom:'Henry Rangel Silva' }, L, 'x') === null);
+
 // ── El modulo ──
 ok('Cumplimiento está registrado (menú, título, admin)', ctx.MODULOS.some(m => m.id === 'cumplimiento') && /cumplimiento:'Cumplimiento'/.test(src('assets/pagasi-app.js')) && /'users','cumplimiento'\]/.test(src('assets/pagasi-app.js')));
 S.currentUser = { nombre:'María', rol:'Empleado' };
@@ -129,4 +150,9 @@ const real = JSON.parse(src('data/listas-sanciones.json'));
 ok('la lista real tiene OFAC y ONU con miles de personas', real.e.length > 5000 && real.fuentes['OFAC SDN'] > 1000 && real.fuentes['ONU'] > 100);
 ok('la lista real trae a los sancionados de Venezuela con su cédula', real.e.filter(x => /VENEZUELA/.test(x[3]) && x[5].length).length > 100);
 ok('el workflow corre cada día y solo hace commit si cambió', /cron: '30 10 \* \* \*'/.test(src('.github/workflows/listas-sanciones.yml')) && /git diff --quiet -- data\/listas-sanciones\.json/.test(src('.github/workflows/listas-sanciones.yml')));
-console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas'); if(fail) process.exitCode = 1;
+ctx._amlListas = L;
+ctx.amlRevisarCartera().then(r => {
+  ok('revisar la cartera también revisa a los fiadores', r.fiadores === 2 && r.revisados === S.clientes.length && cf.aml_fiador.estado === 'confirmada');
+}).catch(e => ok('revisar la cartera: ' + e.message, false)).then(() => {
+  console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas'); if(fail) process.exitCode = 1;
+});

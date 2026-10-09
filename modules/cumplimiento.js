@@ -6,7 +6,7 @@ function cumRevisarCartera(){
   toast('Revisando toda la cartera contra OFAC y ONU…', 'info');
   amlRevisarCartera().then(function(r){
     if(typeof logActividad === 'function') logActividad('aml_revision_cartera', 'cumplimiento', '', r);
-    toast('Listo: ' + r.revisados + ' clientes revisados · ' + r.pendientes + ' coincidencia' + (r.pendientes === 1 ? '' : 's') + ' por revisar', r.pendientes ? 'warn' : 'success');
+    toast('Listo: ' + r.revisados + ' clientes y ' + (r.fiadores || 0) + ' fiadores revisados · ' + r.pendientes + ' coincidencia' + (r.pendientes === 1 ? '' : 's') + ' por revisar', r.pendientes ? 'warn' : 'success');
     nav('cumplimiento');
   }).catch(function(e){ toast('No se pudo revisar: ' + (e && e.message || e), 'error'); });
 }
@@ -20,7 +20,12 @@ PG.cumplimiento = function(){
   }
   var E = _amlEsc, M = function(v){ return typeof fmt === 'function' ? fmt(v) : '$' + (+v).toFixed(2); };
   var clientes = (S.clientes || []).filter(function(c){ return c && !c.eliminado; });
-  var pend = clientes.filter(function(c){ return c.aml_listas && c.aml_listas.estado === 'pendiente'; });
+  // Coincidencias por revisar: las del cliente y las de su fiador, cada una en su fila
+  var pend = [];
+  clientes.forEach(function(c){
+    if(c.aml_listas && c.aml_listas.estado === 'pendiente') pend.push({ c: c, r: c.aml_listas, que: '' });
+    if(c.aml_fiador && c.aml_fiador.estado === 'pendiente') pend.push({ c: c, r: c.aml_fiador, que: 'fiador' });
+  });
   var peps = clientes.filter(function(c){ return c.pep === 'si'; });
   var revisados = clientes.filter(function(c){ return c.aml_listas && c.aml_listas.fecha; }).length;
   var mes = window._cumMes || _cumMesAnterior(), efectivo = amlEfectivoDelMes(mes);
@@ -34,12 +39,15 @@ PG.cumplimiento = function(){
       : '<div style="color:var(--ink3);font-size:13px;padding:8px 0">' + vacio + '</div>';
   };
   var idDe = function(c){ return String(c.id).replace(/[^A-Za-z0-9_-]/g, ''); };
-  var filasPend = pend.map(function(c){
-    var r = c.aml_listas, x = (r.coincidencias || [])[0] || {};
-    return '<tr><td><a href="#" onclick="verCliente(\'' + idDe(c) + '\');return false" style="font-weight:700">' + E(c.nombre) + '</a><div class="tds">' + E(c.cedula || '') + '</div></td>'
+  var filasPend = pend.map(function(p){
+    var c = p.c, r = p.r, x = (r.coincidencias || [])[0] || {}, q = p.que ? ',null,\'fiador\'' : '';
+    var quien = p.que
+      ? '<b>Fiador:</b> ' + E(x.fiador || '') + '<div class="tds">' + E(x.fiadorCedula || '') + ' · respalda a <a href="#" onclick="verCliente(\'' + idDe(c) + '\');return false">' + E(c.nombre) + '</a></div>'
+      : '<a href="#" onclick="verCliente(\'' + idDe(c) + '\');return false" style="font-weight:700">' + E(c.nombre) + '</a><div class="tds">' + E(c.cedula || '') + '</div>';
+    return '<tr><td>' + quien + '</td>'
       + '<td>' + E(x.lista || '') + '<div class="tds">' + E(x.nombre || '') + ' · ' + E(x.programa || '') + (x.detalle ? ' · ' + E(x.detalle) : '') + (r.coincidencias.length > 1 ? ' · y ' + (r.coincidencias.length - 1) + ' más' : '') + '</div></td>'
       + '<td>' + E(x.tipo || '') + '</td>'
-      + '<td style="white-space:nowrap"><button class="btn btn-g btn-xs" onclick="amlResolver(\'' + idDe(c) + '\',\'descartar\');nav(\'cumplimiento\')">Descartar</button> <button class="btn btn-d btn-xs" onclick="amlResolver(\'' + idDe(c) + '\',\'confirmar\');nav(\'cumplimiento\')">Confirmar</button></td></tr>';
+      + '<td style="white-space:nowrap"><button class="btn btn-g btn-xs" onclick="amlResolver(\'' + idDe(c) + '\',\'descartar\'' + q + ');nav(\'cumplimiento\')">Descartar</button> <button class="btn btn-d btn-xs" onclick="amlResolver(\'' + idDe(c) + '\',\'confirmar\'' + q + ');nav(\'cumplimiento\')">Confirmar</button></td></tr>';
   });
   var filasPep = peps.map(function(c){
     return '<tr><td><a href="#" onclick="verCliente(\'' + idDe(c) + '\');return false" style="font-weight:700">' + E(c.nombre) + '</a><div class="tds">' + E(c.cedula || '') + '</div></td><td>' + E(c.pep_detalle || '—') + '</td>'
@@ -64,7 +72,7 @@ PG.cumplimiento = function(){
     + '</div>'
     + '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Coincidencias en listas de sanciones</div></div><div style="padding:0 16px 14px">'
     + '<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">No entregar la moto ni firmar mientras esté pendiente. Descartar solo con una razón (cédula distinta, fecha de nacimiento, nacionalidad). Si se confirma: no continuar, conservar todo, reportar a la UNIF y no avisar al cliente.</div>'
-    + tabla(['Cliente', 'Persona en la lista', 'Coincide por', ''], filasPend, 'Ninguna coincidencia pendiente.') + '</div></div>'
+    + tabla(['Cliente o fiador', 'Persona en la lista', 'Coincide por', ''], filasPend, 'Ninguna coincidencia pendiente.') + '</div></div>'
     + '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Personas expuestas políticamente</div></div><div style="padding:0 16px 14px">'
     + tabla(['Cliente', 'Cargo o relación', 'Aprobación del oficial'], filasPep, 'Ningún cliente marcado como PEP.') + '</div></div>'
     + '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Transacciones en efectivo · reporte mensual a la UNIF</div>'
