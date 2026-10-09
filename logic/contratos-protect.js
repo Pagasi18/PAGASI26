@@ -236,9 +236,10 @@ function _protectDatos(credId){
     actividad: V(E(dc.actividad || _ctrActividad(cli)), 16),
     ingresoMensual: V((dc.ingresoMensual || cli.ingreso) ? 'US$ '+num(dc.ingresoMensual || cli.ingreso) : '', 12),
     // PEP en NO por defecto: si alguien lo es, se tacha y se marca SI a mano
-    pepNo: dc.pep==='si' ? '(&nbsp;&nbsp;)' : '(&nbsp;X&nbsp;)',
-    pepSi: dc.pep==='si' ? '(&nbsp;X&nbsp;)' : '(&nbsp;&nbsp;)',
-    pepDetalle: V(E(dc.pepDetalle), 24),
+    // PEP: lo que dice la ficha del cliente (pregunta del asistente, 9-oct-2026); antes iba fijo en NO
+    pepNo: (dc.pep||cli.pep)==='si' ? '(&nbsp;&nbsp;)' : '(&nbsp;X&nbsp;)',
+    pepSi: (dc.pep||cli.pep)==='si' ? '(&nbsp;X&nbsp;)' : '(&nbsp;&nbsp;)',
+    pepDetalle: V(E(dc.pepDetalle||cli.pep_detalle), 24),
     verFecha: V(dc.verificado && dc.verificadoFecha ? fmt(new Date(dc.verificadoFecha+'T12:00:00')) : '', 8),
     verRes: dc.verificado ? '<strong>sin novedad</strong>' : NA,
     analista: V(E(dc.analista || c.creadoPor), 16), aprobadoPor: V(E(dc.aprobadoPor || c.aprobadoPor), 14),

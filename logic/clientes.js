@@ -520,6 +520,9 @@ function verCliente(id){
     + '</div>'
     + '</div>';
 
+  // Cumplimiento LC/FT: coincidencias en listas y PEP (logic/aml.js)
+  html += (typeof _amlFichaHtml==='function') ? _amlFichaHtml(c) : '';
+
   // De donde vino y que quiere, si entro por la web (solicitudes-web.js)
   html += (typeof _swFichaHtml==='function') ? _swFichaHtml(c) : '';
 
@@ -1930,6 +1933,8 @@ function _cliGuardar(){
     S.clientes.push(obj);
   }
   DB.saveCliente(obj);
+  // Programa LC/FT (9-oct-2026): revisar contra OFAC y ONU cada vez que se guarda la ficha
+  if(typeof amlTrasGuardarCliente==='function') amlTrasGuardarCliente(idx>=0 ? S.clientes[idx] : obj);
   // ── ROOT FIX: propagar el nombre del cliente a sus créditos y motos ──
   // Créditos y motos guardan el nombre del cliente como copia (el sistema enlaza
   // por nombre: cr.cli === cliente.nombre). Si al renombrar no se propaga, el

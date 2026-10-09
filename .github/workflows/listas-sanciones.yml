@@ -1,0 +1,34 @@
+name: Listas de sanciones (OFAC y ONU)
+
+# Baja cada dia la lista SDN de OFAC y la Lista Consolidada de la ONU y deja solo las
+# personas en data/listas-sanciones.json, que el panel usa para revisar a cada cliente
+# (programa LC/FT, 9-oct-2026; manual: revision al alta y de toda la cartera cada mes).
+# Solo hace commit si las listas cambiaron. No usa secretos: son listas publicas.
+on:
+  schedule:
+    - cron: '30 10 * * *'   # 6:30 am en Caracas
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  listas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Bajar y normalizar las listas
+        run: node bot/listas-sanciones.js
+      - name: Guardar si cambiaron
+        run: |
+          if git diff --quiet -- data/listas-sanciones.json; then echo "Sin cambios"; exit 0; fi
+          git config user.name "Pagasi18"
+          git config user.email "info@pagasi.io"
+          git add data/listas-sanciones.json
+          git commit -m "Listas de sanciones al día ($(date -u +%Y-%m-%d))"
+          git pull --rebase -q origin "${GITHUB_REF_NAME}"
+          git push

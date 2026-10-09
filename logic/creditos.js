@@ -88,6 +88,10 @@ function _casheaExtraScore(v){
 // ══════════════════════════════════════════════════════════════════════
 var PERFIL_EXTRA = [
   { k:'fecha_nacimiento',   sec:'cliente',   et:'Fecha de nacimiento',            tipo:'date' },
+  // Persona Expuesta Politicamente (LOCDOFT art. 18 y manual LC/FT, 9-oct-2026). Si es 'si',
+  // el Oficial de Cumplimiento la aprueba en Cumplimiento antes de firmar el contrato.
+  { k:'pep',                sec:'cliente',   et:'¿Es persona expuesta políticamente?', tipo:'sel', ops:[['','Seleccionar...'],['no','No'],['si','Sí (o familiar o allegado cercano)']] },
+  { k:'pep_detalle',        sec:'cliente',   et:'Si es PEP: cargo o relación',     tipo:'text', ph:'Ej: alcalde de …, hermano de …' },
   // 27-sep-2026: se suma "Certificacion de ingreso" (la que firma un contador), que es como
   // comprueban el ingreso muchos independientes y comerciantes.
   { k:'ingreso_comprobante',sec:'empleo',    et:'¿Cómo se comprobó el ingreso?',   tipo:'sel', ops:[['','Seleccionar...'],['recibo','Recibo de pago / nómina'],['estado_cuenta','Estado de cuenta'],['movimientos','Movimientos de Binance, Zelle o pago móvil'],['constancia','Constancia de trabajo'],['certificacion','Certificación de ingreso'],['negocio','Lo vi en su negocio'],['palabra','Solo de palabra']] },
@@ -2806,6 +2810,8 @@ function _wzGuardar(){
     // 27-sep-2026: con el credito hecho, el formulario web de ese cliente se cierra. Si no,
     // la sesion anonima que lo lleno podia seguir cambiando telefono o direccion de una
     // ficha que ya tiene contrato (las Reglas la dejan escribir hasta que diga web_cerrado).
+    // PEP (manual LC/FT): lo que se contesto en el asistente queda en la ficha
+    if(WZ.pep||WZ.wz_pep){ existing.pep = WZ.pep||WZ.wz_pep; existing.pep_detalle = WZ.pep_detalle||WZ.wz_pep_detalle||existing.pep_detalle||''; }
     if(existing.origen==='web' && existing.web_cerrado!==true){
       existing.web_cerrado = true;
       existing.web_cerrado_por = (S.currentUser&&(S.currentUser.nombre||S.currentUser.email))||'Admin';
@@ -2878,6 +2884,10 @@ function _wzGuardar(){
     S.clientes.push(cliente);
     DB.saveCliente(cliente);
   }
+  // Programa LC/FT (9-oct-2026): cada cliente que entra a un credito se revisa contra OFAC y
+  // ONU, y si es PEP se avisa que falta la aprobacion del Oficial de Cumplimiento. No bloquea.
+  if(typeof amlTrasGuardarCliente==='function') amlTrasGuardarCliente(cliente);
+  if(cliente.pep==='si' && !cliente.pep_aprobadoEn && typeof toast==='function') toast('Cliente PEP: el Oficial de Cumplimiento tiene que aprobarlo (debida diligencia reforzada) antes de firmar','warn');
 
   // ── Si estamos editando un crédito sin firma, actualizar en lugar de crear ──
   if(window._wzEditando){
