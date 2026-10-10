@@ -69,7 +69,7 @@ function openAddPago(preCredId){
     <div class="fgr c1" style="gap:9px"><div class="fg"><label>Crédito</label><select class="fs" id="p_cred" onchange="updPagoMonto(this)">${S.creds.filter(c=>c.estado==='activo'||c.estado==='mora').map(c=>`<option value="${c.id}" data-cuota="${c.cuota}" data-cuotaq="${c.cuotaQ}" ${preCredId&&String(c.id)===String(preCredId)?'selected':''}>${c.id} — ${c.cli} (${c.modelo})</option>`).join('')}</select></div></div>
     <div class="fgr" style="margin-top:9px">
       <div class="fg"><label>Frecuencia</label><input class="fi" value="Quincenal (cada 15 días)" readonly style="color:var(--p1);font-weight:700;background:var(--surf)"></div>
-      <div class="fg"><label>Fecha de pago</label><input class="fi" id="p_fecha" type="date" value="${hoyLocalISO()}"></div>
+      <div class="fg"><label>Fecha en que el cliente pagó</label><input class="fi" id="p_fecha" type="date" value="${hoyLocalISO()}" onchange="_pagoFechaAviso(this.value)"><div id="p_fecha_aviso" class="tds" style="margin-top:3px;font-size:10.5px;line-height:1.35">La del comprobante del cliente. Si pagó otro día, cámbiala: la contadora concilia con esa fecha.</div></div>
       <div class="fg"><label>Monto ($)</label><input class="fi" id="p_monto" type="number" placeholder="0.00" onfocus="_seleccionarAlEntrar(this)" onmouseup="_mantenerSeleccion(event,this)"></div>
 <div class="fg"><label>Recibido en</label><select class="fs" id="p_forma">${_cuentasOrdenadasPago().map(c=>`<option value="${c.nombre}">${c.label}</option>`).join('')}${(!_cuentasBanc||!_cuentasBanc.length)?'<option value="">— Sin cuentas configuradas —</option>':''}</select></div>
       <div class="fg"><label>N° Referencia</label><input class="fi" id="p_ref" placeholder="Número de referencia o comprobante"></div>
@@ -105,6 +105,7 @@ function openAddPago(preCredId){
       referencia:($('p_ref')&&$('p_ref').value)||'',
       estado:'confirmado',
       realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin',
+      creadoEn:new Date().toISOString(),   // cuando se registro; la fecha de arriba es la del cliente
       tasaBs:window._tasaBsGlobal||1,
       concesionarioId: cred.concesionarioId || _concDefaultId()
     };
@@ -1313,15 +1314,16 @@ function openEditPago(pagoId){
     return '<option '+(p.cobrador===u?'selected':'')+'>'+u+'</option>';
   }).join('');
   $('mbd').innerHTML = '<div style="background:var(--surf2);border:1px solid var(--rim);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:11px">'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1.5fr;gap:6px">'
     +'<div><span style="color:var(--ink3)">Cliente</span><div style="font-weight:700">'+p.cli+'</div></div>'
     +'<div><span style="color:var(--ink3)">Crédito</span><div style="font-weight:700">'+p.cred+'</div></div>'
     +'<div><span style="color:var(--ink3)">Estado actual</span><div style="font-weight:700">'+p.estado+'</div></div>'
+    +'<div><span style="color:var(--ink3)">Registrado en el sistema</span><div style="font-weight:700">'+_pagoRegistroTxt(p)+'</div></div>'
     +'</div></div>'
     +'<div class="fgr" style="gap:8px">'
     +'<div class="fg"><label>Monto ($) *</label>'
     +'<input class="fi" id="ep_monto" type="number" step="0.01" value="'+(p.monto||0)+'"></div>'
-    +'<div class="fg"><label>Fecha *</label>'
+    +'<div class="fg"><label>Fecha del pago (cliente) *</label>'
     +'<input class="fi" id="ep_fecha" type="date" value="'+(p.fecha||'')+'"></div>'
     +'</div>'
     +'<div class="fgr" style="gap:8px;margin-top:8px">'
@@ -1540,6 +1542,51 @@ function openNota(id){
   $('ov').style.display='flex';
 }
 
+// Dos fechas por pago (Adam, 10-oct-2026): la del comprobante del cliente (p.fecha) y el
+// momento en que se registro en el sistema (creadoEn; en los pagos viejos, los milisegundos
+// del numero PAG-<ms>). La contadora concilia con la primera: cuando Samantha registra el
+// lunes lo que el cliente mando el sabado, se ven las dos y la diferencia.
+function _pagoRegistroFecha(p){
+  if(!p) return null;
+  if(p.creadoEn){ var d0 = new Date(p.creadoEn); if(!isNaN(d0.getTime())) return d0; }
+  var m = String(p.id||'').match(/(\d{13})/); if(!m) return null;
+  var d = new Date(+m[1]), y = d.getFullYear();
+  return (isNaN(y) || y<2024 || y>2035) ? null : d;
+}
+var _DIAS_CORTOS = ['dom','lun','mar','mié','jue','vie','sáb'];
+function _fechaDiaCorto(iso){   // 2026-10-11 -> "sáb 11/10/2026"
+  if(!iso) return '—';
+  var d = parseFechaLocal(String(iso).slice(0,10)); if(isNaN(d.getTime())) return String(iso);
+  return _DIAS_CORTOS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();
+}
+function _pagoRegistroISO(p){   // "2026-10-13 09:15", para los CSV de la contadora
+  var d = _pagoRegistroFecha(p); if(!d) return '';
+  return fechaLocalISO(d)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+// "lun 13/10/2026 · 9:15 am · Samantha" y, si no fue el mismo dia, cuantos dias despues
+function _pagoRegistroTxt(p){
+  var d = _pagoRegistroFecha(p); if(!d) return '—';
+  var E = (typeof esc==='function') ? esc : function(s){ return String(s==null?'':s); };
+  var dia = fechaLocalISO(d), txt = _fechaDiaCorto(dia)+' · '+_fmtHora(d)+(p.realizadoPor ? ' · '+E(p.realizadoPor) : '');
+  var fp = String(p.fecha||'').slice(0,10);
+  if(fp && fp !== dia){
+    var dif = Math.round((parseFechaLocal(dia)-parseFechaLocal(fp))/864e5);
+    txt += '<div style="font-size:11px;color:var(--amber);font-weight:700">'+(dif>0 ? dif+' día'+(dif===1?'':'s')+' después del pago' : 'antes de la fecha del pago')+'</div>';
+  }
+  return txt;
+}
+// Aviso bajo la fecha del formulario cuando no es hoy
+function _pagoFechaAviso(v){
+  var el = $('p_fecha_aviso'); if(!el) return;
+  var hoy = hoyLocalISO();
+  if(v && /^\d{4}-\d{2}-\d{2}$/.test(v) && v !== hoy){
+    el.style.color = 'var(--amber)'; el.style.fontWeight = '700';
+    el.innerHTML = 'El cliente pagó el '+_fechaDiaCorto(v)+' y se registra hoy, '+_fechaDiaCorto(hoy)+'. Quedan las dos fechas.';
+  } else {
+    el.style.color = ''; el.style.fontWeight = '';
+    el.innerHTML = 'La del comprobante del cliente. Si pagó otro día, cámbiala: la contadora concilia con esa fecha.';
+  }
+}
 function _fmtHora(d){ var h=d.getHours(), m=d.getMinutes(), ap=h<12?'am':'pm', h12=h%12; if(h12===0) h12=12; return h12+':'+String(m).padStart(2,'0')+' '+ap; }
 
 // Render del historial de gestiones de un crédito (reutilizable: openNota + tras borrar)

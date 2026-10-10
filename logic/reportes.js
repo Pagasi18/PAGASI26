@@ -1071,9 +1071,9 @@ function exportarCSV(tipo){
     });
   } else if(tipo==='pagos'){
     filename='pagos-'+hoyLocalISO()+'.csv';
-    rows.push(row(['ID','Cliente','Crédito','Fecha','Monto','Método/Cuenta','Cobrador','Estado','Referencia','Tasa Bs','Realizado por']));
+    rows.push(row(['ID','Cliente','Crédito','Fecha del pago (cliente)','Registrado en el sistema','Monto','Método/Cuenta','Cobrador','Estado','Referencia','Tasa Bs','Realizado por']));
     S.pagos.filter(function(p){return !p.eliminado;}).forEach(function(p){
-      rows.push(row([p.id,p.cli,p.cred,p.fecha,p.monto,p.metodo,p.cobrador,p.estado,p.referencia||'',p.tasaBs||'',p.realizadoPor||'']));
+      rows.push(row([p.id,p.cli,p.cred,p.fecha,(typeof _pagoRegistroISO==='function'?_pagoRegistroISO(p):''),p.monto,p.metodo,p.cobrador,p.estado,p.referencia||'',p.tasaBs||'',p.realizadoPor||'']));
     });
   } else if(tipo==='egresos'){
     filename='egresos-'+hoyLocalISO()+'.csv';
@@ -1206,13 +1206,13 @@ function generarReporte(tipo){
           +'<table><thead><tr><th>Cuenta / Método</th><th>Cantidad</th><th>Monto</th><th>% del total</th></tr></thead><tbody>'+mrows+'</tbody></table>';
       })()
       +'<h2 style="margin-top:20px;border-top:1px solid #eee;padding-top:14px">Detalle de pagos</h2>'
-      +'<table><thead><tr><th>ID</th><th>Cliente</th><th>Crédito</th><th>Fecha</th><th>Monto</th><th>Recibido en</th><th>Referencia</th><th>Cobrador</th></tr></thead><tbody>'
+      +'<table><thead><tr><th>ID</th><th>Cliente</th><th>Crédito</th><th>Fecha del pago</th><th>Registrado</th><th>Monto</th><th>Recibido en</th><th>Referencia</th><th>Cobrador</th></tr></thead><tbody>'
       +pagosConf.map(function(p){
-        return '<tr><td>'+p.id+'</td><td>'+p.cli+'</td><td>'+p.cred+'</td><td>'+(p.fecha||'—')+'</td><td>$'+p.monto.toFixed(2)+'</td><td><strong>'+(p.metodo||'—')+'</strong></td><td>'+(p.referencia||'—')+'</td><td>'+(p.cobrador||'—')+'</td></tr>';
+        return '<tr><td>'+p.id+'</td><td>'+p.cli+'</td><td>'+p.cred+'</td><td>'+(p.fecha||'—')+'</td><td>'+((typeof _pagoRegistroISO==='function'&&_pagoRegistroISO(p))||'—')+'</td><td>$'+p.monto.toFixed(2)+'</td><td><strong>'+(p.metodo||'—')+'</strong></td><td>'+(p.referencia||'—')+'</td><td>'+(p.cobrador||'—')+'</td></tr>';
       }).join('')
-      +(pagosElim.length?'<tr><td colspan="8" style="background:#fde8ec;color:#b5162d;font-weight:700;padding:6px 9px"> Registros eliminados (no cuentan en totales)</td></tr>'
+      +(pagosElim.length?'<tr><td colspan="9" style="background:#fde8ec;color:#b5162d;font-weight:700;padding:6px 9px"> Registros eliminados (no cuentan en totales)</td></tr>'
         +pagosElim.map(function(p){
-          return '<tr style="opacity:0.6;text-decoration:line-through;background:#fff5f5"><td>'+p.id+'</td><td>'+p.cli+'</td><td>'+p.cred+'</td><td>'+(p.fecha||'—')+'</td><td>$'+p.monto.toFixed(2)+'</td><td>'+(p.metodo||'—')+'</td><td>'+(p.referencia||'—')+'</td><td>'+( p.eliminadoRazon||'Eliminado')+'</td></tr>';
+          return '<tr style="opacity:0.6;text-decoration:line-through;background:#fff5f5"><td>'+p.id+'</td><td>'+p.cli+'</td><td>'+p.cred+'</td><td>'+(p.fecha||'—')+'</td><td>'+((typeof _pagoRegistroISO==='function'&&_pagoRegistroISO(p))||'—')+'</td><td>$'+p.monto.toFixed(2)+'</td><td>'+(p.metodo||'—')+'</td><td>'+(p.referencia||'—')+'</td><td>'+( p.eliminadoRazon||'Eliminado')+'</td></tr>';
         }).join(''):'')
       +'</tbody></table>';
 

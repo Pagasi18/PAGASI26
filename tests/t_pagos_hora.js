@@ -78,5 +78,35 @@ ctx.S.pagosSort = { col:'fecha', dir:'asc' };
 const h2 = String(ctx.PG.pagos());
 ok('al reves: el 17 primero y dentro del 18 el de las 8:56 antes', h2.indexOf('PAG-1789650000000') < h2.indexOf('PAG-1789736201484') && h2.indexOf('PAG-1789736201484') < h2.indexOf('PAG-1789740740903'));
 
+
+// Dos fechas por pago (10-oct-2026): la del cliente y la del registro en el sistema
+const T = p => ctx._pagoRegistroTxt(p);
+const t1 = T({id:'PAG-1789736201484', fecha:'2026-09-15', realizadoPor:'Samantha'});
+ok('registrado: dia de la semana, hora y quien', tiene(t1,'vie 18/9/2026') && tiene(t1,'8:56') && tiene(t1,'Samantha'));
+ok('registrado 3 dias despues del pago: lo dice', tiene(t1,'3 días después del pago'));
+ok('mismo dia: no agrega nada', !/después/.test(T({id:'PAG-1789736201484', fecha:'2026-09-18'})));
+ok('un dia despues en singular', tiene(T({id:'PAG-1789736201484', fecha:'2026-09-17'}),'1 día después'));
+ok('pago viejo sin hora: raya', T({id:'PAG-001', fecha:'2026-05-01'}) === '—');
+ok('creadoEn manda sobre el numero', tiene(H({id:'PAG-001', creadoEn:'2026-09-18T12:56:00.000Z', fecha:'2026-09-18'}),'8:56'));
+ok('ISO para el CSV de la contadora', ctx._pagoRegistroISO({id:'PAG-1789736201484'}) === '2026-09-18 08:56' && ctx._pagoRegistroISO({id:'PAG-001'}) === '');
+ok('sabado en letras', ctx._fechaDiaCorto('2026-10-10') === 'sáb 10/10/2026');
+// el detalle y el formulario
+const els = {}; ctx.document.getElementById = id => (els[id] = els[id] || elemento());
+ctx.setMicon = () => {};   // el icono del modal busca un svg que este arnés no tiene
+ctx.S.pagos.push({ id:'PAG-1789736201484-77', cli:'D', cred:'CRED-001', fecha:'2026-09-15', monto:61, estado:'confirmado', metodo:'100% Banco', cobrador:'Samantha', realizadoPor:'Samantha', referencia:'001150647828' });
+ctx.S.facturas = [];
+ctx.abrirDetallePago('PAG-1789736201484-77');
+const det = els.mbd.innerHTML;
+ok('detalle: fecha del cliente y registro en el sistema', tiene(det,'Fecha del pago (cliente)') && tiene(det,'2026-09-15') && tiene(det,'mar 15/9/2026') && tiene(det,'Registrado en el sistema') && tiene(det,'vie 18/9/2026') && tiene(det,'3 días después del pago'));
+ctx.openAddPago('CRED-001');
+ok('formulario: pide la fecha en que el cliente pagó', tiene(els.mbd.innerHTML,'Fecha en que el cliente pagó') && tiene(els.mbd.innerHTML,'id="p_fecha_aviso"'));
+ctx._pagoFechaAviso('2026-01-03');
+ok('formulario: avisa cuando la fecha no es hoy', tiene(els.p_fecha_aviso.innerHTML,'El cliente pagó el sáb 3/1/2026') && tiene(els.p_fecha_aviso.innerHTML,'se registra hoy'));
+ctx._pagoFechaAviso(ctx.hoyLocalISO());
+ok('formulario: con la fecha de hoy vuelve la pista normal', tiene(els.p_fecha_aviso.innerHTML,'La del comprobante'));
+ctx.S.currentUser = { uid:'u1', nombre:'Adam', rol:'Administrador' };
+ctx.openEditPago('PAG-1789736201484-77');
+ok('editar: etiqueta clara y registro visible', tiene(els.mbd.innerHTML,'Fecha del pago (cliente) *') && tiene(els.mbd.innerHTML,'Registrado en el sistema') && tiene(els.mbd.innerHTML,'vie 18/9/2026'));
+
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas');
 if (fail) process.exitCode = 1;

@@ -17,10 +17,8 @@ function setPagosTipoF(t){ S.pagosTipoF=t; pgSet('pagos',1); nav('pagos'); }
 // Hora en que se registro el pago (Adam, 18-sep-2026). No hay campo aparte: sale del
 // numero del pago, que es el momento exacto de registro (PAG-1789736201484,
 // PAG-<ms>-<azar>, P-LIQ-<ms>). Pagos viejos con otro numero no muestran hora.
-function _pagoRegistro(p){
-  var m = String((p&&p.id)||'').match(/(\d{13})/); if(!m) return null;
-  var d = new Date(+m[1]), y = d.getFullYear();
-  return (isNaN(y) || y<2024 || y>2035) ? null : d;
+function _pagoRegistro(p){   // desde el 10-oct-2026 vive en logic/pagos.js (prefiere creadoEn)
+  return (typeof _pagoRegistroFecha==='function') ? _pagoRegistroFecha(p) : null;
 }
 // "8:56 a. m."; si se registro otro dia distinto a la fecha del pago, lo dice: "reg. 20/9 · 8:56 a. m."
 function _pagoHoraTxt(p){
