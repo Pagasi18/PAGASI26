@@ -1607,6 +1607,11 @@ function _cobPuedeAcordar(){
   var r = (S.currentUser && S.currentUser.rol) || '';
   return r==='Administrador' || r==='admin' || r==='Gerente';
 }
+// Casilla "acuerdo recurrente" (10-oct-2026, Adam): sin marcar, el acuerdo es por una sola
+// vez y con el pago el credito vuelve a su plan normal. Hasta esa fecha todo acuerdo se
+// repetia: un credito sin el campo se sigue tratando como recurrente para no cambiar los
+// que ya existen (Adam los corrige uno por uno con "Fecha" o "Quitar").
+function _acuerdoEsRecurrente(c){ return !!c && c.acuerdoRecurrente !== false; }
 function _acuerdoSemaforo(fecha, hoyISO){
   hoyISO = hoyISO || hoyLocalISO();
   if(!fecha) return null;
@@ -1648,19 +1653,21 @@ function acuerdoAcordar(credId){
   $('msb').textContent=c.id+' \u00b7 '+(c.cli||'');
   $('modal-box').className='modal';
   $('mbd').innerHTML=
-    '<p style="font-size:12px;color:var(--ink3);margin:0 0 12px;line-height:1.6">El cliente acumula sus cuotas y se compromete a pagarlas en una <b>fecha fija</b>. Mientras el acuerdo est\u00e9 activo se gestiona en la pesta\u00f1a <b>Acuerdos Mensuales</b> de Cobranza, y al registrar su pago la fecha se corre sola un mes.</p>'
-    + (era ? '<div style="font-size:11.5px;background:var(--surf2);border:1px solid var(--rim);border-radius:8px;padding:8px 10px;margin-bottom:10px">Compromiso actual: <b>'+era+'</b></div>' : '')
+    '<p style="font-size:12px;color:var(--ink3);margin:0 0 12px;line-height:1.6">El cliente acumula sus cuotas y se compromete a pagarlas en una <b>fecha fija</b>. Mientras el acuerdo est\u00e9 activo se gestiona en la pesta\u00f1a <b>Acuerdos Mensuales</b> de Cobranza. Al registrar su pago, si el acuerdo es <b>recurrente</b> la fecha se corre sola un mes; si es por <b>una sola vez</b>, el cr\u00e9dito vuelve a su plan normal.</p>'
+    + (era ? '<div style="font-size:11.5px;background:var(--surf2);border:1px solid var(--rim);border-radius:8px;padding:8px 10px;margin-bottom:10px">Compromiso actual: <b>'+era+'</b> \u00b7 '+(_acuerdoEsRecurrente(c)?'cada mes':'una sola vez')+'</div>' : '')
     + '<div class="fg"><label>Fecha de compromiso</label><input class="fi" type="date" id="ac_fecha" value="'+def+'" min="'+hoy+'"></div>'
-    + '<div style="display:flex;gap:6px;margin-top:10px">'+chip(f15,'D\u00eda 15')+chip(f30,'D\u00eda 30')+chip(f1m,'En 1 mes')+'</div>';
+    + '<div style="display:flex;gap:6px;margin-top:10px">'+chip(f15,'D\u00eda 15')+chip(f30,'D\u00eda 30')+chip(f1m,'En 1 mes')+'</div>'
+    + '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:12px;cursor:pointer"><input type="checkbox" id="ac_rec"'+((era && _acuerdoEsRecurrente(c))?' checked':'')+' style="width:16px;height:16px;margin-top:1px;accent-color:var(--p1)"> <span><b>Acuerdo recurrente</b>: se repite cada mes. Sin marcar es por esta sola vez: al pagar, el cliente vuelve a su plan normal.</span></label>';
   S.saveFn=function(){
     var v=($('ac_fecha')&&$('ac_fecha').value)||'';
     if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ toast('Elige la fecha de compromiso','error'); return false; }
     if(v<hoy){ toast('La fecha de compromiso no puede ser pasada','error'); return false; }
     if(era && era < hoy) _acuerdoAnotar(c, era, 'rota');   // reprogramada ya vencida
     c.fechaCompromiso=v;
+    c.acuerdoRecurrente = !!($('ac_rec') && $('ac_rec').checked);
     DB.saveCred(c);
-    if(typeof logActividad==='function') logActividad(era?'acuerdo_mensual_reprogramado':'acuerdo_mensual_creado','cobranza',credId,{cliente:c.cli||'', fecha:v});
-    toast((era?'Compromiso reprogramado':'Acuerdo mensual creado')+': '+(c.cli||credId)+' paga el '+v,'success');
+    if(typeof logActividad==='function') logActividad(era?'acuerdo_mensual_reprogramado':'acuerdo_mensual_creado','cobranza',credId,{cliente:c.cli||'', fecha:v, recurrente:c.acuerdoRecurrente});
+    toast((era?'Compromiso reprogramado':'Acuerdo mensual creado')+': '+(c.cli||credId)+' paga el '+v+(c.acuerdoRecurrente?' y cada mes':' (una sola vez)'),'success');
     closeM();
     if(S.page==='pagos' && typeof nav==='function') nav('pagos');
     return true;
@@ -1677,6 +1684,7 @@ function acuerdoQuitar(credId){
   if(typeof closeM==='function') closeM();
   if(c.fechaCompromiso < hoyLocalISO()) _acuerdoAnotar(c, c.fechaCompromiso, 'rota');
   delete c.fechaCompromiso;      // saveCred escribe el doc completo sin merge: el campo desaparece
+  delete c.acuerdoRecurrente;
   DB.saveCred(c);
   if(typeof logActividad==='function') logActividad('acuerdo_mensual_quitado','cobranza',credId,{cliente:c.cli||''});
   toast('Acuerdo quitado — vuelve a la mora quincenal','info');
@@ -1692,15 +1700,25 @@ function _acuerdoAnotar(cred, fechaPromesa, resultado){
   if(cred.promesasLog.length > 60) cred.promesasLog = cred.promesasLog.slice(-60);
 }
 
-// Al registrar CUALQUIER pago del credito, la promesa se corre un mes.
-// Regla deliberadamente simple; si el pago fue parcial, el cobrador ajusta
-// la fecha con el boton correspondiente.
+// Al registrar CUALQUIER pago del credito se cierra la promesa: si el acuerdo es
+// recurrente la fecha se corre un mes; si es por una sola vez, el credito sale de
+// Acuerdos Mensuales y vuelve a su plan normal (en Mora Regular si sigue atrasado).
+// Regla deliberadamente simple; si el pago fue parcial, el cobrador hace otro acuerdo
+// o ajusta la fecha con el boton correspondiente.
 function _acuerdoRodarTrasPago(cred){
   if(!cred || !cred.fechaCompromiso) return;
   var hoy = hoyLocalISO();
   var gracia = (typeof PLAN!=='undefined' && PLAN.diasGracia!=null) ? PLAN.diasGracia : 5;
   var limite = fechaLocalISO(new Date(parseFechaLocal(cred.fechaCompromiso).getTime() + gracia*24*60*60*1000));
-  _acuerdoAnotar(cred, cred.fechaCompromiso, hoy <= limite ? 'cumplida' : 'rota');
+  var cumplida = hoy <= limite;
+  _acuerdoAnotar(cred, cred.fechaCompromiso, cumplida ? 'cumplida' : 'rota');
+  if(!_acuerdoEsRecurrente(cred)){
+    delete cred.fechaCompromiso; delete cred.acuerdoRecurrente;
+    DB.saveCred(cred);
+    if(typeof logActividad==='function') logActividad('acuerdo_mensual_cerrado','cobranza',cred.id,{resultado:cumplida?'cumplida':'rota'});
+    toast('Acuerdo por una sola vez '+(cumplida?'cumplido':'pagado tarde')+': vuelve a su plan normal','info');
+    return;
+  }
   var prox = _acuerdoProximaFecha(cred.fechaCompromiso);
   cred.fechaCompromiso = prox;
   DB.saveCred(cred);

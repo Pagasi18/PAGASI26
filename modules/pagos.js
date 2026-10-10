@@ -316,7 +316,7 @@ PG.pagos = function(){
         +'<td><div class="tdm">'+(c.cli||'\u2014')+'</div><div class="tds" style="font-family:var(--fd)">'+c.id+'</div></td>'
         +'<td class="tds" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+conc+'">'+conc+'</td>'
         +'<td style="font-weight:800;font-family:var(--fd);color:'+(sem.nivel==='rojo'?'var(--red)':'var(--ink)')+'">'+fmt(monto)+' <span class="tds" style="font-weight:600">('+nCuo+' cuota'+(nCuo!==1?'s':'')+')</span></td>'
-        +'<td class="tdm" style="white-space:nowrap">'+fFmt+'</td>'
+        +'<td class="tdm" style="white-space:nowrap">'+fFmt+'<div class="tds">'+((typeof _acuerdoEsRecurrente==='function' && !_acuerdoEsRecurrente(c))?'Una vez':'Cada mes')+'</div></td>'
         +'<td><span class="bdg '+(sem.nivel==='rojo'?'b-r':(sem.nivel==='amarillo'?'b-a':'b-g'))+'" style="white-space:nowrap">'+sem.label+'</span></td>'
         +'<td>'+((typeof _cuotaNotaSelect==='function')?_cuotaNotaSelect(c):'')+'</td>'
         +'<td><div style="display:flex;gap:4px;flex-wrap:wrap">'

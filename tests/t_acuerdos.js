@@ -116,6 +116,33 @@ eval('with(auto){'+L+'\n'+M+`
   S.cobTab='acuerdos';
   var h6=PG.pagos();
   ok('KPI cumplimiento con cifras', h6.indexOf('(1/4)')>-1);
+
+  // Acuerdo por una sola vez vs recurrente (10-oct-2026)
+  S.creds.push(mk('CRED-F'), mk('CRED-G'));
+  var cF=S.creds.find(function(x){return x.id==='CRED-F';}), cG=S.creds.find(function(x){return x.id==='CRED-G';});
+  acuerdoAcordar('CRED-F');
+  ok('modal: casilla de recurrente, sin marcar por defecto', $('mbd').innerHTML.indexOf('id="ac_rec"')>-1 && $('mbd').innerHTML.indexOf('id="ac_rec" checked')===-1);
+  $('ac_fecha').value=dLoc(10); $('ac_rec').checked=false; S.saveFn();
+  ok('sin marcar queda por una sola vez', cF.fechaCompromiso===dLoc(10) && cF.acuerdoRecurrente===false);
+  cF.promesasLog=[];
+  _acuerdoRodarTrasPago(cF);
+  ok('una vez: al pagar se anota cumplida y sale de acuerdos', cF.promesasLog.length===1 && cF.promesasLog[0].resultado==='cumplida' && !('fechaCompromiso' in cF) && !('acuerdoRecurrente' in cF));
+  acuerdoAcordar('CRED-G'); $('ac_fecha').value=dLoc(10); $('ac_rec').checked=true; S.saveFn();
+  ok('marcada queda como recurrente', cG.fechaCompromiso===dLoc(10) && cG.acuerdoRecurrente===true);
+  acuerdoAcordar('CRED-G');
+  ok('modal: al reabrir un recurrente la casilla sale marcada', $('mbd').innerHTML.indexOf('id="ac_rec" checked')>-1 && $('mbd').innerHTML.indexOf('cada mes')>-1);
+  closeM();
+  _acuerdoRodarTrasPago(cG);
+  ok('recurrente: al pagar la fecha se corre un mes', cG.fechaCompromiso===_acuerdoProximaFecha(dLoc(10)) && cG.acuerdoRecurrente===true);
+  var cH=mk('CRED-H',{fechaCompromiso:dLoc(5)}); S.creds.push(cH);
+  _acuerdoRodarTrasPago(cH);
+  ok('acuerdo viejo sin casilla se sigue tratando como recurrente', cH.fechaCompromiso===_acuerdoProximaFecha(dLoc(5)) && !('acuerdoRecurrente' in cH));
+  S.cobTab='acuerdos';
+  ok('tab2: dice Cada mes', PG.pagos().indexOf('Cada mes')>-1);
+  cH.acuerdoRecurrente=false;
+  ok('tab2: el de una sola vez se distingue', PG.pagos().indexOf('Una vez')>-1);
+  acuerdoQuitar('CRED-G');
+  ok('quitar borra tambien la casilla', !('fechaCompromiso' in cG) && !('acuerdoRecurrente' in cG));
   S.currentUser.rol='Vendedor Concesionario';
   var antes=S.creds[1].fechaCompromiso;
   acuerdoAcordar('CRED-B');
