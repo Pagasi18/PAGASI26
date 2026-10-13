@@ -1219,6 +1219,11 @@ function editarPerfilPersonal(uid){
 }
 window.editarPerfilPersonal = editarPerfilPersonal;
 
+// Comisiones (Adam, 13-oct-2026: "aquí se pone 1 por defecto cada vez que voy a cambiar
+// algo"): un 0 guardado se mostraba como 1 (0||1) y al guardar cualquier otra cosa se
+// perdía. El valor por defecto es solo para quien nunca lo tuvo; un campo vacío es 0.
+function _euComVal(v, def){ return (v==null || v==='') ? def : v; }
+function _euComNum(el){ var v = el ? String(el.value==null?'':el.value).trim() : ''; return v==='' ? 0 : (parseFloat(v)||0); }
 function editarUsuario(uid){
   if(!db){ toast('Requiere Firebase activo','error'); return; }
   db.collection('usuarios').doc(uid).get().then(function(doc){
@@ -1243,12 +1248,12 @@ function editarUsuario(uid){
       + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Comisión por venta (al crear crédito)</div>'
       + '<div style="display:grid;grid-template-columns:auto 1fr;gap:8px;margin-bottom:11px">'
       + '<select class="fs" id="eu_com_v_tipo" style="min-width:130px"><option value="fijo" '+(comV.tipo==='fijo'?'selected':'')+'>Monto fijo ($)</option><option value="porc" '+(comV.tipo==='porc'?'selected':'')+'>Porcentaje (%)</option></select>'
-      + '<input class="fi" id="eu_com_v_val" type="number" step="0.01" min="0" value="'+(comV.valor||5)+'" placeholder="Valor">'
+      + '<input class="fi" id="eu_com_v_val" type="number" step="0.01" min="0" value="'+_euComVal(comV.valor,5)+'" placeholder="Valor">'
       + '</div>'
       + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Comisión por cobranza (por cada pago)</div>'
       + '<div style="display:grid;grid-template-columns:auto 1fr;gap:8px">'
       + '<select class="fs" id="eu_com_c_tipo" style="min-width:130px"><option value="fijo" '+(comC.tipo==='fijo'?'selected':'')+'>Monto fijo ($)</option><option value="porc" '+(comC.tipo==='porc'?'selected':'')+'>Porcentaje (%)</option></select>'
-      + '<input class="fi" id="eu_com_c_val" type="number" step="0.01" min="0" value="'+(comC.valor||1)+'" placeholder="Valor">'
+      + '<input class="fi" id="eu_com_c_val" type="number" step="0.01" min="0" value="'+_euComVal(comC.valor,1)+'" placeholder="Valor">'
       + '</div>'
       + '</div>'
       + '</div>';
@@ -1338,11 +1343,11 @@ function editarUsuario(uid){
         activo: true,
         venta: {
           tipo: ($('eu_com_v_tipo')&&$('eu_com_v_tipo').value)||'fijo',
-          valor: parseFloat(($('eu_com_v_val')&&$('eu_com_v_val').value)||5)||0
+          valor: _euComNum($('eu_com_v_val'))
         },
         cobranza: {
           tipo: ($('eu_com_c_tipo')&&$('eu_com_c_tipo').value)||'fijo',
-          valor: parseFloat(($('eu_com_c_val')&&$('eu_com_c_val').value)||1)||0
+          valor: _euComNum($('eu_com_c_val'))
         }
       } : { activo: false };
       // IMPORTANTE: esperar a que la escritura confirme ANTES de recargar la lista.
