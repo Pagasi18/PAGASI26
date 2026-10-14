@@ -180,6 +180,14 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ctx.S.saveFn(); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r));
   const veloz = Object.values(coleccion.docs).filter(d => d && d.concesionarioId === 'C-BC' && /^(RZ 200|CG200|DT 170)/.test(d.modelo || ''));
   ok('todos los Veloz pasan a BERA Chacao con sus precios', veloz.length >= 3 && veloz.every(d => d.sedeName === 'BERA Chacao' && d.sede === 'bera-chacao') && coleccion.docs['47'].precio === 1390 && !Object.values(coleccion.docs).some(d => d && d.sedeName === 'Veloz' && !d.eliminado));
+  // La tabla: tantas columnas en la cabecera como en cada fila (15-oct: quedo un <th> fantasma y
+  // las cuotas se veian corridas), y el filtro lista los concesionarios del sistema
+  h = ctx.PG.catalogo();
+  const nTh = (h.match(/<thead><tr>([^]*?)<\/tr><\/thead>/)[1].match(/<th/g) || []).length;
+  const fila1 = h.match(/<tr data-id="50"[^]*?<\/tr>/)[0], nTd = (fila1.match(/<td/g) || []).length;
+  ok('la cabecera tiene las mismas columnas que las filas (' + nTh + ')', nTh === nTd && (nTh === 10 || nTh === 12) && new RegExp('colspan="' + nTh + '"').test(h));
+  ok('el filtro lista los concesionarios del sistema y los nombres viejos aparte', /<option value="c:C-BT"[^>]*>BERA TRINIDAD</.test(h) && /<optgroup label="Nombres viejos \(sin asignar\)">[^]*?<option value="n:Boleita"/.test(h) && !/<option value="n:BERA Chacao"/.test(h));
+  ok('filtrar por BERA Chacao deja sus filas (por id) y las viejas con ese nombre', ctx._catPasaSede({ concesionarioId:'C-BC', sedeName:'BERA Chacao' }, 'c:C-BC') && ctx._catPasaSede({ sedeName:'BERA Chacao' }, 'c:C-BC') && !ctx._catPasaSede({ concesionarioId:'C-BT', sedeName:'BERA TRINIDAD' }, 'c:C-BC') && ctx._catPasaSede({ sedeName:'Boleita' }, 'n:Boleita') && ctx._catPasaSede({ sedeName:'x' }, ''));
   // El asistente de credito: el catalogo de la web por concesionario, con el precio de cada uno
   const CW = catalogoNuevo(); CW.aplicar(CW.desdeDocumentos(Object.keys(coleccion.docs).filter(k => k !== '_condiciones').map(k => ({ name:'projects/x/databases/(default)/documents/catalogo/' + k, fields:aFields(coleccion.docs[k]) }))).motos, null, 'firestore');
   ok('la web conserva el concesionario del sistema de cada fila', CW.get(50).concesionarioId === 'C-BT' && CW.get(51).concesionarioId === 'C-BC' && CW.get(47).concesionarioId === 'C-BC');

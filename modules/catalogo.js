@@ -22,7 +22,7 @@ function catFiltrar(q){
   var visiblesPorGrupo = {};
   document.querySelectorAll('#cat-tabla tbody tr[data-id]').forEach(function(tr){
     var m = porId[tr.getAttribute('data-id')];
-    var ok = !!m && filtro(m) && (!f.sede || (m.sedeName || '') === f.sede) && (!q2 || tr.getAttribute('data-busca').indexOf(q2) > -1);
+    var ok = !!m && filtro(m) && _catPasaSede(m, f.sede) && (!q2 || tr.getAttribute('data-busca').indexOf(q2) > -1);
     tr.style.display = ok ? '' : 'none';
     if(ok) visiblesPorGrupo[tr.getAttribute('data-grupo')] = 1;
   });
@@ -31,6 +31,16 @@ function catFiltrar(q){
 }
 function catChip(k){ _catFiltroActual().chip = k; catFiltrar(); }
 function catSede(v){ _catFiltroActual().sede = v; catFiltrar(); }
+// "c:<id>" = concesionario del sistema (por id, o por nombre si la fila es vieja); "n:<nombre>" = nombre viejo
+function _catPasaSede(m, v){
+  if(!v) return true;
+  if(v.indexOf('c:') === 0){
+    var id = v.slice(2), conc = ((typeof _catConcesionarios === 'function') ? _catConcesionarios() : []).find(function(c){ return c.id === id; });
+    return String(m.concesionarioId || '') === id || (!!conc && (m.sedeName || '') === conc.nombre);
+  }
+  if(v.indexOf('n:') === 0) return (m.sedeName || '') === v.slice(2);
+  return (m.sedeName || '') === v;
+}
 function _catCuando(iso){
   if(!iso) return '';
   var d = new Date(iso); if(isNaN(d.getTime())) return '';
@@ -79,9 +89,14 @@ PG.catalogo = function(){
     var aviso = (x.k === 'sinfoto' || x.k === 'sinprecio') && n ? ' style="border-color:var(--amber)"' : '';
     return '<button type="button" class="btn ' + (f.chip === x.k ? 'btn-p' : 'btn-g') + ' btn-sm" data-cat-chip="' + x.k + '" onclick="catChip(\'' + x.k + '\')"' + aviso + '>' + x.l + ' <b style="margin-left:4px">' + n + '</b></button>';
   }).join('');
-  var sedes = []; lista.forEach(function(m){ if(m.sedeName && sedes.indexOf(m.sedeName) < 0) sedes.push(m.sedeName); });
-  var selSede = '<select class="fs" onchange="catSede(this.value)" style="max-width:220px"><option value="">Todos los concesionarios</option>'
-    + sedes.map(function(s){ return '<option value="' + E(s) + '"' + (f.sede === s ? ' selected' : '') + '>' + E(s) + '</option>'; }).join('') + '</select>';
+  // Los concesionarios del sistema primero (Adam, 15-oct-2026: "filtrame por los concesionarios");
+  // los nombres viejos que todavia no se asignaron, aparte, al final.
+  var concs = (typeof _catConcesionarios === 'function') ? _catConcesionarios() : [];
+  var viejos = []; lista.forEach(function(m){ if(m.sedeName && !m.concesionarioId && viejos.indexOf(m.sedeName) < 0 && !concs.some(function(c){ return c.nombre === m.sedeName; })) viejos.push(m.sedeName); });
+  var selSede = '<select class="fs" onchange="catSede(this.value)" style="max-width:260px"><option value="">Todos los concesionarios</option>'
+    + concs.map(function(c){ var v = 'c:' + c.id; return '<option value="' + E(v) + '"' + (f.sede === v ? ' selected' : '') + '>' + E(c.nombre) + '</option>'; }).join('')
+    + (viejos.length ? '<optgroup label="Nombres viejos (sin asignar)">' + viejos.map(function(s){ var v = 'n:' + s; return '<option value="' + E(v) + '"' + (f.sede === v ? ' selected' : '') + '>' + E(s) + '</option>'; }).join('') + '</optgroup>' : '')
+    + '</select>';
 
   var foto = function(m){
     var id = _catId(m.id);
@@ -121,7 +136,7 @@ PG.catalogo = function(){
     + '<input class="fi" placeholder="Buscar modelo o concesionario…" value="' + E(window._catQ || '') + '" oninput="catFiltrar(this.value)" style="max-width:260px;margin-left:auto">' + selSede
     + '</div><div style="display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 10px">' + chips + '</div>'
     + '<div style="overflow-x:auto"><table class="tbl" id="cat-tabla" style="width:100%"><thead><tr>'
-    + '<th>Foto</th><th>Modelo</th><th>Precio contado</th>' + (conSeguro ? '<th style="text-align:right">Seguro ' + E(seg) + '%</th>' : '') + '<th style="text-align:right">Inicial ' + c.inicialMin + '%</th>' + (conSeguro ? '<th style="text-align:right">Al firmar</th>' : '') + '<th style="text-align:right">' + CAT_PLAZOS_EXCEL.map(function(n, k){ return '<th style="text-align:right;white-space:nowrap;' + (k === 0 ? 'border-left:1px solid var(--rim)' : '') + '" title="Cuota quincenal a ' + n + ' meses con la inicial mínima">Cuota ' + n + ' m</th>'; }).join('') + '<th style="text-align:center">En la web</th><th style="text-align:center">Promo</th><th></th>'
+    + '<th>Foto</th><th>Modelo</th><th>Precio contado</th>' + (conSeguro ? '<th style="text-align:right">Seguro ' + E(seg) + '%</th>' : '') + '<th style="text-align:right">Inicial ' + c.inicialMin + '%</th>' + (conSeguro ? '<th style="text-align:right">Al firmar</th>' : '') + '' + CAT_PLAZOS_EXCEL.map(function(n, k){ return '<th style="text-align:right;white-space:nowrap;' + (k === 0 ? 'border-left:1px solid var(--rim)' : '') + '" title="Cuota quincenal a ' + n + ' meses con la inicial mínima">Cuota ' + n + ' m</th>'; }).join('') + '<th style="text-align:center">En la web</th><th style="text-align:center">Promo</th><th></th>'
     + '</tr></thead><tbody>' + filas + '</tbody></table></div>'
     + '<div style="font-size:11px;color:var(--ink3);padding:10px 16px">El precio se guarda al salir de la casilla; vacío = precio por confirmar (en la web sale con "Pregunta el precio"). Las cuotas son las mismas que ve el cliente en la web, con la inicial mínima. Cada fila es de un concesionario: si otro vende el mismo modelo a otro precio, usa "Copiar".</div></div>'
     + '</div>';
