@@ -145,10 +145,17 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   S.currentUser = { uid:'liz', nombre:'Liz', rol:'Empleado', permisos:['dash','catalogo'] };
 
   const filas = ctx.catFilasExcel();
-  ok('Excel: las columnas que pidieron', filas[0].join('|') === 'MODELO|PRECIO AL CONTADO|COSTO DEL SEGURO|INICIAL MÍNIMA|CUOTA QUINCENAL 6 MESES|CUOTA QUINCENAL 9 MESES|CUOTA QUINCENAL 12 MESES');
-  const nh = filas.find(f => f[0] === 'NEW HORSE 150');
-  ok('Excel: los mismos montos que la web (precio $1.400, seguro 4,5% = $63, inicial $560)', nh && nh[1] === 1400 && nh[2] === 63 && nh[3] === 560 && nh[6] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal);
-  ok('Excel: un renglón por modelo, sin el eliminado, y los sin precio dicen POR CONFIRMAR', filas.find(f => f[0] === 'DT 170')[1] === 'POR CONFIRMAR' && filas.length === 1 + 53 && !filas.some(f => f[0] === coleccion.docs['3'].modelo));
+  // Con las condiciones guardadas en la prueba hay seguro (4,5%): sale su columna
+  ok('Excel: concesionario primero, las columnas que pidieron y EN LA WEB al final', filas[0].join('|') === 'CONCESIONARIO|MODELO|PRECIO AL CONTADO|COSTO DEL SEGURO|INICIAL MÍNIMA|CUOTA QUINCENAL 6 MESES|CUOTA QUINCENAL 9 MESES|CUOTA QUINCENAL 12 MESES|EN LA WEB');
+  const nh = filas.find(f => f[1] === 'NEW HORSE 150');
+  ok('Excel: los mismos montos que la web (precio $1.400, seguro 4,5% = $63, inicial $560)', nh && nh[0] === coleccion.docs['1'].sedeName && nh[2] === 1400 && nh[3] === 63 && nh[4] === 560 && nh[7] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal && nh[8] === 'SÍ');
+  ok('Excel: un renglón por modelo, sin el eliminado, y los sin precio dicen POR CONFIRMAR', filas.find(f => f[1] === 'DT 170')[2] === 'POR CONFIRMAR' && filas.length === 1 + 53 && !filas.some(f => f[1] === coleccion.docs['3'].modelo));
+  const concs = filas.slice(1).map(f => f[0]);
+  ok('Excel: ordenado por concesionario (no por marca)', concs.every((x, i) => i === 0 || concs[i - 1].localeCompare(x, 'es', { sensitivity:'base' }) <= 0));
+  const seg0 = ctx._cat.cond; ctx._cat.cond = Object.assign({}, seg0, { seguroPct:0 });
+  ok('Excel: sin seguro (0%) no sale la columna del seguro', !ctx.catFilasExcel()[0].includes('COSTO DEL SEGURO') && ctx.catFilasExcel()[0].length === 8);
+  ctx._cat.cond = seg0;
+  ok('Excel: lleva filtros en la fila de títulos', /hoja\['!autofilter'\] = \{ ref: X\.utils\.encode_range/.test(src('logic/catalogo.js')));
 
   // ── Por concesionario, no por marca (Adam, 15-oct-2026) ──
   S.concesionarios = [ { id:'C-BT', nombre:'BERA TRINIDAD', activo:true }, { id:'C-BC', nombre:'BERA Chacao', activo:true }, { id:'C-X', nombre:'Cerrado', activo:false }, { id:'C-E', nombre:'Eliminado', eliminado:true } ];

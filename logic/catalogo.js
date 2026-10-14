@@ -332,13 +332,22 @@ function catQuitarFoto(id){
 // ── Reporte Excel ───────────────────────────────────────────────────
 // Columnas pedidas: MODELO, PRECIO AL CONTADO, COSTO DEL SEGURO, INICIAL MINIMA y las cuotas
 // quincenales de 6, 9 y 12 meses. Mismos montos que la web (redondeados hacia arriba).
+// 15-oct-2026, Liz: "filtros en el reporte y ordenado por concesionario (no por marca)".
+// Primera columna el concesionario, ordenado por concesionario y modelo, y una columna "EN LA
+// WEB" para poder filtrar. El seguro solo sale si hay seguro (desde el 14-oct va en el precio).
 function catFilasExcel(){
-  var c = catCondiciones();
-  var filas = [['MODELO', 'PRECIO AL CONTADO', 'COSTO DEL SEGURO', 'INICIAL MÍNIMA'].concat(CAT_PLAZOS_EXCEL.map(function(n){ return 'CUOTA QUINCENAL ' + n + ' MESES'; }))];
-  catLista().forEach(function(m){
-    if(catSinPrecio(m)){ filas.push([m.modelo, 'POR CONFIRMAR', '', ''].concat(CAT_PLAZOS_EXCEL.map(function(){ return ''; }))); return; }
+  var c = catCondiciones(), conSeguro = +c.seguroPct > 0;
+  var cab = ['CONCESIONARIO', 'MODELO', 'PRECIO AL CONTADO'].concat(conSeguro ? ['COSTO DEL SEGURO'] : []).concat(['INICIAL MÍNIMA'])
+    .concat(CAT_PLAZOS_EXCEL.map(function(n){ return 'CUOTA QUINCENAL ' + n + ' MESES'; })).concat(['EN LA WEB']);
+  var filas = [cab];
+  catLista().slice().sort(function(a, b){
+    return String(a.sedeName || '').localeCompare(String(b.sedeName || ''), 'es', { sensitivity:'base' }) || String(a.modelo || '').localeCompare(String(b.modelo || ''), 'es', { numeric:true, sensitivity:'base' });
+  }).forEach(function(m){
+    var web = m.disponible !== false ? 'SÍ' : 'NO', conc = m.sedeName || 'SIN CONCESIONARIO';
+    if(catSinPrecio(m)){ filas.push([conc, m.modelo, 'POR CONFIRMAR'].concat(conSeguro ? [''] : []).concat(['']).concat(CAT_PLAZOS_EXCEL.map(function(){ return ''; })).concat([web])); return; }
     var base = catPlan(m, 12, c.inicialMin / 100);
-    filas.push([m.modelo, m.precio, base.seguro, base.inicial].concat(CAT_PLAZOS_EXCEL.map(function(n){ return catPlan(m, n, c.inicialMin / 100).quincenal; })));
+    filas.push([conc, m.modelo, m.precio].concat(conSeguro ? [base.seguro] : []).concat([base.inicial])
+      .concat(CAT_PLAZOS_EXCEL.map(function(n){ return catPlan(m, n, c.inicialMin / 100).quincenal; })).concat([web]));
   });
   return filas;
 }
@@ -357,7 +366,9 @@ function catExcel(){
   if(filas.length < 2){ toast('El catálogo está vacío', 'error'); return; }
   return _catCargarXlsx().then(function(X){
     var hoja = X.utils.aoa_to_sheet(filas);
-    hoja['!cols'] = [{ wch: 26 }, { wch: 18 }, { wch: 17 }, { wch: 15 }, { wch: 24 }, { wch: 24 }, { wch: 24 }];
+    hoja['!cols'] = filas[0].map(function(t){ return { wch: t === 'CONCESIONARIO' ? 30 : (t === 'MODELO' ? 26 : Math.max(12, t.length + 2)) }; });
+    // Filtros en la fila de titulos (las flechitas de Excel), sobre toda la tabla
+    hoja['!autofilter'] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: filas.length - 1, c: filas[0].length - 1 } }) };
     var libro = X.utils.book_new(); X.utils.book_append_sheet(libro, hoja, 'Catálogo');
     X.writeFile(libro, nombre + '.xlsx');
     if(typeof logActividad === 'function') logActividad('catalogo_excel', 'catalogo', '', { modelos: filas.length - 1 });
