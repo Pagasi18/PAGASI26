@@ -40,11 +40,21 @@
   function picture(m){return m.image?'<img src="'+escape(m.image)+'" alt="'+escape(m.name)+'" width="400" height="300" loading="lazy" decoding="async">':'<div class="pg-photo-missing">'+icon('bike')+'<span>Fotografía por confirmar</span></div>';}
   function card(m){
     const p=D.plan(m.id);
-    return '<article class="pg-moto-card'+(esPromo(m)?' pg-moto-card-promo':'')+'" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':(m.tag==='Promo'?'pg-tag-promo':''))+'">'+(m.tag==='Promo'?'⚡ PROMO':escape(m.tag))+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial + seguro</span><strong class="pg-card-initial">'+D.money(p.alFirmar)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
+    return '<article class="pg-moto-card'+(esPromo(m)?' pg-moto-card-promo':'')+(esVeloz(m)?' pg-moto-card-veloz':'')+'" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':(m.tag==='Promo'?'pg-tag-promo':''))+'">'+(m.tag==='Promo'?'⚡ PROMO':escape(m.tag))+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial + seguro</span><strong class="pg-card-initial">'+D.money(p.alFirmar)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
   }
   // Vitrina de promo (Adam, 13-oct-2026: "ponlo mucho mas llamativo"): tarjeta oscura con
   // borde naranja, foto a todo lo ancho, la cuota grande y un boton que pide clic.
   const esPromo=m=>!!(m&&(m.promo||m.tag==='Promo'));
+  // Veloz va primero en el catalogo y con brillo azul (Adam, 13-oct-2026)
+  const esVeloz=m=>!!m&&(m.sede==='veloz'||D.normalize(m.sedeName)==='veloz');
+  // La de precio por confirmar en el catalogo: misma tarjeta, con "Pregunta el precio"
+  function cardProximo(p){
+    const wa='https://wa.me/584242177798?text='+encodeURIComponent('Hola, quiero el precio de la '+p.name+(p.sedeName?' de '+p.sedeName:'')+'.');
+    return '<article class="pg-moto-card pg-moto-card-promo'+(esVeloz(p)?' pg-moto-card-veloz':'')+'"><a class="pg-moto-picture pg-photo-frame" href="'+wa+'" target="_blank" rel="noopener" aria-label="Preguntar el precio de '+escape(p.name)+'">'+picture(p)+'<span class="pg-tag pg-tag-promo">NUEVA</span></a>'
+      +'<div class="pg-card-body"><div class="pg-card-meta">'+escape(p.sedeName||'')+'</div><h3 class="pg-card-name">'+escape(p.name)+'</h3><p class="pg-card-spec">'+escape(p.cat||'')+' · Precio por confirmar</p>'
+      +'<div class="pg-card-payments"><div><span class="pg-offer-label">Precio</span><strong class="pg-card-price">Pregúntanos</strong></div></div>'
+      +'<a class="pg-button pg-button-wa" href="'+wa+'" target="_blank" rel="noopener">Pregunta el precio '+icon('arrow')+'</a></div></article>';
+  }
   function promoCard(m){
     const p=D.plan(m.id),url='simulador.html?moto='+m.id;
     return '<article class="pg-promo-card" data-moto-id="'+m.id+'">'
@@ -133,9 +143,13 @@
       if(sort.value==='quota')list.sort((a,b)=>D.plan(a.id).quincenal-D.plan(b.id).quincenal);
       if(sort.value==='initial')list.sort((a,b)=>D.plan(a.id).alFirmar-D.plan(b.id).alFirmar);
       if(sort.value==='name')list.sort((a,b)=>a.name.localeCompare(b.name,'es'));
-      count.textContent=list.length+' de '+D.motos.length+' modelos';
+      if(sort.value==='featured'||!sort.value)list=list.filter(esVeloz).concat(list.filter(m=>!esVeloz(m)));
+      const sinTopes=Number(initial.value)>=Number(initial.max)&&Number(quota.value)>=Number(quota.max);
+      const prox=sinTopes?(D.proximos||[]).filter(p=>{const category=D.normalize((p.type||'')+' '+(p.cat||''));return (!query||D.normalize(p.name+' '+(p.sedeName||'')).includes(query))&&(sede.value==='all'||p.sede===sede.value)&&(use==='all'||(use==='trabajo'&&/trabajo|carga|clasica|economica|doble/.test(category))||(use==='ciudad'&&/urbana|scooter|lite/.test(category))||(use==='deportiva'&&/sport|deportiva|naked|racing|adventure/.test(category)));}):[];
+      const veloz=list.filter(esVeloz).length;
+      count.textContent=(list.length+prox.length)+' de '+(D.motos.length+(D.proximos||[]).length)+' modelos';
       document.getElementById('initialOutput').textContent=D.money(maxInitial);document.getElementById('quotaOutput').textContent=D.money(maxQuota);
-      grid.innerHTML=list.length?list.map(card).join(''):'<div class="pg-empty">'+icon('search')+'<h3>No encontramos esa combinación</h3><p>Prueba con otra inicial, cuota o modelo.</p><button class="pg-button" type="button" data-clear-filters>Ver todas las motos</button></div>';
+      grid.innerHTML=(list.length||prox.length)?list.slice(0,veloz).map(card).join('')+prox.map(cardProximo).join('')+list.slice(veloz).map(card).join(''):'<div class="pg-empty">'+icon('search')+'<h3>No encontramos esa combinación</h3><p>Prueba con otra inicial, cuota o modelo.</p><button class="pg-button" type="button" data-clear-filters>Ver todas las motos</button></div>';
       bindImageErrors(grid);document.querySelectorAll('[data-catalog-use]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.catalogUse===use)));
       const next=new URLSearchParams();if(q.value)next.set('q',q.value);if(sede.value!=='all')next.set('sede',sede.value);if(use!=='all')next.set('uso',use);if(initial.value!==initial.max)next.set('inicial',initial.value);if(quota.value!==quota.max)next.set('cuota',quota.value);if(sort.value!=='featured')next.set('sort',sort.value);
       history.replaceState(null,'',location.pathname+(next.size?'?'+next:'')+location.hash);

@@ -1125,3 +1125,8 @@ body.pg-site{font-weight:500}
 @media(max-width:1100px){.pg-featured-section [data-home-grid].pg-grid-promo{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:820px){.pg-featured-section [data-home-grid].pg-grid-promo{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
 @media(max-width:600px){.pg-featured-section [data-home-grid].pg-grid-promo{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.pg-grid-promo .pg-promo-banner{padding:12px 14px}.pg-grid-promo .pg-promo-banner-fuego{display:none}.pg-grid-promo .pg-promo-banner-cta{padding:9px 12px}.pg-grid-promo .pg-promo-cinta{font-size:9px;padding:4px 8px;top:6px;left:6px}.pg-featured-section .pg-grid-promo .pg-promo-card .pg-promo-cat{font-size:8.5px!important}}
+/* ── Veloz en el catálogo: primero y con brillo azul (13-oct-2026) ─────────────── */
+.pg-moto-card.pg-moto-card-veloz{box-shadow:0 0 0 2px #2f7bff,0 0 26px 2px rgba(0,150,255,.45),0 20px 40px -22px rgba(6,92,255,.6);animation:pg-brillo-azul 2.8s ease-in-out infinite}
+@keyframes pg-brillo-azul{0%,100%{box-shadow:0 0 0 2px #2f7bff,0 0 18px 0 rgba(0,150,255,.35),0 20px 40px -22px rgba(6,92,255,.55)}50%{box-shadow:0 0 0 2px #33d1ff,0 0 34px 6px rgba(0,180,255,.55),0 22px 44px -22px rgba(6,92,255,.7)}}
+.pg-button.pg-button-wa{background:linear-gradient(135deg,#1ebe5d,#25d366);border-color:transparent}
+@media(prefers-reduced-motion:reduce){.pg-moto-card.pg-moto-card-veloz{animation:none}}
