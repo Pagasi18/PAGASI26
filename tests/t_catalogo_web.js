@@ -17,15 +17,15 @@ function catalogoNuevo(globales){
 }
 let C = catalogoNuevo();
 // 14-oct-2026 noche, Adam: el seguro va dentro del precio; la web y la calculadora no lo cobran aparte
-ok('condiciones de Adam: 777%, sin seguro aparte, inicial desde 40%, plazos 6, 9 y 12', C.condiciones.apy === 777 && C.condiciones.seguroPct === 0 && C.condiciones.inicialMin === 40 && C.condiciones.inicialMax === 60 && C.condiciones.plazos.join() === '6,9,12');
+ok('condiciones de Adam: 600% (15-oct), sin seguro aparte, inicial desde 40%, plazos 6, 9 y 12', C.condiciones.apy === 600 && C.condiciones.seguroPct === 0 && C.condiciones.inicialMin === 40 && C.condiciones.inicialMax === 60 && C.condiciones.plazos.join() === '6,9,12');
 let p = C.calcPlan(1320, 12);
 ok('moto de $1.320 al 40%: inicial $528, sin seguro, al firmar $528, financiado $792', p.inicial === 528 && p.seguro === 0 && p.alFirmar === 528 && p.financiado === 792);
-ok('cuota quincenal $114, $94 y $85 a 6, 9 y 12 meses', C.calcPlan(1320, 6).quincenal === 114 && C.calcPlan(1320, 9).quincenal === 94 && p.quincenal === 85);
-ok('al 60%: cuota de $57 a 12 meses', C.calcPlan(1320, 12, 0.60).quincenal === 57);
-ok('todo cuadra a simple vista: mensual = 2 quincenas y total = cuota por número de cuotas', p.mensual === 170 && p.totalEnCuotas === 85 * 24 && p.inicial + p.financiado === 1320);
+ok('cuota quincenal $108, $88 y $79 a 6, 9 y 12 meses (600%)', C.calcPlan(1320, 6).quincenal === 108 && C.calcPlan(1320, 9).quincenal === 88 && p.quincenal === 79);
+ok('al 60%: cuota de $53 a 12 meses', C.calcPlan(1320, 12, 0.60).quincenal === 53);
+ok('todo cuadra a simple vista: mensual = 2 quincenas y total = cuota por número de cuotas', p.mensual === 158 && p.totalEnCuotas === 79 * 24 && p.inicial + p.financiado === 1320);
 ok('redondea hacia arriba como la calculadora (regla del 11-sep), sin sumar un dólar por la coma flotante', C.arriba(88.01) === 89 && C.arriba(726.0000000001) === 726 && C.money(587.4) === '$588');
 const e = C.calcExacto(1320, 12);
-ok('el cálculo exacto da la tasa de 777% efectiva anual', Math.abs(Math.pow(1 + (Math.pow(8.77, 1/24) - 1), 24) - 8.77) < 1e-9 && e.seguro === 0);
+ok('el cálculo exacto da la tasa de 600% efectiva anual', Math.abs(Math.pow(1 + (Math.pow(7, 1/24) - 1), 24) - 7) < 1e-9 && e.seguro === 0);
 ok('plan() de la web usa la inicial mínima y 12 meses', JSON.stringify(C.plan(1)) === JSON.stringify(C.calcPlan(1320, 12)));
 const N = C.base.length;
 ok('la lista de respaldo: los 46 de siempre y los de Veloz primero, con promo', N === 49 && C.motos.length === N && C.origen === 'base' && C.motos.slice(0, 3).every(m => m.sedeName === 'Veloz' && m.promo && m.tag === 'Promo'));
@@ -44,7 +44,7 @@ const r = C.desdeDocumentos(docs);
 ok('de Firestore: lee condiciones, modelos y la foto subida', r.cond.apy === 700 && r.motos.find(m => m.id === 1).precio === 1400 && /firebasestorage/.test(r.motos.find(m => m.id === 1).image));
 ok('...sin los eliminados; el que no tiene precio queda "por confirmar"', !r.motos.some(m => m.id === 3) && r.motos.length === 4 && r.motos.find(m => m.id === 48).sinPrecio === true && r.motos.find(m => m.id === 48).precio === null);
 ok('...y un modelo nuevo sin nombre web toma el del modelo', r.motos.find(m => m.id === 47).name === 'Nueva 200');
-ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:-5, seguroPct:80, inicialMin:0, plazos:['x'] }).apy === 777 && C.condValidas({ seguroPct:80 }).seguroPct === 0 && C.condValidas({ plazos:['x'] }).plazos.join() === '6,9,12');
+ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:-5, seguroPct:80, inicialMin:0, plazos:['x'] }).apy === 600 && C.condValidas({ seguroPct:80 }).seguroPct === 0 && C.condValidas({ plazos:['x'] }).plazos.join() === '6,9,12');
 
 (async () => {
   // cargar(): lee la base una vez, aplica, guarda copia; si falla, queda la lista de respaldo
@@ -63,7 +63,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('sin internet: usa la última copia buena', C2.origen === 'cache' && C2.get(1).precio === 1400 && C2.condiciones.apy === 700);
   const C3 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:false, status:403, json:() => Promise.resolve({}) }) });
   await C3.cargar();
-  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 777 && C3.proximos.length === 5);
+  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 600 && C3.proximos.length === 5);
   const C4 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:true, json:() => Promise.resolve({}) }) });
   await C4.cargar();
   ok('catálogo vacío en la base: sigue la lista de respaldo', C4.origen === 'base' && C4.motos.length === 49);
@@ -106,7 +106,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('Liz carga los 49 modelos y las 5 Veloz sin precio (con promo, foto y precio por confirmar)', coleccion.docs['901'].precio === null && coleccion.docs['901'].promo === true && /veloz-dt-170/.test(coleccion.docs['901'].image) && coleccion.docs['47'].promo === true && coleccion.docs['47'].orden < 0 && coleccion.docs['47'].tag === '' && Object.keys(coleccion.docs).filter(k => k !== '_condiciones').length === 54 && coleccion.docs['1'].precio === 1320 && coleccion.docs['1'].sedeName === 'EK Bello Monte' && coleccion.docs['1'].disponible === true && /assets\/motos/.test(coleccion.docs['1'].image));
   ok('...pero las condiciones no: esas las crea un administrador', !coleccion.docs._condiciones);
   let h = ctx.PG.catalogo();
-  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$528<\/td>/.test(h) && /\$114 · \$94 · \$85/.test(h));
+  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$528<\/td>/.test(h) && /\$108 · \$88 · \$79/.test(h));
   ok('Liz no ve las condiciones del plan (solo administradores)', !/Condiciones del plan/.test(h) && !/id="cat_apy"/.test(h) && !/id="cat_seguro"/.test(h));
   ok('los botones de nuevo modelo y Excel están', /catNuevoModelo\(\)/.test(h) && /Descargar reporte Excel/.test(h));
   ok('filtros con contadores: en la web, ocultos, promo, sin foto y precio por confirmar', /data-cat-chip="sinfoto"/.test(h) && /data-cat-chip="sinprecio"/.test(h) && />Precio por confirmar <b[^>]*>5</.test(h) && /Todos los concesionarios/.test(h));
