@@ -38,7 +38,7 @@ const visita = (extra) => Object.assign({ vid: 'vabcdefghijk1', fecha: '2026-10-
   await prueba('no puede reescribir la lista de eventos', assertFails(updateDoc(doc(web, 'metricas/sabcdefghij0123'), { ev: [ev('vista', 9)], n: increment(1), ultima: 9 })));
   await prueba('no puede crear con campos de más (un nombre, por ejemplo)', assertFails(setDoc(doc(web, 'metricas/sabcdefghij0124'), visita({ nombre: 'Carlos' }))));
   await prueba('no puede crear con textos largos', assertFails(setDoc(doc(web, 'metricas/sabcdefghij0125'), visita({ fuente: 'x'.repeat(200) }))));
-  await prueba('no puede crear con un número de visita raro', assertFails(setDoc(doc(web, 'metricas/../usuarios'), visita())));
+  await prueba('no puede crear con un número de visita raro', assertFails(setDoc(doc(web, 'metricas/NOMBRE-CARLOS-PEREZ'), visita())));
   await prueba('no puede crear con varios eventos de una vez', assertFails(setDoc(doc(web, 'metricas/sabcdefghij0126'), visita({ ev: [ev('a', 1), ev('b', 2)] }))));
   await prueba('no puede reescribir una visita que ya existe', assertFails(setDoc(doc(web, 'metricas/sabcdefghij0123'), visita())));
   await prueba('la página no puede leer las visitas', assertFails(getDoc(doc(web, 'metricas/sabcdefghij0123'))));
