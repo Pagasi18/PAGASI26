@@ -30,15 +30,14 @@ PG.catalogo = function(){
       + '<button class="btn btn-p" onclick="catImportar()">Cargar los ' + PagasiCatalog.base.length + ' modelos de la web</button></div></div>';
   }
 
-  var condiciones = '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Condiciones del plan</div></div><div style="padding:0 16px 14px">'
+  // Condiciones (tasa, seguro, inicial, plazos): solo administradores (Adam, 13-oct-2026)
+  var condiciones = !admin ? '' : '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Condiciones del plan</div></div><div style="padding:0 16px 14px">'
     + '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">'
-    + '<div class="fg" style="min-width:150px"><label>Tasa anual (APY)</label>' + (admin
-        ? '<input class="fi" id="cat_apy" type="number" step="0.01" value="' + c.apy + '" style="width:130px">'
-        : '<div style="font-weight:800;font-size:15px;padding:8px 0">' + c.apy + '% <span style="font-size:11px;color:var(--ink3);font-weight:600">· la cambia un administrador</span></div>') + '</div>'
+    + '<div class="fg" style="min-width:150px"><label>Tasa anual (APY)</label><input class="fi" id="cat_apy" type="number" step="0.01" value="' + c.apy + '" style="width:130px"></div>'
     + '<div class="fg" style="min-width:150px"><label>Seguro (% del precio de contado)</label><input class="fi" id="cat_seguro" type="number" step="0.01" value="' + c.seguroPct + '" style="width:130px"></div>'
     + '<div style="font-size:12px;color:var(--ink2);line-height:1.7;padding-bottom:6px">Inicial desde <b>' + c.inicialMin + '%</b> · plazos de <b>' + c.plazos.join(', ') + ' meses</b><br>El seguro se paga junto con la inicial.</div>'
     + '<button class="btn btn-p btn-sm" style="margin-left:auto" onclick="catGuardarCondiciones()">Guardar condiciones</button>'
-    + '</div>' + (!_cat.cond ? '<div style="font-size:11.5px;color:var(--amber);margin-top:8px">Todavía no están guardadas: se usan las de la web (' + c.apy + '% y ' + seg + '%).' + (admin ? ' Guárdalas una vez.' : ' Un administrador tiene que guardarlas primero.') + '</div>' : '')
+    + '</div>' + (!_cat.cond ? '<div style="font-size:11.5px;color:var(--amber);margin-top:8px">Todavía no están guardadas: se usan las de la web (' + c.apy + '% y ' + seg + '%). Guárdalas una vez.</div>' : '')
     + '</div></div>';
 
   var foto = function(m){

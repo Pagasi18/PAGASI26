@@ -90,8 +90,9 @@ var PERFIL_EXTRA = [
   { k:'fecha_nacimiento',   sec:'cliente',   et:'Fecha de nacimiento',            tipo:'date' },
   // Persona Expuesta Politicamente (LOCDOFT art. 18 y manual LC/FT, 9-oct-2026). Si es 'si',
   // el Oficial de Cumplimiento la aprueba en Cumplimiento antes de firmar el contrato.
-  { k:'pep',                sec:'cliente',   et:'¿Es persona expuesta políticamente?', tipo:'sel', ops:[['','Seleccionar...'],['no','No'],['si','Sí (o familiar o allegado cercano)']] },
-  { k:'pep_detalle',        sec:'cliente',   et:'Si es PEP: cargo o relación',     tipo:'text', ph:'Ej: alcalde de …, hermano de …' },
+  // Redaccion de Adam (13-oct-2026): la de antes ("¿Es persona expuesta politicamente?") era muy directa
+  { k:'pep',                sec:'cliente',   et:'¿Ocupas o has ocupado un cargo público importante, o eres familiar cercano de alguien que lo ocupe?', tipo:'sel', ops:[['','Seleccionar...'],['no','No'],['si','Sí']] },
+  { k:'pep_detalle',        sec:'cliente',   et:'Si contestó que sí: ¿qué cargo o qué relación?', tipo:'text', ph:'Ej: alcalde de …, hermano de …' },
   // 27-sep-2026: se suma "Certificacion de ingreso" (la que firma un contador), que es como
   // comprueban el ingreso muchos independientes y comerciantes.
   { k:'ingreso_comprobante',sec:'empleo',    et:'¿Cómo se comprobó el ingreso?',   tipo:'sel', ops:[['','Seleccionar...'],['recibo','Recibo de pago / nómina'],['estado_cuenta','Estado de cuenta'],['movimientos','Movimientos de Binance, Zelle o pago móvil'],['constancia','Constancia de trabajo'],['certificacion','Certificación de ingreso'],['negocio','Lo vi en su negocio'],['palabra','Solo de palabra']] },

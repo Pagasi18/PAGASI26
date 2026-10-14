@@ -4,8 +4,8 @@
 // Liz (o quien tenga el permiso "catalogo") cambia aqui el precio de contado, el seguro,
 // las fotos, agrega modelos y marca cuales estan disponibles. pagasi.io lo lee directo de
 // Firestore (coleccion "catalogo", ver assets/public/catalog.js): no hay que publicar nada.
-// La tasa, la inicial minima/maxima y los plazos estan en el documento "_condiciones" y la
-// tasa solo la cambia un administrador (Adam, 13-oct-2026). Las Reglas lo exigen igual.
+// La tasa, el seguro, la inicial minima y los plazos estan en el documento "_condiciones" y
+// solo los ve y los cambia un administrador (Adam, 13-oct-2026).
 
 var _cat = { cargado: false, cargando: false, motos: [], cond: null, error: '' };
 var CAT_PLAZOS_EXCEL = [6, 9, 12];
@@ -138,7 +138,8 @@ function catEliminar(id){
 }
 
 function catGuardarCondiciones(){
-  if(!catPuedeEditar()) return;
+  // Solo administradores: tasa, seguro, inicial y plazos (Adam, 13-oct-2026)
+  if(!catEsAdmin()){ toast('Las condiciones del plan las cambia un administrador', 'error'); return; }
   var c = catCondiciones(), datos = {};
   var seg = parseFloat(String(($('cat_seguro') && $('cat_seguro').value) || '').replace(',', '.'));
   if(!(seg >= 0 && seg < 50)){ toast('El seguro va en porcentaje, entre 0 y 50', 'error'); return; }

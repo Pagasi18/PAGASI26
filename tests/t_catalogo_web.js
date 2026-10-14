@@ -105,7 +105,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('...pero las condiciones no: esas las crea un administrador', !coleccion.docs._condiciones);
   let h = ctx.PG.catalogo();
   ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$60<\/td>/.test(h) && /\$528<\/td>/.test(h) && /\$588<\/td>/.test(h) && /\$110 · \$89 · \$81/.test(h));
-  ok('Liz no ve la casilla de la tasa: solo el valor y quién la cambia', !/id="cat_apy"/.test(h) && /650% <span[^>]*>· la cambia un administrador/.test(h));
+  ok('Liz no ve las condiciones del plan (solo administradores)', !/Condiciones del plan/.test(h) && !/id="cat_apy"/.test(h) && !/id="cat_seguro"/.test(h));
   ok('los botones de nuevo modelo y Excel están', /catNuevoModelo\(\)/.test(h) && /Descargar reporte Excel/.test(h));
 
   await ctx.catPrecio(1, '1400');
@@ -119,20 +119,24 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
 
   doc.getElementById('cat_seguro').value = '5';
   await ctx.catGuardarCondiciones();
-  ok('Liz no puede crear las condiciones (las crea un administrador primero)', !coleccion.docs._condiciones && avisos.some(a => /las crea primero un administrador/.test(a)));
+  ok('Liz no puede guardar las condiciones', !coleccion.docs._condiciones && avisos.some(a => /las cambia un administrador/.test(a)));
   S.currentUser = { uid:'adm', nombre:'Adam', rol:'Administrador', permisos:[] };
   doc.getElementById('cat_apy').value = '650'; doc.getElementById('cat_seguro').value = '4.5';
   await ctx.catGuardarCondiciones();
   ok('el administrador guarda la tasa, el seguro, la inicial y los plazos', coleccion.docs._condiciones.apy === 650 && coleccion.docs._condiciones.seguroPct === 4.5 && coleccion.docs._condiciones.inicialMin === 40 && coleccion.docs._condiciones.plazos.join() === '6,9,12');
   S.currentUser = { uid:'liz', nombre:'Liz', rol:'Empleado', permisos:['dash','catalogo'] };
   doc.getElementById('cat_seguro').value = '5'; doc.getElementById('cat_apy').value = '900';
+  const antesLiz = escritos.length;
   await ctx.catGuardarCondiciones();
-  ok('Liz cambia el seguro, pero aunque la casilla diga 900 no toca la tasa', escritos.at(-1).id === '_condiciones' && escritos.at(-1).d.seguroPct === 5 && !('apy' in escritos.at(-1).d) && coleccion.docs._condiciones.apy === 650);
+  ok('Liz tampoco cambia el seguro ni la tasa (no se escribe nada)', escritos.length === antesLiz && coleccion.docs._condiciones.seguroPct === 4.5 && coleccion.docs._condiciones.apy === 650);
+  S.currentUser = { uid:'adm', nombre:'Adam', rol:'Administrador', permisos:[] };
+  ok('el administrador sí ve las condiciones', /Condiciones del plan/.test(ctx.PG.catalogo()) && /id="cat_apy"/.test(ctx.PG.catalogo()));
+  S.currentUser = { uid:'liz', nombre:'Liz', rol:'Empleado', permisos:['dash','catalogo'] };
 
   const filas = ctx.catFilasExcel();
   ok('Excel: las columnas que pidieron', filas[0].join('|') === 'MODELO|PRECIO AL CONTADO|COSTO DEL SEGURO|INICIAL MÍNIMA|CUOTA QUINCENAL 6 MESES|CUOTA QUINCENAL 9 MESES|CUOTA QUINCENAL 12 MESES');
   const nh = filas.find(f => f[0] === 'NEW HORSE 150');
-  ok('Excel: los mismos montos que la web (precio $1.400, seguro 5% = $70, inicial $560)', nh && nh[1] === 1400 && nh[2] === 70 && nh[3] === 560 && nh[6] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal);
+  ok('Excel: los mismos montos que la web (precio $1.400, seguro 4,5% = $63, inicial $560)', nh && nh[1] === 1400 && nh[2] === 63 && nh[3] === 560 && nh[6] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal);
   ok('Excel: un renglón por modelo, sin el eliminado', filas.length === 1 + 48 && !filas.some(f => f[0] === coleccion.docs['3'].modelo));
 
   // Nuevo modelo
