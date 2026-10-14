@@ -494,6 +494,31 @@ service cloud.firestore {
     match /recursos/{id}          { allow read, create, update, delete: if esStaff(); }
     match /notas_cobranza/{id}    { allow read, create: if esStaff(); allow update, delete: if esAdmin(); }
 
+    // == Metricas anonimas de la pagina publica (14-oct-2026) ==
+    // assets/public/metricas.js (sin sesion) crea su visita y le agrega eventos, uno por vez.
+    // Solo esos campos, con tamanos acotados y nada personal. Leer: administradores o quien
+    // tenga el permiso "metricas". Nadie edita ni borra una visita, salvo un administrador.
+    function textoCorto(v) { return v is string && v.size() <= 60; }
+    match /metricas/{sid} {
+      allow read: if esAdmin() || permiso('metricas');
+      allow create: if sid.matches('^s[0-9a-z]{14}$')
+        && request.resource.data.keys().hasOnly(['vid','fecha','hora','inicio','ultima','fuente','medio','campana','disp','entrada','ev','n','v'])
+        && request.resource.data.vid is string && request.resource.data.vid.matches('^v[0-9a-z]{12}$')
+        && request.resource.data.fecha is string && request.resource.data.fecha.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.hora is int && request.resource.data.hora >= 0 && request.resource.data.hora < 24
+        && request.resource.data.inicio is int && request.resource.data.ultima is int
+        && textoCorto(request.resource.data.fuente) && textoCorto(request.resource.data.medio)
+        && textoCorto(request.resource.data.campana) && textoCorto(request.resource.data.disp) && textoCorto(request.resource.data.entrada)
+        && request.resource.data.ev is list && request.resource.data.ev.size() == 1
+        && request.resource.data.n == 1 && request.resource.data.v == 1;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ev','n','ultima'])
+        && request.resource.data.ultima is int
+        && request.resource.data.ev is list && request.resource.data.ev.size() <= 80
+        && request.resource.data.ev.size() == resource.data.ev.size() + 1
+        && request.resource.data.n == resource.data.n + 1;
+      allow delete: if esAdmin();
+    }
+
     // == Catalogo de pagasi.io (13-oct-2026) ==
     // Precios publicos: cualquiera los lee, la web los muestra. Escriben los administradores
     // y quien tenga el permiso "catalogo" (Liz). Las condiciones (_condiciones) las crea un

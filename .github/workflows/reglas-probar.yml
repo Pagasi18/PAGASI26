@@ -20,7 +20,7 @@ name: Probar reglas de Firestore (emulador)
 on:
   workflow_dispatch:
   push:
-    branches: [solicitud-web, catalogo-web]
+    branches: [solicitud-web, catalogo-web, metricas-web]
     paths:
       - 'firestore.rules'
       - 'tests/reglas/**'
@@ -50,3 +50,5 @@ jobs:
         run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_solicitud_web.js"
       - name: Probar reglas del catálogo de pagasi.io
         run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_catalogo.js"
+      - name: Probar reglas de las métricas de la web
+        run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_metricas.js"

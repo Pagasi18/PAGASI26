@@ -611,6 +611,7 @@ function mostrarFin(tipo){
   var a = _el('okWA'); if(a) a.href = _waHref(msg);
   _ocultar('btnNueva', tipo !== 'perdida' && tipo !== 'borrado');   // el telefono queda libre para otra persona
   _pantalla('fOK');
+  try{ window.dispatchEvent(new CustomEvent('pagasi:metrica', { detail:{ t:'solicitud_fin', x:String(tipo||'') } })); }catch(e){}
   LEAD = null; ESTADO = { i:0, paso:1, guardado:{}, pend:{}, ocupado:false };
   _ui('fin', tipo);   // el lateral no promete que le escriben cuando no pudo registrarse
   limpiarFormulario();
@@ -677,6 +678,8 @@ async function submitF(ev){
     // que la hagan". Sin pantalla de "¿seguimos?": se entra directo a la parte 2 con un aviso
     // de que la solicitud ya llego.
     irA(0);
+    // Metricas web (14-oct-2026): la parte 1 llego. Sin datos del cliente, solo el aviso.
+    try{ window.dispatchEvent(new CustomEvent('pagasi:metrica', { detail:{ t:'solicitud_enviada' } })); }catch(e){}
     avisoWiz('Tu solicitud '+LEAD.id+' ya nos llegó. Sigue con estas preguntas: así tu asesor te escribe con todo listo.'+(_enApp() ? ' Termínala de una vez desde aquí.' : ''), true);
   }catch(err){
     console.error('submitF:', err);
