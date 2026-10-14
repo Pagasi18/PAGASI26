@@ -354,6 +354,18 @@ service cloud.firestore {
     match /recursos/{id}          { allow read, create, update, delete: if esStaff(); }
     match /notas_cobranza/{id}    { allow read, create: if esStaff(); allow update, delete: if esAdmin(); }
 
+    // == Catalogo de pagasi.io (13-oct-2026) ==
+    // Precios publicos: cualquiera los lee, la web los muestra. Escriben los administradores
+    // y quien tenga el permiso "catalogo" (Liz). Las condiciones (_condiciones) las crea un
+    // administrador, y la tasa, la inicial y los plazos solo los cambia un administrador.
+    match /catalogo/{id} {
+      allow read: if true;
+      allow create: if esAdmin() || (permiso('catalogo') && id != '_condiciones');
+      allow update: if esAdmin() || (permiso('catalogo') && (id != '_condiciones'
+                      || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['apy','inicialMin','inicialMax','plazos'])));
+      allow delete: if esAdmin();
+    }
+
     // Equipos de rastreo (modulo GPS). Mismo trato que motos y concesionarios.
     // Ojo: el doc guarda la password del equipo y, cuando se conecte MiCODUS,
     // su ubicacion. Quien pueda leer aqui puede ver donde esta cada moto, asi

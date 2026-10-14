@@ -8,11 +8,25 @@
    ni la de cargo publico (decisiones de Adam del 27-sep). No se calcula ningun score:
    eso lo hace el sistema al aprobar. Las Reglas (firestore.rules, esLeadWeb y
    esLeadWebEditando) aceptan exactamente estos campos y valores. */
-const CATALOG = PagasiCatalog.motos.map(m => ({ id:m.id, name:m.modelo, sede:m.sedeName, cc:m.cc, type:m.type, price:m.precio }));
+const _catalogoReq = () => PagasiCatalog.motos.map(m => ({ id:m.id, name:m.modelo, sede:m.sedeName, cc:m.cc, type:m.type, price:m.precio }));
+let CATALOG = _catalogoReq();
 const fM=document.getElementById('fM');
 PagasiSite.populateModels(fM);
 const requestedMoto=new URLSearchParams(location.search).get('moto');
 if(requestedMoto && PagasiCatalog.get(requestedMoto)) fM.value=requestedMoto;
+// 13-oct-2026: los modelos y precios vienen del modulo Catalogo (Liz). Cuando llegan de la
+// base se rehace la lista, sin perder lo que el cliente ya eligio.
+if(typeof PagasiCatalog.cargar === 'function'){
+  PagasiCatalog.cargar().then(function(){
+    var elegido = fM.value;
+    CATALOG = _catalogoReq();
+    if(fM.querySelectorAll) fM.querySelectorAll('optgroup').forEach(function(g){ g.remove(); });
+    PagasiSite.populateModels(fM);
+    if(elegido && PagasiCatalog.get(elegido)) fM.value = elegido;
+    else if(requestedMoto && PagasiCatalog.get(requestedMoto)) fM.value = requestedMoto;
+    if(typeof _pintarPlan === 'function') _pintarPlan();
+  });
+}
 
 // Firebase de PAGASI 26
 var FIREBASE_CONFIG = {
@@ -246,7 +260,7 @@ function _pintarPlan(){
   var caja = _el('fPlan'); if(!caja) return;
   var m = PagasiCatalog.get(fM.value), p = m && PagasiCatalog.plan(m.id);
   if(!m || !p){ caja.classList.remove('on'); caja.textContent = ''; return; }
-  caja.innerHTML = '<b>'+PagasiCatalog.money(p.quincenal)+'</b> la quincena · inicial '+PagasiCatalog.money(p.inicial)+' · 12 meses. <span style="color:#64718b">Referencial, lo confirma tu asesor.</span>';
+  caja.innerHTML = '<b>'+PagasiCatalog.money(p.quincenal)+'</b> la quincena · inicial '+PagasiCatalog.money(p.inicial)+(p.seguro ? ' + seguro '+PagasiCatalog.money(p.seguro) : '')+' · '+(p.meses||12)+' meses. <span style="color:#64718b">Referencial, lo confirma tu asesor.</span>';
   caja.classList.add('on');
 }
 

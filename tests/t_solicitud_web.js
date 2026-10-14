@@ -678,7 +678,7 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
     ok('...y los restaura DESPUÉS de borrar los workflows de PAGASI 18', clon.indexOf('rm -rf reportes .github/workflows') > -1 && clon.indexOf('rm -rf reportes .github/workflows') < clon.indexOf('for f in $SOLO_26'));
   }
   const wf = src('.github/workflows/reglas-probar.yml');
-  ok('el workflow de reglas: a mano o al subir solicitud-web con cambios en las Reglas, sin secretos, y corre las de la solicitud web', /workflow_dispatch/.test(wf) && /push:\s*\n\s*branches: \[solicitud-web\]/.test(wf) && /- 'firestore\.rules'/.test(wf) && !/secrets\./.test(wf) && /t_reglas_solicitud_web\.js/.test(wf) && /t_reglas_gps_cliente\.js/.test(wf));
+  ok('el workflow de reglas: a mano o al subir solicitud-web con cambios en las Reglas, sin secretos, y corre las de la solicitud web', /workflow_dispatch/.test(wf) && /push:\s*\n\s*branches: \[solicitud-web[^\]]*\]/.test(wf) && /- 'firestore\.rules'/.test(wf) && !/secrets\./.test(wf) && /t_reglas_solicitud_web\.js/.test(wf) && /t_reglas_gps_cliente\.js/.test(wf));
   ok('la base de las Reglas de la 18 está guardada en la 26', fs.existsSync(path.join(ROOT, 'tests/reglas/base-18.rules')) && /esStaff\(\)/.test(src('tests/reglas/base-18.rules')));
 
   console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
