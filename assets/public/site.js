@@ -1,4 +1,6 @@
-/* Presentation and navigation only; the public plan lives in catalog.js. */
+/* Presentation and navigation only; the public plan lives in catalog.js.
+   Desde el 13-oct-2026 espera a que catalog.js lea el catalogo de la base (con tope de
+   2,5 s) y el simulador muestra tres tarjetas que giran: inicial minima, maxima y preferida. */
 (function(root){
   'use strict';
   const paths={arrow:'M5 12h14m-6-6 6 6-6 6',search:'M21 21l-5-5 M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0',user:'M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',menu:'M4 6h16M4 12h16M4 18h16',check:'m7 12 3 3 7-7 M22 12a10 10 0 1 1-5-8.7',shield:'M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z m-4-10 3 3 5-6',pin:'M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0',clock:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0 M12 6v6l4 2',phone:'M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z M10 5h4 M11 19h2',calculator:'M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z M8 6h8v4H8Z M8 14h1M12 14h1M16 14h1M8 18h1M12 18h1M16 18h1',document:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6 M8 12h8M8 16h5',bike:'M8 17a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M24 17a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 17l5-8h6l5 8 M8 6h4 M16 5h2l2 12 M9 9l5 8H4',chat:'M21 11.5a9 9 0 0 1-13.3 8L3 21l1.5-4.7A9 9 0 1 1 21 11.5Z M8 8c0 4 4 8 8 8 M8 8l2 2-1 2 M16 16l-2-2-2 1',filter:'M4 5h16 M7 12h10 M10 19h4',spark:'m13 2-9 12h7l-1 8 10-12h-7Z',chevron:'m6 9 6 6 6-6',wallet:'M3 5h16v15H3Z M3 5V3h14v2 M15 11h6v5h-6Z',heart:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'};
@@ -38,11 +40,11 @@
   function picture(m){return m.image?'<img src="'+escape(m.image)+'" alt="'+escape(m.name)+'" width="400" height="300" loading="lazy" decoding="async">':'<div class="pg-photo-missing">'+icon('bike')+'<span>Fotografía por confirmar</span></div>';}
   function card(m){
     const p=D.plan(m.id);
-    return '<article class="pg-moto-card" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':'')+'">'+escape(m.tag)+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial</span><strong class="pg-card-initial">'+D.money(p.inicial)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
+    return '<article class="pg-moto-card" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':'')+'">'+escape(m.tag)+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial + seguro</span><strong class="pg-card-initial">'+D.money(p.alFirmar)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
   }
   function featuredCard(m){
     const p=D.plan(m.id),url='simulador.html?moto='+m.id;
-    return '<article class="pg-featured-card" data-moto-id="'+m.id+'"><div class="pg-featured-heading"><div class="pg-featured-meta"><span>'+escape(m.cat)+'</span>'+(m.tag?'<span class="pg-featured-tag'+(m.tag==='Más vendida'?' pg-featured-tag-green':'')+'">'+escape(m.tag)+'</span>':'')+'</div><h3><a href="'+url+'">'+escape(m.name)+'</a></h3></div><a class="pg-featured-visual" href="'+url+'" aria-label="Ver '+escape(m.name)+'"><span class="pg-featured-photo pg-photo-frame">'+picture(m)+'</span></a><div class="pg-featured-details"><p class="pg-featured-dealer">'+icon('pin')+escape(m.sedeName)+'</p><div class="pg-featured-plan"><div><span>Cuota quincenal</span><strong class="pg-featured-quota">'+D.money(p.quincenal)+'</strong></div><div><span>Inicial · 50%</span><strong class="pg-featured-initial">'+D.money(p.inicial)+'</strong></div></div><div class="pg-featured-cash"><span>Precio de contado</span><strong>'+D.money(m.precio)+'</strong></div><a class="pg-featured-cta" href="'+url+'">Ver moto y cuotas <span>'+icon('arrow')+'</span></a></div></article>';
+    return '<article class="pg-featured-card" data-moto-id="'+m.id+'"><div class="pg-featured-heading"><div class="pg-featured-meta"><span>'+escape(m.cat)+'</span>'+(m.tag?'<span class="pg-featured-tag'+(m.tag==='Más vendida'?' pg-featured-tag-green':'')+'">'+escape(m.tag)+'</span>':'')+'</div><h3><a href="'+url+'">'+escape(m.name)+'</a></h3></div><a class="pg-featured-visual" href="'+url+'" aria-label="Ver '+escape(m.name)+'"><span class="pg-featured-photo pg-photo-frame">'+picture(m)+'</span></a><div class="pg-featured-details"><p class="pg-featured-dealer">'+icon('pin')+escape(m.sedeName)+'</p><div class="pg-featured-plan"><div><span>Cuota quincenal</span><strong class="pg-featured-quota">'+D.money(p.quincenal)+'</strong></div><div><span>Inicial '+Math.round(p.pct*100)+'% + seguro</span><strong class="pg-featured-initial">'+D.money(p.alFirmar)+'</strong></div></div><div class="pg-featured-cash"><span>Precio de contado</span><strong>'+D.money(m.precio)+'</strong></div><a class="pg-featured-cta" href="'+url+'">Ver moto y cuotas <span>'+icon('arrow')+'</span></a></div></article>';
   }
   function setupNav(){
     const toggle=document.querySelector('.pg-menu-toggle'),nav=document.querySelector('.pg-nav-links');
@@ -79,14 +81,16 @@
     const sede=document.getElementById('filterSede'),initial=document.getElementById('filterInitial'),quota=document.getElementById('filterQuota');
     const params=new URLSearchParams(location.search);let use=params.get('uso')||'all';if(!['all','trabajo','ciudad','deportiva'].includes(use))use='all';
     q.value=params.get('q')||'';if(params.has('sede'))sede.value=params.get('sede');if(!sede.value)sede.value='all';
+    const topes=D.motos.reduce((t,m)=>{const p=D.plan(m.id);return {ini:Math.max(t.ini,p.alFirmar),cuota:Math.max(t.cuota,p.quincenal)};},{ini:0,cuota:0});
+    initial.max=String(Math.ceil(topes.ini/50)*50||2500);initial.value=initial.max;quota.max=String(Math.ceil(topes.cuota/5)*5||250);quota.value=quota.max;
     if(params.has('inicial')&&Number.isFinite(Number(params.get('inicial'))))initial.value=params.get('inicial');
     if(params.has('cuota')&&Number.isFinite(Number(params.get('cuota'))))quota.value=params.get('cuota');
     if(params.has('sort'))sort.value=params.get('sort');if(!sort.value)sort.value='featured';
     function render(){
       const query=D.normalize(q.value),maxInitial=Number(initial.value),maxQuota=Number(quota.value);
-      let list=D.motos.filter(m=>{const p=D.plan(m.id);const category=D.normalize(m.type+' '+m.cat);return (!query||D.normalize(m.name+' '+m.sedeName).includes(query))&&(sede.value==='all'||m.sede===sede.value)&&p.inicial<=maxInitial&&p.quincenal<=maxQuota&&(use==='all'||(use==='trabajo'&&/trabajo|carga|clasica|economica/.test(category))||(use==='ciudad'&&/urbana|scooter|lite/.test(category))||(use==='deportiva'&&/sport|deportiva|naked|racing/.test(category)));});
+      let list=D.motos.filter(m=>{const p=D.plan(m.id);const category=D.normalize(m.type+' '+m.cat);return (!query||D.normalize(m.name+' '+m.sedeName).includes(query))&&(sede.value==='all'||m.sede===sede.value)&&p.alFirmar<=maxInitial&&p.quincenal<=maxQuota&&(use==='all'||(use==='trabajo'&&/trabajo|carga|clasica|economica/.test(category))||(use==='ciudad'&&/urbana|scooter|lite/.test(category))||(use==='deportiva'&&/sport|deportiva|naked|racing/.test(category)));});
       if(sort.value==='quota')list.sort((a,b)=>D.plan(a.id).quincenal-D.plan(b.id).quincenal);
-      if(sort.value==='initial')list.sort((a,b)=>D.plan(a.id).inicial-D.plan(b.id).inicial);
+      if(sort.value==='initial')list.sort((a,b)=>D.plan(a.id).alFirmar-D.plan(b.id).alFirmar);
       if(sort.value==='name')list.sort((a,b)=>a.name.localeCompare(b.name,'es'));
       count.textContent=list.length+' de '+D.motos.length+' modelos';
       document.getElementById('initialOutput').textContent=D.money(maxInitial);document.getElementById('quotaOutput').textContent=D.money(maxQuota);
@@ -102,27 +106,66 @@
     document.querySelectorAll('[data-catalog-use]').forEach(b=>b.addEventListener('click',()=>{use=b.dataset.catalogUse;render();}));
     const toggle=document.getElementById('filterToggle');toggle.addEventListener('click',()=>{const open=form.dataset.open!=='true';form.dataset.open=String(open);toggle.setAttribute('aria-expanded',String(open));});render();
   }
+  // Tarjeta que gira: delante inicial y cuota; detras seguro, al firmar y monto financiado
+  function flipCard(tipo,titulo,p,c){
+    const pct=Math.round(p.pct*100),seg=String(c.seguroPct).replace('.',',');
+    return '<div class="pg-flip pg-flip-'+tipo+'" tabindex="0" role="button" aria-label="'+escape(titulo)+': '+pct+'% de inicial. Toca para ver el seguro y el monto financiado.">'
+      +'<div class="pg-flip-inner">'
+      +'<div class="pg-flip-face pg-flip-front"><span class="pg-flip-label">'+escape(titulo)+'</span><strong class="pg-flip-pct">'+pct+'<small>%</small></strong>'
+      +'<div class="pg-flip-row"><span>Inicial</span><b>'+D.money(p.inicial)+'</b></div>'
+      +'<div class="pg-flip-quota"><span>Cuota quincenal</span><strong>'+D.money(p.quincenal)+'</strong><small>'+p.totalCuotas+' cuotas · '+p.meses+' meses</small></div>'
+      +'<span class="pg-flip-more">↻ Seguro y financiamiento</span></div>'
+      +'<div class="pg-flip-face pg-flip-back"><span class="pg-flip-label">'+escape(titulo)+' · '+pct+'%</span>'
+      +'<div class="pg-flip-row"><span>Seguro ('+seg+'%)<small>se paga con la inicial</small></span><b>'+D.money(p.seguro)+'</b></div>'
+      +'<div class="pg-flip-row"><span>Pagas al firmar<small>inicial + seguro</small></span><b>'+D.money(p.alFirmar)+'</b></div>'
+      +'<div class="pg-flip-row"><span>Total en cuotas</span><b>'+D.money(p.totalEnCuotas)+'</b></div>'
+      +'<div class="pg-flip-row pg-flip-total"><span>Monto financiado</span><b>'+D.money(p.financiado)+'</b></div></div>'
+      +'</div></div>';
+  }
   function setupSimulator(){
     const select=document.getElementById('simMoto');if(!select)return;populateModels(select);
-    const urlId=new URLSearchParams(location.search).get('moto');select.value=D.get(urlId)?String(urlId):'5';let period='quincenal';
+    const urlId=new URLSearchParams(location.search).get('moto');select.value=D.get(urlId)?String(urlId):(D.get(5)?'5':String((D.motos[0]||{}).id||''));
+    const c=D.condiciones,plazos=c.plazos,urlPlazo=Number(new URLSearchParams(location.search).get('plazo'));
+    let plazo=plazos.includes(urlPlazo)?urlPlazo:plazos[plazos.length-1];
     const gallery=document.getElementById('galleryImage'),thumbs=document.getElementById('galleryThumbs');gallery.addEventListener('load',()=>fitPhoto(gallery));
-    function render(){const m=D.get(select.value);if(!m)return;const p=D.plan(m.id);const view=period==='quincenal';
+    const cardsBox=document.getElementById('simCards'),plazosBox=document.getElementById('simPlazos'),pref=document.getElementById('simPref'),prefOut=document.getElementById('simPrefOut');
+    pref.min=String(c.inicialMin);if(Number(pref.value)<c.inicialMin)pref.value=String(c.inicialMin);
+    document.getElementById('simPrefHelp').textContent='Mueve la barra: desde el '+c.inicialMin+'% del precio de contado.';
+    plazosBox.innerHTML=plazos.map(n=>'<button type="button" data-plazo="'+n+'">'+n+' meses</button>').join('');
+    const tocar=!(root.matchMedia&&root.matchMedia('(hover: hover)').matches);
+    document.getElementById('simHint').textContent=tocar?'Toca una tarjeta para ver el seguro y el monto financiado.':'Pasa el cursor sobre una tarjeta para ver el seguro y el monto financiado.';
+    const cond=document.getElementById('simCondiciones');
+    if(cond)cond.textContent='Inicial desde el '+c.inicialMin+'% del precio de contado, plazos de '+plazos.join(', ').replace(/, (\d+)$/,' o $1')+' meses con cuotas quincenales y un seguro del '+String(c.seguroPct).replace('.',',')+'% del precio de contado que se paga junto con la inicial. El cálculo utiliza una tasa anual efectiva de referencia del '+c.apy+'%. Los importes se muestran redondeados al dólar. El financiamiento está sujeto a evaluación y disponibilidad.';
+    function render(){const m=D.get(select.value);if(!m)return;
+      const pPref=Number(pref.value)/100;prefOut.textContent=Math.round(pPref*100)+'%';
       document.getElementById('simName').textContent=m.name;document.getElementById('simSpec').textContent=m.type;
       document.getElementById('simCC').textContent=m.cc==='—'?'Moto nueva':m.cc;document.getElementById('simSede').textContent=m.sedeName;
-      document.getElementById('simPrice').textContent=D.money(m.precio);document.getElementById('simInitial').textContent=D.money(p.inicial);document.getElementById('simInitialDetail').textContent=D.money(p.inicial);
-      document.getElementById('simAmount').textContent=D.money(p[period]);document.getElementById('simPeriodLabel').textContent=view?'Tu cuota quincenal':'Equivalencia mensual';document.getElementById('simTerm').textContent=view?'24 pagos · 12 meses':'2 cuotas por mes · 12 meses';
-      document.getElementById('simAlternate').textContent=D.money(view?p.mensual:p.quincenal);document.getElementById('simAlternateLabel').textContent=view?'Equivalencia mensual':'Cuota quincenal';
+      document.getElementById('simPrice').textContent=D.money(m.precio);
+      const base=D.plan(m.id,c.inicialMin/100,plazo);
+      document.getElementById('simSeguro').textContent=D.money(base.seguro);document.getElementById('simSeguroLbl').textContent='Seguro ('+String(c.seguroPct).replace('.',',')+'%) · va con la inicial';
+      cardsBox.innerHTML=flipCard('min','Inicial mínima',base,c)+flipCard('max','Inicial máxima',D.plan(m.id,c.inicialMax/100,plazo),c)+flipCard('pref','Tu inicial preferida',D.plan(m.id,pPref,plazo),c);
+      plazosBox.querySelectorAll('[data-plazo]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.plazo)===plazo)));
       document.getElementById('simBtn').href='solicitar.html?moto='+m.id;
       gallery.hidden=!m.image;gallery.src=m.id===5?'assets/public/ek-xpress-hero.webp':m.image||'';gallery.alt=m.name;fitPhoto(gallery);if(photoObserver)photoObserver.observe(gallery.parentElement);document.getElementById('galleryMissing').hidden=!!m.image;
       document.getElementById('galleryCaption').textContent=m.id===5?'Vista ilustrativa del modelo. Consulta la fotografía del catálogo.':(m.image?'Fotografía del catálogo. Confirma colores y disponibilidad con tu asesor.':'Solicita fotografías y disponibilidad a tu asesor.');
       thumbs.innerHTML=m.id===5?'<button class="pg-thumb" type="button" aria-pressed="true" data-gallery-src="assets/public/ek-xpress-hero.webp" data-illustrative="true"><img src="assets/public/ek-xpress-hero.webp" alt="">Otra perspectiva</button><button class="pg-thumb" type="button" aria-pressed="false" data-gallery-src="'+m.image+'"><img src="'+m.image+'" alt="">Foto del catálogo</button>':'';
-      document.querySelectorAll('[data-period]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.period===period)));
-      history.replaceState(null,'',location.pathname+'?moto='+m.id);
+      history.replaceState(null,'',location.pathname+'?moto='+m.id+(plazo!==plazos[plazos.length-1]?'&plazo='+plazo:''));
     }
-    select.addEventListener('change',render);document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.period;render();}));
+    // En el telefono no hay cursor: la tarjeta gira al tocarla y vuelve al tocarla otra vez.
+    // Con mouse gira sola al pasar por encima (CSS) y vuelve al retirarlo.
+    cardsBox.addEventListener('click',e=>{const f=e.target.closest('.pg-flip');if(f&&tocar)f.classList.toggle('is-flipped');});
+    cardsBox.addEventListener('keydown',e=>{const f=e.target.closest('.pg-flip');if(f&&(e.key==='Enter'||e.key===' ')){e.preventDefault();f.classList.toggle('is-flipped');}});
+    cardsBox.addEventListener('mouseleave',e=>{cardsBox.querySelectorAll('.pg-flip.is-flipped').forEach(f=>f.classList.remove('is-flipped'));},true);
+    select.addEventListener('change',render);pref.addEventListener('input',render);
+    plazosBox.addEventListener('click',e=>{const b=e.target.closest('[data-plazo]');if(!b)return;plazo=Number(b.dataset.plazo);render();});
     thumbs.addEventListener('click',e=>{const b=e.target.closest('[data-gallery-src]');if(!b)return;gallery.src=b.dataset.gallerySrc;fitPhoto(gallery);thumbs.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));document.getElementById('galleryCaption').textContent=b.dataset.illustrative?'Vista ilustrativa del modelo. Consulta la fotografía del catálogo.':'Fotografía del catálogo. Confirma colores y disponibilidad con tu asesor.';});render();
   }
   root.PagasiSite=Object.freeze({icon,escape,populateModels,card,fitPhotos});
   function init(){document.querySelectorAll('[data-icon]').forEach(el=>{el.outerHTML=icon(el.dataset.icon);});setupNav();document.querySelectorAll('[data-year]').forEach(el=>el.textContent=new Date().getFullYear());if(D){setupHome();setupCatalog();setupSimulator();}}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+  // Espera el catalogo de la base (precios de Liz) hasta 2,5 s; si tarda, sigue con lo que hay.
+  function arrancar(){
+    const listo=(D&&typeof D.cargar==='function')?Promise.race([D.cargar(),new Promise(r=>setTimeout(r,2500))]):Promise.resolve();
+    listo.then(init,init);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arrancar);else arrancar();
 })(window);

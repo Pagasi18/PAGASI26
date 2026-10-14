@@ -128,7 +128,7 @@ ok('lo ya resuelto del fiador no vuelve a saltar', ctx._amlResultadoFiador(cf, L
 ok('cliente que dijo "sin fiador": no se revisa el nombre que quedó pegado', ctx._amlResultadoFiador({ id:'C9', nombre:'X Y', fiador:'no', fiador_nom:'Henry Rangel Silva' }, L, 'x') === null);
 
 // ── El modulo ──
-ok('Cumplimiento está registrado (menú, título, admin)', ctx.MODULOS.some(m => m.id === 'cumplimiento') && /cumplimiento:'Cumplimiento'/.test(src('assets/pagasi-app.js')) && /'users','cumplimiento'\]/.test(src('assets/pagasi-app.js')));
+ok('Cumplimiento está registrado (menú, título, admin)', ctx.MODULOS.some(m => m.id === 'cumplimiento') && /cumplimiento:'Cumplimiento'/.test(src('assets/pagasi-app.js')) && /'users','cumplimiento'[,\]]/.test(src('assets/pagasi-app.js')));
 S.currentUser = { nombre:'María', rol:'Empleado' };
 ok('un empleado no ve el módulo', /Solo el Oficial de Cumplimiento/.test(ctx.PG.cumplimiento()));
 S.currentUser = { nombre:'Adam', rol:'Administrador' };

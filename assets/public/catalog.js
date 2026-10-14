@@ -1,8 +1,11 @@
-/* Public catalog: existing model IDs, prices and published simulator formula.
-   Administrative credit/ledger calculations are intentionally independent and unchanged. */
+/* Catalogo publico: modelos, precios y formula del simulador de pagasi.io.
+   Desde el 13-oct-2026 lo que manda es el modulo Catalogo del sistema (coleccion
+   "catalogo" de Firestore): Liz cambia precios, seguros, fotos y disponibilidad y la web
+   lo toma sola. La lista de abajo es el respaldo si la base no responde.
+   Los calculos del credito real (ledger, mora) siguen aparte y no cambian. */
 (function(root){
 'use strict';
-const motos = [
+const BASE = [
   {
     "id": 1,
     "sede": "ek",
@@ -648,21 +651,125 @@ const motos = [
     "meses": 12
   }
 ];
-function calcPlan(precio, meses){
-  const inicialPct = 0.50;
-  const apy = 380;
-  const totalCuotas = meses * 2;
-  const ini = precio * inicialPct;
-  const fin = precio - ini;
-  const tasaQ = Math.pow(1 + apy/100, 1/24) - 1;
-  const cuotaQ = fin * tasaQ / (1 - Math.pow(1 + tasaQ, -totalCuotas));
-  return { inicial: Math.round(ini), quincenal: Math.round(cuotaQ), mensual: Math.round(cuotaQ * 2) };
+// ── Condiciones publicas (Adam, 13-oct-2026) ─────────────────────────────────
+// Una sola tasa para todos los plazos (650% anual efectiva), seguro del 4,5% del precio
+// de contado que se paga junto con la inicial, inicial de 40% a 60% y plazos de 6, 9 y
+// 12 meses. Es el respaldo: lo que guarden en el documento "_condiciones" manda.
+const COND_BASE = Object.freeze({ apy:650, seguroPct:4.5, inicialMin:40, inicialMax:60, plazos:Object.freeze([6,9,12]) });
+// Firebase de la compania que sirve la pagina. preparar-clon-26.sh pone aqui el de PAGASI 26.
+// La llave web de Firebase es publica por diseno: lo que protege los datos son las Reglas.
+const FB_PUBLICO = { projectId:'pagasi26-65ced', apiKey:'AIzaSyD6IznQjzF7Tdq7UJMXT4rSBdbCNpsmij4' };
+const CLAVE_CACHE = 'pagasi_catalogo_v1';
+let lista = BASE.map(m => Object.freeze(Object.assign({disponible:true}, m)));
+let cond = COND_BASE, origen = 'base', cargando = null;
+
+const num = (v, def) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
+function condValidas(c){
+  c = c || {};
+  const plazos = Array.isArray(c.plazos) ? c.plazos.map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 60) : [];
+  const ini = num(c.inicialMin, COND_BASE.inicialMin), max = num(c.inicialMax, COND_BASE.inicialMax);
+  return Object.freeze({
+    apy: (num(c.apy, 0) > 0 && num(c.apy, 0) < 5000) ? num(c.apy) : COND_BASE.apy,
+    seguroPct: (num(c.seguroPct, -1) >= 0 && num(c.seguroPct, -1) < 50) ? num(c.seguroPct) : COND_BASE.seguroPct,
+    inicialMin: (ini > 0 && ini < 100) ? ini : COND_BASE.inicialMin,
+    inicialMax: (max > 0 && max < 100 && max >= ini) ? max : Math.max(ini, COND_BASE.inicialMax),
+    plazos: Object.freeze(plazos.length ? plazos.sort((a, b) => a - b) : COND_BASE.plazos.slice())
+  });
 }
-const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-const get = id => motos.find(m => m.id === Number(id));
-const plan = id => { const m = get(id); return m ? calcPlan(m.precio, m.meses) : null; };
-const money = n => '$' + Math.round(n).toLocaleString('en-US');
-const api = Object.freeze({motos:Object.freeze(motos.map(Object.freeze)),get,plan,calcPlan,normalize,money});
+// Sin redondear (para el Excel y el sistema). inicialPct en fraccion: 0.40 = 40%.
+function calcExacto(precio, meses, inicialPct, c){
+  c = c || cond;
+  precio = num(precio, 0); meses = num(meses, 0) || c.plazos[c.plazos.length - 1];
+  const pct = (inicialPct == null || inicialPct === '') ? c.inicialMin / 100 : num(inicialPct, c.inicialMin / 100);
+  const totalCuotas = meses * 2;
+  const inicial = precio * pct, financiado = Math.max(0, precio - inicial);
+  const tasaQ = Math.pow(1 + c.apy / 100, 1 / 24) - 1;
+  const quincenal = financiado > 0 ? (tasaQ > 0 ? financiado * tasaQ / (1 - Math.pow(1 + tasaQ, -totalCuotas)) : financiado / totalCuotas) : 0;
+  const seguro = precio * c.seguroPct / 100;
+  return { precio, meses, pct, totalCuotas, inicial, seguro, alFirmar: inicial + seguro, financiado, quincenal, mensual: quincenal * 2, totalEnCuotas: quincenal * totalCuotas };
+}
+// Sin decimales y redondeando HACIA ARRIBA, la misma regla de la calculadora de los
+// vendedores (Adam, 11-sep-2026): $88.01 se ve $89. Primero los centavos, para que un resto
+// de coma flotante no sume un dolar. Todo cuadra a simple vista: al firmar = inicial + seguro,
+// mensual = 2 quincenas, total = cuota x numero de cuotas, inicial + financiado = precio.
+const arriba = n => Math.ceil(Math.round((Number(n) || 0) * 100) / 100);
+function calcPlan(precio, meses, inicialPct, c){
+  const e = calcExacto(precio, meses, inicialPct, c), q = arriba(e.quincenal), ini = arriba(e.inicial), seg = arriba(e.seguro);
+  return { inicial: ini, seguro: seg, alFirmar: ini + seg, financiado: Math.max(0, arriba(e.precio) - ini),
+           quincenal: q, mensual: q * 2, totalEnCuotas: q * e.totalCuotas,
+           meses: e.meses, totalCuotas: e.totalCuotas, pct: e.pct };
+}
+const normalize = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const get = id => lista.find(m => m.id === Number(id));
+const plan = (id, inicialPct, meses) => { const m = get(id); return m ? calcPlan(m.precio, meses || m.meses, inicialPct) : null; };
+const money = n => '$' + arriba(n).toLocaleString('en-US');
+
+// Un documento de Firestore (formato REST) a objeto plano
+function valor(v){
+  if(!v || typeof v !== 'object') return null;
+  if('stringValue' in v) return v.stringValue;
+  if('integerValue' in v) return Number(v.integerValue);
+  if('doubleValue' in v) return Number(v.doubleValue);
+  if('booleanValue' in v) return !!v.booleanValue;
+  if('nullValue' in v) return null;
+  if('timestampValue' in v) return v.timestampValue;
+  if('arrayValue' in v) return ((v.arrayValue && v.arrayValue.values) || []).map(valor);
+  if('mapValue' in v){ const o = {}, f = (v.mapValue && v.mapValue.fields) || {}; Object.keys(f).forEach(k => { o[k] = valor(f[k]); }); return o; }
+  return null;
+}
+function desdeDocumentos(docs){
+  const motos = [], porId = {};
+  let c = null;
+  (docs || []).forEach(d => {
+    const id = String(d.name || '').split('/').pop(), f = valor({ mapValue: { fields: d.fields || {} } }) || {};
+    if(id === '_condiciones'){ c = f; return; }
+    porId[id] = f;
+  });
+  Object.keys(porId).forEach(k => {
+    const f = porId[k], id = num(f.id, num(k, NaN)), precio = num(f.precio, 0);
+    if(!Number.isInteger(id) || id <= 0 || !(precio > 0) || !f.modelo) return;
+    if(f.eliminado === true) return;
+    const nombre = f.name || String(f.modelo).toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
+    motos.push(Object.freeze({ id, sede: f.sede || '', sedeName: f.sedeName || '', modelo: String(f.modelo), precio,
+      cat: f.cat || '', tag: f.tag || '', name: nombre, cc: f.cc || '—', type: f.type || '', image: f.image || '',
+      meses: 12, disponible: f.disponible !== false, orden: num(f.orden, id) }));
+  });
+  motos.sort((a, b) => (a.orden - b.orden) || (a.id - b.id));
+  return { motos, cond: c };
+}
+// La web solo muestra los modelos disponibles
+function aplicar(motos, c, desde){
+  if(Array.isArray(motos) && motos.length){
+    const visibles = motos.filter(m => m && m.disponible !== false).map(m => Object.isFrozen(m) ? m : Object.freeze(Object.assign({}, m)));
+    if(visibles.length) lista = visibles;
+  }
+  if(c) cond = condValidas(c);
+  origen = desde || origen;
+}
+// Lee el catalogo de la base una sola vez por pagina. Mientras tanto vale lo ultimo bueno
+// guardado en este navegador, o la lista base. Nunca falla: si algo sale mal, sigue la base.
+function cargar(){
+  if(cargando) return cargando;
+  try{
+    const c = JSON.parse((root.localStorage && root.localStorage.getItem(CLAVE_CACHE)) || 'null');
+    if(c && c.v === 1 && Array.isArray(c.motos) && c.motos.length) aplicar(c.motos, c.cond, 'cache');
+  }catch(e){}
+  if(typeof fetch !== 'function') return (cargando = Promise.resolve(api));
+  const url = 'https://firestore.googleapis.com/v1/projects/' + FB_PUBLICO.projectId + '/databases/(default)/documents/catalogo?pageSize=300&key=' + FB_PUBLICO.apiKey;
+  cargando = fetch(url).then(r => r.ok ? r.json() : null).then(d => {
+    const r = desdeDocumentos(d && d.documents);
+    if(!r.motos.length) return api;
+    aplicar(r.motos, r.cond, 'firestore');
+    try{ root.localStorage && root.localStorage.setItem(CLAVE_CACHE, JSON.stringify({ v:1, motos: r.motos, cond: r.cond, en: new Date().toISOString() })); }catch(e){}
+    return api;
+  }).catch(() => api);
+  return cargando;
+}
+const api = Object.freeze({
+  get motos(){ return lista; }, get condiciones(){ return cond; }, get origen(){ return origen; },
+  base: Object.freeze(BASE.map(Object.freeze)), COND_BASE, FB_PUBLICO: Object.freeze(Object.assign({}, FB_PUBLICO)),
+  get, plan, calcPlan, calcExacto, arriba, condValidas, normalize, money, cargar, aplicar, desdeDocumentos, valor
+});
 if(typeof module==='object' && module.exports) module.exports=api;
 else root.PagasiCatalog=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

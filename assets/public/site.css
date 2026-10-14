@@ -1003,3 +1003,39 @@ body.pg-site{font-weight:500}
 .pg-about-hero .pg-stage-disc{background:transparent;border-radius:0;overflow:visible;mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent)}
 .pg-about-hero .pg-stage-disc img{width:100%;height:100%;border-radius:0;transform:none;mask-image:linear-gradient(to bottom,transparent,#000 5%,#000 95%,transparent)}
 .pg-about-hero .pg-stage:hover .pg-stage-disc img{transform:none}
+/* ── Simulador: plazos y tres tarjetas que giran (13-oct-2026) ───────────────── */
+.pg-field-title{display:block;font-size:12px;font-weight:800;color:var(--pg-ink);margin:0 0 10px}
+.pg-plazos{display:flex;gap:6px;border:1px solid var(--pg-line);border-radius:12px;padding:4px}
+.pg-plazos button{flex:1;font:inherit;font-size:13px;font-weight:800;padding:10px 6px;border:0;border-radius:9px;background:transparent;color:var(--pg-muted);cursor:pointer}
+.pg-plazos button[aria-pressed=true]{background:#eaf2ff;color:var(--pg-blue)}
+.pg-flip-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:4px 0 12px}
+.pg-flip{position:relative;perspective:1100px;min-height:250px;cursor:pointer;outline:none;-webkit-tap-highlight-color:transparent}
+.pg-flip-inner{position:absolute;inset:0;transition:transform .65s cubic-bezier(.2,.75,.2,1);transform-style:preserve-3d}
+@media (hover:hover){.pg-flip:hover .pg-flip-inner{transform:rotateY(180deg)}}
+.pg-flip.is-flipped .pg-flip-inner,.pg-flip:focus-visible .pg-flip-inner{transform:rotateY(180deg)}
+.pg-flip-face{position:absolute;inset:0;-webkit-backface-visibility:hidden;backface-visibility:hidden;border-radius:16px;padding:14px 13px;display:flex;flex-direction:column;gap:7px;background:#fff;border:1px solid var(--pg-line);box-shadow:0 10px 28px -18px rgba(16,26,53,.35)}
+.pg-flip-pref .pg-flip-front{border:2px solid var(--pg-blue)}
+.pg-flip-back{transform:rotateY(180deg);background:var(--pg-ink);border-color:var(--pg-ink);color:#fff}
+.pg-flip-label{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--pg-muted)}
+.pg-flip-back .pg-flip-label{color:#9fb6e6}
+.pg-flip-pct{font-size:34px;line-height:1;letter-spacing:-1.5px;color:var(--pg-ink);font-variant-numeric:tabular-nums}
+.pg-flip-pct small{font-size:16px;letter-spacing:0;margin-left:1px}
+.pg-flip-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;color:var(--pg-muted)}
+.pg-flip-row b{color:var(--pg-ink);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pg-flip-back .pg-flip-row{color:#c9d6f2}.pg-flip-back .pg-flip-row b{color:#fff}
+.pg-flip-row small{display:block;font-size:10px;opacity:.8}
+.pg-flip-quota{margin-top:auto;background:var(--pg-blue);color:#fff;border-radius:11px;padding:9px 10px}
+.pg-flip-quota span{display:block;font-size:10.5px;opacity:.9}
+.pg-flip-quota strong{display:block;font-size:24px;letter-spacing:-.8px;line-height:1.15;font-variant-numeric:tabular-nums}
+.pg-flip-quota small{font-size:10px;opacity:.85}
+.pg-flip-total{margin-top:auto;border-top:1px solid #ffffff26;padding-top:8px}
+.pg-flip-total b{font-size:20px}
+.pg-flip-more{font-size:10px;color:var(--pg-muted);text-align:center}
+.pg-pref{background:#f6f9ff;border:1px solid var(--pg-line);border-radius:12px;padding:12px 14px;margin:0 0 10px}
+.pg-pref label{display:flex;justify-content:space-between;font-size:12px;font-weight:800;color:var(--pg-ink);margin-bottom:6px}
+.pg-pref label strong{color:var(--pg-blue);font-size:14px}
+.pg-pref input{width:100%;accent-color:var(--pg-blue)}
+.pg-pref small{display:block;font-size:10.5px;color:var(--pg-muted);margin-top:2px}
+.pg-flip-hint{font-size:11px;color:var(--pg-muted);margin:0 0 14px;text-align:center}
+@media (max-width:640px){.pg-flip-grid{grid-template-columns:1fr}.pg-flip{min-height:218px}}
+@media (prefers-reduced-motion:reduce){.pg-flip-inner{transition:none}}

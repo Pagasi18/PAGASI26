@@ -730,12 +730,12 @@ input[type=number] { -moz-appearance: textfield; }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);   /* 5 tarjetas: 40 · 45 · 50 · 55 · Premium */
+  grid-template-columns: repeat(3, 1fr);   /* 3 tarjetas: minima · maxima · preferida (13-oct-2026) */
   gap: 14px;
   margin-bottom: 36px;
 }
 @media (min-width: 1101px) {
-  .cards[data-n="4"] { grid-template-columns: repeat(4, 1fr); gap: 18px; }   /* Premium oculta */
+  .cards[data-n="2"] { grid-template-columns: repeat(2, 1fr); gap: 18px; }   /* preferida oculta */
   .cards[data-n="5"] .card { padding: 28px 18px 22px; }
   .cards[data-n="5"] .card-pct,
   .cards[data-n="5"] .card-pct-input { font-size: 50px; letter-spacing: -2.5px; }
@@ -1271,15 +1271,15 @@ input[type=number] { -moz-appearance: textfield; }
                 <div class="apy-feature-hint">Tasa anualizada equivalente que persigue el plan</div>
               </div>
               <div class="apy-feature-display">
-                <span id="apyBigVal">600</span><span class="apy-feature-sym">%</span>
+                <span id="apyBigVal">650</span><span class="apy-feature-sym">%</span>
               </div>
             </div>
-            <input id="apySlider" type="range" min="350" max="800" step="5" value="600" class="apy-slider" oninput="syncApyFromSlider(this.value)">
+            <input id="apySlider" type="range" min="350" max="800" step="5" value="650" class="apy-slider" oninput="syncApyFromSlider(this.value)">
             <div class="apy-slider-marks">
               <span>350%</span><span>460%</span><span>575%</span><span>690%</span><span>800%</span>
             </div>
             <div class="apy-feature-input-wrap">
-              <input id="a_apy" type="number" class="apy-feature-input" step="0.01" value="600" oninput="syncApyFromInput(this.value)">
+              <input id="a_apy" type="number" class="apy-feature-input" step="0.01" value="650" oninput="syncApyFromInput(this.value)">
               <span class="apy-feature-input-sfx">% APY</span>
             </div>
           </div>
@@ -1298,9 +1298,6 @@ input[type=number] { -moz-appearance: textfield; }
                 <button type="button" class="plazo-chip" data-plazo="6" onclick="setPlazo(6)">6</button>
                 <button type="button" class="plazo-chip" data-plazo="9" onclick="setPlazo(9)">9</button>
                 <button type="button" class="plazo-chip is-active" data-plazo="12" onclick="setPlazo(12)">12</button>
-                <button type="button" class="plazo-chip" data-plazo="18" onclick="setPlazo(18)">18</button>
-                <button type="button" class="plazo-chip" data-plazo="24" onclick="setPlazo(24)">24</button>
-                <button type="button" class="plazo-chip" data-plazo="36" onclick="setPlazo(36)">36</button>
               </div>
             </div>
           </div>
@@ -1362,19 +1359,23 @@ input[type=number] { -moz-appearance: textfield; }
 </div>
 </div>
 
+<script src="assets/public/catalog.js?v=20261013-1"></script>
 <script>
 let CUSTOM_VISIBLE = true;
 let CUSTOM_SLIDER_VISIBLE = false;
-// Inicial por defecto: 40% (Adam, 11-sep-2026). La usan la tarjeta recomendada y la vista previa.
-const INICIAL_DEFECTO = 0.40;
-// Cinco tarjetas en orden, de 40% a 60% (Adam, 11-sep-2026):
-const IDX_DESTACADA = 0;   // la de 40%, con la etiqueta RECOMENDADO
-const IDX_CUSTOM = 4;      // Premium: la que el vendedor puede editar, arranca en 60%
-let CUSTOM_PCT = 0.60;
+// Tres tarjetas (Adam, 13-oct-2026): inicial minima, inicial maxima y "tu inicial
+// preferida", que arranca en la minima. Se quitaron las de 45%, 50% y 55%. Los porcentajes,
+// la tasa y el seguro salen del catalogo (modulo Catalogo del sistema), igual que en la web.
+const _COND = (window.PagasiCatalog && PagasiCatalog.condiciones) || { apy:650, seguroPct:4.5, inicialMin:40, inicialMax:60, plazos:[6,9,12] };
+const INICIAL_DEFECTO = _COND.inicialMin / 100;
+const INICIAL_MAXIMA = _COND.inicialMax / 100;
+const IDX_DESTACADA = 0;   // la minima, destacada
+const IDX_CUSTOM = 2;      // la preferida: el vendedor la edita, arranca en la minima
+let CUSTOM_PCT = INICIAL_DEFECTO;
 let USER_INI_RAW = null;
 let CURRENT_PLAZO = 12;
 
-const CATALOGO = [
+const _CATALOGO_FIJO = [
   // EK Bello Monte (17)
   {id:1,  sede:'EK Bello Monte',     modelo:'NEW HORSE 150',       precio:1320.00},
   {id:2,  sede:'EK Bello Monte',     modelo:'EK XPRESS 150',       precio:1099.00},
@@ -1420,9 +1421,13 @@ const CATALOGO = [
   {id:40, sede:'Toro Sabana Grande', modelo:'CAPPUCINO',           precio:1890.00},
   {id:41, sede:'Toro Sabana Grande', modelo:'TYPHOON',             precio:1690.00},
 ];
+const _deCatalogo = () => (window.PagasiCatalog ? PagasiCatalog.motos.map(m => ({ id:m.id, sede:m.sedeName, modelo:m.modelo, precio:m.precio })) : []);
+let CATALOGO = _deCatalogo().length ? _deCatalogo() : _CATALOGO_FIJO;
 
-(function() {
+function llenarModelos() {
   const sel = document.getElementById('modeloSel');
+  const elegido = sel.value;
+  sel.querySelectorAll('optgroup').forEach(g => g.remove());
   const grupos = {};
   CATALOGO.forEach(m => {
     if(!grupos[m.sede]) grupos[m.sede] = [];
@@ -1439,7 +1444,9 @@ const CATALOGO = [
     });
     sel.appendChild(og);
   });
-})();
+  if(elegido && CATALOGO.some(m => String(m.id) === String(elegido))) sel.value = elegido;
+}
+llenarModelos();
 
 function pmtRate(periodRate, nper, pv){
   periodRate = parseFloat(periodRate) || 0;
@@ -1520,8 +1527,8 @@ function calcCardsFromPlan(planParams){
   const cards = [];
   // En orden de 40% a 60%: la de 40% es la recomendada (destacada) y la ultima,
   // Premium, es la editable (Adam, 11-sep-2026).
-  const targetPcts = [INICIAL_DEFECTO, 0.45, 0.50, 0.55, CUSTOM_PCT];
-  const labels     = ['Recomendado', 'Conservador', 'Equilibrado', 'Estable', 'Premium'];
+  const targetPcts = [INICIAL_DEFECTO, INICIAL_MAXIMA, CUSTOM_PCT];
+  const labels     = ['Inicial mínima', 'Inicial máxima', 'Tu inicial preferida'];
   targetPcts.forEach((pct, idx) => {
     const r = calcApy(planParams.precio, pct, planParams.apy, planParams.plazo);
     cards.push({ pct: r.inicialPct, label: labels[idx], data: r, isCustom: (idx === IDX_CUSTOM) });
@@ -1661,7 +1668,7 @@ function renderCards(planParams, opts){
     const el = document.createElement('div');
     el.className = 'card' + (featured ? ' is-featured' : '') + (c.isCustom ? ' is-custom' : '') + (hidden ? ' is-hidden' : '');
     el.innerHTML = `
-      ${ c.isCustom ? '<div class="card-badge card-badge-edit">✎ Premium · editable</div>' : '<div class="card-badge">Recomendado</div>' }
+      ${ c.isCustom ? '<div class="card-badge card-badge-edit">✎ Editable</div>' : '<div class="card-badge">' + (i === 0 ? 'Mínima' : 'Máxima') + '</div>' }
       <div class="card-head">
         ${ c.isCustom ? `
           <div class="card-pct card-pct-edit">
@@ -1689,6 +1696,14 @@ function renderCards(planParams, opts){
         <span class="card-row-label">Cuota mensual</span>
         <span class="card-row-value">${fmtQ(cuotaMensualVista(c.data.cuotaQ))}</span>
       </div>
+      <div class="card-row">
+        <span class="card-row-label">Seguro (${String(_COND.seguroPct).replace('.', ',')}%)</span>
+        <span class="card-row-value">${fmtQ(planParams.precio * _COND.seguroPct / 100)}</span>
+      </div>
+      <div class="card-row">
+        <span class="card-row-label">Al firmar (inicial + seguro)</span>
+        <span class="card-row-value">$${(arriba(c.data.ini) + arriba(planParams.precio * _COND.seguroPct / 100)).toLocaleString('en-US')}</span>
+      </div>
 
       <div class="card-inicial">
         <span class="card-inicial-label">Inicial</span>
@@ -1714,7 +1729,7 @@ function renderCards(planParams, opts){
             <span class="slider-pct-now" id="sliderPctNow">${pctDisplay}%</span>
           </div>
           <input type="range" class="slider" id="customSlider"
-                 min="20" max="90" step="1" value="${Math.max(20, Math.min(90, pctDisplay))}"
+                 min="${Math.round(INICIAL_DEFECTO * 100)}" max="90" step="1" value="${Math.max(Math.round(INICIAL_DEFECTO * 100), Math.min(90, pctDisplay))}"
                  oninput="onSliderChange(this.value)">
         </div>
       ` : '' }
@@ -1756,14 +1771,14 @@ function onPctInputChange(rawVal){
 }
 
 function onPctInputBlur(){
-  if(!isFinite(CUSTOM_PCT) || CUSTOM_PCT < 0.05) CUSTOM_PCT = 0.05;
+  if(!isFinite(CUSTOM_PCT) || CUSTOM_PCT < INICIAL_DEFECTO) CUSTOM_PCT = INICIAL_DEFECTO;
   if(CUSTOM_PCT > 0.95) CUSTOM_PCT = 0.95;
   USER_INI_RAW = null;
   renderCards(getPlanParams(), { keepInputFocus: false });
 }
 
 function onIniInputBlur(){
-  if(CUSTOM_PCT < 0.05) CUSTOM_PCT = 0.05;
+  if(CUSTOM_PCT < INICIAL_DEFECTO) CUSTOM_PCT = INICIAL_DEFECTO;
   if(CUSTOM_PCT > 0.95) CUSTOM_PCT = 0.95;
   USER_INI_RAW = null;
   renderCards(getPlanParams(), { keepInputFocus: false });
@@ -1865,8 +1880,20 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+function _aplicarCondiciones(){
+  const c = (window.PagasiCatalog && PagasiCatalog.condiciones) || _COND;
+  document.getElementById('a_apy').value = c.apy;
+  syncApyFromInput(c.apy);
+}
+_aplicarCondiciones();
 updateApyTrack(document.getElementById('apySlider').value);
 render();
+if(window.PagasiCatalog && PagasiCatalog.cargar){
+  PagasiCatalog.cargar().then(function(){
+    const nuevos = _deCatalogo(); if(nuevos.length){ CATALOGO = nuevos; llenarModelos(); }
+    _aplicarCondiciones();
+  });
+}
 </script>
 </body>
 </html>
