@@ -26,7 +26,9 @@ ok('redondea hacia arriba como la calculadora (regla del 11-sep), sin sumar un d
 const e = C.calcExacto(1320, 12);
 ok('el cálculo exacto da la tasa de 650% efectiva anual', Math.abs(Math.pow(1 + (Math.pow(7.5, 1/24) - 1), 24) - 7.5) < 1e-9 && Math.abs(e.seguro - 59.4) < 1e-9);
 ok('plan() de la web usa la inicial mínima y 12 meses', JSON.stringify(C.plan(1)) === JSON.stringify(C.calcPlan(1320, 12)));
-ok('la lista de respaldo sigue con los 46 modelos', C.motos.length === 46 && C.base.length === 46 && C.origen === 'base');
+const N = C.base.length;
+ok('la lista de respaldo: los 46 de siempre y los de Veloz primero, con promo', N === 49 && C.motos.length === N && C.origen === 'base' && C.motos.slice(0, 3).every(m => m.sedeName === 'Veloz' && m.promo && m.tag === 'Promo'));
+ok('precios de Veloz: RZ 200 $1.390, CG200 rin de rayo $1.390 y rin de paleta $1.490', C.get(47).modelo === 'RZ 200' && C.get(47).precio === 1390 && C.get(48).precio === 1390 && C.get(49).precio === 1490);
 
 // Lo que llega de Firestore (formato REST)
 const docs = [
@@ -59,10 +61,10 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('sin internet: usa la última copia buena', C2.origen === 'cache' && C2.get(1).precio === 1400 && C2.condiciones.apy === 700);
   const C3 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:false, status:403, json:() => Promise.resolve({}) }) });
   await C3.cargar();
-  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 46 && C3.condiciones.apy === 650);
+  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 650);
   const C4 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:true, json:() => Promise.resolve({}) }) });
   await C4.cargar();
-  ok('catálogo vacío en la base: sigue la lista de respaldo', C4.origen === 'base' && C4.motos.length === 46);
+  ok('catálogo vacío en la base: sigue la lista de respaldo', C4.origen === 'base' && C4.motos.length === 49);
 
   // ── 2. El modulo del sistema ──
   function elemento(){ return { innerHTML:'', textContent:'', value:'', className:'', id:'', style:{}, dataset:{}, checked:false, classList:{add(){},remove(){},contains(){return false;},toggle(){}}, children:[], appendChild(){}, removeChild(){}, remove(){}, setAttribute(){}, getAttribute(){ return null; }, addEventListener(){}, removeEventListener(){}, focus(){}, click(){}, closest(){ return null; }, querySelector(){ return null; }, querySelectorAll(){ return []; } }; }
@@ -97,9 +99,9 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   S.currentUser = { uid:'liz', nombre:'Liz', rol:'Empleado', permisos:['dash','catalogo'] };
   ok('Liz, con el permiso "catalogo", sí entra (sin ser administradora)', ctx.catPuedeEditar() === true && ctx.catEsAdmin() === false);
   await ctx.catCargar(true);
-  ok('catálogo vacío: ofrece cargar los 46 modelos de la web', /Cargar los 46 modelos de la web/.test(ctx.PG.catalogo()));
+  ok('catálogo vacío: ofrece cargar los 49 modelos de la web', /Cargar los 49 modelos de la web/.test(ctx.PG.catalogo()));
   await ctx.catImportar();
-  ok('Liz carga los 46 modelos con precio, concesionario y foto', Object.keys(coleccion.docs).filter(k => k !== '_condiciones').length === 46 && coleccion.docs['1'].precio === 1320 && coleccion.docs['1'].sedeName === 'EK Bello Monte' && coleccion.docs['1'].disponible === true && /assets\/motos/.test(coleccion.docs['1'].image));
+  ok('Liz carga los 49 modelos con precio, concesionario y foto (Veloz con promo y primero)', coleccion.docs['47'].promo === true && coleccion.docs['47'].orden < 0 && coleccion.docs['47'].tag === '' && Object.keys(coleccion.docs).filter(k => k !== '_condiciones').length === 49 && coleccion.docs['1'].precio === 1320 && coleccion.docs['1'].sedeName === 'EK Bello Monte' && coleccion.docs['1'].disponible === true && /assets\/motos/.test(coleccion.docs['1'].image));
   ok('...pero las condiciones no: esas las crea un administrador', !coleccion.docs._condiciones);
   let h = ctx.PG.catalogo();
   ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$60<\/td>/.test(h) && /\$528<\/td>/.test(h) && /\$588<\/td>/.test(h) && /\$110 · \$89 · \$81/.test(h));
@@ -131,15 +133,15 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('Excel: las columnas que pidieron', filas[0].join('|') === 'MODELO|PRECIO AL CONTADO|COSTO DEL SEGURO|INICIAL MÍNIMA|CUOTA QUINCENAL 6 MESES|CUOTA QUINCENAL 9 MESES|CUOTA QUINCENAL 12 MESES');
   const nh = filas.find(f => f[0] === 'NEW HORSE 150');
   ok('Excel: los mismos montos que la web (precio $1.400, seguro 5% = $70, inicial $560)', nh && nh[1] === 1400 && nh[2] === 70 && nh[3] === 560 && nh[6] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal);
-  ok('Excel: un renglón por modelo, sin el eliminado', filas.length === 1 + 45 && !filas.some(f => f[0] === coleccion.docs['3'].modelo));
+  ok('Excel: un renglón por modelo, sin el eliminado', filas.length === 1 + 48 && !filas.some(f => f[0] === coleccion.docs['3'].modelo));
 
   // Nuevo modelo
   ctx.catNuevoModelo();
   Object.assign(doc.getElementById('cm_modelo'), { value:'nueva 250' }); doc.getElementById('cm_precio').value = '2100'; doc.getElementById('cm_sede').value = 'Boleita';
   doc.getElementById('cm_name').value = ''; doc.getElementById('cm_cc').value = '250cc'; doc.getElementById('cm_type').value = ''; doc.getElementById('cm_cat').value = ''; doc.getElementById('cm_tag').value = ''; doc.getElementById('cm_disp').checked = true;
   ctx.S.saveFn(); await new Promise(r => setImmediate(r));
-  const nuevo = coleccion.docs['47'];
-  ok('nuevo modelo: toma el número siguiente, en mayúsculas y con el código del concesionario', nuevo && nuevo.id === 47 && nuevo.modelo === 'NUEVA 250' && nuevo.name === 'Nueva 250' && nuevo.sede === coleccion.docs['18'].sede && nuevo.disponible === true);
+  const nuevo = coleccion.docs['50'];
+  ok('nuevo modelo: toma el número siguiente, en mayúsculas y con el código del concesionario', nuevo && nuevo.id === 50 && nuevo.modelo === 'NUEVA 250' && nuevo.name === 'Nueva 250' && nuevo.sede === coleccion.docs['18'].sede && nuevo.disponible === true);
 
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });

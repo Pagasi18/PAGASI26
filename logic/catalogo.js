@@ -72,8 +72,8 @@ function catImportar(){
   nuevos.forEach(function(m){
     batch.set(db.collection('catalogo').doc(String(m.id)), {
       id: m.id, modelo: m.modelo, name: m.name, sede: m.sede, sedeName: m.sedeName, precio: m.precio,
-      cat: m.cat || '', type: m.type || '', cc: m.cc || '', tag: m.tag || '', image: m.image || '',
-      disponible: true, orden: m.id, actualizadoPor: quien, actualizadoEn: ahora
+      cat: m.cat || '', type: m.type || '', cc: m.cc || '', tag: m.promo ? '' : (m.tag || ''), promo: !!m.promo, image: m.image || '',
+      disponible: true, orden: (m.orden != null ? m.orden : m.id), actualizadoPor: quien, actualizadoEn: ahora
     });
   });
   // Las condiciones las crea un administrador (las Reglas no dejan a nadie mas)
@@ -110,6 +110,18 @@ function catDisponible(id, si){
     toast(m.modelo + (m.disponible ? ' vuelve a verse en la web' : ' ya no se ve en la web'), 'info');
     nav('catalogo');
   }).catch(function(e){ m.disponible = antes; _catError(e); nav('catalogo'); });
+}
+
+// Promo: la burbuja "Promo" en la web y en la portada (Adam, 13-oct-2026)
+function catPromo(id, si){
+  if(!catPuedeEditar()) return;
+  var m = _catLocal(id); if(!m) return;
+  var antes = !!m.promo; m.promo = !!si;
+  return _catGuardar(m.id, { promo: m.promo }).then(function(){
+    if(typeof logActividad === 'function') logActividad('catalogo_promo', 'catalogo', String(m.id), { modelo: m.modelo, promo: m.promo });
+    toast(m.modelo + (m.promo ? ': sale con la burbuja de promo, primero en la portada' : ': sin promo'), 'info');
+    nav('catalogo');
+  }).catch(function(e){ m.promo = antes; _catError(e); nav('catalogo'); });
 }
 
 // Eliminar no borra el documento: lo marca, deja de verse en la web y en esta tabla.

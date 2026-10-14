@@ -1008,7 +1008,7 @@ body.pg-site{font-weight:500}
 .pg-plazos{display:flex;gap:6px;border:1px solid var(--pg-line);border-radius:12px;padding:4px}
 .pg-plazos button{flex:1;font:inherit;font-size:13px;font-weight:800;padding:10px 6px;border:0;border-radius:9px;background:transparent;color:var(--pg-muted);cursor:pointer}
 .pg-plazos button[aria-pressed=true]{background:#eaf2ff;color:var(--pg-blue)}
-.pg-flip-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:4px 0 12px}
+.pg-flip-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:4px 0 12px}
 .pg-flip{position:relative;perspective:1100px;min-height:250px;cursor:pointer;outline:none;-webkit-tap-highlight-color:transparent}
 .pg-flip-inner{position:absolute;inset:0;transition:transform .65s cubic-bezier(.2,.75,.2,1);transform-style:preserve-3d}
 @media (hover:hover){.pg-flip:hover .pg-flip-inner{transform:rotateY(180deg)}}
@@ -1039,3 +1039,9 @@ body.pg-site{font-weight:500}
 .pg-flip-hint{font-size:11px;color:var(--pg-muted);margin:0 0 14px;text-align:center}
 @media (max-width:640px){.pg-flip-grid{grid-template-columns:1fr}.pg-flip{min-height:218px}}
 @media (prefers-reduced-motion:reduce){.pg-flip-inner{transition:none}}
+/* ── Burbuja de promo (Veloz, 13-oct-2026) ───────────────────────────────────── */
+.pg-tag-promo,.pg-featured-tag-promo{background:linear-gradient(135deg,#ff7a1a,#ff3d3d);color:#fff;box-shadow:0 6px 16px -6px rgba(255,61,61,.6)}
+.pg-tag-promo{animation:pg-promo-pulso 2.4s ease-in-out infinite}
+@keyframes pg-promo-pulso{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+.pg-featured-tabs .pg-tab-promo[aria-pressed=true]{background:linear-gradient(135deg,#ff7a1a,#ff3d3d);color:#fff;border-color:transparent}
+@media (prefers-reduced-motion:reduce){.pg-tag-promo{animation:none}}

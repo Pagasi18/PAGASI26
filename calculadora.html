@@ -730,12 +730,12 @@ input[type=number] { -moz-appearance: textfield; }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);   /* 3 tarjetas: minima · maxima · preferida (13-oct-2026) */
+  grid-template-columns: repeat(2, 1fr);   /* 2 tarjetas: minima · preferida (13-oct-2026) */
   gap: 14px;
   margin-bottom: 36px;
 }
 @media (min-width: 1101px) {
-  .cards[data-n="2"] { grid-template-columns: repeat(2, 1fr); gap: 18px; }   /* preferida oculta */
+  .cards[data-n="1"] { grid-template-columns: minmax(0, 520px); justify-content: center; }   /* preferida oculta */
   .cards[data-n="5"] .card { padding: 28px 18px 22px; }
   .cards[data-n="5"] .card-pct,
   .cards[data-n="5"] .card-pct-input { font-size: 50px; letter-spacing: -2.5px; }
@@ -745,7 +745,7 @@ input[type=number] { -moz-appearance: textfield; }
   .cards[data-n="5"] .card-inicial { padding: 14px 12px; }
   .cards[data-n="5"] .card-inicial-label { letter-spacing: .08em; }
 }
-@media (max-width: 1100px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1100px) { .cards { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 800px)  { .cards { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 580px)  { .cards { grid-template-columns: 1fr; } }
 
@@ -1363,14 +1363,14 @@ input[type=number] { -moz-appearance: textfield; }
 <script>
 let CUSTOM_VISIBLE = true;
 let CUSTOM_SLIDER_VISIBLE = false;
-// Tres tarjetas (Adam, 13-oct-2026): inicial minima, inicial maxima y "tu inicial
-// preferida", que arranca en la minima. Se quitaron las de 45%, 50% y 55%. Los porcentajes,
+// Dos tarjetas (Adam, 13-oct-2026): inicial minima y "tu inicial preferida", que arranca
+// en la minima. Se quitaron las de 45%, 50% y 55%, y despues la maxima ("no tenemos inicial
+// maxima"). Los porcentajes,
 // la tasa y el seguro salen del catalogo (modulo Catalogo del sistema), igual que en la web.
 const _COND = (window.PagasiCatalog && PagasiCatalog.condiciones) || { apy:650, seguroPct:4.5, inicialMin:40, inicialMax:60, plazos:[6,9,12] };
 const INICIAL_DEFECTO = _COND.inicialMin / 100;
-const INICIAL_MAXIMA = _COND.inicialMax / 100;
 const IDX_DESTACADA = 0;   // la minima, destacada
-const IDX_CUSTOM = 2;      // la preferida: el vendedor la edita, arranca en la minima
+const IDX_CUSTOM = 1;      // la preferida: el vendedor la edita, arranca en la minima
 let CUSTOM_PCT = INICIAL_DEFECTO;
 let USER_INI_RAW = null;
 let CURRENT_PLAZO = 12;
@@ -1527,8 +1527,8 @@ function calcCardsFromPlan(planParams){
   const cards = [];
   // En orden de 40% a 60%: la de 40% es la recomendada (destacada) y la ultima,
   // Premium, es la editable (Adam, 11-sep-2026).
-  const targetPcts = [INICIAL_DEFECTO, INICIAL_MAXIMA, CUSTOM_PCT];
-  const labels     = ['Inicial mínima', 'Inicial máxima', 'Tu inicial preferida'];
+  const targetPcts = [INICIAL_DEFECTO, CUSTOM_PCT];
+  const labels     = ['Inicial mínima', 'Tu inicial preferida'];
   targetPcts.forEach((pct, idx) => {
     const r = calcApy(planParams.precio, pct, planParams.apy, planParams.plazo);
     cards.push({ pct: r.inicialPct, label: labels[idx], data: r, isCustom: (idx === IDX_CUSTOM) });
@@ -1668,7 +1668,7 @@ function renderCards(planParams, opts){
     const el = document.createElement('div');
     el.className = 'card' + (featured ? ' is-featured' : '') + (c.isCustom ? ' is-custom' : '') + (hidden ? ' is-hidden' : '');
     el.innerHTML = `
-      ${ c.isCustom ? '<div class="card-badge card-badge-edit">✎ Editable</div>' : '<div class="card-badge">' + (i === 0 ? 'Mínima' : 'Máxima') + '</div>' }
+      ${ c.isCustom ? '<div class="card-badge card-badge-edit">✎ Editable</div>' : '<div class="card-badge">Mínima</div>' }
       <div class="card-head">
         ${ c.isCustom ? `
           <div class="card-pct card-pct-edit">

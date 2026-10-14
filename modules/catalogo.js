@@ -36,7 +36,7 @@ PG.catalogo = function(){
         ? '<input class="fi" id="cat_apy" type="number" step="0.01" value="' + c.apy + '" style="width:130px">'
         : '<div style="font-weight:800;font-size:15px;padding:8px 0">' + c.apy + '% <span style="font-size:11px;color:var(--ink3);font-weight:600">· la cambia un administrador</span></div>') + '</div>'
     + '<div class="fg" style="min-width:150px"><label>Seguro (% del precio de contado)</label><input class="fi" id="cat_seguro" type="number" step="0.01" value="' + c.seguroPct + '" style="width:130px"></div>'
-    + '<div style="font-size:12px;color:var(--ink2);line-height:1.7;padding-bottom:6px">Inicial mínima <b>' + c.inicialMin + '%</b> · máxima <b>' + c.inicialMax + '%</b> · plazos de <b>' + c.plazos.join(', ') + ' meses</b><br>El seguro se paga junto con la inicial.</div>'
+    + '<div style="font-size:12px;color:var(--ink2);line-height:1.7;padding-bottom:6px">Inicial desde <b>' + c.inicialMin + '%</b> · plazos de <b>' + c.plazos.join(', ') + ' meses</b><br>El seguro se paga junto con la inicial.</div>'
     + '<button class="btn btn-p btn-sm" style="margin-left:auto" onclick="catGuardarCondiciones()">Guardar condiciones</button>'
     + '</div>' + (!_cat.cond ? '<div style="font-size:11.5px;color:var(--amber);margin-top:8px">Todavía no están guardadas: se usan las de la web (' + c.apy + '% y ' + seg + '%).' + (admin ? ' Guárdalas una vez.' : ' Un administrador tiene que guardarlas primero.') + '</div>' : '')
     + '</div></div>';
@@ -53,7 +53,7 @@ PG.catalogo = function(){
     var id = _catId(m.id), b = catPlan(m, 12, c.inicialMin / 100), visible = m.disponible !== false;
     var busca = (typeof PagasiCatalog !== 'undefined' ? PagasiCatalog.normalize(m.modelo + ' ' + (m.name || '') + ' ' + (m.sedeName || '')) : '');
     var titulo = '';
-    if(m.sedeName !== grupoAnt){ grupoAnt = m.sedeName; titulo = '<tr class="cat-grupo"><td colspan="9" style="background:var(--surf2);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);padding:8px 12px">' + E(m.sedeName || 'Sin concesionario') + '</td></tr>'; }
+    if(m.sedeName !== grupoAnt){ grupoAnt = m.sedeName; titulo = '<tr class="cat-grupo"><td colspan="10" style="background:var(--surf2);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);padding:8px 12px">' + E(m.sedeName || 'Sin concesionario') + '</td></tr>'; }
     return titulo + '<tr data-busca="' + E(busca) + '"' + (visible ? '' : ' style="opacity:.55"') + '>'
       + '<td>' + foto(m) + '</td>'
       + '<td><div style="font-weight:800">' + E(m.modelo) + '</div><div class="tds">' + E(m.name || '') + (m.cc ? ' · ' + E(m.cc) : '') + '</div></td>'
@@ -63,6 +63,7 @@ PG.catalogo = function(){
       + '<td style="text-align:right;font-weight:700">' + M(b.alFirmar) + '</td>'
       + '<td style="text-align:right;white-space:nowrap">' + CAT_PLAZOS_EXCEL.map(function(n){ return M(catPlan(m, n, c.inicialMin / 100).quincenal); }).join(' · ') + '</td>'
       + '<td style="text-align:center"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox"' + (visible ? ' checked' : '') + ' onchange="catDisponible(' + id + ',this.checked)" style="width:16px;height:16px;accent-color:var(--green)">' + (visible ? 'Sí' : 'No') + '</label></td>'
+      + '<td style="text-align:center"><input type="checkbox"' + (m.promo ? ' checked' : '') + ' onchange="catPromo(' + id + ',this.checked)" title="Burbuja de promo en la web y primero en la portada" style="width:16px;height:16px;accent-color:#ff5a1f"></td>'
       + '<td style="white-space:nowrap"><button class="btn btn-g btn-xs" onclick="catEditarModelo(' + id + ')">✎ Editar</button> <button class="btn btn-g btn-xs" onclick="catEliminar(' + id + ')" title="Eliminar del catálogo">🗑</button></td>'
       + '</tr>';
   }).join('');
@@ -72,7 +73,7 @@ PG.catalogo = function(){
     + '<input class="fi" placeholder="Buscar modelo o concesionario…" value="' + E(window._catQ || '') + '" oninput="catFiltrar(this.value)" style="max-width:280px;margin-left:auto">'
     + (lista.length < PagasiCatalog.base.length ? '<button class="btn btn-g btn-sm" onclick="catImportar()" title="Agregar los modelos de la lista original que falten">Traer los que faltan</button>' : '')
     + '</div><div style="overflow-x:auto"><table class="tbl" id="cat-tabla" style="width:100%"><thead><tr>'
-    + '<th>Foto</th><th>Modelo</th><th>Precio contado</th><th style="text-align:right">Seguro ' + E(seg) + '%</th><th style="text-align:right">Inicial ' + c.inicialMin + '%</th><th style="text-align:right">Al firmar</th><th style="text-align:right">Cuota ' + CAT_PLAZOS_EXCEL.join(' · ') + ' meses</th><th style="text-align:center">En la web</th><th></th>'
+    + '<th>Foto</th><th>Modelo</th><th>Precio contado</th><th style="text-align:right">Seguro ' + E(seg) + '%</th><th style="text-align:right">Inicial ' + c.inicialMin + '%</th><th style="text-align:right">Al firmar</th><th style="text-align:right">Cuota ' + CAT_PLAZOS_EXCEL.join(' · ') + ' meses</th><th style="text-align:center">En la web</th><th style="text-align:center">Promo</th><th></th>'
     + '</tr></thead><tbody>' + filas + '</tbody></table></div>'
     + '<div style="font-size:11px;color:var(--ink3);padding:10px 16px">El precio se guarda al salir de la casilla. Las cuotas son las mismas que ve el cliente en la web (redondeadas hacia arriba), con la inicial mínima.</div></div>'
     + '</div>';

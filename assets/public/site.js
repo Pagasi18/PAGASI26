@@ -1,6 +1,6 @@
 /* Presentation and navigation only; the public plan lives in catalog.js.
    Desde el 13-oct-2026 espera a que catalog.js lea el catalogo de la base (con tope de
-   2,5 s) y el simulador muestra tres tarjetas que giran: inicial minima, maxima y preferida. */
+   2,5 s) y el simulador muestra dos tarjetas que giran: inicial minima y preferida. */
 (function(root){
   'use strict';
   const paths={arrow:'M5 12h14m-6-6 6 6-6 6',search:'M21 21l-5-5 M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0',user:'M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',menu:'M4 6h16M4 12h16M4 18h16',check:'m7 12 3 3 7-7 M22 12a10 10 0 1 1-5-8.7',shield:'M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z m-4-10 3 3 5-6',pin:'M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0',clock:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0 M12 6v6l4 2',phone:'M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z M10 5h4 M11 19h2',calculator:'M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z M8 6h8v4H8Z M8 14h1M12 14h1M16 14h1M8 18h1M12 18h1M16 18h1',document:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6 M8 12h8M8 16h5',bike:'M8 17a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M24 17a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 17l5-8h6l5 8 M8 6h4 M16 5h2l2 12 M9 9l5 8H4',chat:'M21 11.5a9 9 0 0 1-13.3 8L3 21l1.5-4.7A9 9 0 1 1 21 11.5Z M8 8c0 4 4 8 8 8 M8 8l2 2-1 2 M16 16l-2-2-2 1',filter:'M4 5h16 M7 12h10 M10 19h4',spark:'m13 2-9 12h7l-1 8 10-12h-7Z',chevron:'m6 9 6 6 6-6',wallet:'M3 5h16v15H3Z M3 5V3h14v2 M15 11h6v5h-6Z',heart:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'};
@@ -40,11 +40,11 @@
   function picture(m){return m.image?'<img src="'+escape(m.image)+'" alt="'+escape(m.name)+'" width="400" height="300" loading="lazy" decoding="async">':'<div class="pg-photo-missing">'+icon('bike')+'<span>Fotografía por confirmar</span></div>';}
   function card(m){
     const p=D.plan(m.id);
-    return '<article class="pg-moto-card" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':'')+'">'+escape(m.tag)+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial + seguro</span><strong class="pg-card-initial">'+D.money(p.alFirmar)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
+    return '<article class="pg-moto-card" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':(m.tag==='Promo'?'pg-tag-promo':''))+'">'+escape(m.tag)+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial + seguro</span><strong class="pg-card-initial">'+D.money(p.alFirmar)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
   }
   function featuredCard(m){
     const p=D.plan(m.id),url='simulador.html?moto='+m.id;
-    return '<article class="pg-featured-card" data-moto-id="'+m.id+'"><div class="pg-featured-heading"><div class="pg-featured-meta"><span>'+escape(m.cat)+'</span>'+(m.tag?'<span class="pg-featured-tag'+(m.tag==='Más vendida'?' pg-featured-tag-green':'')+'">'+escape(m.tag)+'</span>':'')+'</div><h3><a href="'+url+'">'+escape(m.name)+'</a></h3></div><a class="pg-featured-visual" href="'+url+'" aria-label="Ver '+escape(m.name)+'"><span class="pg-featured-photo pg-photo-frame">'+picture(m)+'</span></a><div class="pg-featured-details"><p class="pg-featured-dealer">'+icon('pin')+escape(m.sedeName)+'</p><div class="pg-featured-plan"><div><span>Cuota quincenal</span><strong class="pg-featured-quota">'+D.money(p.quincenal)+'</strong></div><div><span>Inicial '+Math.round(p.pct*100)+'% + seguro</span><strong class="pg-featured-initial">'+D.money(p.alFirmar)+'</strong></div></div><div class="pg-featured-cash"><span>Precio de contado</span><strong>'+D.money(m.precio)+'</strong></div><a class="pg-featured-cta" href="'+url+'">Ver moto y cuotas <span>'+icon('arrow')+'</span></a></div></article>';
+    return '<article class="pg-featured-card" data-moto-id="'+m.id+'"><div class="pg-featured-heading"><div class="pg-featured-meta"><span>'+escape(m.cat)+'</span>'+(m.tag?'<span class="pg-featured-tag'+(m.tag==='Más vendida'?' pg-featured-tag-green':(m.tag==='Promo'?' pg-featured-tag-promo':''))+'">'+escape(m.tag)+'</span>':'')+'</div><h3><a href="'+url+'">'+escape(m.name)+'</a></h3></div><a class="pg-featured-visual" href="'+url+'" aria-label="Ver '+escape(m.name)+'"><span class="pg-featured-photo pg-photo-frame">'+picture(m)+'</span></a><div class="pg-featured-details"><p class="pg-featured-dealer">'+icon('pin')+escape(m.sedeName)+'</p><div class="pg-featured-plan"><div><span>Cuota quincenal</span><strong class="pg-featured-quota">'+D.money(p.quincenal)+'</strong></div><div><span>Inicial '+Math.round(p.pct*100)+'% + seguro</span><strong class="pg-featured-initial">'+D.money(p.alFirmar)+'</strong></div></div><div class="pg-featured-cash"><span>Precio de contado</span><strong>'+D.money(m.precio)+'</strong></div><a class="pg-featured-cta" href="'+url+'">Ver moto y cuotas <span>'+icon('arrow')+'</span></a></div></article>';
   }
   function setupNav(){
     const toggle=document.querySelector('.pg-menu-toggle'),nav=document.querySelector('.pg-nav-links');
@@ -71,14 +71,20 @@
 
     document.querySelectorAll('[data-plan-id]').forEach(el=>{const p=D.plan(el.dataset.planId);if(p&&p[el.dataset.planField]!==undefined)el.textContent=D.money(p[el.dataset.planField]);});
     const grid=document.querySelector('[data-home-grid]');if(!grid)return;
-    const groups={all:[1,5,8],trabajo:[1,2,27],ciudad:[3,11,35]};
-    function show(use){grid.innerHTML=groups[use].map(id=>featuredCard(D.get(id))).join('');bindImageErrors(grid);}
-    document.querySelectorAll('[data-home-use]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-home-use]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));show(b.dataset.homeUse);}));show('all');
+    document.querySelectorAll('[data-total-motos]').forEach(el=>{el.textContent='Ver las '+D.motos.length+' motos';});
+    const promo=D.motos.filter(m=>m.promo||m.tag==='Promo').map(m=>m.id);
+    const groups={promo,all:[1,5,8],trabajo:[1,2,27],ciudad:[3,11,35]};
+    const tabPromo=document.querySelector('[data-home-use="promo"]');if(tabPromo)tabPromo.hidden=!promo.length;
+    function show(use){grid.innerHTML=(groups[use]||[]).map(id=>D.get(id)).filter(Boolean).map(featuredCard).join('');bindImageErrors(grid);}
+    function elegir(use){document.querySelectorAll('[data-home-use]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.homeUse===use)));show(use);}
+    document.querySelectorAll('[data-home-use]').forEach(b=>b.addEventListener('click',()=>elegir(b.dataset.homeUse)));elegir(promo.length&&tabPromo?'promo':'all');
   }
   function setupCatalog(){
     const form=document.getElementById('catalogFilters');if(!form)return;
     const q=document.getElementById('catalogSearch'),sort=document.getElementById('catalogSort'),grid=document.getElementById('catGrid'),count=document.getElementById('catalogCount');
     const sede=document.getElementById('filterSede'),initial=document.getElementById('filterInitial'),quota=document.getElementById('filterQuota');
+    const yaHay=new Set([...sede.options].map(o=>o.value));
+    D.motos.forEach(m=>{if(m.sede&&!yaHay.has(m.sede)){yaHay.add(m.sede);const o=document.createElement('option');o.value=m.sede;o.textContent=m.sedeName;sede.append(o);}});
     const params=new URLSearchParams(location.search);let use=params.get('uso')||'all';if(!['all','trabajo','ciudad','deportiva'].includes(use))use='all';
     q.value=params.get('q')||'';if(params.has('sede'))sede.value=params.get('sede');if(!sede.value)sede.value='all';
     const topes=D.motos.reduce((t,m)=>{const p=D.plan(m.id);return {ini:Math.max(t.ini,p.alFirmar),cuota:Math.max(t.cuota,p.quincenal)};},{ini:0,cuota:0});
@@ -143,7 +149,8 @@
       document.getElementById('simPrice').textContent=D.money(m.precio);
       const base=D.plan(m.id,c.inicialMin/100,plazo);
       document.getElementById('simSeguro').textContent=D.money(base.seguro);document.getElementById('simSeguroLbl').textContent='Seguro ('+String(c.seguroPct).replace('.',',')+'%) · va con la inicial';
-      cardsBox.innerHTML=flipCard('min','Inicial mínima',base,c)+flipCard('max','Inicial máxima',D.plan(m.id,c.inicialMax/100,plazo),c)+flipCard('pref','Tu inicial preferida',D.plan(m.id,pPref,plazo),c);
+      // Sin inicial maxima (Adam, 13-oct-2026): la minima y la que el cliente prefiera
+      cardsBox.innerHTML=flipCard('min','Inicial mínima',base,c)+flipCard('pref','Tu inicial preferida',D.plan(m.id,pPref,plazo),c);
       plazosBox.querySelectorAll('[data-plazo]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.plazo)===plazo)));
       document.getElementById('simBtn').href='solicitar.html?moto='+m.id;
       gallery.hidden=!m.image;gallery.src=m.id===5?'assets/public/ek-xpress-hero.webp':m.image||'';gallery.alt=m.name;fitPhoto(gallery);if(photoObserver)photoObserver.observe(gallery.parentElement);document.getElementById('galleryMissing').hidden=!!m.image;

@@ -6,6 +6,13 @@
 (function(root){
 'use strict';
 const BASE = [
+  // Veloz, concesionario nuevo (Adam, 13-oct-2026): van primero y con la burbuja de promo
+  { "id": 47, "sede": "veloz", "sedeName": "Veloz", "modelo": "RZ 200", "precio": 1390, "cat": "200cc · Clásica", "tag": "Promo", "promo": true, "orden": -30,
+    "name": "RZ 200", "cc": "200cc", "type": "Clásica · Trabajo", "image": "assets/motos/veloz-rz-200.jpg", "meses": 12 },
+  { "id": 48, "sede": "veloz", "sedeName": "Veloz", "modelo": "CG200 RIN DE RAYO", "precio": 1390, "cat": "200cc · Clásica", "tag": "Promo", "promo": true, "orden": -29,
+    "name": "CG200 Rin de rayo", "cc": "200cc", "type": "Clásica · Trabajo", "image": "assets/motos/veloz-cg200-rayo.jpg", "meses": 12 },
+  { "id": 49, "sede": "veloz", "sedeName": "Veloz", "modelo": "CG200 RIN DE PALETA", "precio": 1490, "cat": "200cc · Clásica", "tag": "Promo", "promo": true, "orden": -28,
+    "name": "CG200 Rin de paleta", "cc": "200cc", "type": "Clásica · Trabajo", "image": "assets/motos/veloz-cg200-paleta.jpg", "meses": 12 },
   {
     "id": 1,
     "sede": "ek",
@@ -731,7 +738,8 @@ function desdeDocumentos(docs){
     if(f.eliminado === true) return;
     const nombre = f.name || String(f.modelo).toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
     motos.push(Object.freeze({ id, sede: f.sede || '', sedeName: f.sedeName || '', modelo: String(f.modelo), precio,
-      cat: f.cat || '', tag: f.tag || '', name: nombre, cc: f.cc || '—', type: f.type || '', image: f.image || '',
+      cat: f.cat || '', tag: f.promo === true ? 'Promo' : (f.tag === 'Promo' ? '' : (f.tag || '')), promo: f.promo === true,
+      name: nombre, cc: f.cc || '—', type: f.type || '', image: f.image || '',
       meses: 12, disponible: f.disponible !== false, orden: num(f.orden, id) }));
   });
   motos.sort((a, b) => (a.orden - b.orden) || (a.id - b.id));
