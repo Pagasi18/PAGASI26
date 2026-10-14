@@ -1088,3 +1088,40 @@ body.pg-site{font-weight:500}
 .pg-featured-section .pg-promo-banner p,.pg-featured-section .pg-promo-banner p b{color:#fff!important;font-size:15px!important;opacity:.97}
 .pg-featured-section .pg-promo-banner p b{font-weight:900}
 .pg-featured-section .pg-promo-card .pg-promo-cat{color:#5cd6ff!important;font-size:11px!important}
+/* ── Vitrina compacta: 4 por fila, foto limpia sobre blanco (13-oct-2026, "no tan grande") ── */
+.pg-card-grid.pg-grid-promo{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.pg-grid-promo .pg-promo-banner{padding:14px 20px;gap:14px;border-radius:18px}
+.pg-grid-promo .pg-promo-banner-fuego{font-size:30px}
+.pg-grid-promo .pg-promo-banner strong{font-size:clamp(20px,2vw,26px)}
+.pg-featured-section .pg-grid-promo .pg-promo-banner p,.pg-featured-section .pg-grid-promo .pg-promo-banner p b{font-size:13.5px!important}
+.pg-grid-promo .pg-promo-banner-cta{padding:10px 16px;font-size:13px}
+.pg-grid-promo .pg-promo-card{border-radius:18px}
+.pg-grid-promo .pg-promo-foto{aspect-ratio:auto;height:168px;background:#fff;padding:10px 12px 6px}
+.pg-grid-promo .pg-promo-foto:after{display:none}
+.pg-grid-promo .pg-promo-foto img{object-fit:contain}
+.pg-grid-promo .pg-promo-card:hover .pg-promo-foto img{transform:scale(1.05)}
+.pg-grid-promo .pg-promo-cinta{top:10px;left:10px;font-size:10.5px;padding:5px 10px}
+.pg-grid-promo .pg-promo-cuerpo{padding:12px 14px 14px;gap:8px}
+.pg-featured-section .pg-grid-promo .pg-promo-card .pg-promo-cat{font-size:10px!important;letter-spacing:.06em}
+.pg-grid-promo .pg-promo-cuerpo h3{font-size:18px;margin:-4px 0 0;color:#fff}
+.pg-grid-promo .pg-promo-cuota span{font-size:11px}
+.pg-grid-promo .pg-promo-cuota strong{font-size:36px}
+.pg-grid-promo .pg-promo-cuota small{font-size:11px}
+.pg-grid-promo .pg-promo-datos{gap:6px}
+.pg-grid-promo .pg-promo-datos div{padding:7px 9px;border-radius:10px}
+.pg-grid-promo .pg-promo-datos span{font-size:10px}
+.pg-grid-promo .pg-promo-datos b{font-size:15px}
+.pg-grid-promo .pg-promo-cta{padding:10px;font-size:13.5px;border-radius:11px}
+.pg-grid-promo .pg-promo-cta .pg-icon{width:15px;height:15px}
+.pg-promo-cinta-nuevo{background:#fff!important;color:#065cff!important;border:1.5px solid #065cff;box-shadow:none!important;animation:none!important}
+.pg-promo-porconfirmar span{display:block;font-size:11px;color:#a9b7d4}
+.pg-promo-porconfirmar strong{display:block;font-size:26px;font-weight:900;letter-spacing:-.03em;color:#fff;line-height:1.15}
+.pg-promo-cta-wa{background:linear-gradient(135deg,#1ebe5d,#25d366)!important;box-shadow:0 12px 22px -12px rgba(30,190,93,.9)!important}
+@media(max-width:1100px){.pg-card-grid.pg-grid-promo{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:820px){.pg-card-grid.pg-grid-promo{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+@media(max-width:600px){.pg-grid-promo .pg-promo-foto{height:120px;padding:6px}.pg-grid-promo .pg-promo-cuerpo{padding:10px 10px 12px;gap:6px}.pg-grid-promo .pg-promo-cuerpo h3{font-size:15px}.pg-grid-promo .pg-promo-cuota strong{font-size:28px}.pg-grid-promo .pg-promo-datos{grid-template-columns:1fr}.pg-grid-promo .pg-promo-datos div:last-child{display:none}.pg-grid-promo .pg-promo-cta{font-size:12px;padding:9px 6px}.pg-promo-porconfirmar strong{font-size:20px}}
+/* La portada fija 3/2/1 columnas para [data-home-grid]: la vitrina de promo manda 4/3/2/2 */
+.pg-featured-section [data-home-grid].pg-grid-promo{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+@media(max-width:1100px){.pg-featured-section [data-home-grid].pg-grid-promo{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:820px){.pg-featured-section [data-home-grid].pg-grid-promo{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+@media(max-width:600px){.pg-featured-section [data-home-grid].pg-grid-promo{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.pg-grid-promo .pg-promo-banner{padding:12px 14px}.pg-grid-promo .pg-promo-banner-fuego{display:none}.pg-grid-promo .pg-promo-banner-cta{padding:9px 12px}.pg-grid-promo .pg-promo-cinta{font-size:9px;padding:4px 8px;top:6px;left:6px}.pg-featured-section .pg-grid-promo .pg-promo-card .pg-promo-cat{font-size:8.5px!important}}

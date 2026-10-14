@@ -50,11 +50,31 @@
     return '<article class="pg-promo-card" data-moto-id="'+m.id+'">'
       +'<a class="pg-promo-foto" href="'+url+'" aria-label="Ver '+escape(m.name)+'">'
       +(m.image?'<img src="'+escape(m.image)+'" alt="'+escape(m.name)+'" loading="lazy" decoding="async">':'<span class="pg-promo-sinfoto">'+icon('bike')+'</span>')
-      +'<span class="pg-promo-cinta">⚡ PROMO</span><span class="pg-promo-sede">'+icon('pin')+escape(m.sedeName)+'</span></a>'
-      +'<div class="pg-promo-cuerpo"><p class="pg-promo-cat">'+escape(m.cat)+'</p><h3><a href="'+url+'">'+escape(m.name)+'</a></h3>'
+      +'<span class="pg-promo-cinta">⚡ PROMO</span></a>'
+      +'<div class="pg-promo-cuerpo"><p class="pg-promo-cat">'+escape([m.sedeName,m.cat].filter(Boolean).join(' · '))+'</p><h3><a href="'+url+'">'+escape(m.name)+'</a></h3>'
       +'<div class="pg-promo-cuota"><span>Cuota quincenal</span><strong>'+D.money(p.quincenal)+'</strong><small>× '+p.totalCuotas+' cuotas</small></div>'
       +'<div class="pg-promo-datos"><div><span>Inicial + seguro</span><b>'+D.money(p.alFirmar)+'</b></div><div><span>Precio de contado</span><b>'+D.money(m.precio)+'</b></div></div>'
       +'<a class="pg-promo-cta" href="'+url+'">¡La quiero! '+icon('arrow')+'</a></div></article>';
+  }
+  // Veloz que aun no tienen precio en el catalogo (Adam, 13-oct-2026: "ponme todas las Veloz
+  // en la primera pagina"). Si Liz la carga con precio en el modulo, sale como promo y aqui se omite.
+  const PROXIMOS=[
+    {name:'DT 170',cat:'170cc · Doble propósito',image:'assets/motos/veloz-dt-170.jpg'},
+    {name:'La Rutera · HS-300-2A',cat:'300cc · Adventure',image:'assets/motos/veloz-hs-300-2a-rutera.jpg'},
+    {name:'La Aventurera · HS-300Y-8N',cat:'300cc · Adventure',image:'assets/motos/veloz-hs-300y-8n-aventurera.jpg'},
+    {name:'Scooter Keeway',cat:'Scooter',image:'assets/motos/veloz-scooter-keeway.jpg'},
+    {name:'Scooter Veloz',cat:'Scooter',image:'assets/motos/veloz-scooter-veloz.jpg'}];
+  function proximos(){
+    const ya=new Set(D.motos.map(m=>D.normalize(m.modelo+' '+m.name)));
+    return PROXIMOS.filter(p=>{const n=D.normalize(p.name.split(' · ').pop()),k=D.normalize(p.name.split(' · ')[0]);return ![...ya].some(x=>x.includes(n)||x.includes(k));});
+  }
+  function proximoCard(p){
+    const wa='https://wa.me/584242177798?text='+encodeURIComponent('Hola, quiero el precio de la '+p.name+' de Veloz.');
+    return '<article class="pg-promo-card pg-promo-proximo"><a class="pg-promo-foto" href="'+wa+'" target="_blank" rel="noopener" aria-label="Preguntar el precio de '+escape(p.name)+'">'
+      +'<img src="'+escape(p.image)+'" alt="'+escape(p.name)+'" loading="lazy" decoding="async"><span class="pg-promo-cinta pg-promo-cinta-nuevo">NUEVA</span></a>'
+      +'<div class="pg-promo-cuerpo"><p class="pg-promo-cat">Veloz · '+escape(p.cat)+'</p><h3>'+escape(p.name)+'</h3>'
+      +'<div class="pg-promo-porconfirmar"><span>Precio por confirmar</span><strong>Pregúntanos</strong></div>'
+      +'<a class="pg-promo-cta pg-promo-cta-wa" href="'+wa+'" target="_blank" rel="noopener">Pregunta el precio '+icon('arrow')+'</a></div></article>';
   }
   function promoBanner(motos){
     if(!motos.length)return '';
@@ -97,8 +117,9 @@
     const promo=D.motos.filter(m=>m.promo||m.tag==='Promo').map(m=>m.id);
     const groups={promo,all:[1,5,8],trabajo:[1,2,27],ciudad:[3,11,35]};
     const tabPromo=document.querySelector('[data-home-use="promo"]');if(tabPromo)tabPromo.hidden=!promo.length;
-    function show(use){const motos=(groups[use]||[]).map(id=>D.get(id)).filter(Boolean);
-      grid.innerHTML=use==='promo'?promoBanner(motos)+motos.map(promoCard).join(''):motos.map(featuredCard).join('');bindImageErrors(grid);}
+    function show(use){const motos=(groups[use]||[]).map(id=>D.get(id)).filter(Boolean),esP=use==='promo';
+      grid.classList.toggle('pg-grid-promo',esP);
+      grid.innerHTML=esP?promoBanner(motos)+motos.map(promoCard).join('')+proximos().map(proximoCard).join(''):motos.map(featuredCard).join('');bindImageErrors(grid);}
     function elegir(use){document.querySelectorAll('[data-home-use]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.homeUse===use)));show(use);}
     document.querySelectorAll('[data-home-use]').forEach(b=>b.addEventListener('click',()=>elegir(b.dataset.homeUse)));elegir(promo.length&&tabPromo?'promo':'all');
   }
