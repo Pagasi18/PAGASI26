@@ -749,6 +749,15 @@ input[type=number] { -moz-appearance: textfield; }
 @media (max-width: 800px)  { .cards { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 580px)  { .cards { grid-template-columns: 1fr; } }
 
+.card-face { display: flex; flex-direction: column; flex: 1; }
+.card-face[hidden] { display: none; }
+.card.gira-a { transform: perspective(1100px) rotateY(90deg) !important; transition: transform .2s ease-in !important; }
+.card.gira-b { transform: perspective(1100px) rotateY(-90deg) !important; transition: none !important; }
+.card-flip-btn { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--white); color: var(--ink); font-size: 16px; line-height: 1; cursor: pointer; z-index: 3; display: grid; place-items: center; }
+.card-flip-btn:hover { border-color: var(--p); color: var(--p); }
+.card.is-featured .card-flip-btn { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.28); }
+.card.is-volteada { cursor: pointer; }
+.card-back-hint { margin-top: 12px; font-size: 11px; text-align: center; opacity: .6; }
 .card {
   background: var(--white);
   border: 1px solid var(--line);
@@ -1667,7 +1676,7 @@ function renderCards(planParams, opts){
 
     const el = document.createElement('div');
     el.className = 'card' + (featured ? ' is-featured' : '') + (c.isCustom ? ' is-custom' : '') + (hidden ? ' is-hidden' : '');
-    el.innerHTML = `
+    el.innerHTML = `<div class="card-face card-face-front">
       ${ c.isCustom ? '<div class="card-badge card-badge-edit">✎ Editable</div>' : '<div class="card-badge">Mínima</div>' }
       <div class="card-head">
         ${ c.isCustom ? `
@@ -1677,7 +1686,7 @@ function renderCards(planParams, opts){
                    inputmode="numeric"
                    title="Escribe el % de inicial (ej: 40)"
                    oninput="onPctInputChange(this.value)"
-                   onblur="onPctInputBlur()"
+                   onblur="onPctInputBlur(event)" onkeydown="if(event.key==='Enter'){this.blur();}"
                    onfocus="this.select()"><span class="sym">%</span><span class="card-edit-ico" aria-hidden="true">✎</span>
           </div>
         ` : `
@@ -1696,14 +1705,6 @@ function renderCards(planParams, opts){
         <span class="card-row-label">Cuota mensual</span>
         <span class="card-row-value">${fmtQ(cuotaMensualVista(c.data.cuotaQ))}</span>
       </div>
-      <div class="card-row">
-        <span class="card-row-label">Seguro (${String(_COND.seguroPct).replace('.', ',')}%)</span>
-        <span class="card-row-value">${fmtQ(planParams.precio * _COND.seguroPct / 100)}</span>
-      </div>
-      <div class="card-row">
-        <span class="card-row-label">Al firmar (inicial + seguro)</span>
-        <span class="card-row-value">$${(arriba(c.data.ini) + arriba(planParams.precio * _COND.seguroPct / 100)).toLocaleString('en-US')}</span>
-      </div>
 
       <div class="card-inicial">
         <span class="card-inicial-label">Inicial</span>
@@ -1714,7 +1715,7 @@ function renderCards(planParams, opts){
                    value="${escapeAttr(hadFocus && USER_INI_RAW !== null ? USER_INI_RAW : fmtNum(c.data.ini))}"
                    inputmode="decimal"
                    oninput="onIniInputChange(this.value)"
-                   onblur="onIniInputBlur()"
+                   onblur="onIniInputBlur(event)" onkeydown="if(event.key==='Enter'){this.blur();}"
                    onfocus="this.select()"><span class="card-edit-ico" aria-hidden="true">✎</span>
           </span>
         ` : `
@@ -1733,8 +1734,17 @@ function renderCards(planParams, opts){
                  oninput="onSliderChange(this.value)">
         </div>
       ` : '' }
+    </div>${cardBackHtml(c, planParams)}<button type="button" class="card-flip-btn" onclick="event.stopPropagation();voltearCard(${i})" title="Ver seguro y financiamiento" aria-label="Girar la tarjeta">↻</button>
     `;
     wrap.appendChild(el);
+    // La minima gira sola con el mouse y vuelve al retirarlo; en la tablet, al tocarla.
+    // La preferida no gira con el mouse (ahi se escribe): gira al terminar de escribir.
+    if(!c.isCustom){
+      if(_CON_MOUSE){ el.addEventListener('mouseenter', () => voltearCard(i, true)); el.addEventListener('mouseleave', () => voltearCard(i, false)); }
+      else el.addEventListener('click', () => voltearCard(i));
+    } else {
+      el.querySelector('.card-face-back').addEventListener('click', () => voltearCard(i, false));
+    }
   });
 
   if(hadFocus){
@@ -1746,6 +1756,49 @@ function renderCards(planParams, opts){
       } catch(e){}
     }
   }
+}
+
+// Cara de atras (Liz, 13-oct-2026): lo que el cliente quiere saber al final
+function cardBackHtml(c, planParams){
+  const seguro = arriba(planParams.precio * _COND.seguroPct / 100), ini = arriba(c.data.ini), q = arriba(c.data.cuotaQ);
+  const fila = (l, v) => `<div class="card-row"><span class="card-row-label">${l}</span><span class="card-row-value">${v}</span></div>`;
+  return `<div class="card-face card-face-back" hidden>
+      <div class="card-label">${c.label} · ${arriba(c.pct * 100)}%</div>
+      <div class="card-divider"></div>
+      ${fila('Seguro (' + String(_COND.seguroPct).replace('.', ',') + '%)', '$' + seguro.toLocaleString('en-US'))}
+      ${fila('Al firmar (inicial + seguro)', '$' + (ini + seguro).toLocaleString('en-US'))}
+      ${fila('Monto financiado', fmtQ(Math.max(0, planParams.precio - ini)))}
+      ${fila('Total en cuotas (' + c.data.totalCuotas + ')', '$' + (q * c.data.totalCuotas).toLocaleString('en-US'))}
+      <div class="card-inicial"><span class="card-inicial-label">Cuota quincenal</span><span class="card-inicial-value">${fmtQ(c.data.cuotaQ)}</span></div>
+      <div class="card-back-hint">↻ Toca para volver</div>
+    </div>`;
+}
+const _CON_MOUSE = !!(window.matchMedia && window.matchMedia('(hover: hover)').matches);
+const _SIN_MOVIMIENTO = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+// Gira 180 grados: media vuelta hasta el canto, cambia de cara y termina la vuelta
+function voltearCard(i, aDetras){
+  const el = document.querySelectorAll('#cardsWrap .card')[i]; if(!el || el._girando) return;
+  const detras = el.classList.contains('is-volteada'), quiere = (aDetras === undefined) ? !detras : !!aDetras;
+  if(quiere === detras) return;
+  const cambiar = () => {
+    el.classList.toggle('is-volteada', quiere);
+    el.querySelector('.card-face-front').hidden = quiere;
+    el.querySelector('.card-face-back').hidden = !quiere;
+  };
+  if(_SIN_MOVIMIENTO){ cambiar(); return; }
+  el._girando = true; el.classList.add('gira-a');
+  setTimeout(() => {
+    cambiar(); el.classList.remove('gira-a'); el.classList.add('gira-b');
+    void el.offsetWidth;                      // que el navegador tome el -90 antes de animar
+    el.classList.remove('gira-b');
+    setTimeout(() => { el._girando = false; }, 240);
+  }, 200);
+}
+// Al terminar de escribir la inicial (Enter o tocar afuera), la preferida gira y muestra todo
+function _girarPreferidaSiSale(ev){
+  const card = document.querySelectorAll('#cardsWrap .card')[IDX_CUSTOM], va = ev && ev.relatedTarget;
+  if(card && va && card.contains(va)) return false;   // pasa del % a la inicial: sigue escribiendo
+  return true;
 }
 
 function onSliderChange(val){
@@ -1770,18 +1823,22 @@ function onPctInputChange(rawVal){
   updateCustomCard(getPlanParams());
 }
 
-function onPctInputBlur(){
+function onPctInputBlur(ev){
   if(!isFinite(CUSTOM_PCT) || CUSTOM_PCT < INICIAL_DEFECTO) CUSTOM_PCT = INICIAL_DEFECTO;
   if(CUSTOM_PCT > 0.95) CUSTOM_PCT = 0.95;
   USER_INI_RAW = null;
+  const girar = _girarPreferidaSiSale(ev);
   renderCards(getPlanParams(), { keepInputFocus: false });
+  if(girar) voltearCard(IDX_CUSTOM, true);
 }
 
-function onIniInputBlur(){
+function onIniInputBlur(ev){
   if(CUSTOM_PCT < INICIAL_DEFECTO) CUSTOM_PCT = INICIAL_DEFECTO;
   if(CUSTOM_PCT > 0.95) CUSTOM_PCT = 0.95;
   USER_INI_RAW = null;
+  const girar = _girarPreferidaSiSale(ev);
   renderCards(getPlanParams(), { keepInputFocus: false });
+  if(girar) voltearCard(IDX_CUSTOM, true);
 }
 
 function updateCustomCard(planParams){
@@ -1814,7 +1871,7 @@ function updateCustomCard(planParams){
 
   const slider = document.getElementById('customSlider');
   if(slider){
-    const sliderVal = Math.max(20, Math.min(90, pctDisplay));
+    const sliderVal = Math.max(Math.round(INICIAL_DEFECTO * 100), Math.min(90, pctDisplay));
     slider.value = sliderVal;
   }
   const sliderPctEl = document.getElementById('sliderPctNow');
