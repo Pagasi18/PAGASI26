@@ -730,9 +730,10 @@ input[type=number] { -moz-appearance: textfield; }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);   /* 2 tarjetas: minima · preferida (13-oct-2026) */
-  gap: 14px;
-  margin-bottom: 36px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));   /* 2 tarjetas: minima · preferida (13-oct-2026) */
+  gap: 12px;
+  margin: 0 auto 28px;
+  max-width: 700px;   /* mas chicas y centradas (Adam, 15-oct-2026) */
 }
 @media (min-width: 1101px) {
   .cards[data-n="1"] { grid-template-columns: minmax(0, 520px); justify-content: center; }   /* preferida oculta */
@@ -753,16 +754,16 @@ input[type=number] { -moz-appearance: textfield; }
 .card-face[hidden] { display: none; }
 .card.gira-a { transform: perspective(1100px) rotateY(90deg) !important; transition: transform .2s ease-in !important; }
 .card.gira-b { transform: perspective(1100px) rotateY(-90deg) !important; transition: none !important; }
-.card-flip-btn { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--white); color: var(--ink); font-size: 16px; line-height: 1; cursor: pointer; z-index: 3; display: grid; place-items: center; }
+.card-flip-btn { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--white); color: var(--ink); font-size: 16px; line-height: 1; cursor: pointer; z-index: 3; display: grid; place-items: center; }
 .card-flip-btn:hover { border-color: var(--p); color: var(--p); }
 .card.is-featured .card-flip-btn { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.28); }
 .card.is-volteada { cursor: pointer; }
-.card-back-hint { margin-top: 12px; font-size: 11px; text-align: center; opacity: .6; }
+.card-back-hint { margin-top: 8px; font-size: 11px; text-align: center; opacity: .6; }
 .card {
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: var(--rxl);
-  padding: 32px 28px 28px;
+  padding: 18px 18px 16px;
   position: relative;
   transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease), border-color 0.3s var(--ease);
   box-shadow: 0 2px 24px rgba(0,0,0,.04);
@@ -778,14 +779,14 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--ink);
   color: #fff;
   border-color: var(--ink);
-  transform: translateY(-8px);
-  box-shadow: 0 24px 56px rgba(10,10,15,.18), 0 0 0 1px rgba(37,99,235,.5);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 40px rgba(10,10,15,.16), 0 0 0 1px rgba(37,99,235,.5);
   background-image:
     radial-gradient(circle at 0% 0%, rgba(37,99,235,.4), transparent 55%),
     radial-gradient(circle at 100% 100%, rgba(124,108,245,.25), transparent 55%);
 }
 .card.is-featured:hover {
-  transform: translateY(-12px);
+  transform: translateY(-6px);
   box-shadow: 0 32px 72px rgba(10,10,15,.24), 0 0 0 1px rgba(37,99,235,.6);
 }
 .card.is-hidden { display: none; }
@@ -811,20 +812,20 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex;
   align-items: flex-end;          /* misma línea base en todas: el % editable no empuja las filas */
   justify-content: space-between;
-  min-height: 64px;
-  margin-bottom: 4px;
+  min-height: 46px;
+  margin-bottom: 2px;
 }
-.card-sub { min-height: 28px; margin-top: 8px; display: flex; align-items: flex-start; }
+.card-sub { min-height: 22px; margin-top: 6px; display: flex; align-items: flex-start; }
 .card-pct {
   font-weight: 800;
-  font-size: 60px;
-  letter-spacing: -3.5px;
+  font-size: 42px;
+  letter-spacing: -2.4px;
   line-height: 1;
   color: var(--ink);
   font-feature-settings: "tnum";
 }
 .card-pct .sym {
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--ink-4);
   margin-left: 2px;
@@ -837,8 +838,8 @@ input[type=number] { -moz-appearance: textfield; }
 .card-pct-input {
   font-family: inherit;
   font-weight: 800;
-  font-size: 60px;
-  letter-spacing: -3.5px;
+  font-size: 42px;
+  letter-spacing: -2.4px;
   line-height: 1;
   color: var(--ink);
   font-feature-settings: "tnum";
@@ -846,7 +847,7 @@ input[type=number] { -moz-appearance: textfield; }
   border: none;
   border-bottom: 1px dashed rgba(0,0,0,.18);
   outline: none;
-  width: 92px;
+  width: 66px;
   padding: 0 2px 3px;
   text-align: right;
   border-radius: 4px 4px 0 0;
@@ -872,7 +873,7 @@ input[type=number] { -moz-appearance: textfield; }
 .card-divider {
   height: 1px;
   background: var(--line);
-  margin: 24px 0 22px;
+  margin: 12px 0 10px;
 }
 .card.is-featured .card-divider { background: rgba(255,255,255,.1); }
 
@@ -880,11 +881,11 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .card-row:last-child { margin-bottom: 0; }
 .card-row-label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ink-3);
   font-weight: 600;
   letter-spacing: -.01em;
@@ -892,7 +893,7 @@ input[type=number] { -moz-appearance: textfield; }
 .card.is-featured .card-row-label { color: rgba(255,255,255,.6); }
 .card-row-value {
   font-weight: 800;
-  font-size: 21px;
+  font-size: 17px;
   letter-spacing: -1px;
   color: var(--ink);
   font-feature-settings: "tnum";
@@ -903,8 +904,8 @@ input[type=number] { -moz-appearance: textfield; }
 .card-inicial {
   background: var(--off);
   border-radius: var(--r);
-  padding: 16px 18px;
-  margin-top: 22px;
+  padding: 11px 13px;
+  margin-top: 12px;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -1737,14 +1738,9 @@ function renderCards(planParams, opts){
     </div>${cardBackHtml(c, planParams)}<button type="button" class="card-flip-btn" onclick="event.stopPropagation();voltearCard(${i})" title="Ver financiamiento" aria-label="Girar la tarjeta">↻</button>
     `;
     wrap.appendChild(el);
-    // La minima gira sola con el mouse y vuelve al retirarlo; en la tablet, al tocarla.
-    // La preferida no gira con el mouse (ahi se escribe): gira al terminar de escribir.
-    if(!c.isCustom){
-      if(_CON_MOUSE){ el.addEventListener('mouseenter', () => voltearCard(i, true)); el.addEventListener('mouseleave', () => voltearCard(i, false)); }
-      else el.addEventListener('click', () => voltearCard(i));
-    } else {
-      el.querySelector('.card-face-back').addEventListener('click', () => voltearCard(i, false));
-    }
+    // Ninguna tarjeta gira sola (Adam, 15-oct-2026: "muy fastidioso que se rote solo... deja
+    // el boton"): gira con el boton ↻, y tocando la cara de atras vuelve al frente.
+    el.querySelector('.card-face-back').addEventListener('click', () => voltearCard(i, false));
   });
 
   if(hadFocus){
@@ -1793,12 +1789,6 @@ function voltearCard(i, aDetras){
     setTimeout(() => { el._girando = false; }, 240);
   }, 200);
 }
-// Al terminar de escribir la inicial (Enter o tocar afuera), la preferida gira y muestra todo
-function _girarPreferidaSiSale(ev){
-  const card = document.querySelectorAll('#cardsWrap .card')[IDX_CUSTOM], va = ev && ev.relatedTarget;
-  if(card && va && card.contains(va)) return false;   // pasa del % a la inicial: sigue escribiendo
-  return true;
-}
 
 function onSliderChange(val){
   CUSTOM_PCT = parseInt(val, 10) / 100;
@@ -1826,18 +1816,14 @@ function onPctInputBlur(ev){
   if(!isFinite(CUSTOM_PCT) || CUSTOM_PCT < INICIAL_DEFECTO) CUSTOM_PCT = INICIAL_DEFECTO;
   if(CUSTOM_PCT > 0.95) CUSTOM_PCT = 0.95;
   USER_INI_RAW = null;
-  const girar = _girarPreferidaSiSale(ev);
   renderCards(getPlanParams(), { keepInputFocus: false });
-  if(girar) voltearCard(IDX_CUSTOM, true);
 }
 
 function onIniInputBlur(ev){
   if(CUSTOM_PCT < INICIAL_DEFECTO) CUSTOM_PCT = INICIAL_DEFECTO;
   if(CUSTOM_PCT > 0.95) CUSTOM_PCT = 0.95;
   USER_INI_RAW = null;
-  const girar = _girarPreferidaSiSale(ev);
   renderCards(getPlanParams(), { keepInputFocus: false });
-  if(girar) voltearCard(IDX_CUSTOM, true);
 }
 
 function updateCustomCard(planParams){
