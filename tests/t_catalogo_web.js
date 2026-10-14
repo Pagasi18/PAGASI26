@@ -92,7 +92,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
     batch(){ const ops = []; return { set(ref, d){ ops.push([ref._id, d]); }, commit(){ ops.forEach(([id, d]) => { escritos.push({ id, d, lote:true }); coleccion.docs[id] = d; }); return Promise.resolve(); } }; }
   };
   const S = ctx.S;
-  ok('Catálogo web está en el menú (Sistema), con nombre y en el rol Administrador', ctx.MODULOS.some(m => m.id === 'catalogo' && m.grupo === 'Sistema') && /catalogo:'Catálogo web'/.test(src('assets/pagasi-app.js')) && /'cumplimiento','catalogo','perm_delete'/.test(src('assets/pagasi-app.js')));
+  ok('Catálogo web está en el menú (Sistema), con nombre y en el rol Administrador', ctx.MODULOS.some(m => m.id === 'catalogo' && m.grupo === 'Sistema') && /catalogo:'Catálogo web'/.test(src('assets/pagasi-app.js')) && /'cumplimiento','catalogo',('metricas',)?'perm_delete'/.test(src('assets/pagasi-app.js')));
   ok('...y también en el menú de un empleado con el permiso', /keys:\['plan','config','scores','users','catalogo'\]/.test(src('assets/pagasi-app.js')));
 
   S.currentUser = { uid:'u1', nombre:'Pedro', rol:'Empleado', permisos:['dash'] };
