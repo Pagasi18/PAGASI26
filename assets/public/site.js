@@ -56,23 +56,14 @@
       +'<div class="pg-promo-datos"><div><span>Inicial + seguro</span><b>'+D.money(p.alFirmar)+'</b></div><div><span>Precio de contado</span><b>'+D.money(m.precio)+'</b></div></div>'
       +'<a class="pg-promo-cta" href="'+url+'">¡La quiero! '+icon('arrow')+'</a></div></article>';
   }
-  // Veloz que aun no tienen precio en el catalogo (Adam, 13-oct-2026: "ponme todas las Veloz
-  // en la primera pagina"). Si Liz la carga con precio en el modulo, sale como promo y aqui se omite.
-  const PROXIMOS=[
-    {name:'DT 170',cat:'170cc · Doble propósito',image:'assets/motos/veloz-dt-170.jpg'},
-    {name:'La Rutera · HS-300-2A',cat:'300cc · Adventure',image:'assets/motos/veloz-hs-300-2a-rutera.jpg'},
-    {name:'La Aventurera · HS-300Y-8N',cat:'300cc · Adventure',image:'assets/motos/veloz-hs-300y-8n-aventurera.jpg'},
-    {name:'Scooter Keeway',cat:'Scooter',image:'assets/motos/veloz-scooter-keeway.jpg'},
-    {name:'Scooter Veloz',cat:'Scooter',image:'assets/motos/veloz-scooter-veloz.jpg'}];
-  function proximos(){
-    const ya=new Set(D.motos.map(m=>D.normalize(m.modelo+' '+m.name)));
-    return PROXIMOS.filter(p=>{const n=D.normalize(p.name.split(' · ').pop()),k=D.normalize(p.name.split(' · ')[0]);return ![...ya].some(x=>x.includes(n)||x.includes(k));});
-  }
+  // Motos sin precio todavia (Adam, 13-oct-2026): salen con "Pregunta el precio". Vienen del
+  // catalogo (Liz las maneja en el modulo); en la portada, las que tienen promo.
+  function proximos(){ return (D.proximos||[]).filter(esPromo); }
   function proximoCard(p){
-    const wa='https://wa.me/584242177798?text='+encodeURIComponent('Hola, quiero el precio de la '+p.name+' de Veloz.');
+    const wa='https://wa.me/584242177798?text='+encodeURIComponent('Hola, quiero el precio de la '+p.name+(p.sedeName?' de '+p.sedeName:'')+'.');
     return '<article class="pg-promo-card pg-promo-proximo"><a class="pg-promo-foto" href="'+wa+'" target="_blank" rel="noopener" aria-label="Preguntar el precio de '+escape(p.name)+'">'
       +'<img src="'+escape(p.image)+'" alt="'+escape(p.name)+'" loading="lazy" decoding="async"><span class="pg-promo-cinta pg-promo-cinta-nuevo">NUEVA</span></a>'
-      +'<div class="pg-promo-cuerpo"><p class="pg-promo-cat">Veloz · '+escape(p.cat)+'</p><h3>'+escape(p.name)+'</h3>'
+      +'<div class="pg-promo-cuerpo"><p class="pg-promo-cat">'+escape([p.sedeName,p.cat].filter(Boolean).join(' · '))+'</p><h3>'+escape(p.name)+'</h3>'
       +'<div class="pg-promo-porconfirmar"><span>Precio por confirmar</span><strong>Pregúntanos</strong></div>'
       +'<a class="pg-promo-cta pg-promo-cta-wa" href="'+wa+'" target="_blank" rel="noopener">Pregunta el precio '+icon('arrow')+'</a></div></article>';
   }

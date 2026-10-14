@@ -16,15 +16,15 @@ function catalogoNuevo(globales){
   return ctx.PagasiCatalog;
 }
 let C = catalogoNuevo();
-ok('condiciones de Adam: 650%, seguro 4,5%, inicial 40 a 60%, plazos 6, 9 y 12', C.condiciones.apy === 650 && C.condiciones.seguroPct === 4.5 && C.condiciones.inicialMin === 40 && C.condiciones.inicialMax === 60 && C.condiciones.plazos.join() === '6,9,12');
+ok('condiciones de Adam: 777% (desde el 13-oct en la noche), seguro 4,5%, inicial desde 40%, plazos 6, 9 y 12', C.condiciones.apy === 777 && C.condiciones.seguroPct === 4.5 && C.condiciones.inicialMin === 40 && C.condiciones.inicialMax === 60 && C.condiciones.plazos.join() === '6,9,12');
 let p = C.calcPlan(1320, 12);
 ok('moto de $1.320 al 40%: inicial $528, seguro $60, al firmar $588, financiado $792', p.inicial === 528 && p.seguro === 60 && p.alFirmar === 588 && p.financiado === 792);
-ok('cuota quincenal $110, $89 y $81 a 6, 9 y 12 meses', C.calcPlan(1320, 6).quincenal === 110 && C.calcPlan(1320, 9).quincenal === 89 && p.quincenal === 81);
-ok('al 60%: cuota de $54 a 12 meses', C.calcPlan(1320, 12, 0.60).quincenal === 54);
-ok('todo cuadra a simple vista: mensual = 2 quincenas y total = cuota por número de cuotas', p.mensual === 162 && p.totalEnCuotas === 81 * 24 && p.inicial + p.financiado === 1320);
+ok('cuota quincenal $114, $94 y $85 a 6, 9 y 12 meses', C.calcPlan(1320, 6).quincenal === 114 && C.calcPlan(1320, 9).quincenal === 94 && p.quincenal === 85);
+ok('al 60%: cuota de $57 a 12 meses', C.calcPlan(1320, 12, 0.60).quincenal === 57);
+ok('todo cuadra a simple vista: mensual = 2 quincenas y total = cuota por número de cuotas', p.mensual === 170 && p.totalEnCuotas === 85 * 24 && p.inicial + p.financiado === 1320);
 ok('redondea hacia arriba como la calculadora (regla del 11-sep), sin sumar un dólar por la coma flotante', C.arriba(88.01) === 89 && C.arriba(726.0000000001) === 726 && C.money(587.4) === '$588');
 const e = C.calcExacto(1320, 12);
-ok('el cálculo exacto da la tasa de 650% efectiva anual', Math.abs(Math.pow(1 + (Math.pow(7.5, 1/24) - 1), 24) - 7.5) < 1e-9 && Math.abs(e.seguro - 59.4) < 1e-9);
+ok('el cálculo exacto da la tasa de 777% efectiva anual', Math.abs(Math.pow(1 + (Math.pow(8.77, 1/24) - 1), 24) - 8.77) < 1e-9 && Math.abs(e.seguro - 59.4) < 1e-9);
 ok('plan() de la web usa la inicial mínima y 12 meses', JSON.stringify(C.plan(1)) === JSON.stringify(C.calcPlan(1320, 12)));
 const N = C.base.length;
 ok('la lista de respaldo: los 46 de siempre y los de Veloz primero, con promo', N === 49 && C.motos.length === N && C.origen === 'base' && C.motos.slice(0, 3).every(m => m.sedeName === 'Veloz' && m.promo && m.tag === 'Promo'));
@@ -41,9 +41,9 @@ const docs = [
 ];
 const r = C.desdeDocumentos(docs);
 ok('de Firestore: lee condiciones, modelos y la foto subida', r.cond.apy === 700 && r.motos.find(m => m.id === 1).precio === 1400 && /firebasestorage/.test(r.motos.find(m => m.id === 1).image));
-ok('...sin los eliminados ni los que no tienen precio', !r.motos.some(m => m.id === 3 || m.id === 48) && r.motos.length === 3);
+ok('...sin los eliminados; el que no tiene precio queda "por confirmar"', !r.motos.some(m => m.id === 3) && r.motos.length === 4 && r.motos.find(m => m.id === 48).sinPrecio === true && r.motos.find(m => m.id === 48).precio === null);
 ok('...y un modelo nuevo sin nombre web toma el del modelo', r.motos.find(m => m.id === 47).name === 'Nueva 200');
-ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:-5, seguroPct:80, inicialMin:0, plazos:['x'] }).apy === 650 && C.condValidas({ seguroPct:80 }).seguroPct === 4.5 && C.condValidas({ plazos:['x'] }).plazos.join() === '6,9,12');
+ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:-5, seguroPct:80, inicialMin:0, plazos:['x'] }).apy === 777 && C.condValidas({ seguroPct:80 }).seguroPct === 4.5 && C.condValidas({ plazos:['x'] }).plazos.join() === '6,9,12');
 
 (async () => {
   // cargar(): lee la base una vez, aplica, guarda copia; si falla, queda la lista de respaldo
@@ -54,14 +54,15 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   await C.cargar(); await C.cargar();
   ok('cargar() pide el catálogo una sola vez, a la base de la compañía', llamadas === 1 && /projects\/(pagasi-v2|pagasi26-65ced)\/databases\/\(default\)\/documents\/catalogo\?/.test(urlPedida) && /key=AIza/.test(urlPedida));
   ok('la web muestra solo lo disponible, con el precio de Liz', C.origen === 'firestore' && C.motos.length === 2 && !C.get(2) && C.get(1).precio === 1400);
+  ok('el que no tiene precio va aparte, para "Pregunta el precio" (y no a las cuotas)', C.proximos.length === 1 && C.proximos[0].modelo === 'SIN PRECIO' && !C.get(48));
   ok('y calcula con las condiciones guardadas (700%, seguro 5%)', C.condiciones.apy === 700 && C.plan(1).seguro === 70);
-  ok('guarda una copia en el navegador para la próxima visita', JSON.parse(guardado.pagasi_catalogo_v1).motos.length === 3);
+  ok('guarda una copia en el navegador para la próxima visita', JSON.parse(guardado.pagasi_catalogo_v1).motos.length === 4);
   const C2 = catalogoNuevo({ localStorage: ls, fetch: () => Promise.reject(new Error('sin internet')) });
   await C2.cargar();
   ok('sin internet: usa la última copia buena', C2.origen === 'cache' && C2.get(1).precio === 1400 && C2.condiciones.apy === 700);
   const C3 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:false, status:403, json:() => Promise.resolve({}) }) });
   await C3.cargar();
-  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 650);
+  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 777 && C3.proximos.length === 5);
   const C4 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:true, json:() => Promise.resolve({}) }) });
   await C4.cargar();
   ok('catálogo vacío en la base: sigue la lista de respaldo', C4.origen === 'base' && C4.motos.length === 49);
@@ -99,14 +100,17 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   S.currentUser = { uid:'liz', nombre:'Liz', rol:'Empleado', permisos:['dash','catalogo'] };
   ok('Liz, con el permiso "catalogo", sí entra (sin ser administradora)', ctx.catPuedeEditar() === true && ctx.catEsAdmin() === false);
   await ctx.catCargar(true);
-  ok('catálogo vacío: ofrece cargar los 49 modelos de la web', /Cargar los 49 modelos de la web/.test(ctx.PG.catalogo()));
+  ok('catálogo vacío: ofrece cargar los modelos de la web', /Cargar los 49 modelos de la web/.test(ctx.PG.catalogo()));
   await ctx.catImportar();
-  ok('Liz carga los 49 modelos con precio, concesionario y foto (Veloz con promo y primero)', coleccion.docs['47'].promo === true && coleccion.docs['47'].orden < 0 && coleccion.docs['47'].tag === '' && Object.keys(coleccion.docs).filter(k => k !== '_condiciones').length === 49 && coleccion.docs['1'].precio === 1320 && coleccion.docs['1'].sedeName === 'EK Bello Monte' && coleccion.docs['1'].disponible === true && /assets\/motos/.test(coleccion.docs['1'].image));
+  ok('Liz carga los 49 modelos y las 5 Veloz sin precio (con promo, foto y precio por confirmar)', coleccion.docs['901'].precio === null && coleccion.docs['901'].promo === true && /veloz-dt-170/.test(coleccion.docs['901'].image) && coleccion.docs['47'].promo === true && coleccion.docs['47'].orden < 0 && coleccion.docs['47'].tag === '' && Object.keys(coleccion.docs).filter(k => k !== '_condiciones').length === 54 && coleccion.docs['1'].precio === 1320 && coleccion.docs['1'].sedeName === 'EK Bello Monte' && coleccion.docs['1'].disponible === true && /assets\/motos/.test(coleccion.docs['1'].image));
   ok('...pero las condiciones no: esas las crea un administrador', !coleccion.docs._condiciones);
   let h = ctx.PG.catalogo();
-  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$60<\/td>/.test(h) && /\$528<\/td>/.test(h) && /\$588<\/td>/.test(h) && /\$110 · \$89 · \$81/.test(h));
+  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$60<\/td>/.test(h) && /\$528<\/td>/.test(h) && /\$588<\/td>/.test(h) && /\$114 · \$94 · \$85/.test(h));
   ok('Liz no ve las condiciones del plan (solo administradores)', !/Condiciones del plan/.test(h) && !/id="cat_apy"/.test(h) && !/id="cat_seguro"/.test(h));
   ok('los botones de nuevo modelo y Excel están', /catNuevoModelo\(\)/.test(h) && /Descargar reporte Excel/.test(h));
+  ok('filtros con contadores: en la web, ocultos, promo, sin foto y precio por confirmar', /data-cat-chip="sinfoto"/.test(h) && /data-cat-chip="sinprecio"/.test(h) && />Precio por confirmar <b[^>]*>5</.test(h) && /Todos los concesionarios/.test(h));
+  ok('cada moto con precio tiene "Ver en la web" y dice quién la cambió', /simulador\.html\?moto=1"/.test(h) && /Cambió Liz/.test(h));
+  ok('la de precio por confirmar se marca y no muestra cuotas', /POR CONFIRMAR/.test(h) && /En la web: "Pregunta el precio"/.test(h));
 
   await ctx.catPrecio(1, '1400');
   ok('Liz cambia el precio de contado: se guarda solo el precio, con quién y cuándo', escritos.at(-1).id === '1' && escritos.at(-1).merge && escritos.at(-1).d.precio === 1400 && escritos.at(-1).d.actualizadoPor === 'Liz' && !('modelo' in escritos.at(-1).d));
@@ -137,7 +141,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('Excel: las columnas que pidieron', filas[0].join('|') === 'MODELO|PRECIO AL CONTADO|COSTO DEL SEGURO|INICIAL MÍNIMA|CUOTA QUINCENAL 6 MESES|CUOTA QUINCENAL 9 MESES|CUOTA QUINCENAL 12 MESES');
   const nh = filas.find(f => f[0] === 'NEW HORSE 150');
   ok('Excel: los mismos montos que la web (precio $1.400, seguro 4,5% = $63, inicial $560)', nh && nh[1] === 1400 && nh[2] === 63 && nh[3] === 560 && nh[6] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal);
-  ok('Excel: un renglón por modelo, sin el eliminado', filas.length === 1 + 48 && !filas.some(f => f[0] === coleccion.docs['3'].modelo));
+  ok('Excel: un renglón por modelo, sin el eliminado, y los sin precio dicen POR CONFIRMAR', filas.find(f => f[0] === 'DT 170')[1] === 'POR CONFIRMAR' && filas.length === 1 + 53 && !filas.some(f => f[0] === coleccion.docs['3'].modelo));
 
   // Nuevo modelo
   ctx.catNuevoModelo();

@@ -659,16 +659,26 @@ const BASE = [
   }
 ];
 // ── Condiciones publicas (Adam, 13-oct-2026) ─────────────────────────────────
-// Una sola tasa para todos los plazos (650% anual efectiva), seguro del 4,5% del precio
-// de contado que se paga junto con la inicial, inicial de 40% a 60% y plazos de 6, 9 y
-// 12 meses. Es el respaldo: lo que guarden en el documento "_condiciones" manda.
-const COND_BASE = Object.freeze({ apy:650, seguroPct:4.5, inicialMin:40, inicialMax:60, plazos:Object.freeze([6,9,12]) });
+// Una sola tasa para todos los plazos (777% anual efectiva desde la noche del 13-oct;
+// antes 650%), seguro del 4,5% del precio de contado que se paga junto con la inicial,
+// inicial desde 40% y plazos de 6, 9 y 12 meses. Es el respaldo: lo que guarden en el
+// documento "_condiciones" manda.
+const COND_BASE = Object.freeze({ apy:777, seguroPct:4.5, inicialMin:40, inicialMax:60, plazos:Object.freeze([6,9,12]) });
 // Firebase de la compania que sirve la pagina. preparar-clon-26.sh pone aqui el de PAGASI 26.
 // La llave web de Firebase es publica por diseno: lo que protege los datos son las Reglas.
+// Veloz que aun no tienen precio: en la web salen con "Pregunta el precio". Es el respaldo
+// hasta que se carguen en el modulo (alli Liz les pone precio, foto o los oculta).
+const BASE_PROXIMOS = [
+  { id:901, sede:'veloz', sedeName:'Veloz', modelo:'DT 170', name:'DT 170', cat:'170cc · Doble propósito', cc:'170cc', type:'Doble propósito', promo:true, image:'assets/motos/veloz-dt-170.jpg' },
+  { id:902, sede:'veloz', sedeName:'Veloz', modelo:'HS-300-2A LA RUTERA', name:'La Rutera · HS-300-2A', cat:'300cc · Adventure', cc:'300cc', type:'Adventure · Ruta', promo:true, image:'assets/motos/veloz-hs-300-2a-rutera.jpg' },
+  { id:903, sede:'veloz', sedeName:'Veloz', modelo:'HS-300Y-8N LA AVENTURERA', name:'La Aventurera · HS-300Y-8N', cat:'300cc · Adventure', cc:'300cc', type:'Adventure · Off road', promo:true, image:'assets/motos/veloz-hs-300y-8n-aventurera.jpg' },
+  { id:904, sede:'veloz', sedeName:'Veloz', modelo:'SCOOTER KEEWAY', name:'Scooter Keeway', cat:'Scooter', cc:'—', type:'Scooter', promo:true, image:'assets/motos/veloz-scooter-keeway.jpg' },
+  { id:905, sede:'veloz', sedeName:'Veloz', modelo:'SCOOTER VELOZ', name:'Scooter Veloz', cat:'Scooter', cc:'—', type:'Scooter', promo:true, image:'assets/motos/veloz-scooter-veloz.jpg' }
+].map(m => Object.freeze(Object.assign({ precio:null, sinPrecio:true, disponible:true, meses:12 }, m)));
 const FB_PUBLICO = { projectId:'pagasi26-65ced', apiKey:'AIzaSyD6IznQjzF7Tdq7UJMXT4rSBdbCNpsmij4' };
 const CLAVE_CACHE = 'pagasi_catalogo_v1';
 let lista = BASE.map(m => Object.freeze(Object.assign({disponible:true}, m)));
-let cond = COND_BASE, origen = 'base', cargando = null;
+let cond = COND_BASE, origen = 'base', cargando = null, proximosLista = BASE_PROXIMOS.slice(), proximosDeLaBase = false;
 
 const num = (v, def) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
 function condValidas(c){
@@ -734,10 +744,10 @@ function desdeDocumentos(docs){
   });
   Object.keys(porId).forEach(k => {
     const f = porId[k], id = num(f.id, num(k, NaN)), precio = num(f.precio, 0);
-    if(!Number.isInteger(id) || id <= 0 || !(precio > 0) || !f.modelo) return;
+    if(!Number.isInteger(id) || id <= 0 || !f.modelo) return;
     if(f.eliminado === true) return;
     const nombre = f.name || String(f.modelo).toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
-    motos.push(Object.freeze({ id, sede: f.sede || '', sedeName: f.sedeName || '', modelo: String(f.modelo), precio,
+    motos.push(Object.freeze({ id, sede: f.sede || '', sedeName: f.sedeName || '', modelo: String(f.modelo), precio: precio > 0 ? precio : null, sinPrecio: !(precio > 0),
       cat: f.cat || '', tag: f.promo === true ? 'Promo' : (f.tag === 'Promo' ? '' : (f.tag || '')), promo: f.promo === true,
       name: nombre, cc: f.cc || '—', type: f.type || '', image: f.image || '',
       meses: 12, disponible: f.disponible !== false, orden: num(f.orden, id) }));
@@ -749,7 +759,12 @@ function desdeDocumentos(docs){
 function aplicar(motos, c, desde){
   if(Array.isArray(motos) && motos.length){
     const visibles = motos.filter(m => m && m.disponible !== false).map(m => Object.isFrozen(m) ? m : Object.freeze(Object.assign({}, m)));
-    if(visibles.length) lista = visibles;
+    const conPrecio = visibles.filter(m => !m.sinPrecio && m.precio > 0), sinPrecio = visibles.filter(m => m.sinPrecio || !(m.precio > 0));
+    if(conPrecio.length) lista = conPrecio;
+    // Si la base ya tiene modelos sin precio, mandan esos; si no, el respaldo (sin repetir nombres)
+    proximosDeLaBase = proximosDeLaBase || motos.some(m => m && (m.sinPrecio || !(m.precio > 0)));
+    if(proximosDeLaBase) proximosLista = sinPrecio;
+    else { const ya = motos.map(m => normalize(m.modelo)); proximosLista = BASE_PROXIMOS.filter(p => !ya.includes(normalize(p.modelo))); }
   }
   if(c) cond = condValidas(c);
   origen = desde || origen;
@@ -774,8 +789,8 @@ function cargar(){
   return cargando;
 }
 const api = Object.freeze({
-  get motos(){ return lista; }, get condiciones(){ return cond; }, get origen(){ return origen; },
-  base: Object.freeze(BASE.map(Object.freeze)), COND_BASE, FB_PUBLICO: Object.freeze(Object.assign({}, FB_PUBLICO)),
+  get motos(){ return lista; }, get proximos(){ return proximosLista; }, get condiciones(){ return cond; }, get origen(){ return origen; },
+  base: Object.freeze(BASE.map(Object.freeze)), baseProximos: BASE_PROXIMOS, COND_BASE, FB_PUBLICO: Object.freeze(Object.assign({}, FB_PUBLICO)),
   get, plan, calcPlan, calcExacto, arriba, condValidas, normalize, money, cargar, aplicar, desdeDocumentos, valor
 });
 if(typeof module==='object' && module.exports) module.exports=api;

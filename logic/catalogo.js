@@ -22,7 +22,13 @@ function _catId(v){ return String(v).replace(/[^0-9]/g, ''); }
 
 // Condiciones vigentes: las guardadas o, si no hay, las de catalog.js (650%, 4,5%, 40-60%, 6-9-12)
 function catCondiciones(){ return PagasiCatalog.condValidas(_cat.cond || PagasiCatalog.COND_BASE); }
-function catPlan(m, meses, pct){ return PagasiCatalog.calcPlan(m.precio, meses, pct, catCondiciones()); }
+function catSinPrecio(m){ return !(+m.precio > 0); }
+function catPlan(m, meses, pct){ return catSinPrecio(m) ? null : PagasiCatalog.calcPlan(m.precio, meses, pct, catCondiciones()); }
+// Los de la lista original (y los Veloz sin precio) que todavia no estan en el catalogo
+function catFaltantes(){
+  var ya = {}; _cat.motos.forEach(function(m){ ya[String(m.id)] = 1; });
+  return PagasiCatalog.base.concat(PagasiCatalog.baseProximos || []).filter(function(m){ return !ya[String(m.id)]; });
+}
 // Los que se ven en la tabla: todo menos lo eliminado, por concesionario y orden
 function catLista(){
   return _cat.motos.filter(function(m){ return m && !m.eliminado; }).slice().sort(function(a, b){
@@ -65,13 +71,12 @@ function _catError(e){ toast('No se guardó: ' + ((e && e.code === 'permission-d
 function catImportar(){
   if(!catPuedeEditar()) return;
   if(_cat.motos.length && !confirm('El catálogo ya tiene modelos. ¿Agregar los que falten de la lista de la web?')) return;
-  if(!_cat.motos.length && !confirm('Se van a cargar los ' + PagasiCatalog.base.length + ' modelos que hoy muestra la web, con sus precios y fotos. Después los puedes cambiar uno por uno. ¿Seguir?')) return;
-  var ya = {}; _cat.motos.forEach(function(m){ ya[String(m.id)] = 1; });
-  var nuevos = PagasiCatalog.base.filter(function(m){ return !ya[String(m.id)]; });
+  if(!_cat.motos.length && !confirm('Se van a cargar los ' + catFaltantes().length + ' modelos que hoy muestra la web, con sus precios y fotos. Después los puedes cambiar uno por uno. ¿Seguir?')) return;
+  var nuevos = catFaltantes();
   var batch = db.batch(), quien = _catQuien(), ahora = new Date().toISOString();
   nuevos.forEach(function(m){
     batch.set(db.collection('catalogo').doc(String(m.id)), {
-      id: m.id, modelo: m.modelo, name: m.name, sede: m.sede, sedeName: m.sedeName, precio: m.precio,
+      id: m.id, modelo: m.modelo, name: m.name, sede: m.sede, sedeName: m.sedeName, precio: (+m.precio > 0 ? m.precio : null),
       cat: m.cat || '', type: m.type || '', cc: m.cc || '', tag: m.promo ? '' : (m.tag || ''), promo: !!m.promo, image: m.image || '',
       disponible: true, orden: (m.orden != null ? m.orden : m.id), actualizadoPor: quien, actualizadoEn: ahora
     });
@@ -90,13 +95,17 @@ function catImportar(){
 
 function catPrecio(id, valor){
   if(!catPuedeEditar()) return;
-  var m = _catLocal(id), n = parseFloat(String(valor).replace(',', '.'));
+  var m = _catLocal(id), txt = String(valor == null ? '' : valor).trim(), n = parseFloat(txt.replace(',', '.'));
   if(!m) return;
-  if(!(n > 0)){ toast('El precio tiene que ser mayor que 0', 'error'); nav('catalogo'); return; }
-  var antes = m.precio; m.precio = Math.round(n * 100) / 100;
+  // Vacio = precio por confirmar: en la web sale con "Pregunta el precio"
+  if(txt === ''){
+    if(catSinPrecio(m)) return;
+    if(!confirm('¿Dejar ' + m.modelo + ' con el precio por confirmar? En la web sale con "Pregunta el precio" y sin cuotas.')){ nav('catalogo'); return; }
+  } else if(!(n > 0)){ toast('El precio tiene que ser mayor que 0 (o vacío si todavía no tiene)', 'error'); nav('catalogo'); return; }
+  var antes = m.precio; m.precio = txt === '' ? null : Math.round(n * 100) / 100;
   return _catGuardar(m.id, { precio: m.precio }).then(function(){
     if(typeof logActividad === 'function') logActividad('catalogo_precio', 'catalogo', String(m.id), { modelo: m.modelo, antes: antes, ahora: m.precio });
-    toast(m.modelo + ': precio de contado $' + m.precio.toLocaleString('en-US'), 'success');
+    toast(m.modelo + (m.precio ? ': precio de contado $' + m.precio.toLocaleString('en-US') : ': precio por confirmar'), 'success');
     nav('catalogo');
   }).catch(function(e){ m.precio = antes; _catError(e); nav('catalogo'); });
 }
@@ -181,7 +190,7 @@ function catEditarModelo(id){
     + campo('Nombre en la web', 'cm_name', m.name, 'placeholder="New Horse 150"')
     + '</div><div class="fgr" style="gap:8px;margin-top:8px">'
     + '<div class="fg"><label>Concesionario</label><input class="fi" id="cm_sede" list="cm_sedes" value="' + E(m.sedeName) + '" placeholder="EK Bello Monte"><datalist id="cm_sedes">' + sedes.nombres.map(function(n){ return '<option value="' + E(n) + '">'; }).join('') + '</datalist></div>'
-    + campo('Precio de contado (US$)', 'cm_precio', m.precio, 'type="number" step="0.01" min="0"')
+    + campo('Precio de contado (US$)', 'cm_precio', (+m.precio > 0 ? m.precio : ''), 'type="number" step="0.01" min="0" placeholder="Vacío = por confirmar"')
     + '</div><div class="fgr" style="gap:8px;margin-top:8px">'
     + campo('Cilindrada', 'cm_cc', m.cc, 'placeholder="150cc"')
     + campo('Tipo', 'cm_type', m.type, 'placeholder="Carga · Urbana"')
@@ -195,15 +204,16 @@ function catEditarModelo(id){
     var modelo = String($('cm_modelo').value || '').trim().toUpperCase(), precio = parseFloat(String($('cm_precio').value || '').replace(',', '.'));
     var sedeName = String($('cm_sede').value || '').trim();
     if(!modelo){ toast('Falta el modelo', 'error'); return false; }
-    if(!(precio > 0)){ toast('Falta el precio de contado', 'error'); return false; }
+    var sinPrecio = String($('cm_precio').value || '').trim() === '';
+    if(!sinPrecio && !(precio > 0)){ toast('El precio tiene que ser mayor que 0 (o vacío si todavía no tiene)', 'error'); return false; }
     if(!sedeName){ toast('Falta el concesionario', 'error'); return false; }
     var datos = {
       modelo: modelo, name: String($('cm_name').value || '').trim() || modelo.toLowerCase().replace(/(^|\s)\S/g, function(x){ return x.toUpperCase(); }),
-      sedeName: sedeName, sede: sedes.codigo[sedeName] || _catSlug(sedeName), precio: Math.round(precio * 100) / 100,
+      sedeName: sedeName, sede: sedes.codigo[sedeName] || _catSlug(sedeName), precio: sinPrecio ? null : Math.round(precio * 100) / 100,
       cc: String($('cm_cc').value || '').trim(), type: String($('cm_type').value || '').trim(), cat: String($('cm_cat').value || '').trim(),
       tag: String($('cm_tag').value || '').trim(), disponible: !!$('cm_disp').checked
     };
-    var idDoc = nuevo ? (Math.max.apply(null, [0].concat(_cat.motos.map(function(x){ return +x.id || 0; }), PagasiCatalog.base.map(function(x){ return x.id; }))) + 1) : m.id;
+    var idDoc = nuevo ? (Math.max.apply(null, [0].concat(_cat.motos.map(function(x){ return +x.id || 0; }).filter(function(n){ return n < 900; }), PagasiCatalog.base.map(function(x){ return x.id; }))) + 1) : m.id;
     if(nuevo){ datos.id = idDoc; datos.orden = idDoc; datos.image = ''; }
     _catGuardar(idDoc, datos).then(function(){
       var local = _catLocal(idDoc); if(local) Object.assign(local, datos); else _cat.motos.push(Object.assign({ id: idDoc }, datos));
@@ -277,6 +287,7 @@ function catFilasExcel(){
   var c = catCondiciones();
   var filas = [['MODELO', 'PRECIO AL CONTADO', 'COSTO DEL SEGURO', 'INICIAL MÍNIMA'].concat(CAT_PLAZOS_EXCEL.map(function(n){ return 'CUOTA QUINCENAL ' + n + ' MESES'; }))];
   catLista().forEach(function(m){
+    if(catSinPrecio(m)){ filas.push([m.modelo, 'POR CONFIRMAR', '', ''].concat(CAT_PLAZOS_EXCEL.map(function(){ return ''; }))); return; }
     var base = catPlan(m, 12, c.inicialMin / 100);
     filas.push([m.modelo, m.precio, base.seguro, base.inicial].concat(CAT_PLAZOS_EXCEL.map(function(n){ return catPlan(m, n, c.inicialMin / 100).quincenal; })));
   });
