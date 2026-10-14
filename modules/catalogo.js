@@ -63,7 +63,7 @@ PG.catalogo = function(){
       + '<td style="text-align:right;font-weight:700">' + M(b.alFirmar) + '</td>'
       + '<td style="text-align:right;white-space:nowrap">' + CAT_PLAZOS_EXCEL.map(function(n){ return M(catPlan(m, n, c.inicialMin / 100).quincenal); }).join(' · ') + '</td>'
       + '<td style="text-align:center"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox"' + (visible ? ' checked' : '') + ' onchange="catDisponible(' + id + ',this.checked)" style="width:16px;height:16px;accent-color:var(--green)">' + (visible ? 'Sí' : 'No') + '</label></td>'
-      + '<td style="text-align:center"><input type="checkbox"' + (m.promo ? ' checked' : '') + ' onchange="catPromo(' + id + ',this.checked)" title="Burbuja de promo en la web y primero en la portada" style="width:16px;height:16px;accent-color:#ff5a1f"></td>'
+      + '<td style="text-align:center"><input type="checkbox"' + (m.promo ? ' checked' : '') + ' onchange="catPromo(' + id + ',this.checked)" title="Burbuja de promo en la web y primero en la portada" style="width:16px;height:16px;accent-color:#065cff"></td>'
       + '<td style="white-space:nowrap"><button class="btn btn-g btn-xs" onclick="catEditarModelo(' + id + ')">✎ Editar</button> <button class="btn btn-g btn-xs" onclick="catEliminar(' + id + ')" title="Eliminar del catálogo">🗑</button></td>'
       + '</tr>';
   }).join('');
