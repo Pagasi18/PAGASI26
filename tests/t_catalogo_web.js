@@ -8,6 +8,12 @@ let pass = 0, fail = 0;
 const ok = (l, v) => { if (v) { pass++; console.log('OK   ' + l); } else { fail++; console.log('FALLA ' + l); } };
 const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
+// Un documento plano en el formato REST de Firestore (para probar desdeDocumentos)
+function aFields(o){
+  const v = x => x === null || x === undefined ? { nullValue:null } : typeof x === 'boolean' ? { booleanValue:x } : typeof x === 'number' ? (Number.isInteger(x) ? { integerValue:String(x) } : { doubleValue:x })
+    : Array.isArray(x) ? { arrayValue:{ values:x.map(v) } } : typeof x === 'object' ? { mapValue:{ fields:aFields(x) } } : { stringValue:String(x) };
+  const out = {}; Object.keys(o || {}).forEach(k => { out[k] = v(o[k]); }); return out;
+}
 // ── 1. El catalogo publico (assets/public/catalog.js) ──
 function catalogoNuevo(globales){
   const ctx = Object.assign({ console:{log(){},warn(){}}, Math, Number, String, Object, Array, JSON, Promise, Date, isNaN }, globales || {});
@@ -144,13 +150,54 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('Excel: los mismos montos que la web (precio $1.400, seguro 4,5% = $63, inicial $560)', nh && nh[1] === 1400 && nh[2] === 63 && nh[3] === 560 && nh[6] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal);
   ok('Excel: un renglón por modelo, sin el eliminado, y los sin precio dicen POR CONFIRMAR', filas.find(f => f[0] === 'DT 170')[1] === 'POR CONFIRMAR' && filas.length === 1 + 53 && !filas.some(f => f[0] === coleccion.docs['3'].modelo));
 
-  // Nuevo modelo
+  // ── Por concesionario, no por marca (Adam, 15-oct-2026) ──
+  S.concesionarios = [ { id:'C-BT', nombre:'BERA TRINIDAD', activo:true }, { id:'C-BC', nombre:'BERA Chacao', activo:true }, { id:'C-X', nombre:'Cerrado', activo:false }, { id:'C-E', nombre:'Eliminado', eliminado:true } ];
   ctx.catNuevoModelo();
-  Object.assign(doc.getElementById('cm_modelo'), { value:'nueva 250' }); doc.getElementById('cm_precio').value = '2100'; doc.getElementById('cm_sede').value = 'Boleita';
+  let hm = doc.getElementById('mbd').innerHTML;
+  ok('el concesionario se elige entre los del sistema (activos y no eliminados), no se escribe', /id="cm_conc"/.test(hm) && /value="C-BT"/.test(hm) && /value="C-BC"/.test(hm) && !/Cerrado/.test(hm) && !/Eliminado/.test(hm) && !/id="cm_sede"/.test(hm));
+  Object.assign(doc.getElementById('cm_modelo'), { value:'nueva 250' }); doc.getElementById('cm_precio').value = '2100'; doc.getElementById('cm_conc').value = 'C-BT';
   doc.getElementById('cm_name').value = ''; doc.getElementById('cm_cc').value = '250cc'; doc.getElementById('cm_type').value = ''; doc.getElementById('cm_cat').value = ''; doc.getElementById('cm_tag').value = ''; doc.getElementById('cm_disp').checked = true;
   ctx.S.saveFn(); await new Promise(r => setImmediate(r));
   const nuevo = coleccion.docs['50'];
-  ok('nuevo modelo: toma el número siguiente, en mayúsculas y con el código del concesionario', nuevo && nuevo.id === 50 && nuevo.modelo === 'NUEVA 250' && nuevo.name === 'Nueva 250' && nuevo.sede === coleccion.docs['18'].sede && nuevo.disponible === true);
+  ok('nuevo modelo: número siguiente, mayúsculas y el concesionario del sistema con su código', nuevo && nuevo.id === 50 && nuevo.modelo === 'NUEVA 250' && nuevo.name === 'Nueva 250' && nuevo.sedeName === 'BERA TRINIDAD' && nuevo.sede === 'bera-trinidad' && nuevo.concesionarioId === 'C-BT' && nuevo.disponible === true);
+  ctx.catNuevoModelo(); doc.getElementById('cm_modelo').value = 'X'; doc.getElementById('cm_precio').value = '100'; doc.getElementById('cm_conc').value = '';
+  const antesSin = Object.keys(coleccion.docs).length; ctx.S.saveFn(); await new Promise(r => setImmediate(r));
+  ok('sin concesionario no se guarda', Object.keys(coleccion.docs).length === antesSin && avisos.some(a => /Elige el concesionario/.test(a)));
+  // Copiar: el mismo modelo para BERA Chacao con otro precio
+  ctx.catCopiar(50);
+  hm = doc.getElementById('mbd').innerHTML;
+  // los campos del modal son elementos falsos que no leen el HTML: se les pone lo que el modal muestra
+  doc.getElementById('cm_modelo').value = 'NUEVA 250'; doc.getElementById('cm_cc').value = '250cc'; doc.getElementById('cm_name').value = '';
+  ok('"Copiar" abre el modelo con sus datos, sin concesionario ni precio', /Copiar a otro concesionario/.test(doc.getElementById('mtt').textContent) && /value="NUEVA 250"/.test(hm) && /value="250cc"/.test(hm) && !/value="C-BT" selected/.test(hm) && !/value="2100"/.test(hm));
+  doc.getElementById('cm_conc').value = 'C-BC'; doc.getElementById('cm_precio').value = '2250';
+  ctx.S.saveFn(); await new Promise(r => setImmediate(r));
+  const copia = coleccion.docs['51'];
+  ok('la copia es otra fila: mismo modelo, BERA Chacao, su precio, y la original no cambia', copia && copia.modelo === 'NUEVA 250' && copia.concesionarioId === 'C-BC' && copia.sedeName === 'BERA Chacao' && copia.precio === 2250 && coleccion.docs['50'].precio === 2100 && coleccion.docs['50'].concesionarioId === 'C-BT');
+  // Un grupo viejo entero pasa a un concesionario del sistema
+  h = ctx.PG.catalogo();
+  ok('los grupos viejos (sin concesionario del sistema) ofrecen "Asignar concesionario"; los nuevos no', (h.match(/catAsignarGrupo\(/g) || []).length >= 5 && /catAsignarGrupo\(&quot;Veloz&quot;\)/.test(h) && !/catAsignarGrupo\(&quot;BERA TRINIDAD&quot;\)/.test(h) && /catCopiar\(50\)/.test(h));
+  ctx.catAsignarGrupo('Veloz'); doc.getElementById('cg_conc').value = 'C-BC';
+  ctx.S.saveFn(); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r));
+  const veloz = Object.values(coleccion.docs).filter(d => d && d.concesionarioId === 'C-BC' && /^(RZ 200|CG200|DT 170)/.test(d.modelo || ''));
+  ok('todos los Veloz pasan a BERA Chacao con sus precios', veloz.length >= 3 && veloz.every(d => d.sedeName === 'BERA Chacao' && d.sede === 'bera-chacao') && coleccion.docs['47'].precio === 1390 && !Object.values(coleccion.docs).some(d => d && d.sedeName === 'Veloz' && !d.eliminado));
+  // El asistente de credito: el catalogo de la web por concesionario, con el precio de cada uno
+  const CW = catalogoNuevo(); CW.aplicar(CW.desdeDocumentos(Object.keys(coleccion.docs).filter(k => k !== '_condiciones').map(k => ({ name:'projects/x/databases/(default)/documents/catalogo/' + k, fields:aFields(coleccion.docs[k]) }))).motos, null, 'firestore');
+  ok('la web conserva el concesionario del sistema de cada fila', CW.get(50).concesionarioId === 'C-BT' && CW.get(51).concesionarioId === 'C-BC' && CW.get(47).concesionarioId === 'C-BC');
+  ctx.PagasiCatalog = CW; ctx.window._wzCatPedido = true;
+  vm.runInContext("CATALOGO.splice(0, CATALOGO.length, {modelo:'NUEVA 250', precio:1}, {modelo:'SOLO EN PLAN', marca:'BERA'})", ctx);
+  const opts = ctx._wzCatOptions();
+  ok('el selector del asistente agrupa por concesionario y muestra el precio de cada uno', /<optgroup label="BERA TRINIDAD">[^]*?data-precio="2100"[^]*?<\/optgroup>/.test(opts) && /<optgroup label="BERA Chacao">[^]*?data-precio="2250"[^]*?Nueva 250 — \$2,250/.test(opts));
+  ok('lo de Plan & Precios que no está en la web va al final, sin repetir lo que ya está', /Otros modelos \(Plan & Precios/.test(opts) && /data-modelo="SOLO EN PLAN"/.test(opts) && (opts.match(/data-modelo="NUEVA 250"/g) || []).length === 2);
+  S.currentUser = { uid:'adm', nombre:'Adam', rol:'Administrador', permisos:[] };
+  ctx.WZ = { step:3, precio:0, concesionarioId:'' }; ctx.window._wzEditando = null;
+  const campos = {}; ['wz_precio_base_real','wz_precio','wz_concesionario_id','wz_moto_inv','wz_marca','wz-mpago-wrap','wz_new_cat_div','wz_cuota_sug'].forEach(id => { campos[id] = doc.getElementById(id) || (() => { const e = { value:'', style:{}, innerHTML:'' }; return e; })(); });
+  const elsPrev = doc.getElementById; doc.getElementById = id => campos[id] || elsPrev(id);
+  const opt = { getAttribute(k){ return { 'data-modelo':'NUEVA 250', 'data-precio':'2250', 'data-conc':'C-BC' }[k] || null; }, text:'Nueva 250 — $2,250' };
+  ctx._wzPickMotoCat({ value:'web-51', options:[opt], selectedIndex:0 });
+  ok('al elegir la fila de BERA Chacao: el modelo, el precio de ESE concesionario y la sede se llenan solos', ctx.WZ.motoModelo === 'NUEVA 250' && String(campos.wz_precio_base_real.value) === '2250' && ctx.WZ.precio === 2250 && ctx.WZ.concesionarioId === 'C-BC');
+  campos.wz_precio_base_real.value = '1999'; ctx._wzPickMotoCat({ value:'web-50', options:[{ getAttribute(k){ return { 'data-modelo':'NUEVA 250', 'data-precio':'2100', 'data-conc':'C-BT' }[k] || null; }, text:'x' }], selectedIndex:0 });
+  ok('si el empleado ya escribió un precio, no se pisa', String(campos.wz_precio_base_real.value) === '1999' && ctx.WZ.concesionarioId === 'C-BT');
+  doc.getElementById = elsPrev;
 
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });

@@ -519,18 +519,7 @@ function _wzRender(motoId){
 
   // Catálogo COMPLETO del módulo Plan y Precios — TODAS las motos sin excepción (misma fuente: CATALOGO).
   // No se descarta ningún item; se muestra fallback si faltara modelo/precio. Orden A→Z por modelo (numérico).
-  var _catOrdenado = (CATALOGO||[]).filter(function(c){ return !!c; }).slice().sort(function(a,b){
-    return String(a.modelo||'').localeCompare(String(b.modelo||''),'es',{numeric:true,sensitivity:'base'});
-  });
-  var catOptions = '<option value="__wz_new_cat__">＋ Agregar nueva moto al catálogo...</option>'
-    + _catOrdenado.map(function(c, i){
-    var modelo = c.modelo || ('Modelo '+(c.id||'?'));
-    var sede = c.sede ? ' · '+c.sede : '';
-    // Valor unico por opcion. Antes era el precio: dos modelos del mismo precio
-    // compartian valor y al volver al paso 3 quedaba el primero (NEW HORSE 150 → LEÓN 200;
-    // punto 4, 18-sep). El precio ya no sale del catalogo: lo escribe el empleado.
-    return '<option value="cat-'+i+'" data-modelo="'+modelo+'">'+modelo+sede+'</option>';
-  }).join('');
+  var catOptions = _wzCatOptions();
 
   // Moto del INVENTARIO: el selector se habia quedado sin dibujar (motoOptions se
   // calculaba y no se insertaba), asi que el boton "Solicitud" de Inventario no tenia
@@ -1778,6 +1767,39 @@ function _wzLimpiarDatosMoto(){
   });
 }
 
+// 15-oct-2026, Adam: "por concesionario, no por marca". El selector muestra el catalogo de
+// la web (el que mantiene Liz en Catalogo web) agrupado por concesionario, con el precio de
+// CADA concesionario; debajo, lo de Plan & Precios que no este en la web. Al elegir, el
+// precio y el concesionario se llenan solos (el precio solo si la casilla esta vacia).
+function _wzCatOptions(){
+  var E = _wzEsc, html = '<option value="__wz_new_cat__">＋ Agregar nueva moto al catálogo...</option>';
+  var D = (typeof PagasiCatalog !== 'undefined') ? PagasiCatalog : null;
+  var web = D ? (D.motos || []).concat(D.proximos || []) : [], vistos = {};
+  if(D && D.origen === 'base' && !window._wzCatPedido && typeof D.cargar === 'function'){
+    window._wzCatPedido = true;
+    try{ D.cargar().then(function(){ var sel = document.getElementById('wz_moto_cat'); if(sel && D.origen !== 'base'){ var v = sel.value; sel.innerHTML = _wzCatOptions(); sel.value = v; } }); }catch(e){}
+  }
+  if(web.length){
+    var grupos = {}, orden = [];
+    web.slice().sort(function(a, b){ return String(a.sedeName||'').localeCompare(String(b.sedeName||''), 'es') || String(a.name||a.modelo||'').localeCompare(String(b.name||b.modelo||''), 'es', { numeric:true }); })
+      .forEach(function(m){ var g = m.sedeName || 'Sin concesionario'; if(!grupos[g]){ grupos[g] = []; orden.push(g); } grupos[g].push(m); vistos[String(m.modelo||'').toUpperCase()] = 1; });
+    orden.forEach(function(g){
+      html += '<optgroup label="' + E(g) + '">' + grupos[g].map(function(m){
+        var precio = (+m.precio > 0) ? +m.precio : 0;
+        return '<option value="web-' + m.id + '" data-modelo="' + E(m.modelo) + '" data-precio="' + (precio || '') + '" data-conc="' + E(m.concesionarioId || '') + '">' + E(m.name || m.modelo) + (precio ? ' — $' + precio.toLocaleString('en-US') : ' — precio por confirmar') + '</option>';
+      }).join('') + '</optgroup>';
+    });
+  }
+  var otros = (CATALOGO||[]).filter(function(c){ return c && c.modelo && !vistos[String(c.modelo).toUpperCase()]; }).sort(function(a, b){ return String(a.modelo||'').localeCompare(String(b.modelo||''), 'es', { numeric:true, sensitivity:'base' }); });
+  if(otros.length){
+    // Valor unico por opcion (punto 4, 18-sep): nunca el precio.
+    html += '<optgroup label="' + (web.length ? 'Otros modelos (Plan & Precios, sin concesionario)' : 'Modelos') + '">' + otros.map(function(c, i){
+      var modelo = c.modelo || ('Modelo ' + (c.id || '?'));
+      return '<option value="cat-' + i + '" data-modelo="' + E(modelo) + '">' + E(modelo) + (c.sede ? ' · ' + E(c.sede) : '') + '</option>';
+    }).join('') + '</optgroup>';
+  }
+  return html;
+}
 function _wzPickMotoCat(sel){
   var wrap = document.getElementById('wz-mpago-wrap');
   var newCatDiv = document.getElementById('wz_new_cat_div');
@@ -1810,6 +1832,18 @@ function _wzPickMotoCat(sel){
   if(WZ.motoInvId) _wzLimpiarDatosMoto();
   WZ.motoInvId = null;
   WZ.motoModelo = opt.getAttribute('data-modelo')||opt.text.split(' —')[0].trim();
+  // El concesionario y el precio de ESA fila del catalogo (15-oct-2026, "por concesionario")
+  var _cw = opt.getAttribute('data-conc') || '', _pw = parseFloat(opt.getAttribute('data-precio') || '') || 0;
+  if(_cw && !window._wzEditando && _wzSedesDisponibles().some(function(c){ return String(c.id) === _cw; }) && String(WZ.concesionarioId || '') !== _cw){
+    var _sc = document.getElementById('wz_concesionario_id'); if(_sc) _sc.value = _cw;
+    if(typeof _wzSetSede === 'function') _wzSetSede(_cw); else { WZ.concesionarioId = _cw; WZ['wz_concesionario_id'] = _cw; }
+  }
+  var _pb = document.getElementById('wz_precio_base_real');
+  if(_pw > 0 && _pb && !(parseFloat(_pb.value) > 0)){
+    _pb.value = _pw; _wzSyncPrecioBase(_pw);
+    _wzActualizarFinPreview(_pw);
+    if(typeof _wzCuotaSug === 'function') _wzCuotaSug();
+  }
   // ── Autocompletar los datos de la moto que SÍ vienen del catálogo ──
   // El catálogo trae 'modelo', 'sede' y opcionalmente 'marca'. VIN, color, placa
   // y seriales son únicos de cada moto física y no se pueden autollenar.

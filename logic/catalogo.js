@@ -170,6 +170,22 @@ function catGuardarCondiciones(){
 }
 
 // ── Nuevo modelo / editar ───────────────────────────────────────────
+// 15-oct-2026, Adam: "por concesionario, no por marca: BERA Trinidad no vende al mismo
+// precio que BERA Chacao, igual con Veloz". Cada fila del catalogo es de UN concesionario
+// del sistema (los de Concesionarios), con su propio precio. El mismo modelo en otro
+// concesionario es otra fila: boton "Copiar". Los grupos viejos ("Veloz", "Boleita"…) se
+// asignan de una vez con "Asignar concesionario".
+function _catConcesionarios(){
+  return ((typeof S !== 'undefined' && S.concesionarios) || []).filter(function(c){ return c && !c.eliminado && c.activo !== false && c.nombre; })
+    .map(function(c){ return { id: String(c.id), nombre: String(c.nombre).trim() }; })
+    .sort(function(a, b){ return a.nombre.localeCompare(b.nombre, 'es'); });
+}
+function _catConcOpciones(sel, nombreViejo){
+  var E = _catEsc, lista = _catConcesionarios(), tiene = lista.some(function(c){ return c.id === String(sel || ''); });
+  return '<option value="">— Elegir concesionario —</option>'
+    + lista.map(function(c){ return '<option value="' + E(c.id) + '"' + (c.id === String(sel || '') ? ' selected' : '') + '>' + E(c.nombre) + '</option>'; }).join('')
+    + ((nombreViejo && !tiene) ? '<option value="__viejo__" selected>' + E(nombreViejo) + ' (nombre viejo, sin concesionario del sistema)</option>' : '');
+}
 function _catSedes(){
   var vistos = {}, out = [];
   _cat.motos.concat(PagasiCatalog.base).forEach(function(m){ if(m.sedeName && !vistos[m.sedeName]){ vistos[m.sedeName] = m.sede || ''; out.push(m.sedeName); } });
@@ -177,19 +193,26 @@ function _catSedes(){
 }
 function _catSlug(s){ return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24); }
 function catNuevoModelo(){ catEditarModelo(null); }
-function catEditarModelo(id){
+// El mismo modelo para otro concesionario, con su propio precio (la foto se comparte)
+function catCopiar(id){ var m = _catLocal(id); if(m) catEditarModelo(null, m); }
+function catEditarModelo(id, base){
   if(!catPuedeEditar()) return;
-  var m = id != null ? _catLocal(id) : null, nuevo = !m;
-  m = m || { modelo: '', name: '', sedeName: '', precio: '', cc: '', type: '', cat: '', tag: '', disponible: true };
-  var sedes = _catSedes(), E = _catEsc;
-  setMicon('editar'); $('mtt').textContent = nuevo ? 'Nuevo modelo' : 'Editar modelo'; $('msb').textContent = nuevo ? 'Aparece en pagasi.io al guardarlo' : (m.modelo + ' · ' + (m.sedeName || ''));
+  var m = id != null ? _catLocal(id) : null, nuevo = !m, copia = nuevo && !!base;
+  m = m || (copia ? Object.assign({}, base, { sedeName: '', sede: '', concesionarioId: '', precio: '' })
+                  : { modelo: '', name: '', sedeName: '', precio: '', cc: '', type: '', cat: '', tag: '', disponible: true });
+  var E = _catEsc;
+  setMicon('editar');
+  $('mtt').textContent = copia ? 'Copiar a otro concesionario' : (nuevo ? 'Nuevo modelo' : 'Editar modelo');
+  $('msb').textContent = copia ? (m.modelo + ' · elige el concesionario y su precio') : (nuevo ? 'Aparece en pagasi.io al guardarlo' : (m.modelo + ' · ' + (m.sedeName || '')));
   $('modal-box').className = 'modal';
   var campo = function(etq, idc, val, extra){ return '<div class="fg"><label>' + etq + '</label><input class="fi" id="' + idc + '" value="' + E(val) + '" ' + (extra || '') + '></div>'; };
+  var sinConc = !_catConcesionarios().length;
   $('mbd').innerHTML = '<div class="fgr" style="gap:8px">'
     + campo('Modelo (como en la factura)', 'cm_modelo', m.modelo, 'placeholder="NEW HORSE 150" style="text-transform:uppercase"')
     + campo('Nombre en la web', 'cm_name', m.name, 'placeholder="New Horse 150"')
     + '</div><div class="fgr" style="gap:8px;margin-top:8px">'
-    + '<div class="fg"><label>Concesionario</label><input class="fi" id="cm_sede" list="cm_sedes" value="' + E(m.sedeName) + '" placeholder="EK Bello Monte"><datalist id="cm_sedes">' + sedes.nombres.map(function(n){ return '<option value="' + E(n) + '">'; }).join('') + '</datalist></div>'
+    + '<div class="fg"><label>Concesionario (el que vende a este precio)</label><select class="fs" id="cm_conc">' + _catConcOpciones(m.concesionarioId, nuevo ? '' : m.sedeName) + '</select>'
+    + (sinConc ? '<div style="font-size:11px;color:var(--amber);margin-top:4px">No hay concesionarios cargados en el sistema: créalos en Concesionarios.</div>' : '') + '</div>'
     + campo('Precio de contado (US$)', 'cm_precio', (+m.precio > 0 ? m.precio : ''), 'type="number" step="0.01" min="0" placeholder="Vacío = por confirmar"')
     + '</div><div class="fgr" style="gap:8px;margin-top:8px">'
     + campo('Cilindrada', 'cm_cc', m.cc, 'placeholder="150cc"')
@@ -199,31 +222,57 @@ function catEditarModelo(id){
     + campo('Etiqueta (opcional)', 'cm_tag', m.tag, 'placeholder="Más vendida, Económica…"')
     + '</div>'
     + '<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer"><input type="checkbox" id="cm_disp"' + (m.disponible !== false ? ' checked' : '') + ' style="width:16px;height:16px;accent-color:var(--p1)"> Disponible: se ve en la web</label>'
-    + (nuevo ? '<div style="font-size:11px;color:var(--ink3);margin-top:10px">La foto se sube después de guardar, desde la tabla.</div>' : '');
+    + (copia ? '<div style="font-size:11px;color:var(--ink3);margin-top:10px">Se crea otra fila del mismo modelo, con la misma foto, para el concesionario que elijas.</div>'
+       : (nuevo ? '<div style="font-size:11px;color:var(--ink3);margin-top:10px">La foto se sube después de guardar, desde la tabla.</div>' : ''));
   S.saveFn = function(){
     var modelo = String($('cm_modelo').value || '').trim().toUpperCase(), precio = parseFloat(String($('cm_precio').value || '').replace(',', '.'));
-    var sedeName = String($('cm_sede').value || '').trim();
+    var concVal = String(($('cm_conc') && $('cm_conc').value) || '');
     if(!modelo){ toast('Falta el modelo', 'error'); return false; }
     var sinPrecio = String($('cm_precio').value || '').trim() === '';
     if(!sinPrecio && !(precio > 0)){ toast('El precio tiene que ser mayor que 0 (o vacío si todavía no tiene)', 'error'); return false; }
-    if(!sedeName){ toast('Falta el concesionario', 'error'); return false; }
+    if(!concVal){ toast('Elige el concesionario', 'error'); return false; }
+    var conc = _catConcesionarios().find(function(c){ return c.id === concVal; });
+    if(!conc && concVal !== '__viejo__'){ toast('Ese concesionario no existe', 'error'); return false; }
     var datos = {
       modelo: modelo, name: String($('cm_name').value || '').trim() || modelo.toLowerCase().replace(/(^|\s)\S/g, function(x){ return x.toUpperCase(); }),
-      sedeName: sedeName, sede: sedes.codigo[sedeName] || _catSlug(sedeName), precio: sinPrecio ? null : Math.round(precio * 100) / 100,
+      sedeName: conc ? conc.nombre : m.sedeName, sede: conc ? _catSlug(conc.nombre) : (m.sede || _catSlug(m.sedeName)), concesionarioId: conc ? conc.id : (m.concesionarioId || null),
+      precio: sinPrecio ? null : Math.round(precio * 100) / 100,
       cc: String($('cm_cc').value || '').trim(), type: String($('cm_type').value || '').trim(), cat: String($('cm_cat').value || '').trim(),
       tag: String($('cm_tag').value || '').trim(), disponible: !!$('cm_disp').checked
     };
     var idDoc = nuevo ? (Math.max.apply(null, [0].concat(_cat.motos.map(function(x){ return +x.id || 0; }).filter(function(n){ return n < 900; }), PagasiCatalog.base.map(function(x){ return x.id; }))) + 1) : m.id;
-    if(nuevo){ datos.id = idDoc; datos.orden = idDoc; datos.image = ''; }
+    if(nuevo){ datos.id = idDoc; datos.orden = idDoc; datos.image = copia ? (base.image || '') : ''; datos.promo = copia ? !!base.promo : false; }
     _catGuardar(idDoc, datos).then(function(){
       var local = _catLocal(idDoc); if(local) Object.assign(local, datos); else _cat.motos.push(Object.assign({ id: idDoc }, datos));
-      if(typeof logActividad === 'function') logActividad(nuevo ? 'catalogo_modelo_nuevo' : 'catalogo_modelo_editado', 'catalogo', String(idDoc), { modelo: modelo, precio: datos.precio });
-      toast(nuevo ? (modelo + ' agregado al catálogo') : 'Cambios guardados', 'success');
+      if(typeof logActividad === 'function') logActividad(copia ? 'catalogo_modelo_copiado' : (nuevo ? 'catalogo_modelo_nuevo' : 'catalogo_modelo_editado'), 'catalogo', String(idDoc), { modelo: modelo, precio: datos.precio, concesionario: datos.sedeName });
+      toast(copia ? (modelo + ' copiado a ' + datos.sedeName) : (nuevo ? (modelo + ' agregado al catálogo') : 'Cambios guardados'), 'success');
       closeM(); nav('catalogo');
     }).catch(_catError);
     return false;   // se cierra al confirmar la escritura
   };
-  $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" onclick="saveM()">' + (nuevo ? 'Agregar modelo' : 'Guardar') + '</button>';
+  $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" onclick="saveM()">' + (copia ? 'Copiar' : (nuevo ? 'Agregar modelo' : 'Guardar')) + '</button>';
+  $('ov').style.display = 'flex';
+}
+// Un grupo viejo entero (ej. "Veloz") pasa a un concesionario del sistema de una vez
+function catAsignarGrupo(sedeName){
+  if(!catPuedeEditar()) return;
+  var motos = _cat.motos.filter(function(m){ return m && !m.eliminado && (m.sedeName || '') === String(sedeName || ''); });
+  if(!motos.length) return;
+  setMicon('editar'); $('mtt').textContent = 'Asignar concesionario'; $('msb').textContent = motos.length + ' modelo' + (motos.length === 1 ? '' : 's') + ' de "' + sedeName + '"';
+  $('modal-box').className = 'modal';
+  $('mbd').innerHTML = '<div style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin-bottom:10px">Todos los modelos de <b>' + _catEsc(sedeName) + '</b> pasan al concesionario que elijas, con los precios que ya tienen. Si otro concesionario vende los mismos modelos a otro precio, después usa "Copiar" en cada uno.</div>'
+    + '<div class="fg"><label>Concesionario</label><select class="fs" id="cg_conc">' + _catConcOpciones('', '') + '</select></div>';
+  S.saveFn = function(){
+    var conc = _catConcesionarios().find(function(c){ return c.id === String(($('cg_conc') && $('cg_conc').value) || ''); });
+    if(!conc){ toast('Elige el concesionario', 'error'); return false; }
+    var datos = { sedeName: conc.nombre, sede: _catSlug(conc.nombre), concesionarioId: conc.id };
+    Promise.all(motos.map(function(m){ return _catGuardar(m.id, Object.assign({}, datos)).then(function(){ Object.assign(m, datos); }); })).then(function(){
+      if(typeof logActividad === 'function') logActividad('catalogo_grupo_asignado', 'catalogo', conc.id, { de: sedeName, a: conc.nombre, modelos: motos.length });
+      toast(motos.length + ' modelo' + (motos.length === 1 ? '' : 's') + ' ahora son de ' + conc.nombre, 'success'); closeM(); nav('catalogo');
+    }).catch(_catError);
+    return false;
+  };
+  $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" onclick="saveM()">Asignar</button>';
   $('ov').style.display = 'flex';
 }
 

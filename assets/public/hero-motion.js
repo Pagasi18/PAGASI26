@@ -10,7 +10,7 @@
     // La tira del medio es toda Veloz y con halo azul, asi se ve desde que abre la pagina
     // (Adam, 14-oct-2026: "lo de Veloz en las tiras del medio al principio y con el halo azul")
     const columns=[[5,9,8,35,1],[47,902,48,901,49,903],[16,34,3,13,27]];
-    const esVeloz=m=>!!m&&(m.sede==='veloz'||String(m.sedeName||'').trim().toLowerCase()==='veloz');
+    const esVeloz=m=>!!m&&((m.sede||'')+' '+(m.sedeName||'')).toLowerCase().indexOf('veloz')>-1;
     function card(id){
       const moto=D.get(id)||(D.proximos||[]).find(m=>m.id===id);
       if(!moto||!moto.image)return '';

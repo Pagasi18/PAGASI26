@@ -747,7 +747,7 @@ function desdeDocumentos(docs){
     if(!Number.isInteger(id) || id <= 0 || !f.modelo) return;
     if(f.eliminado === true) return;
     const nombre = f.name || String(f.modelo).toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
-    motos.push(Object.freeze({ id, sede: f.sede || '', sedeName: f.sedeName || '', modelo: String(f.modelo), precio: precio > 0 ? precio : null, sinPrecio: !(precio > 0),
+    motos.push(Object.freeze({ id, sede: f.sede || '', sedeName: f.sedeName || '', concesionarioId: f.concesionarioId ? String(f.concesionarioId) : '', modelo: String(f.modelo), precio: precio > 0 ? precio : null, sinPrecio: !(precio > 0),
       cat: f.cat || '', tag: f.promo === true ? 'Promo' : (f.tag === 'Promo' ? '' : (f.tag || '')), promo: f.promo === true,
       name: nombre, cc: f.cc || '—', type: f.type || '', image: f.image || '',
       meses: 12, disponible: f.disponible !== false, orden: num(f.orden, id) }));

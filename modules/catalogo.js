@@ -93,7 +93,7 @@ PG.catalogo = function(){
     var id = _catId(m.id), sinPrecio = catSinPrecio(m), b = catPlan(m, 12, c.inicialMin / 100), visible = m.disponible !== false;
     var busca = (typeof PagasiCatalog !== 'undefined' ? PagasiCatalog.normalize(m.modelo + ' ' + (m.name || '') + ' ' + (m.sedeName || '')) : '');
     var titulo = '';
-    if(m.sedeName !== grupoAnt){ grupoAnt = m.sedeName; nGrupo++; titulo = '<tr class="cat-grupo" data-grupo="' + nGrupo + '"><td colspan="10" style="background:var(--surf2);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);padding:8px 12px">' + E(m.sedeName || 'Sin concesionario') + '</td></tr>'; }
+    if(m.sedeName !== grupoAnt){ grupoAnt = m.sedeName; nGrupo++; titulo = '<tr class="cat-grupo" data-grupo="' + nGrupo + '"><td colspan="10" style="background:var(--surf2);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);padding:8px 12px">' + E(m.sedeName || 'Sin concesionario') + (m.concesionarioId ? '' : ' <button class="btn btn-g btn-xs" style="margin-left:10px;text-transform:none;letter-spacing:0" onclick="catAsignarGrupo(' + JSON.stringify(String(m.sedeName || '')).replace(/"/g, '&quot;') + ')" title="Estos modelos todavía no están atados a un concesionario del sistema">Asignar concesionario del sistema</button>') + '</td></tr>'; }
     var cambio = m.actualizadoPor ? '<div class="tds" style="font-size:10.5px;opacity:.8">Cambió ' + E(m.actualizadoPor) + (m.actualizadoEn ? ' · ' + E(_catCuando(m.actualizadoEn)) : '') + '</div>' : '';
     var verWeb = (visible && !sinPrecio) ? ' · <a href="simulador.html?moto=' + id + '" target="_blank" rel="noopener" style="font-weight:700">Ver en la web ↗</a>' : '';
     var raya = '<span style="color:var(--ink3)">—</span>';
@@ -108,7 +108,7 @@ PG.catalogo = function(){
       + '<td style="text-align:right;white-space:nowrap">' + (b ? CAT_PLAZOS_EXCEL.map(function(n){ return M(catPlan(m, n, c.inicialMin / 100).quincenal); }).join(' · ') : '<span style="font-size:11px;color:var(--ink3)">En la web: "Pregunta el precio"</span>') + '</td>'
       + '<td style="text-align:center"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox"' + (visible ? ' checked' : '') + ' onchange="catDisponible(' + id + ',this.checked)" style="width:16px;height:16px;accent-color:var(--green)">' + (visible ? 'Sí' : 'No') + '</label></td>'
       + '<td style="text-align:center"><input type="checkbox"' + (m.promo ? ' checked' : '') + ' onchange="catPromo(' + id + ',this.checked)" title="Burbuja de promo en la web y primero en la portada" style="width:16px;height:16px;accent-color:#065cff"></td>'
-      + '<td style="white-space:nowrap"><button class="btn btn-g btn-xs" onclick="catEditarModelo(' + id + ')">✎ Editar</button> <button class="btn btn-g btn-xs" onclick="catEliminar(' + id + ')" title="Eliminar del catálogo">🗑</button></td>'
+      + '<td style="white-space:nowrap"><button class="btn btn-g btn-xs" onclick="catEditarModelo(' + id + ')">✎ Editar</button> <button class="btn btn-g btn-xs" onclick="catCopiar(' + id + ')" title="El mismo modelo en otro concesionario, con su propio precio">⧉ Copiar</button> <button class="btn btn-g btn-xs" onclick="catEliminar(' + id + ')" title="Eliminar del catálogo">🗑</button></td>'
       + '</tr>';
   }).join('');
 
@@ -120,7 +120,7 @@ PG.catalogo = function(){
     + '<div style="overflow-x:auto"><table class="tbl" id="cat-tabla" style="width:100%"><thead><tr>'
     + '<th>Foto</th><th>Modelo</th><th>Precio contado</th><th style="text-align:right">Seguro ' + E(seg) + '%</th><th style="text-align:right">Inicial ' + c.inicialMin + '%</th><th style="text-align:right">Al firmar</th><th style="text-align:right">Cuota ' + CAT_PLAZOS_EXCEL.join(' · ') + ' meses</th><th style="text-align:center">En la web</th><th style="text-align:center">Promo</th><th></th>'
     + '</tr></thead><tbody>' + filas + '</tbody></table></div>'
-    + '<div style="font-size:11px;color:var(--ink3);padding:10px 16px">El precio se guarda al salir de la casilla; vacío = precio por confirmar (en la web sale con "Pregunta el precio"). Las cuotas son las mismas que ve el cliente en la web, con la inicial mínima.</div></div>'
+    + '<div style="font-size:11px;color:var(--ink3);padding:10px 16px">El precio se guarda al salir de la casilla; vacío = precio por confirmar (en la web sale con "Pregunta el precio"). Las cuotas son las mismas que ve el cliente en la web, con la inicial mínima. Cada fila es de un concesionario: si otro vende el mismo modelo a otro precio, usa "Copiar".</div></div>'
     + '</div>';
   if(window._catQ || f.chip !== 'todos' || f.sede) setTimeout(function(){ catFiltrar(); }, 0);
   return html;

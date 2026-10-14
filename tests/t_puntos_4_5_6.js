@@ -114,7 +114,8 @@ ctx.WZ.step = 3; ctx.WZ.motoModelo = '';
 try { ctx._wzRender(); } catch (e) {}
 const catHtml = (htmlWizard.match(/<select class="fs" id="wz_moto_cat"[\s\S]*?<\/select>/) || [''])[0];
 const valores = [...catHtml.matchAll(/<option value="([^"]*)"/g)].map(m => m[1]).filter(v => v && v !== '__wz_new_cat__');
-ok('cada modelo del catalogo tiene un valor distinto en el selector', valores.length === 3 && new Set(valores).size === 3);
+// Desde el 15-oct el selector trae tambien el catalogo de la web por concesionario: todos los valores distintos y cada modelo de Plan & Precios una sola vez
+ok('cada modelo del catalogo tiene un valor distinto en el selector', valores.length >= 3 && new Set(valores).size === valores.length && ['NEW HORSE 150','LEÓN 200','BR150 MILAN'].every(m => (catHtml.match(new RegExp('data-modelo="' + m + '"', 'g')) || []).length === 1));
 // Se eligio NEW HORSE 150 y se vuelve al paso 3: el selector se arma de nuevo y se restaura
 els['wz_moto_cat'] = selectFalso(catHtml);
 ctx.setTimeout = function(fn){ try { fn(); } catch (e) {} return 0; };

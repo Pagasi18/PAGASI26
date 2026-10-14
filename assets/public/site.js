@@ -46,7 +46,8 @@
   // borde naranja, foto a todo lo ancho, la cuota grande y un boton que pide clic.
   const esPromo=m=>!!(m&&(m.promo||m.tag==='Promo'));
   // Veloz va primero en el catalogo y con brillo azul (Adam, 13-oct-2026)
-  const esVeloz=m=>!!m&&(m.sede==='veloz'||D.normalize(m.sedeName)==='veloz');
+  // "Veloz", "VELOZ MOTORCYCLES CHACAO", "VELOZ PTO LA CRUZ": todas son Veloz (15-oct-2026)
+  const esVeloz=m=>!!m&&D.normalize((m.sedeName||'')+' '+(m.sede||'')).indexOf('veloz')>-1;
   // La de precio por confirmar en el catalogo: misma tarjeta, con "Pregunta el precio"
   function cardProximo(p){
     const wa='https://wa.me/584242177798?text='+encodeURIComponent('Hola, quiero el precio de la '+p.name+(p.sedeName?' de '+p.sedeName:'')+'.');
