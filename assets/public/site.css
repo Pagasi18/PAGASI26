@@ -1130,3 +1130,7 @@ body.pg-site{font-weight:500}
 @keyframes pg-brillo-azul{0%,100%{box-shadow:0 0 0 2px #2f7bff,0 0 18px 0 rgba(0,150,255,.35),0 20px 40px -22px rgba(6,92,255,.55)}50%{box-shadow:0 0 0 2px #33d1ff,0 0 34px 6px rgba(0,180,255,.55),0 22px 44px -22px rgba(6,92,255,.7)}}
 .pg-button.pg-button-wa{background:linear-gradient(135deg,#1ebe5d,#25d366);border-color:transparent}
 @media(prefers-reduced-motion:reduce){.pg-moto-card.pg-moto-card-veloz{animation:none}}
+/* VELOZ primero en la franja de concesionarios, con el mismo halo azul */
+.pg-partners{align-items:center}
+.pg-partners .pg-partner-veloz{justify-self:center;color:#065cff;padding:5px 14px;border-radius:999px;background:#fff;box-shadow:0 0 0 2px #2f7bff,0 0 22px rgba(0,150,255,.4);animation:pg-brillo-azul 2.8s ease-in-out infinite}
+@media(prefers-reduced-motion:reduce){.pg-partners .pg-partner-veloz{animation:none}}

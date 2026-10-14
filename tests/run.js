@@ -5,7 +5,8 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs'), path = require('path');
 const dir = __dirname;
-const suites = fs.readdirSync(dir).filter(f => /^t_.*\.js$/.test(f) || f === 'public-site.test.js').sort();
+// hero-motion.test.js tambien (14-oct-2026): se habia quedado afuera y nadie la corria.
+const suites = fs.readdirSync(dir).filter(f => /^t_.*\.js$/.test(f) || f === 'public-site.test.js' || f === 'hero-motion.test.js').sort();
 let totalOk = 0, totalFail = 0, crashed = 0;
 for (const f of suites) {
   const r = spawnSync(process.execPath, [path.join(dir, f)], { encoding: 'utf8' });

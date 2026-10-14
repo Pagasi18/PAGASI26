@@ -42,6 +42,11 @@
 .pg-motion-control:hover{background:#0349c6}
 .pg-motion-control svg{width:12px;height:12px;fill:currentColor}
 .pg-motion-hero[data-motion-running=false] .pg-motion-track{animation-play-state:paused;will-change:auto}
+/* Veloz: halo azul electrico que late (se ve sobre el fondo azul) */
+.pg-motion-card.pg-motion-card-veloz{border-color:#7fdcff;box-shadow:0 0 0 2px #33d1ff,0 0 26px 4px rgba(120,220,255,.7),0 15px 36px #003bab40;animation:pg-halo-veloz 2.8s ease-in-out infinite}
+.pg-motion-card-veloz .pg-motion-card-top span:first-child{color:#065cff}
+.pg-motion-hero[data-motion-running=false] .pg-motion-card-veloz{animation-play-state:paused}
+@keyframes pg-halo-veloz{0%,100%{box-shadow:0 0 0 2px #33d1ff,0 0 18px 2px rgba(120,220,255,.55),0 15px 36px #003bab40}50%{box-shadow:0 0 0 3px #8ae6ff,0 0 38px 10px rgba(150,230,255,.85),0 15px 36px #003bab40}}
 @keyframes pg-wall-up{from{transform:translateY(0)}to{transform:translateY(-50%)}}
 @keyframes pg-wall-down{from{transform:translateY(-50%)}to{transform:translateY(0)}}
 @media(min-width:1700px){.pg-motion-wall{width:calc(50% + 160px)}.pg-motion-perspective{width:1000px;left:4%}}
@@ -90,4 +95,4 @@
  .pg-motion-card-top span:last-child{font-size:8px}
 }
 @media(max-width:360px){.pg-motion-copy h1{font-size:36px}.pg-motion-actions{gap:8px}.pg-motion-actions .pg-button{padding:13px 11px;font-size:10px}.pg-motion-terms{gap:17px}.pg-motion-terms>div+div{padding-left:17px}}
-@media(prefers-reduced-motion:reduce){.pg-motion-track{animation-play-state:paused;will-change:auto}}
+@media(prefers-reduced-motion:reduce){.pg-motion-track{animation-play-state:paused;will-change:auto}.pg-motion-card.pg-motion-card-veloz{animation:none}}
