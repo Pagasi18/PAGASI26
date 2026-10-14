@@ -287,3 +287,41 @@ function _wzGuardarPlanApy(){
 // ══════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════
+// PLAN DEL CATALOGO EN EL CREDITO (14-oct-2026)
+// ══════════════════════════════════════════════════════════════════
+// Adam: la cuota sale fija de la formula del catalogo, la misma de pagasi.io y de la
+// calculadora de los vendedores (tasa del catalogo, plazos 6/9/12, inicial desde 40%,
+// todo redondeado HACIA ARRIBA), "y que se pueda editar en tal caso". Sin seguro aparte:
+// desde el 14-oct en la noche va dentro del precio (seguroPct 0).
+function planCatCond(){
+  try{
+    if(typeof _cat !== 'undefined' && _cat && _cat.cond && typeof catCondiciones === 'function') return catCondiciones();
+    if(typeof PagasiCatalog !== 'undefined' && PagasiCatalog.condValidas) return PagasiCatalog.condValidas(PagasiCatalog.condiciones || PagasiCatalog.COND_BASE);
+  }catch(e){}
+  return { apy:777, seguroPct:0, inicialMin:40, inicialMax:60, plazos:[6,9,12] };
+}
+// precio: el de contado (precio base real). ini: la inicial en dolares (null = la minima).
+// plazo: meses. Devuelve los mismos numeros que ve el cliente en la web y en la calculadora.
+function planCatalogo(precio, ini, plazo, cond){
+  cond = cond || planCatCond();
+  precio = parseFloat(precio) || 0;
+  if(!(precio > 0) || typeof PagasiCatalog === 'undefined' || !PagasiCatalog.calcPlan) return null;
+  var meses = parseInt(plazo, 10) || cond.plazos[cond.plazos.length - 1];
+  var pct = (ini == null || ini === '') ? cond.inicialMin / 100 : Math.max(0, parseFloat(ini) || 0) / precio;
+  var p = PagasiCatalog.calcPlan(precio, meses, pct, cond);
+  return { ini: p.inicial, seguro: p.seguro, alFirmar: p.alFirmar, fin: p.financiado, cuotaQ: p.quincenal,
+           plazo: p.meses, totalCuotas: p.totalCuotas, totalEnCuotas: p.totalEnCuotas, pct: p.pct,
+           apy: cond.apy, seguroPct: cond.seguroPct, inicialMin: cond.inicialMin };
+}
+// Lo que se guarda en un credito NUEVO: si la cuota se escribio a mano.
+// La cuota "de la formula" es la del catalogo para ESA inicial y ESE plazo; si la cuota
+// guardada se aparta un dolar o mas, queda marcada (Aprobaciones y el detalle lo muestran).
+function planCatalogoCampos(precio, ini, plazo, cuotaQ, cond){
+  cond = cond || planCatCond();
+  var f = planCatalogo(precio, ini, plazo, cond);
+  if(!f) return {};
+  var cuota = parseFloat(cuotaQ) || 0;
+  return { apyCatalogo: cond.apy, cuotaFormula: f.cuotaQ, cuotaEditada: Math.abs(cuota - f.cuotaQ) >= 1 };
+}

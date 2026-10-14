@@ -541,6 +541,7 @@ function openAmort(id){
           <div style="display:flex;justify-content:space-between;gap:10px;padding-top:6px;border-top:1px dashed var(--rim2)"><span style="color:var(--ink3);font-weight:600">Plazo</span><span style="font-weight:700">${plazoMeses} meses (${n} cuotas)</span></div>
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Cuota mensual</span><span style="font-weight:700">${fmt(cuotaMensual)}</span></div>
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Cuota quincenal</span><span style="font-weight:800;color:var(--p1)">${fmt(cuota)}</span></div>
+          ${c.cuotaEditada?`<div style="display:flex;justify-content:space-between;gap:10px;color:var(--amber)"><span style="font-weight:700">Cuota escrita a mano</span><span style="font-weight:700">la fórmula daba ${fmt(c.cuotaFormula)}</span></div>`:''}
           ${apyCred>0?`<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">APY</span><span style="font-weight:700">${apyCred.toFixed(2)}%</span></div>`:''}
           ${(precioBase-inicial)>0?`<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">ROI</span><span style="font-weight:700;color:var(--green)">${((totalCredito-(precioBase-inicial))/(precioBase-inicial)*100).toFixed(2)}%</span></div>`:''}
         </div>

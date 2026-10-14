@@ -589,11 +589,11 @@ function _wzRender(motoId){
     + '<div id="wz_plan_custom_box" style="display:block;margin-top:10px">'
     + '<div class="fgr">'
     + '<div class="fg"><label>Inicial real (USD)</label><input class="fi" id="wz_ini_real" type="number" placeholder="0.00" oninput="WZ._calcPct=\'manual\';_wzActualizarFinPreview(WZ.precio||0);_wzMpagoSync();_wzCuotaSug();_wzScore()">'+_wzPistaInicial()+'</div>'
-    + '<div class="fg"><label>Cuota quincenal (USD)</label><input class="fi" id="wz_cuota_q_custom" type="number" placeholder="0.00" oninput="_wzActualizarFinPreview(WZ.precio||0);_wzScore()"></div>'
+    + '<div class="fg"><label>Cuota quincenal (USD)</label><input class="fi" id="wz_cuota_q_custom" type="number" placeholder="0.00" oninput="_wzCuotaTocada(this.value);_wzActualizarFinPreview(WZ.precio||0);_wzScore()"></div>'
     + '<div class="fg"><label>Plazo (meses)</label><input class="fi" id="wz_plazo_custom" type="number" min="1" step="1" placeholder="12" oninput="WZ._calcPlazo=null;_wzActualizarFinPreview(WZ.precio||0);_wzCuotaSug();_wzScore()"></div>'
     + '</div>'
     + '<div id="wz_cuota_sug" style="display:none;margin-top:10px"></div>'
-    + '<div style="font-size:11px;color:var(--ink3);margin-top:6px">Escribe el precio y la calculadora te sugiere la inicial y la cuota quincenal. Puedes ajustarlas a mano.</div>'
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:6px">Escribe el precio y el plan del catálogo llena la inicial, la cuota y el plazo.</div>'
     + '</div>'
     + '<div id="wz_plan_apy_box" style="display:none;margin-top:10px">'
     + '<div class="fgr">'
@@ -1886,61 +1886,106 @@ function _wzActualizarFinPreview(precio){
   WZ.plazo = planCfg.plazo;
 }
 
-// ── Calculadora integrada del paso 3 (plan personalizado) ──
-// Misma matemática del plan principal (módulo Calculadora): inicial 45% del precio,
-// financiado × factor, cuota quincenal = total / (plazo × 2). Los empleados ya no
-// tienen que salir del wizard para calcular.
+// ── Calculadora integrada del paso 3 ──
+// 14-oct-2026, Adam: la cuota sale FIJA de la formula del catalogo (la misma de pagasi.io y
+// de la calculadora de los vendedores: tasa del catalogo, plazos 6/9/12, inicial desde 40%,
+// redondeo hacia arriba) "y que se pueda editar en tal caso". En un credito nuevo la
+// calculadora llena sola la inicial, la cuota y el plazo; si alguien escribe otra cuota, se
+// respeta, queda marcada y se ve en Aprobaciones y en el detalle. Al EDITAR un credito viejo
+// no se llena nada solo: su cuota es la que firmo el cliente.
+function _wzCondCatalogo(){
+  if(!window._wzCondPedida && typeof PagasiCatalog !== 'undefined' && PagasiCatalog.cargar){
+    window._wzCondPedida = true;
+    try{ PagasiCatalog.cargar().then(function(){ if(document.getElementById('wz_cuota_sug')) _wzCuotaSug(); }); }catch(e){}
+  }
+  return planCatCond();
+}
 function _wzCuotaSug(){
   var box=document.getElementById('wz_cuota_sug'); if(!box) return;
   var base=parseFloat(((document.getElementById('wz_precio_base_real')||{}).value))||0;
   if(!(base>0)) base=parseFloat(((document.getElementById('wz_precio')||{}).value))||0;
   if(!(base>0)){ box.style.display='none'; box.innerHTML=''; return; }
-  var factor=(typeof PLAN!=='undefined'&&PLAN.factor)?PLAN.factor:2.102343121528029;
-  var iniTyped=parseFloat(((document.getElementById('wz_ini_real')||{}).value))||0;
-  // ── % de inicial elegido con los chips ('manual' = usa el campo "Inicial real") ──
-  var pctSel = (WZ._calcPct!=null) ? WZ._calcPct : ((typeof PLAN!=='undefined'&&PLAN.inicial)||0.45);
-  var esManual = (pctSel==='manual');
-  if(esManual && !(iniTyped>0)){ esManual=false; pctSel=(typeof PLAN!=='undefined'&&PLAN.inicial)||0.45; }
-  // ── Plazo elegido con los chips (si no, usa el campo Plazo o 12) ──
-  var plazoField=parseInt(((document.getElementById('wz_plazo_custom')||{}).value),10)||0;
-  var plazo = (WZ._calcPlazo!=null) ? WZ._calcPlazo : (plazoField>0?plazoField:((typeof PLAN!=='undefined'&&PLAN.plazo)||12));
-  // Redondeo a dólares enteros: sin decimales en inicial ni cuota
-  var iniUsada = esManual ? Math.round(iniTyped) : Math.round(base*pctSel);
-  var fin=Math.max(0,base-iniUsada);
-  var cuotaQ=Math.round(fin*factor/(plazo*2));
-  var total=Math.round(iniUsada+cuotaQ*plazo*2);
-  var cell=function(l,v){ return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:10px;padding:9px 11px">'
+  var cond=_wzCondCatalogo();
+  var editando=!!window._wzEditando;
+  var iniEl=document.getElementById('wz_ini_real'), cuotaEl=document.getElementById('wz_cuota_q_custom'), plazoEl=document.getElementById('wz_plazo_custom');
+  var iniTyped=parseFloat((iniEl||{}).value)||0;
+  // % de inicial elegido con los chips ('manual' = la que se escribio en "Inicial real")
+  var minPct=cond.inicialMin/100;
+  var pctSel=(WZ._calcPct!=null) ? WZ._calcPct : minPct;
+  var esManual=(pctSel==='manual');
+  if(esManual && !(iniTyped>0)){ esManual=false; pctSel=minPct; }
+  // Plazo: el chip, si no el campo, si no el mas largo del catalogo
+  var plazoField=parseInt((plazoEl||{}).value,10)||0;
+  var plazo=(WZ._calcPlazo!=null) ? WZ._calcPlazo : (plazoField>0 ? plazoField : cond.plazos[cond.plazos.length-1]);
+  var f=planCatalogo(base, esManual ? iniTyped : base*pctSel, plazo, cond);
+  if(!f){ box.style.display='none'; return; }
+  var iniUsada=esManual ? iniTyped : f.ini;
+  // Credito nuevo: se llena solo. Si la cuota que habia (de un borrador) no es la de la
+  // formula, se toma como escrita a mano y no se pisa.
+  if(!editando){
+    var cuotaHay=parseFloat((cuotaEl||{}).value)||0;
+    if(WZ._cuotaAuto==null && cuotaHay>0 && Math.abs(cuotaHay-f.cuotaQ)>=1) WZ._cuotaManual=true;
+    if(iniEl && !esManual) iniEl.value=f.ini;
+    if(plazoEl) plazoEl.value=f.plazo;
+    if(cuotaEl && !WZ._cuotaManual){ cuotaEl.value=f.cuotaQ; }
+    WZ._cuotaAuto=f.cuotaQ;
+    _wzActualizarFinPreview(((document.getElementById('wz_precio')||{}).value)||WZ.precio||0);
+    if(typeof _wzMpagoSync==='function') _wzMpagoSync();
+  }
+  var cuotaFinal=parseFloat((cuotaEl||{}).value)||0;
+  var editada=!editando && WZ._cuotaManual && cuotaFinal>0 && Math.abs(cuotaFinal-f.cuotaQ)>=1;
+  var bajoMin=iniUsada < Math.ceil(base*minPct) - 0.005;
+  var M=function(n){ return '$'+Math.round(n).toLocaleString('en-US'); };
+  var cell=function(l,v,sub){ return '<div style="background:var(--surf);border:1px solid var(--rim);border-radius:10px;padding:9px 11px">'
     +'<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);font-weight:700;margin-bottom:2px">'+l+'</div>'
-    +'<div style="font-size:15px;font-weight:900;letter-spacing:-.4px;color:var(--p1)">'+v+'</div></div>'; };
+    +'<div style="font-size:15px;font-weight:900;letter-spacing:-.4px;color:var(--p1)">'+v+'</div>'
+    +(sub?'<div style="font-size:9.5px;color:var(--ink3);margin-top:1px">'+sub+'</div>':'')+'</div>'; };
+  var pcts=[minPct]; [0.45,0.50,0.55,0.60,0.70].forEach(function(p){ if(p>minPct+0.001) pcts.push(p); });
   var pctChip=function(p){ var on=!esManual && Math.abs(pctSel-p)<0.001;
-    return '<button type="button" class="btn btn-xs '+(on?'btn-p':'btn-g')+'" onclick="_wzCalcPct('+p+')" style="font-size:10px;padding:3px 9px">'+(p*100).toFixed(0)+'%</button>'; };
-  var plazoChip=function(m){ var on=(plazo===m);
+    return '<button type="button" class="btn btn-xs '+(on?'btn-p':'btn-g')+'" onclick="_wzCalcPct('+p+')" style="font-size:10px;padding:3px 9px">'+Math.round(p*100)+'%</button>'; };
+  var plazoChip=function(m){ var on=(f.plazo===m);
     return '<button type="button" class="btn btn-xs '+(on?'btn-p':'btn-g')+'" onclick="_wzCalcPlazo('+m+')" style="font-size:10px;padding:3px 9px">'+m+' m</button>'; };
   box.style.display='block';
   box.innerHTML='<div style="background:var(--gs);border:1px solid var(--rim2);border-radius:10px;padding:12px">'
-    +'<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1);margin-bottom:8px">🧮 Calculadora</div>'
-    +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'
+    +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--p1)">🧮 Plan del catálogo</div>'
+    +'<div style="font-size:10px;color:var(--ink3)">Tasa '+cond.apy+'% · inicial desde '+cond.inicialMin+'%</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'
       +'<span style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px">Inicial:</span>'
-      +[0.45,0.50,0.55,0.60,0.65,0.70].map(pctChip).join('')
-      +(iniTyped>0?'<button type="button" class="btn btn-xs '+(esManual?'btn-p':'btn-g')+'" onclick="_wzCalcPct(\'manual\')" style="font-size:10px;padding:3px 9px">Manual $'+Math.round(iniTyped)+'</button>':'')
+      +pcts.map(pctChip).join('')
+      +(esManual?'<button type="button" class="btn btn-xs btn-p" onclick="_wzCalcPct(\'manual\')" style="font-size:10px;padding:3px 9px">Escrita $'+Math.round(iniTyped)+'</button>':'')
     +'</div>'
-    +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
       +'<span style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px">Plazo:</span>'
-      +[6,9,12,15,18,24].map(plazoChip).join('')
+      +cond.plazos.map(plazoChip).join('')
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'
-    +cell('Inicial'+(esManual?' (manual)':' ('+(pctSel*100).toFixed(0)+'%)'),'$'+iniUsada)
-    +cell('A financiar','$'+Math.round(fin))
-    +cell('Cuota quincenal','$'+cuotaQ)
-    +cell('Total a pagar','$'+total)
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
+    +cell('Inicial'+(esManual?' (escrita)':' ('+Math.round(f.pct*100)+'%)'), M(iniUsada), 'paga al firmar')
+    +cell('A financiar', M(Math.max(0,base-iniUsada)))
+    +cell('Cuota quincenal', M(f.cuotaQ), f.totalCuotas+' cuotas')
+    +cell('Total en cuotas', M(f.totalEnCuotas))
     +'</div>'
-    +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">'
-    +'<button type="button" class="btn btn-p btn-sm" onclick="_wzAplicarCalc('+iniUsada+','+cuotaQ+','+plazo+')">✓ Aplicar este plan</button>'
-    +'<span style="font-size:10.5px;color:var(--ink3)">Llena inicial $'+iniUsada+' · cuota $'+cuotaQ+' · plazo '+plazo+' meses</span>'
-    +'</div></div>';
+    +(bajoMin?'<div style="margin-top:8px;font-size:11.5px;color:var(--amber);font-weight:700">La inicial está por debajo del '+cond.inicialMin+'% ('+M(Math.ceil(base*minPct))+').</div>':'')
+    +(editada
+      ? '<div style="margin-top:10px;padding:9px 11px;border-radius:9px;background:var(--ambers);border:1px solid rgba(245,166,35,.35);font-size:12px;color:var(--ink)">'
+        +'<b>Cuota escrita a mano: $'+cuotaFinal+'.</b> La fórmula da '+M(f.cuotaQ)+'. Así se guarda y queda marcada en el crédito. '
+        +'<a href="javascript:void(0)" onclick="_wzCuotaVolver()" style="font-weight:800;color:var(--p1)">Volver a la fórmula</a></div>'
+      : (editando
+          ? '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">'
+            +'<button type="button" class="btn btn-p btn-sm" onclick="_wzAplicarCalc('+iniUsada+','+f.cuotaQ+','+f.plazo+')">✓ Aplicar este plan</button>'
+            +'<span style="font-size:10.5px;color:var(--ink3)">Al editar no se cambia nada solo: la cuota guardada es la que firmó el cliente.</span></div>'
+          : '<div style="margin-top:8px;font-size:10.5px;color:var(--ink3)">La inicial, la cuota y el plazo de arriba se llenan solos con este plan. Si hace falta otra cuota, escríbela: queda marcada.</div>'))
+    +'</div>';
 }
-function _wzCalcPct(p){ WZ._calcPct=p; _wzCuotaSug(); }
-function _wzCalcPlazo(m){ WZ._calcPlazo=m; _wzCuotaSug(); }
+function _wzCalcPct(p){ WZ._calcPct=p; _wzCuotaSug(); _wzScore(); }
+function _wzCalcPlazo(m){ WZ._calcPlazo=m; _wzCuotaSug(); _wzScore(); }
+// Alguien escribio en "Cuota quincenal": desde ahi la calculadora no la pisa
+function _wzCuotaTocada(v){
+  if(window._wzEditando) return;
+  var n=parseFloat(v)||0;
+  WZ._cuotaManual = n>0 && (WZ._cuotaAuto==null || Math.abs(n-WZ._cuotaAuto)>=0.005);
+  _wzCuotaSug();
+}
+function _wzCuotaVolver(){ WZ._cuotaManual=false; _wzCuotaSug(); _wzScore(); }
 function _wzAplicarCalc(ini,cuota,plazo){
   var a=document.getElementById('wz_ini_real'); if(a) a.value=Math.round(parseFloat(ini)||0);
   var b=document.getElementById('wz_cuota_q_custom'); if(b) b.value=Math.round(parseFloat(cuota)||0);
@@ -2473,11 +2518,12 @@ function _wzRenderResultado(){
         [r.mode==='custom'?'Inicial real':'Inicial ('+((r.inicialPct||0)*100).toFixed(0)+'%)', '$'+r.ini.toFixed(0)],
         ['Monto a financiar', '$'+r.fin.toFixed(0)],
         ['Cuota quincenal', '$'+r.cuotaQ.toFixed(2)],
+      ].concat(_wzFilasCatalogo(r)).concat([
         ['Cuota mensual / ingreso', WZ.ratio>0?(WZ.ratio*100).toFixed(0)+'%':'—'],
         ['Plazo', (r.plazo||0)+' meses'],
         ['Total a pagar', '$'+r.totalPagado.toFixed(0)],
-      ].map(function(row){
-        var col2color = (row[0]==='Cuota mensual / ingreso') ? ratioColor : 'var(--ink)';
+      ]).map(function(row){
+        var col2color = (row[0]==='Cuota mensual / ingreso') ? ratioColor : (row[2] || 'var(--ink)');
         return '<div class="wz-row"><span>'+row[0]+'</span><span style="color:'+col2color+'">'+row[1]+'</span></div>';
       }).join('')
       +'</div>'
@@ -2490,6 +2536,15 @@ function _wzRenderResultado(){
     // Aqui ya no se pregunta nada: antes la inicial se pedia otra vez y la sede venia
     // puesta en la primera de la lista (23-sep-2026).
     + _wzResumenDineroHTML(r);
+}
+
+// Fila del plan del catalogo en el resumen (credito nuevo): si la cuota se escribio a mano. Al editar no salen: el credito viejo ya tiene lo suyo.
+function _wzFilasCatalogo(r){
+  if(window._wzEditando || typeof planCatalogoCampos!=='function') return [];
+  var k = planCatalogoCampos(r.precioBaseReal, r.ini, r.plazo, r.cuotaQ);
+  var filas = [];
+  if(k.cuotaEditada) filas.push(['Cuota escrita a mano', 'la fórmula da $'+k.cuotaFormula, 'var(--amber)']);
+  return filas;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -3112,6 +3167,7 @@ function _wzGuardar(){
   // Crear crédito — ID monotónico (no se recicla aunque haya eliminaciones)
   nextCredIdAsync().then(function(credId){
   var _finNew = _wzCredPlanFields(r, null);
+  var _catNew = (typeof planCatalogoCampos==='function') ? planCatalogoCampos(_finNew.precioBaseReal, _finNew.ini, _finNew.plazo, _finNew.cuotaQ) : {};
   var newCred = {
     id: credId,
     cli: WZ.nom||(existing&&existing.nombre)||'',
@@ -3141,6 +3197,10 @@ function _wzGuardar(){
     tasaMensual: _finNew.tasaMensual,
     planModo: _finNew.planModo,
     plan: _finNew.plan,
+    // 14-oct-2026: si la cuota se aparto de la formula del catalogo (planCatalogoCampos)
+    apyCatalogo: _catNew.apyCatalogo || null,
+    cuotaFormula: _catNew.cuotaFormula || null,
+    cuotaEditada: !!_catNew.cuotaEditada,
     frecuencia: 'quincenal',
     fecha: hoyLocalISO(),
     // 24-sep-2026, Adam: la aprobacion se hace por WhatsApp ANTES de crear la solicitud,

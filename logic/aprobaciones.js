@@ -5,6 +5,13 @@ function _aprGetPendientes(){
   });
 }
 
+// La cuota se escribio a mano (no es la del plan del catalogo): que se vea antes de aprobar
+function _aprMarcaCuota(c){
+  if(!c || !c.cuotaEditada) return '';
+  return '<div style="margin-top:9px;padding:7px 10px;border-radius:8px;background:var(--ambers);border:1px solid rgba(245,166,35,.35);font-size:11.5px;color:var(--ink)">'
+    + '<b style="color:var(--amber)">Cuota escrita a mano:</b> $'+(parseFloat(c.cuotaQ||c.cuota)||0).toFixed(2)+'. La fórmula del catálogo da $'+(parseFloat(c.cuotaFormula)||0).toFixed(0)+'.</div>';
+}
+
 // Render del módulo Aprobaciones
 function _aprRender(){
   var pendientes = _aprGetPendientes();
@@ -60,6 +67,7 @@ function _aprRender(){
         + '<div><div style="color:var(--ink3);font-weight:700;font-size:9.5px;text-transform:uppercase">Score</div><div style="font-weight:800;margin-top:1px;color:'+scoreCol+'">'+score+' · '+scoreLbl+'</div></div>'
         + '<div><div style="color:var(--ink3);font-weight:700;font-size:9.5px;text-transform:uppercase">Cuota Q.</div><div style="font-family:var(--fd);font-weight:800;margin-top:1px">$'+(parseFloat(c.cuotaQ||c.cuota||0)).toFixed(2)+'</div></div>'
         + '</div>'
+        + _aprMarcaCuota(c)
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'
         + '<button class="btn btn-s btn-sm" onclick="_aprAprobar(\''+c.id+'\')" style="min-width:120px">✓ Aprobar</button>'
@@ -112,6 +120,7 @@ function _aprAprobar(credId){
     + '<div style="background:var(--gs);border:1px solid var(--rim2);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px">Inicial según el plan ('+((parseFloat(c.inicialPct)||0)*100).toFixed(0)+'%): <b style="font-family:var(--fd)">'+fmt(iniPlan)+'</b></div>'
     + _dijo
     + '<div class="fg"><label>Inicial recibida (USD) *</label><input class="fi" id="apr_ini_monto" type="number" step="0.01" value="'+iniPlan.toFixed(2)+'"></div>'
+    + _aprMarcaCuota(c)
     + '<div class="fg" style="margin-top:8px"><label>Método / cuenta de la inicial *</label><select class="fs" id="apr_ini_metodo">'+opts+'</select></div>'
     + '<div class="fg" style="margin-top:8px"><label>Referencia (opcional)</label><input class="fi" id="apr_ini_ref" type="text" placeholder="N° de referencia, Binance, etc." value="'+String(c.inicialRef||'').replace(/"/g,'')+'"></div>'
     + '<div id="apr_ini_warn" style="font-size:11px;color:var(--amber);margin-top:8px;display:none"></div>';
