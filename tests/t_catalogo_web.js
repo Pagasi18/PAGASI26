@@ -112,7 +112,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('Liz carga los 49 modelos y las 5 Veloz sin precio (con promo, foto y precio por confirmar)', coleccion.docs['901'].precio === null && coleccion.docs['901'].promo === true && /veloz-dt-170/.test(coleccion.docs['901'].image) && coleccion.docs['47'].promo === true && coleccion.docs['47'].orden < 0 && coleccion.docs['47'].tag === '' && Object.keys(coleccion.docs).filter(k => k !== '_condiciones').length === 54 && coleccion.docs['1'].precio === 1320 && coleccion.docs['1'].sedeName === 'EK Bello Monte' && coleccion.docs['1'].disponible === true && /assets\/motos/.test(coleccion.docs['1'].image));
   ok('...pero las condiciones no: esas las crea un administrador', !coleccion.docs._condiciones);
   let h = ctx.PG.catalogo();
-  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$528<\/td>/.test(h) && /\$108 · \$88 · \$79/.test(h));
+  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$528<\/td>/.test(h) && /\$108<\/td>[^]*?\$88<\/td>[^]*?\$79<\/td>/.test(h) && /Cuota 6 m<\/th>[^]*?Cuota 9 m<\/th>[^]*?Cuota 12 m<\/th>/.test(h));
   ok('Liz no ve las condiciones del plan (solo administradores)', !/Condiciones del plan/.test(h) && !/id="cat_apy"/.test(h) && !/id="cat_seguro"/.test(h));
   ok('los botones de nuevo modelo y Excel están', /catNuevoModelo\(\)/.test(h) && /Descargar reporte Excel/.test(h));
   ok('filtros con contadores: en la web, ocultos, promo, sin foto y precio por confirmar', /data-cat-chip="sinfoto"/.test(h) && /data-cat-chip="sinprecio"/.test(h) && />Precio por confirmar <b[^>]*>5</.test(h) && /Todos los concesionarios/.test(h));
