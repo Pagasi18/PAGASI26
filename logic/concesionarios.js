@@ -350,7 +350,8 @@ function _concRender(){
       totFin.env += fin.enviado; totFin.con += fin.consumido;
       var saldoCol = fin.saldo > 0 ? 'var(--green)' : (fin.saldo < 0 ? 'var(--red)' : 'var(--ink3)');
       return '<tr style="cursor:pointer" onclick="_concAbrirDetalle(\''+c.id+'\')">'
-        + '<td class="tdm">'+(c.nombre||'—')+(c.activo===false?' <span class="bdg b-r" style="font-size:8.5px">INACTIVO</span>':'')+'</td>'
+        + '<td class="tdm">'+(c.nombre||'—')+(c.activo===false?' <span class="bdg b-r" style="font-size:8.5px">INACTIVO</span>':'')
+        + '<div class="tds" style="font-size:10.5px;margin-top:2px">'+(c.rif?'RIF '+String(c.rif).replace(/</g,'&lt;'):'<span style="color:var(--amber);font-weight:700">Sin RIF</span>')+'</div></td>'
         + '<td class="tds">'+(c.ciudad||'—')+'</td>'
         + '<td class="tds" style="text-align:right;font-family:var(--fd)">'+st.motos+'</td>'
         + '<td class="tds" style="text-align:right;font-family:var(--fd);color:var(--p1);font-weight:700">'+st.creds+'</td>'
@@ -389,6 +390,12 @@ function _concRender(){
 }
 
 // Modal: crear / editar concesionario
+// "j123456789" o "J 12345678 9" quedan "J-12345678-9"; lo que no tenga esa forma se deja escrito tal cual
+function _concRifNormal(v){
+  var s = String(v||'').toUpperCase().replace(/\s+/g,'').trim();
+  var m = s.replace(/[^A-Z0-9]/g,'').match(/^([VEJGPC])(\d{6,9})(\d)$/);
+  return m ? (m[1]+'-'+m[2]+'-'+m[3]) : s;
+}
 function _concOpenEdit(id){
   var existing = id ? _concGetById(id) : null;
   var c = existing || { id:'', nombre:'', direccion:'', ciudad:'', telefono:'', activo:true };
@@ -400,6 +407,10 @@ function _concOpenEdit(id){
     + '<div class="fgr c1" style="gap:10px">'
     + '<div class="fg"><label>Nombre del concesionario <span style="color:var(--red)">*</span></label>'
     + '<input class="fi" id="conc_nombre" value="'+(c.nombre||'').replace(/"/g,'&quot;')+'" placeholder="Ej: Maracay Centro" maxlength="80"></div>'
+    // 15-oct-2026: "los contratos no están mostrando los RIF de los concesionarios". El
+    // contrato siempre lo buscaba (conc.rif) pero aqui no habia donde escribirlo.
+    + '<div class="fg"><label>RIF del concesionario <span style="font-weight:400;color:var(--ink3)">(sale en los contratos)</span></label>'
+    + '<input class="fi" id="conc_rif" value="'+(c.rif||'').replace(/"/g,'&quot;')+'" placeholder="Ej: J-12345678-9" maxlength="16" style="text-transform:uppercase"></div>'
     + '<div class="fgr" style="gap:10px">'
     + '<div class="fg"><label>Ciudad</label><input class="fi" id="conc_ciudad" value="'+(c.ciudad||'').replace(/"/g,'&quot;')+'" placeholder="Ej: Maracay"></div>'
     + '<div class="fg"><label>Teléfono</label><input class="fi" id="conc_telefono" value="'+(c.telefono||'').replace(/"/g,'&quot;')+'" placeholder="Ej: 0414-1234567"></div>'
@@ -413,6 +424,8 @@ function _concOpenEdit(id){
     if(!nombre){ toast('El nombre es obligatorio','error'); return false; }
     var newConc = existing ? Object.assign({}, existing) : { id: 'CONC-'+Date.now() };
     newConc.nombre = nombre;
+    newConc.rif = _concRifNormal(($('conc_rif')&&$('conc_rif').value)||'');
+    if(newConc.rif && !/^[VEJGPC]-\d{6,9}-?\d?$/.test(newConc.rif)){ toast('Revisa el RIF: debe ser como J-12345678-9','error'); return false; }
     newConc.ciudad = (($('conc_ciudad')&&$('conc_ciudad').value)||'').trim();
     newConc.telefono = (($('conc_telefono')&&$('conc_telefono').value)||'').trim();
     newConc.direccion = (($('conc_direccion')&&$('conc_direccion').value)||'').trim();
@@ -557,6 +570,7 @@ function _concAbrirDetalle(id){
     + '</div>'
     // ── Info básica compacta ──
     + '<div style="background:var(--gs);padding:10px 13px;border-radius:9px;margin-bottom:13px;font-size:11.5px;color:var(--ink2);display:flex;gap:14px;flex-wrap:wrap">'
+    + '<span><b>RIF:</b> '+(c.rif?esc(c.rif):'<span style="color:var(--amber);font-weight:700">falta (los contratos salen sin RIF)</span>')+'</span>'
     + (c.ciudad?'<span><b>Ciudad:</b> '+esc(c.ciudad)+'</span>':'')
     + (c.telefono?'<span><b>Tel:</b> '+esc(c.telefono)+'</span>':'')
     + '<span><b>Estado:</b> '+(c.activo!==false?'<span style="color:var(--green);font-weight:700">Activo</span>':'<span style="color:var(--red);font-weight:700">Inactivo</span>')+'</span>'
