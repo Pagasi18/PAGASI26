@@ -663,7 +663,7 @@ const BASE = [
 // antes 650%), seguro del 4,5% del precio de contado que se paga junto con la inicial,
 // inicial desde 40% y plazos de 6, 9 y 12 meses. Es el respaldo: lo que guarden en el
 // documento "_condiciones" manda.
-const COND_BASE = Object.freeze({ apy:777, seguroPct:4.5, inicialMin:40, inicialMax:60, plazos:Object.freeze([6,9,12]) });
+const COND_BASE = Object.freeze({ apy:777, seguroPct:0, inicialMin:40, inicialMax:60, plazos:Object.freeze([6,9,12]) });
 // Firebase de la compania que sirve la pagina. preparar-clon-26.sh pone aqui el de PAGASI 26.
 // La llave web de Firebase es publica por diseno: lo que protege los datos son las Reglas.
 // Veloz que aun no tienen precio: en la web salen con "Pregunta el precio". Es el respaldo

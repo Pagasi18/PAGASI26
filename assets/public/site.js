@@ -40,7 +40,7 @@
   function picture(m){return m.image?'<img src="'+escape(m.image)+'" alt="'+escape(m.name)+'" width="400" height="300" loading="lazy" decoding="async">':'<div class="pg-photo-missing">'+icon('bike')+'<span>Fotografía por confirmar</span></div>';}
   function card(m){
     const p=D.plan(m.id);
-    return '<article class="pg-moto-card'+(esPromo(m)?' pg-moto-card-promo':'')+(esVeloz(m)?' pg-moto-card-veloz':'')+'" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':(m.tag==='Promo'?'pg-tag-promo':''))+'">'+(m.tag==='Promo'?'⚡ PROMO':escape(m.tag))+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial + seguro</span><strong class="pg-card-initial">'+D.money(p.alFirmar)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
+    return '<article class="pg-moto-card'+(esPromo(m)?' pg-moto-card-promo':'')+(esVeloz(m)?' pg-moto-card-veloz':'')+'" data-moto-id="'+m.id+'"><a class="pg-moto-picture pg-photo-frame" href="simulador.html?moto='+m.id+'" aria-label="Ver '+escape(m.name)+'">'+picture(m)+(m.tag?'<span class="pg-tag '+(m.tag==='Más vendida'?'pg-tag-green':(m.tag==='Promo'?'pg-tag-promo':''))+'">'+(m.tag==='Promo'?'⚡ PROMO':escape(m.tag))+'</span>':'')+'</a><div class="pg-card-body"><div class="pg-card-meta">'+escape(m.sedeName)+'</div><h3 class="pg-card-name"><a href="simulador.html?moto='+m.id+'">'+escape(m.name)+'</a></h3><p class="pg-card-spec">'+escape(m.cat)+' · Contado '+D.money(m.precio)+'</p><div class="pg-card-payments"><div><span class="pg-offer-label">Cuota referencial</span><strong class="pg-card-price">'+D.money(p.quincenal)+' <small>/ quincena</small></strong></div><div><span class="pg-offer-label">Inicial</span><strong class="pg-card-initial">'+D.money(p.alFirmar)+'</strong></div></div><a class="pg-button" href="simulador.html?moto='+m.id+'">Ver moto y cuotas '+icon('arrow')+'</a></div></article>';
   }
   // Vitrina de promo (Adam, 13-oct-2026: "ponlo mucho mas llamativo"): tarjeta oscura con
   // borde naranja, foto a todo lo ancho, la cuota grande y un boton que pide clic.
@@ -63,7 +63,7 @@
       +'<span class="pg-promo-cinta">⚡ PROMO</span></a>'
       +'<div class="pg-promo-cuerpo"><p class="pg-promo-cat">'+escape([m.sedeName,m.cat].filter(Boolean).join(' · '))+'</p><h3><a href="'+url+'">'+escape(m.name)+'</a></h3>'
       +'<div class="pg-promo-cuota"><span>Cuota quincenal</span><strong>'+D.money(p.quincenal)+'</strong><small>× '+p.totalCuotas+' cuotas</small></div>'
-      +'<div class="pg-promo-datos"><div><span>Inicial + seguro</span><b>'+D.money(p.alFirmar)+'</b></div><div><span>Precio de contado</span><b>'+D.money(m.precio)+'</b></div></div>'
+      +'<div class="pg-promo-datos"><div><span>Inicial</span><b>'+D.money(p.alFirmar)+'</b></div><div><span>Precio de contado</span><b>'+D.money(m.precio)+'</b></div></div>'
       +'<a class="pg-promo-cta" href="'+url+'">¡La quiero! '+icon('arrow')+'</a></div></article>';
   }
   // Motos sin precio todavia (Adam, 13-oct-2026): salen con "Pregunta el precio". Vienen del
@@ -82,12 +82,12 @@
     const planes=motos.map(m=>D.plan(m.id)),sedes=[...new Set(motos.map(m=>m.sedeName).filter(Boolean))];
     const titulo=sedes.length===1?'¡Llegó '+sedes[0]+' a Pagasi!':'Promo Pagasi';
     return '<div class="pg-promo-banner"><span class="pg-promo-banner-fuego" aria-hidden="true">⚡</span><div><strong>'+escape(titulo)+'</strong>'
-      +'<p>Motos nuevas desde <b>'+D.money(Math.min(...planes.map(p=>p.quincenal)))+' la quincena</b> · inicial con seguro desde '+D.money(Math.min(...planes.map(p=>p.alFirmar)))+'</p></div>'
+      +'<p>Motos nuevas desde <b>'+D.money(Math.min(...planes.map(p=>p.quincenal)))+' la quincena</b> · inicial desde '+D.money(Math.min(...planes.map(p=>p.alFirmar)))+'</p></div>'
       +'<a class="pg-promo-banner-cta" href="simulador.html?moto='+motos[0].id+'">Simular mi cuota '+icon('arrow')+'</a></div>';
   }
   function featuredCard(m){
     const p=D.plan(m.id),url='simulador.html?moto='+m.id;
-    return '<article class="pg-featured-card" data-moto-id="'+m.id+'"><div class="pg-featured-heading"><div class="pg-featured-meta"><span>'+escape(m.cat)+'</span>'+(m.tag?'<span class="pg-featured-tag'+(m.tag==='Más vendida'?' pg-featured-tag-green':(m.tag==='Promo'?' pg-featured-tag-promo':''))+'">'+escape(m.tag)+'</span>':'')+'</div><h3><a href="'+url+'">'+escape(m.name)+'</a></h3></div><a class="pg-featured-visual" href="'+url+'" aria-label="Ver '+escape(m.name)+'"><span class="pg-featured-photo pg-photo-frame">'+picture(m)+'</span></a><div class="pg-featured-details"><p class="pg-featured-dealer">'+icon('pin')+escape(m.sedeName)+'</p><div class="pg-featured-plan"><div><span>Cuota quincenal</span><strong class="pg-featured-quota">'+D.money(p.quincenal)+'</strong></div><div><span>Inicial '+Math.round(p.pct*100)+'% + seguro</span><strong class="pg-featured-initial">'+D.money(p.alFirmar)+'</strong></div></div><div class="pg-featured-cash"><span>Precio de contado</span><strong>'+D.money(m.precio)+'</strong></div><a class="pg-featured-cta" href="'+url+'">Ver moto y cuotas <span>'+icon('arrow')+'</span></a></div></article>';
+    return '<article class="pg-featured-card" data-moto-id="'+m.id+'"><div class="pg-featured-heading"><div class="pg-featured-meta"><span>'+escape(m.cat)+'</span>'+(m.tag?'<span class="pg-featured-tag'+(m.tag==='Más vendida'?' pg-featured-tag-green':(m.tag==='Promo'?' pg-featured-tag-promo':''))+'">'+escape(m.tag)+'</span>':'')+'</div><h3><a href="'+url+'">'+escape(m.name)+'</a></h3></div><a class="pg-featured-visual" href="'+url+'" aria-label="Ver '+escape(m.name)+'"><span class="pg-featured-photo pg-photo-frame">'+picture(m)+'</span></a><div class="pg-featured-details"><p class="pg-featured-dealer">'+icon('pin')+escape(m.sedeName)+'</p><div class="pg-featured-plan"><div><span>Cuota quincenal</span><strong class="pg-featured-quota">'+D.money(p.quincenal)+'</strong></div><div><span>Inicial '+Math.round(p.pct*100)+'%</span><strong class="pg-featured-initial">'+D.money(p.alFirmar)+'</strong></div></div><div class="pg-featured-cash"><span>Precio de contado</span><strong>'+D.money(m.precio)+'</strong></div><a class="pg-featured-cta" href="'+url+'">Ver moto y cuotas <span>'+icon('arrow')+'</span></a></div></article>';
   }
   function setupNav(){
     const toggle=document.querySelector('.pg-menu-toggle'),nav=document.querySelector('.pg-nav-links');
@@ -161,18 +161,17 @@
     document.querySelectorAll('[data-catalog-use]').forEach(b=>b.addEventListener('click',()=>{use=b.dataset.catalogUse;render();}));
     const toggle=document.getElementById('filterToggle');toggle.addEventListener('click',()=>{const open=form.dataset.open!=='true';form.dataset.open=String(open);toggle.setAttribute('aria-expanded',String(open));});render();
   }
-  // Tarjeta que gira: delante inicial y cuota; detras seguro, al firmar y monto financiado
+  // Tarjeta que gira: delante inicial y cuota; detras al firmar y monto financiado (sin seguro: va dentro del precio, Adam 14-oct)
   function flipCard(tipo,titulo,p,c){
     const pct=Math.round(p.pct*100),seg=String(c.seguroPct).replace('.',',');
-    return '<div class="pg-flip pg-flip-'+tipo+'" tabindex="0" role="button" aria-label="'+escape(titulo)+': '+pct+'% de inicial. Toca para ver el seguro y el monto financiado.">'
+    return '<div class="pg-flip pg-flip-'+tipo+'" tabindex="0" role="button" aria-label="'+escape(titulo)+': '+pct+'% de inicial. Toca para ver el monto financiado.">'
       +'<div class="pg-flip-inner">'
       +'<div class="pg-flip-face pg-flip-front"><span class="pg-flip-label">'+escape(titulo)+'</span><strong class="pg-flip-pct">'+pct+'<small>%</small></strong>'
       +'<div class="pg-flip-row"><span>Inicial</span><b>'+D.money(p.inicial)+'</b></div>'
       +'<div class="pg-flip-quota"><span>Cuota quincenal</span><strong>'+D.money(p.quincenal)+'</strong><small>'+p.totalCuotas+' cuotas · '+p.meses+' meses</small></div>'
-      +'<span class="pg-flip-more">↻ Seguro y financiamiento</span></div>'
+      +'<span class="pg-flip-more">↻ Financiamiento</span></div>'
       +'<div class="pg-flip-face pg-flip-back"><span class="pg-flip-label">'+escape(titulo)+' · '+pct+'%</span>'
-      +'<div class="pg-flip-row"><span>Seguro ('+seg+'%)<small>se paga con la inicial</small></span><b>'+D.money(p.seguro)+'</b></div>'
-      +'<div class="pg-flip-row"><span>Pagas al firmar<small>inicial + seguro</small></span><b>'+D.money(p.alFirmar)+'</b></div>'
+      +'<div class="pg-flip-row"><span>Pagas al firmar</span><b>'+D.money(p.alFirmar)+'</b></div>'
       +'<div class="pg-flip-row"><span>Total en cuotas</span><b>'+D.money(p.totalEnCuotas)+'</b></div>'
       +'<div class="pg-flip-row pg-flip-total"><span>Monto financiado</span><b>'+D.money(p.financiado)+'</b></div></div>'
       +'</div></div>';
@@ -188,16 +187,16 @@
     document.getElementById('simPrefHelp').textContent='Mueve la barra: desde el '+c.inicialMin+'% del precio de contado.';
     plazosBox.innerHTML=plazos.map(n=>'<button type="button" data-plazo="'+n+'">'+n+' meses</button>').join('');
     const tocar=!(root.matchMedia&&root.matchMedia('(hover: hover)').matches);
-    document.getElementById('simHint').textContent=tocar?'Toca una tarjeta para ver el seguro y el monto financiado.':'Pasa el cursor sobre una tarjeta para ver el seguro y el monto financiado.';
+    document.getElementById('simHint').textContent=tocar?'Toca una tarjeta para ver el monto financiado.':'Pasa el cursor sobre una tarjeta para ver el monto financiado.';
     const cond=document.getElementById('simCondiciones');
-    if(cond)cond.textContent='Inicial desde el '+c.inicialMin+'% del precio de contado, plazos de '+plazos.join(', ').replace(/, (\d+)$/,' o $1')+' meses con cuotas quincenales y un seguro del '+String(c.seguroPct).replace('.',',')+'% del precio de contado que se paga junto con la inicial. El cálculo utiliza una tasa anual efectiva de referencia del '+c.apy+'%. Los importes se muestran redondeados al dólar. El financiamiento está sujeto a evaluación y disponibilidad.';
+    if(cond)cond.textContent='Inicial desde el '+c.inicialMin+'% del precio de contado, plazos de '+plazos.join(', ').replace(/, (\d+)$/,' o $1')+' meses con cuotas quincenales. El cálculo utiliza una tasa anual efectiva de referencia del '+c.apy+'%. Los importes se muestran redondeados al dólar. El financiamiento está sujeto a evaluación y disponibilidad.';
     function render(){const m=D.get(select.value);if(!m)return;
       const pPref=Number(pref.value)/100;prefOut.textContent=Math.round(pPref*100)+'%';
       document.getElementById('simName').textContent=m.name;document.getElementById('simSpec').textContent=m.type;
       document.getElementById('simCC').textContent=m.cc==='—'?'Moto nueva':m.cc;document.getElementById('simSede').textContent=m.sedeName;
       document.getElementById('simPrice').textContent=D.money(m.precio);
       const base=D.plan(m.id,c.inicialMin/100,plazo);
-      document.getElementById('simSeguro').textContent=D.money(base.seguro);document.getElementById('simSeguroLbl').textContent='Seguro ('+String(c.seguroPct).replace('.',',')+'%) · va con la inicial';
+      
       // Sin inicial maxima (Adam, 13-oct-2026): la minima y la que el cliente prefiera
       cardsBox.innerHTML=flipCard('min','Inicial mínima',base,c)+flipCard('pref','Tu inicial preferida',D.plan(m.id,pPref,plazo),c);
       plazosBox.querySelectorAll('[data-plazo]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.plazo)===plazo)));
