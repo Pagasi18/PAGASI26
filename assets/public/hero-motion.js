@@ -7,11 +7,14 @@
     const wall=hero.querySelector('[data-motion-columns]');
     const button=hero.querySelector('[data-motion-toggle]');
     const D=window.PagasiCatalog,S=window.PagasiSite;
-    const columns=[[5,9,35,1],[8,3,40,10],[16,34,13,27]];
+    // Veloz en las tres columnas (Adam, 14-oct-2026: "meteme aqui unas motos Veloz")
+    const columns=[[47,5,9,902,35,1],[48,8,3,901,40,10],[49,16,34,903,13,27]];
     function card(id){
-      const moto=D.get(id);
+      const moto=D.get(id)||(D.proximos||[]).find(m=>m.id===id);
       if(!moto||!moto.image)return '';
-      const optimized='assets/public/motion-motos/'+moto.image.split('/').pop().replace(/\.[^.]+$/,'.webp');
+      // La version liviana solo existe para las fotos del sitio; una foto subida por Liz va tal cual
+      const propia=/^assets\//.test(moto.image);
+      const optimized=propia?'assets/public/motion-motos/'+moto.image.split('/').pop().replace(/\.[^.]+$/,'.webp'):moto.image;
       return '<div class="pg-motion-card" data-motion-model="'+id+'"><div class="pg-motion-card-top"><span>'+S.escape(moto.sedeName)+'</span><span>'+S.escape(moto.cc)+'</span></div><picture class="pg-motion-photo pg-photo-frame"><source srcset="'+S.escape(optimized)+'" type="image/webp"><img src="'+S.escape(moto.image)+'" alt="" width="400" height="300" decoding="async"></picture><div class="pg-motion-card-bottom"><div><strong>'+S.escape(moto.name)+'</strong><small>'+S.escape(moto.type)+'</small></div><span class="pg-motion-card-mark">'+S.icon('bike')+'</span></div></div>';
     }
     wall.innerHTML=columns.map(ids=>{
