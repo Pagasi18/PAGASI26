@@ -1045,3 +1045,46 @@ body.pg-site{font-weight:500}
 @keyframes pg-promo-pulso{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 .pg-featured-tabs .pg-tab-promo[aria-pressed=true]{background:linear-gradient(135deg,#ff7a1a,#ff3d3d);color:#fff;border-color:transparent}
 @media (prefers-reduced-motion:reduce){.pg-tag-promo{animation:none}}
+/* ── Vitrina de promo (13-oct-2026, "ponlo mucho más llamativo") ─────────────── */
+.pg-promo-banner{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:22px 26px;border-radius:24px;background:linear-gradient(120deg,#ff2e4d,#ff6a1a 55%,#ffb21a);color:#fff;box-shadow:0 22px 44px -20px rgba(255,80,30,.85);position:relative;overflow:hidden;isolation:isolate}
+.pg-promo-banner:after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 88% -30%,rgba(255,255,255,.4),transparent 45%),radial-gradient(circle at 0% 130%,rgba(120,0,40,.35),transparent 50%);z-index:-1;pointer-events:none}
+.pg-promo-banner-fuego{font-size:46px;line-height:1;animation:pg-fuego 1.6s ease-in-out infinite;filter:drop-shadow(0 6px 10px rgba(120,0,0,.35))}
+.pg-promo-banner strong{display:block;font-size:clamp(24px,2.8vw,36px);font-weight:900;letter-spacing:-.035em;line-height:1.05}
+.pg-promo-banner p{margin:6px 0 0;font-size:15px;opacity:.97}
+.pg-promo-banner-cta{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;gap:8px;background:#fff;color:#e2361f!important;font-weight:900;font-size:14px;padding:13px 20px;border-radius:999px;box-shadow:0 10px 22px -10px rgba(90,0,0,.6);transition:transform .2s}
+.pg-promo-banner-cta:hover{transform:translateX(3px)}
+.pg-promo-banner-cta .pg-icon{width:18px;height:18px}
+.pg-promo-card{position:relative;display:flex;flex-direction:column;min-width:0;border-radius:26px;background:radial-gradient(circle at 50% 120%,#3a1d3f,transparent 60%),#0e1730;color:#fff;overflow:hidden;isolation:isolate;box-shadow:0 0 0 2px #ff6a1a,0 26px 50px -26px rgba(255,90,30,.85);transition:transform .3s cubic-bezier(.2,.7,.2,1),box-shadow .3s}
+.pg-promo-card:hover{transform:translateY(-7px);box-shadow:0 0 0 2px #ffb21a,0 34px 64px -26px rgba(255,90,30,.95)}
+.pg-promo-foto{display:block;position:relative;aspect-ratio:4/3;overflow:hidden;background:#fff}
+.pg-promo-foto img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .55s cubic-bezier(.2,.7,.2,1)}
+.pg-promo-card:hover .pg-promo-foto img{transform:scale(1.07)}
+.pg-promo-foto:after{content:'';position:absolute;inset:auto 0 0 0;height:42%;background:linear-gradient(to top,#0e1730 8%,transparent);pointer-events:none}
+.pg-promo-sinfoto{display:grid;place-items:center;height:100%;color:#9fb0d0}
+.pg-promo-cinta{position:absolute;top:14px;left:14px;z-index:1;background:linear-gradient(135deg,#ff2e4d,#ff7a1a);color:#fff;font-weight:900;font-size:13px;letter-spacing:.08em;padding:8px 14px;border-radius:999px;box-shadow:0 10px 20px -6px rgba(255,46,77,.85);animation:pg-promo-pulso 2.2s ease-in-out infinite}
+.pg-promo-sede{position:absolute;left:18px;bottom:12px;z-index:1;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:#fff;letter-spacing:.02em}
+.pg-promo-sede .pg-icon{width:16px;height:16px}
+.pg-promo-cuerpo{padding:14px 22px 22px;display:flex;flex-direction:column;gap:14px;flex:1}
+.pg-promo-cat{margin:0;font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#ffb21a}
+.pg-promo-cuerpo h3{margin:-8px 0 0;font-size:clamp(23px,2.1vw,30px);font-weight:900;letter-spacing:-.045em;line-height:1.08}
+.pg-promo-cuerpo h3 a{color:#fff}
+.pg-promo-cuota{display:flex;align-items:baseline;flex-wrap:wrap;column-gap:8px}
+.pg-promo-cuota span{width:100%;font-size:12.5px;color:#a9b7d4;margin-bottom:2px}
+.pg-promo-cuota strong{font-size:60px;line-height:.95;font-weight:900;letter-spacing:-.055em;background:linear-gradient(135deg,#ffd11a,#ff6a1a 60%,#ff2e4d);-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+.pg-promo-cuota small{font-size:13px;color:#a9b7d4;font-weight:700}
+.pg-promo-datos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pg-promo-datos div{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px 13px}
+.pg-promo-datos span{display:block;font-size:11px;color:#a9b7d4;margin-bottom:2px}
+.pg-promo-datos b{font-size:21px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.pg-promo-cta{margin-top:auto;display:flex;align-items:center;justify-content:center;gap:8px;padding:15px;border-radius:15px;background:linear-gradient(135deg,#ff2e4d,#ff7a1a);color:#fff!important;font-weight:900;font-size:16px;letter-spacing:.01em;box-shadow:0 14px 26px -12px rgba(255,46,77,.95);transition:filter .2s,transform .2s}
+.pg-promo-cta:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.pg-promo-cta .pg-icon{width:19px;height:19px}
+@keyframes pg-fuego{0%,100%{transform:scale(1) rotate(-5deg)}50%{transform:scale(1.15) rotate(5deg)}}
+.pg-moto-card.pg-moto-card-promo{box-shadow:0 0 0 2px #ff6a1a,0 20px 40px -22px rgba(255,90,30,.75)}
+.pg-tag-promo{font-size:11px!important;padding:6px 11px!important;letter-spacing:.06em}
+@media(max-width:640px){.pg-promo-banner{flex-wrap:wrap;padding:18px}.pg-promo-banner-cta{margin-left:0;width:100%;justify-content:center}.pg-promo-cuota strong{font-size:50px}}
+@media(prefers-reduced-motion:reduce){.pg-promo-banner-fuego,.pg-promo-cinta{animation:none}.pg-promo-card:hover,.pg-promo-card:hover .pg-promo-foto img{transform:none}}
+/* La pagina pone gris a todos los parrafos de la seccion: en la vitrina va blanco y naranja */
+.pg-featured-section .pg-promo-banner p,.pg-featured-section .pg-promo-banner p b{color:#fff!important;font-size:15px!important;opacity:.97}
+.pg-featured-section .pg-promo-banner p b{font-weight:900}
+.pg-featured-section .pg-promo-card .pg-promo-cat{color:#ffb21a!important;font-size:11px!important}
