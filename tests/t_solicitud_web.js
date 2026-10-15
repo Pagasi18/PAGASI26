@@ -381,7 +381,7 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
     ["antes.get('web_uid', '') == request.auth.uid", "antes.get('web_cerrado', false) != true", "antes.get('web_fin', null) == null", "antes.get('eliminado', false) != true", "request.time < antes.web_ts + duration.value(7, 'd')", 'cambia.hasOnly(camposWebEditables())'].every(s => ed.indexOf(s) > -1));
   ok('editar: web_n +1 con tope de 80, web_act y web_fin con la hora del servidor', /d\.get\('web_n', 0\) == antes\.get\('web_n', 0\) \+ 1 && d\.web_n <= 80/.test(ed) && /d\.web_act == request\.time/.test(ed) && /d\.web_fin == request\.time/.test(ed));
   ok('editar: nunca nombre, cédula, teléfono, estado, origen ni la sesión', ['nombre','cedula','tel','wa','estado','origen','id','web_uid','web_ts','notas','score_indexa','estado_ubi'].every(k => EDITABLES.indexOf(k) === -1));
-  ok('el staff sigue igual', /allow create: if esStaff\(\) \|\| esLeadWeb\(id\);/.test(reglas) && /allow update: if esStaff\(\) \|\| esLeadWebEditando\(\);/.test(reglas));
+  // desde el 15-oct el personal es esInterno() y el vendedor de concesionario solo toca su sede; el lead web sigue igual\n  ok('el staff sigue igual', /allow create: if esInterno\(\) \|\| \(esVendConc\(\) && nuevoDeMiSede\(\)\) \|\| esLeadWeb\(id\);/.test(reglas) && /allow update: if esInterno\(\) \|\| \(esVendConc\(\) && deMiSede\(\) && nuevoDeMiSede\(\)\) \|\| esLeadWebEditando\(\);/.test(reglas));
 
   // ── El panel ──
   const cx = { console:{log(){},warn(){},error(){}}, setTimeout(f){ return 0; }, clearTimeout(){}, encodeURIComponent, Date, Promise,
