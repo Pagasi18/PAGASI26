@@ -133,12 +133,12 @@
 .top>*{position:relative}
 .barra{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .marca{display:flex;align-items:center;gap:14px}
-.marca img{width:168px;height:auto;display:block}
+.marca img{width:200px;height:auto;display:block}
 .marca small{font-weight:800;font-size:11px;opacity:.9;letter-spacing:.14em;text-transform:uppercase;border-left:1px solid rgba(255,255,255,.4);padding-left:14px}
-.quien{display:flex;align-items:center;gap:14px;font-size:13px}
+.quien{display:flex;align-items:center;gap:30px;font-size:13px}
 .quien a{color:#fff;font-weight:800;font-size:12px;opacity:.9;text-decoration:underline;text-underline-offset:4px}
-.quien-logo{height:46px;width:auto;display:block;filter:drop-shadow(0 6px 16px rgba(0,30,120,.3))}
-@media (max-width:560px){.quien-logo{height:36px}.marca img{width:140px}}
+.quien-logo{height:58px;width:auto;display:block;filter:drop-shadow(0 6px 16px rgba(0,30,120,.3))}
+@media (max-width:560px){.quien-logo{height:40px}.marca img{width:150px}.quien{gap:18px}}
 .hola{margin-top:30px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .hola p b{color:#fff}
 .vivo{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:#dbe7ff;margin-top:12px}
@@ -384,13 +384,13 @@
   <div class="fila">
     <section class="card c4">
       <div class="ch"><h2>Volumen financiado por mes</h2><span>US$</span></div>
-      <svg class="graf" viewBox="0 0 380 250" role="img" aria-label="Volumen financiado por mes" id="graf"></svg>
+      <svg class="graf" viewBox="0 0 380 330" role="img" aria-label="Volumen financiado por mes" id="graf"></svg>
     </section>
     <section class="card c4">
       <div class="ch"><h2>Calidad de tu cartera</h2><span>Clientes referidos con más de 60 días de crédito</span></div>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end">
         <div><div class="et">Al día</div><div class="num" style="font-size:24px;color:var(--bien)" id="q-aldia">96,2%</div></div>
-        <div><div class="et">Atraso &gt; 30 días</div><div class="num" style="font-size:24px" id="q-atraso">3,8%</div></div>
+        <div><div class="et">Con atraso</div><div class="num" style="font-size:24px" id="q-atraso">3,8%</div></div>
         <div><div class="et">Multiplicador</div><div class="num" style="font-size:24px;color:var(--azul)" id="q-mult">110%</div></div>
       </div>
       <div class="tabla" style="margin-top:14px"><table>
@@ -573,7 +573,7 @@
       +'<p class="est-pie">Demostración con datos de muestra. Comisiones y bonos estimados; se confirman con la conciliación del cierre de mes. Pagasi · pagasi.io · info@pagasi.io · +58 424-217-7798</p>';
   }
   function grafica(vals){
-    var svg=$('graf'), W=380, H=250, p={l:44,r:10,t:26,b:30}, meses=['May','Jun','Jul','Ago','Sep','Oct'];
+    var svg=$('graf'), W=380, H=330, p={l:44,r:10,t:28,b:30}, meses=['May','Jun','Jul','Ago','Sep','Oct'];
     var max=Math.max.apply(null, vals.concat([1])), paso=max>20000?10000:max>8000?5000:2000, top=Math.ceil(max/paso)*paso;
     var x=function(i){ return p.l+i*((W-p.l-p.r)/vals.length); }, y=function(v){ return p.t+(H-p.t-p.b)*(1-v/top); }, bw=(W-p.l-p.r)/vals.length-12;
     var out='';
