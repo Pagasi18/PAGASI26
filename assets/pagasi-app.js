@@ -1719,8 +1719,25 @@ function _maxNumeroDe(coleccion, regex){
 // fallback que calculaba el numero con la lista local, y ese es precisamente el
 // numero repetido que destruye ventas. Es mejor no crear el credito y avisar,
 // que crearlo encima del de otro cliente.
+// Deja el contador al menos en el maximo real, SIN reservar numero. Lo hace el personal
+// interno cada vez que pide un numero: asi el vendedor de concesionario, que no puede leer
+// todos los creditos, recibe del contador el siguiente libre (15-oct-2026).
+function _sembrarContador(nombre, max){
+  if(!db || !(max > 0)) return Promise.resolve();
+  var ref = db.collection('contadores').doc(String(nombre));
+  return db.runTransaction(function(tx){
+    return tx.get(ref).then(function(d){
+      var actual = (d.exists && typeof d.data().ultimo === 'number') ? d.data().ultimo : 0;
+      if(actual >= max) return;
+      tx.set(ref, { ultimo: max, actualizado: new Date().toISOString() }, { merge:true });
+    });
+  }).catch(function(){});
+}
 function nextCredIdAsync(){
   if(!db) return Promise.resolve(nextCredId());
+  // Vendedor de concesionario: no puede leer todos los creditos; toma el siguiente del
+  // contador. Si chocara con uno existente, el candado de crearCred avisa y se reintenta.
+  if(_sedesDeVendConc()) return reservarNumero('creditos', 0).then(function(n){ return credNum(n); });
   // Rellena huecos primero: si faltan numeros en la secuencia (ej. 319-326 que
   // quedaron reservados en pruebas), la proxima venta toma el mas bajo libre.
   // Cuando no quedan huecos, sigue con el siguiente numero atomico (max+1).
@@ -1732,6 +1749,7 @@ function nextCredIdAsync(){
       var m = String((d.data && d.data().id) || d.id || '').match(credNumRe());
       if(m){ var n = parseInt(m[1], 10); if(!isNaN(n)){ usados[n] = 1; if(n > max) max = n; } }
     });
+    _sembrarContador('creditos', max);   // el contador nunca se queda atras del maximo real
     for(var g = 1; g <= max; g++){
       if(!usados[g]) return credNum(g);   // hueco mas bajo
     }
@@ -1744,6 +1762,7 @@ function nextCredIdAsync(){
 
 function nextClienteIdAsync(){
   if(!db) return Promise.resolve((S&&S.clientes&&S.clientes.length)?Math.max.apply(null,S.clientes.map(function(x){return parseInt(x.id,10)||0;}))+1:1);
+  if(_sedesDeVendConc()) return reservarNumero('clientes', 0);   // no puede leer todos los clientes
   return _maxNumeroDe('clientes', null)
     .then(function(max){ return reservarNumero('clientes', max); });
 }
@@ -2196,10 +2215,12 @@ function startRealtime(){
     {col:'tareas', key:'tareas'},
     {col:'recursos', key:'recursos'}
   ];
+  var sedesVC = _sedesDeVendConc();
+  if(sedesVC) especs = especs.filter(function(s){ return _COLS_SEDE.indexOf(s.col) > -1; });
   _rtBootPreparar(especs.length);
   especs.forEach(function(spec){
     try{
-      var unsub = db.collection(spec.col).onSnapshot(function(snap){
+      var unsub = (sedesVC ? _consultaSede(spec.col, sedesVC) : db.collection(spec.col)).onSnapshot(function(snap){
         var _t0 = Date.now();
         var arr = _rtAplicarFoto(spec, snap);   // desempaca solo lo que cambio
         // Motos: la foto del servidor manda, sin mezclar con la cache local
@@ -2327,24 +2348,31 @@ var DB = {
     // la primera foto de cada suscripcion de startRealtime ES la carga.
     // La carga clasica (sin opts) sigue igual para respaldos y recargas.
     var viaRT = !!opts.viaRealtime && typeof realtimeBootListo === 'function';
-    var NADA = Promise.resolve(null);
+    var NADA = Promise.resolve(null), VACIO = Promise.resolve({docs:[]});
+    // El vendedor de concesionario solo pide lo de su sede; lo de dinero ni se pide
+    var sedesVC = _sedesDeVendConc();
+    var lee = function(col){
+      if(viaRT) return NADA;
+      if(sedesVC) return _COLS_SEDE.indexOf(col) > -1 ? _consultaSede(col, sedesVC).get() : VACIO;
+      return db.collection(col).get();
+    };
     showLoader('Cargando datos...','Conectando con Firebase');
     return Promise.all([
-      viaRT ? NADA : db.collection('motos').get(),
-      viaRT ? NADA : db.collection('clientes').get(),
-      viaRT ? NADA : db.collection('creditos').get(),
-      viaRT ? NADA : db.collection('pagos').get(),
-      viaRT ? NADA : db.collection('egresos').get(),
+      lee('motos'),
+      lee('clientes'),
+      lee('creditos'),
+      lee('pagos'),
+      lee('egresos'),
       Promise.resolve({docs:[]}),
-      viaRT ? NADA : db.collection('movimientos').get(),
-      viaRT ? NADA : db.collection('cuentasPendientes').get(),
+      lee('movimientos'),
+      lee('cuentasPendientes'),
       db.collection('config').doc('plan').get(),
       db.collection('config').doc('catalogo').get(),
       db.collection('config').doc('planes').get(),
-      viaRT ? NADA : db.collection('facturas').get(),
-      viaRT ? NADA : db.collection('concesionarios').get(),
+      lee('facturas'),
+      lee('concesionarios'),
       db.collection('config').doc('inventarioOficina').get(),
-      db.collection('gps').get(),
+      sedesVC ? VACIO : db.collection('gps').get(),
       viaRT ? realtimeBootListo(45000) : NADA,
     ]).then(function(snaps){
       // Si la primera bajada por tiempo real no llego completa (una coleccion
@@ -2938,6 +2966,18 @@ function isEmpleadoRole(){
 function isVendedorConcesionarioRole(){
   if(!S.currentUser) return false;
   return S.currentUser.rol === 'Vendedor Concesionario';
+}
+// 15-oct-2026: el vendedor de concesionario solo le pide a la base lo de SU sede, que es lo
+// unico que las Reglas le entregan (clientes, creditos, motos y su concesionario; nada de
+// dinero). Para los demas roles devuelve null y todo sigue como siempre.
+var _COLS_SEDE = ['motos','clientes','creditos','concesionarios'];
+function _sedesDeVendConc(){
+  if(!isVendedorConcesionarioRole()) return null;
+  var s = ((S.currentUser && S.currentUser.concesionarios) || []).map(String).filter(Boolean).slice(0, 30);
+  return s.length ? s : ['__sin_sede__'];   // sin sedes asignadas no ve nada (y la consulta sigue siendo valida)
+}
+function _consultaSede(col, sedes){
+  return db.collection(col).where(col === 'concesionarios' ? 'id' : 'concesionarioId', 'in', sedes);
 }
 
 // Permisos efectivos del usuario actual
@@ -3915,7 +3955,7 @@ function init() {
   // Pre-cargar usuarios desde Firestore para que getCobradoresList() tenga datos
   // disponibles desde el inicio (ej: al abrir modal de pago sin haber visitado Usuarios)
   try {
-    if(DB && DB.getUsuarios){
+    if(DB && DB.getUsuarios && !isVendedorConcesionarioRole()){
       DB.getUsuarios().then(function(arr){
         if(Array.isArray(arr)){
           if(typeof _usersCache !== 'undefined') _usersCache = arr;
@@ -3935,6 +3975,7 @@ function init() {
     // Los créditos creados ANTES de esta versión ya tienen historial contable,
     // así que se marcan como firmados sin tocar nada más.
     (function _migrarContratoFirmado(){
+      if(isVendedorConcesionarioRole()) return;   // no puede (ni debe) tocar creditos ajenos
       try {
         (S.creds||[]).forEach(function(c){
           if(c && !c.eliminado && c.contratoFirmado === undefined){

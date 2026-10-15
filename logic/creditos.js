@@ -1772,7 +1772,8 @@ function _wzLimpiarDatosMoto(){
 // CADA concesionario; debajo, lo de Plan & Precios que no este en la web. Al elegir, el
 // precio y el concesionario se llenan solos (el precio solo si la casilla esta vacia).
 function _wzCatOptions(){
-  var E = _wzEsc, html = '<option value="__wz_new_cat__">＋ Agregar nueva moto al catálogo...</option>';
+  // El vendedor de concesionario no escribe en el catalogo (Reglas, 15-oct-2026)
+  var E = _wzEsc, html = isVendedorConcesionarioRole() ? '' : '<option value="__wz_new_cat__">＋ Agregar nueva moto al catálogo...</option>';
   var D = (typeof PagasiCatalog !== 'undefined') ? PagasiCatalog : null;
   var web = D ? (D.motos || []).concat(D.proximos || []) : [], vistos = {};
   if(D && D.origen === 'base' && !window._wzCatPedido && typeof D.cargar === 'function'){
