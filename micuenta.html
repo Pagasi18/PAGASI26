@@ -563,6 +563,12 @@ var FIREBASE_CONFIG = {
   messagingSenderId: '415041001199',
   appId: '1:415041001199:web:9844b2b6835fea0e84ad1a'
 };
+/* La otra compañía (Adam, 15-oct-2026: "necesito que tanto los de PAGASI 18 como los de PAGASI 26
+   entren por pagasi.io"). Si el teléfono o el enlace no está en esta base se busca en la otra y la
+   sesión se abre allá. Solo en pagasi.io (y en local), que es el único dominio autorizado para
+   entrar por SMS en los DOS proyectos de Firebase. */
+var FIREBASE_CONFIG_OTRA = { apiKey:'AIzaSyDt07EYdmvIqjU5a9CGPMQdYz8iBJ69Su8', authDomain:'pagasi-v2.firebaseapp.com', projectId:'pagasi-v2', storageBucket:'pagasi-v2.firebasestorage.app', messagingSenderId:'951911859002', appId:'1:951911859002:web:1eb8f0af7bcbd508474603' };   // la otra compañía: PAGASI 18
+var OTRA_ACTIVA = ['pagasi.io','www.pagasi.io','localhost','127.0.0.1'].indexOf(location.hostname) > -1;
 var DIAS_GRACIA = 5;          // igual que PLAN.diasGracia del admin
 // WhatsApp de COBRANZA (0422-2285526, linea preventiva) — este portal es de
 // clientes que YA tienen credito, por eso no va al numero de ventas.
@@ -573,7 +579,7 @@ var WA_PAGASI = '584222285526';
 var LOGO = 'assets/pagasi-logo.png';
 
 var app=null, auth=null, db=null, storage=null;
-var S = { clienteId:'', token:'', cliente:null, creditos:[], pagosPorCred:{}, comprobantes:[], credSel:'',
+var S = { base:'propia', entrando:false, clienteId:'', token:'', cliente:null, creditos:[], pagosPorCred:{}, comprobantes:[], credSel:'',
           master:false, staff:null, clientes:[], credsPorCliente:{}, gpsPorCred:{}, gpsPedidoPorCred:{} };
 
 function $(id){ return document.getElementById(id); }
@@ -629,6 +635,9 @@ function hideErr(id){ $(id).classList.add('hide'); }
 var EMP_PORTAL = (String((FIREBASE_CONFIG||{}).projectId||'') === 'pagasi-v2')
   ? { nombre:'PAGASI 18, C.A.', rif:'J-50829589-7' }
   : { nombre:'', rif:'' };
+function _empresaPorDefecto(cfg){
+  return (String((cfg||{}).projectId||'') === 'pagasi-v2') ? { nombre:'PAGASI 18, C.A.', rif:'J-50829589-7' } : { nombre:'', rif:'' };
+}
 function cargarEmpresaPortal(){
   if(!db) return;
   db.collection('config').doc('empresa').get().then(function(d){
@@ -642,6 +651,22 @@ function cargarEmpresaPortal(){
   }).catch(function(){});
 }
 
+// BASES.propia es la compañía de esta página; BASES.otra, la hermana (solo en pagasi.io).
+// app/auth/db/storage siempre apuntan a la base en uso: todo el portal los usa tal cual.
+var BASES = {};
+function _armarBase(k, cfg, nombre){
+  var a = nombre ? firebase.initializeApp(cfg, nombre)
+                 : ((firebase.apps && firebase.apps.length) ? firebase.app() : firebase.initializeApp(cfg));
+  var b = { app:a, auth:firebase.auth(a), db:firebase.firestore(a), storage:null, cfg:cfg };
+  try{ b.storage = firebase.storage(a); }catch(e){}
+  BASES[k] = b; return b;
+}
+function usarBase(k){
+  var b = BASES[k] || BASES.propia; if(!b) return;
+  var cambia = S.base !== k;
+  S.base = BASES[k] ? k : 'propia'; app = b.app; auth = b.auth; db = b.db; storage = b.storage;
+  if(cambia){ EMP_PORTAL = _empresaPorDefecto(b.cfg); cargarEmpresaPortal(); }
+}
 function initFB(){
   try{
     // Sin llave no se conecta a nada: mas vale decirlo que mostrar un portal vacio
@@ -654,10 +679,11 @@ function initFB(){
       return false;
     }
     if(typeof firebase==='undefined') return false;
-    app = (firebase.apps && firebase.apps.length) ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
-    auth = firebase.auth(app); db = firebase.firestore(app);
-    try{ storage = firebase.storage(app); }catch(e){ storage=null; }
-    cargarEmpresaPortal();
+    _armarBase('propia', FIREBASE_CONFIG);
+    if(OTRA_ACTIVA && FIREBASE_CONFIG_OTRA && FIREBASE_CONFIG_OTRA.projectId && FIREBASE_CONFIG_OTRA.projectId !== FIREBASE_CONFIG.projectId){
+      try{ _armarBase('otra', FIREBASE_CONFIG_OTRA, 'otra'); }catch(e){ console.warn('otra base:', e); }
+    }
+    S.base = null; usarBase('propia');
     return true;
   }catch(e){ console.error('init:',e); return false; }
 }
@@ -719,7 +745,22 @@ function _enlaceHermano(){
 
   if(!initFB()){ showErr('lgErr','No se pudo conectar. Revisa tu internet e intenta de nuevo.'); return; }
 
-  auth.onAuthStateChanged(function(u){
+  // Cada base reporta si tiene una sesión guardada; se decide cuando las dos hablaron.
+  // Mientras hay un login en curso (S.entrando) manda ese flujo, no el aviso de la sesión.
+  var estadoAuth = {};
+  function decidirSesion(){
+    var ks = Object.keys(BASES);
+    for(var i=0;i<ks.length;i++){ if(!(ks[i] in estadoAuth)) return; }
+    if(S.entrando) return;
+    var k = null; for(var j=0;j<ks.length;j++){ if(estadoAuth[ks[j]]){ k = ks[j]; break; } }
+    if(!k){ prepararLogin(); return; }
+    usarBase(k);
+    manejarUsuario(estadoAuth[k]);
+  }
+  Object.keys(BASES).forEach(function(k){
+    BASES[k].auth.onAuthStateChanged(function(u){ estadoAuth[k] = u || null; decidirSesion(); });
+  });
+  function manejarUsuario(u){
     if(!u){ prepararLogin(); return; }
 
     // El equipo va PRIMERO. Una cuenta con correo nunca es un cliente (los
@@ -748,10 +789,11 @@ function _enlaceHermano(){
       if(u.phoneNumber){ return abrirSesionPorTelefono(u.phoneNumber); }
       prepararLogin();
     }).catch(function(){ prepararLogin(); });
-  });
+  }
 })();
 
 function prepararLogin(){
+  S.entrando = false;
   $('scApp').classList.add('hide');
   $('scLogin').classList.remove('hide');
   $('mBar').classList.add('hide');
@@ -785,6 +827,7 @@ function mostrarPaso(equipo){
 }
 
 function volverATel(){
+  S.entrando = false;
   hideErr('lgErr');
   $('stepCod').classList.add('hide');
   $('stepTel').classList.remove('hide');
@@ -794,7 +837,7 @@ function volverATel(){
 }
 
 /* ── Entrar con teléfono + código SMS (autoservicio) ──────────────────── */
-var _confirm = null, _verifier = null, _telPend = '';
+var _confirm = null, _verifier = null, _verifierBase = '', _telPend = '';
 
 function pedirCodigo(){
   hideErr('lgErr');
@@ -804,17 +847,26 @@ function pedirCodigo(){
   var b = $('btnCodigo'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Verificando...';
 
   // Buscamos primero si el número está registrado: así no gastamos un SMS
-  // en alguien que no es cliente, y le damos un mensaje claro.
-  db.collection('indice_clientes').doc(e164).get().then(function(d){
-    if(!d.exists || !d.data().clienteId){
+  // en alguien que no es cliente, y le damos un mensaje claro. Se busca en esta
+  // compañía y, si no está, en la otra: el cliente no tiene por qué saber cuál es.
+  var buscar = function(k){
+    return BASES[k].db.collection('indice_clientes').doc(e164).get()
+      .then(function(d){ return (d.exists && d.data().clienteId) ? { base:k, clienteId:String(d.data().clienteId) } : null; });
+  };
+  buscar('propia').then(function(r){ return r || (BASES.otra ? buscar('otra') : null); }).then(function(r){
+    if(!r){
       b.disabled = false; b.textContent = 'Enviar código';
       showErrConEnlace('lgErr','No encontramos ese número entre nuestros clientes. Puede estar registrado con otro número: escríbenos por WhatsApp y lo revisamos.',
-        _enlaceHermano(), 'Si tu crédito es de antes, abre tu cuenta aquí');
+        BASES.otra ? '' : _enlaceHermano(), 'Si tu crédito es de antes, abre tu cuenta aquí');
       return null;
     }
-    S.clienteId = String(d.data().clienteId);
+    usarBase(r.base);
+    S.clienteId = r.clienteId;
+    S.entrando = true;
     try{
-      if(!_verifier) _verifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {size:'invisible'});
+      // El verificador de reCAPTCHA es de una app: si cambió la base se arma de nuevo
+      if(_verifier && _verifierBase !== S.base){ try{ _verifier.clear(); }catch(e){} _verifier = null; }
+      if(!_verifier){ _verifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {size:'invisible'}, app); _verifierBase = S.base; }
     }catch(e){ console.warn('recaptcha:', e); }
     return auth.signInWithPhoneNumber(e164, _verifier);
   }).then(function(res){
@@ -826,6 +878,7 @@ function pedirCodigo(){
     $('lgSub').textContent = 'Te enviamos un mensaje de texto al ' + e164.replace('+58','0') + '.';
     setTimeout(function(){ $('cod').focus(); }, 200);
   }).catch(function(e){
+    S.entrando = false;
     b.disabled = false; b.textContent = 'Enviar código';
     console.error('pedirCodigo:', e);
     var c = String((e && e.code) || '');
@@ -897,19 +950,34 @@ function entrarConEnlace(){
   var ced = soloDigitos($('ced').value);
   if(ced.length < 5){ showErr('lgErr','Escribe tu cédula completa, solo los números.'); return; }
   var b=$('btnEntrar'); b.disabled=true; b.innerHTML='<span class="spin"></span> Verificando...';
+  S.entrando = true;
 
-  var doSignIn = auth.currentUser ? Promise.resolve(auth.currentUser) : auth.signInAnonymously().then(function(r){ return r.user; });
-  doSignIn.then(function(u){
-    // Las reglas validan token + clienteId + cedula. Si algo no cuadra -> denegado.
-    return db.collection('sesiones_cliente').doc(u.uid).set({
-      clienteId: String(S.clienteId),
-      token: String(S.token),
-      cedulaNorm: ced,
-      creadoEn: new Date().toISOString()
+  // Las reglas validan token + clienteId + cedula. Si algo no cuadra -> denegado.
+  var intentar = function(k){
+    usarBase(k);
+    var doSignIn = auth.currentUser ? Promise.resolve(auth.currentUser) : auth.signInAnonymously().then(function(r){ return r.user; });
+    return doSignIn.then(function(u){
+      return db.collection('sesiones_cliente').doc(u.uid).set({
+        clienteId: String(S.clienteId),
+        token: String(S.token),
+        cedulaNorm: ced,
+        creadoEn: new Date().toISOString()
+      });
     });
+  };
+  intentar('propia').catch(function(e){
+    // Denegado aquí: puede ser un enlace de la otra compañía. Se cierra lo anónimo de
+    // esta base (si no, al recargar ganaría) y se intenta allá con el mismo enlace.
+    if(BASES.otra && e && e.code==='permission-denied'){
+      var a = BASES.propia.auth;
+      return (a.currentUser ? a.signOut().catch(function(){}) : Promise.resolve()).then(function(){ return intentar('otra'); });
+    }
+    throw e;
   }).then(function(){
     cargarPortal();
   }).catch(function(e){
+    S.entrando = false;
+    usarBase('propia');
     b.disabled=false; b.textContent='Entrar';
     var code = (e && e.code) || '';
     if(code==='permission-denied'){
@@ -946,10 +1014,22 @@ function loginStaff(){
   S.equipo = true;   // que el cierre de la sesion anterior no cambie de paso
   // Si el navegador trae guardada la sesion de un cliente, la cerramos antes:
   // si no, quedan dos identidades peleandose y gana la vieja.
-  var limpiar = auth.currentUser ? auth.signOut().catch(function(){}) : Promise.resolve();
+  var limpiar = Promise.all(Object.keys(BASES).map(function(k){
+    var a = BASES[k].auth; return a.currentUser ? a.signOut().catch(function(){}) : Promise.resolve();
+  }));
   limpiar.then(function(){
+    usarBase('propia');
     return auth.signInWithEmailAndPassword(em, pw);
   }).catch(function(e){
+    var c0 = e && e.code;
+    // Si el correo no es de esta compañía, se prueba en la otra con los mismos datos
+    if(BASES.otra && (c0==='auth/user-not-found' || c0==='auth/invalid-credential' || c0==='auth/wrong-password')){
+      usarBase('otra');
+      return auth.signInWithEmailAndPassword(em, pw);
+    }
+    throw e;
+  }).catch(function(e){
+    usarBase('propia');
     b.disabled = false; b.textContent = 'Entrar';
     var c = e && e.code;
     showErr('lgErr',
@@ -1093,11 +1173,14 @@ function salir(){
   // Al salir del modo Pagasi volvemos a la entrada del equipo, no a la del cliente
   var destino = S.master ? 'micuenta.html?equipo=1' : 'micuenta.html';
   var fin = function(){ location.href = destino; };
-  if(u){ auth.signOut().then(fin).catch(fin); } else { fin(); }
+  Promise.all(Object.keys(BASES).map(function(k){
+    var a = BASES[k].auth; return a.currentUser ? a.signOut().catch(function(){}) : Promise.resolve();
+  })).then(fin, fin);
 }
 
 /* ── Cargar datos del cliente ─────────────────────────────────────────── */
 function cargarPortal(){
+  S.entrando = false;
   $('scLogin').classList.add('hide');
   $('scApp').classList.remove('hide');
   $('apBody').innerHTML = '<div class="card"><div class="empty">Cargando tu información...</div></div>';
