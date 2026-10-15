@@ -19,7 +19,7 @@
       if(!moto||!moto.image)return '';
       // La version liviana solo existe para las fotos del sitio; una foto subida por Liz va tal cual
       const propia=/^assets\//.test(moto.image);
-      const optimized=propia?'assets/public/motion-motos/'+moto.image.split('/').pop().replace(/\.[^.]+$/,'.webp'):moto.image;
+      const optimized=(propia&&!propias)?'assets/public/motion-motos/'+moto.image.split('/').pop().replace(/\.[^.]+$/,'.webp'):moto.image;
       return '<div class="pg-motion-card'+(esVeloz(moto)?' pg-motion-card-veloz':'')+(moto.clase?' '+S.escape(moto.clase):'')+'" data-motion-model="'+S.escape(propias?(moto.id||moto.modelo||''):id)+'"><div class="pg-motion-card-top"><span>'+S.escape(moto.sedeName)+'</span><span>'+S.escape(moto.cc)+'</span></div><picture class="pg-motion-photo pg-photo-frame"><source srcset="'+S.escape(optimized)+'" type="image/webp"><img src="'+S.escape(moto.image)+'" alt="" width="400" height="300" decoding="async"></picture><div class="pg-motion-card-bottom"><div><strong>'+S.escape(moto.name)+'</strong><small>'+S.escape(moto.type)+'</small></div><span class="pg-motion-card-mark">'+S.icon('bike')+'</span></div></div>';
     }
     wall.innerHTML=(propias||columns).map(ids=>{

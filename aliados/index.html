@@ -452,7 +452,17 @@
 
 <script src="assets/public/catalog.js?v=20261015-3"></script>
 <script src="assets/public/site.js?v=20261015-3"></script>
-<script src="assets/public/hero-motion.js?v=20261015-3"></script>
+<script>
+// La pared del login muestra solo motos de BERA (Adam, 15-oct-2026). Fotos oficiales de beravirtual.com.
+(function(){ var B=function(id,nombre,cc,tipo){ return {id:id, sedeName:'BERA', cc:cc, name:nombre, type:cc+' · '+tipo, image:'assets/aliados/motos/'+id+'.webp'}; };
+  window.PagasiMotionCards=[
+    [B('sbr','SBR','150cc','Clásica'), B('kavak','Kavak','150cc','Doble propósito'), B('cobra','Cobra','150cc','Scooter'), B('leon','León','150cc','Clásica'), B('x1','X1','125cc','Semiautomática')],
+    [B('brz','BRZ','250cc','Naked'), B('dt250','Super DT','250cc','Doble propósito'), B('gr','GR','250cc','Aventurera'), B('gbr','GBR','200cc','Deportiva'), B('brx','BRX','200cc','Naked')],
+    [B('br200','BR200','200cc','Clásica'), B('runner','Runner 6G','150cc','Scooter'), B('milan','Milan','150cc','Scooter'), B('bws','BWS','180cc','Scooter'), B('brf','BRF','150cc','Clásica')]
+  ];
+})();
+</script>
+<script src="assets/public/hero-motion.js?v=20261015-4"></script>
 <script>
 (function(){
   var $=function(id){ return document.getElementById(id); };
