@@ -27,6 +27,18 @@ service cloud.firestore {
         && ( get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'Administrador'
           || get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin' );
     }
+    // == Vendedor de concesionario: solo lo de SU sede (15-oct-2026) ==
+    // Hasta hoy las pantallas lo limitaban a tres modulos, pero la base le dejaba leer los
+    // clientes, creditos, pagos y cuentas de todo el mundo. Ahora un "Vendedor Concesionario"
+    // solo lee y escribe clientes, creditos y motos de las sedes que tiene asignadas (campo
+    // concesionarios de su ficha), sus solicitudes nacen y se quedan en pendiente_revision, y
+    // no ve nada de dinero. "Interno" es el resto del personal, que sigue igual que antes.
+    function rolDe() { return fichaUsuario().get('rol', ''); }
+    function esVendConc() { return esStaff() && rolDe() == 'Vendedor Concesionario'; }
+    function esInterno() { return esStaff() && rolDe() != 'Vendedor Concesionario'; }
+    function misSedes() { return fichaUsuario().get('concesionarios', []); }
+    function deMiSede() { return resource != null && resource.data.get('concesionarioId', '') in misSedes(); }
+    function nuevoDeMiSede() { return request.resource.data.get('concesionarioId', '') in misSedes(); }
     // == Lead del formulario publico: la solicitud por partes (27-sep-2026) ==
     // solicitar.html se llena por partes. La parte 1 CREA el lead; las partes 2 a 9 lo
     // COMPLETAN, siempre desde la misma sesion anonima que lo creo (web_uid). Cualquiera
@@ -250,7 +262,7 @@ service cloud.firestore {
       // Su propia ficha se lee siempre (aunque este suspendido): de ahi se entera la
       // pantalla y lo saca. Antes el aviso se caia en silencio (revisado el 22-sep-2026).
       allow get: if esStaff() || (noAnonimo() && request.auth.uid == uid);
-      allow list: if esStaff();
+      allow list: if esInterno();
       // Comparaciones de email en minusculas: Firebase Auth normaliza el email
       // del token, pero la invitacion pudo guardarse con mayusculas. Sin .lower()
       // la creacion se denegaba y la cuenta quedaba en Auth sin ficha.
@@ -286,7 +298,7 @@ service cloud.firestore {
     // usado:false para siempre y el link seguia siendo reutilizable).
     match /invitaciones/{token} {
       allow get: if true;
-      allow list: if esStaff();
+      allow list: if esInterno();
       allow create, delete: if esAdmin();
       allow update: if esAdmin()
         || ( noAnonimo()
@@ -339,7 +351,7 @@ service cloud.firestore {
       // El catalogo de modelos y los planes guardados los usa el vendedor desde el wizard
       // y desde Motocicletas: si se piden permisos de Configuracion, esos botones quedan
       // rotos y el error se traga (revisado el 22-sep-2026).
-      allow write: if (id == 'tasa' || id == 'catalogo' || id == 'planes') ? esStaff()
+      allow write: if (id == 'tasa' || id == 'catalogo' || id == 'planes') ? esInterno()
         : ( id == 'coromoto' ? (esAdmin() || permiso('reportes'))
         : ( id == 'gps'
             // config/gps lo escribe el boton "Actualizar ahora" de la pantalla GPS: quien
@@ -350,15 +362,15 @@ service cloud.firestore {
                        .hasOnly(['refrescoPedido','refrescoPedidoPor','refrescoPedidoEn']) ) )
         : ( id in ['plan','cuentasBanc','empresa','rolesPermisos','score','cobradores','avisosTelegram','avisosChats']
             ? (esAdmin() || permiso('config'))
-            : esStaff() ) ) );
+            : esInterno() ) ) );
     }
 
     // == Portal del cliente: accesos y sesiones ==
     // accesos_cliente/{token}: lo crea un empleado desde la ficha del cliente.
     // Guarda clienteId + cedulaNorm (solo digitos). NUNCA legible por el cliente.
     match /accesos_cliente/{token} {
-      allow read: if esStaff();
-      allow create, update, delete: if esStaff();
+      allow read: if esInterno();
+      allow create, update, delete: if esInterno();
     }
 
     // indice_clientes/{telE164}: permite que el portal encuentre al cliente ANTES
@@ -367,8 +379,8 @@ service cloud.firestore {
     // nada, porque igual hace falta el codigo SMS.
     match /indice_clientes/{telE164} {
       allow get: if true;
-      allow list: if esStaff();
-      allow create, update, delete: if esStaff();
+      allow list: if esInterno();
+      allow create, update, delete: if esInterno();
     }
 
     // sesiones_cliente/{uid}: dos formas de abrir sesion, ambas validadas aqui.
@@ -378,9 +390,9 @@ service cloud.firestore {
     //      clienteId, validados contra el doc de acceso.
     match /sesiones_cliente/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
-      allow list: if esStaff();
+      allow list: if esInterno();
       allow create, update: if sesionClienteValida(uid);
-      allow delete: if esStaff();
+      allow delete: if esInterno();
     }
     // Reabrir la sesion pasa por el MISMO candado que abrirla: Firebase da siempre el
     // mismo uid para el mismo telefono, y el doc no se borra, asi que con "update: false"
@@ -412,7 +424,7 @@ service cloud.firestore {
     // confirma desde el admin (ahi si se crea el pago real). El cliente jamas
     // escribe en /pagos ni puede cambiar el estado de su propio comprobante.
     match /comprobantes/{id} {
-      allow read: if esStaff() || esClienteDe(resource.data.clienteId);
+      allow read: if esInterno() || esClienteDe(resource.data.clienteId);
       allow create: if esClienteDe(request.resource.data.clienteId)
         && esMiCredito(request.resource.data.credId)   // no puede reportar sobre el credito de otro
         // Solo estos campos: el cliente NO puede inyectar otros (ej. una "fecha"
@@ -430,7 +442,7 @@ service cloud.firestore {
         && request.resource.data.fotoUrl is string && request.resource.data.fotoUrl.size() < 2000
         && request.resource.data.fotoPath is string && request.resource.data.fotoPath.size() < 500
         && request.resource.data.creadoEn is string;
-      allow update, delete: if esStaff();
+      allow update, delete: if esInterno();
     }
 
     // == Clientes ==
@@ -439,10 +451,10 @@ service cloud.firestore {
     // misma sesion; nunca lo lee (ni el suyo: la ficha tiene notas del equipo), no toca
     // fichas ajenas y no borra.
     match /clientes/{id} {
-      allow get:    if esStaff() || esClienteDe(id);
-      allow list:   if esStaff();
-      allow create: if esStaff() || esLeadWeb(id);
-      allow update: if esStaff() || esLeadWebEditando();
+      allow get:    if esInterno() || (esVendConc() && (resource == null || deMiSede())) || esClienteDe(id);
+      allow list:   if esInterno() || (esVendConc() && deMiSede());
+      allow create: if esInterno() || (esVendConc() && nuevoDeMiSede()) || esLeadWeb(id);
+      allow update: if esInterno() || (esVendConc() && deMiSede() && nuevoDeMiSede()) || esLeadWebEditando();
       allow delete: if esAdmin();
     }
     // Una solicitud web por sesion anonima (27-sep-2026). El marcador se crea en el MISMO
@@ -471,28 +483,40 @@ service cloud.firestore {
     // == Resto de colecciones internas: solo staff ==
     // creditos/pagos: el cliente puede LEER solo lo suyo (creditos con su
     // clienteId, y los pagos de esos creditos). Escribir: solo staff.
-    match /creditos/{id}          { allow read: if esStaff() || esClienteDe(resource.data.clienteId); allow create, update: if esStaff(); allow delete: if esAdmin(); }
-    match /pagos/{id}             { allow read: if esStaff() || esMiCredito(resource.data.cred); allow create: if esStaff();
-                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroPago() || esAdmin());
+    // Vendedor de concesionario: lee los de su sede (y un numero libre, para reservarlo), crea
+    // solo en pendiente_revision y solo edita los suyos mientras sigan pendientes.
+    match /creditos/{id}          { allow get: if esInterno() || (esVendConc() && (resource == null || deMiSede())) || esClienteDe(resource.data.clienteId);
+                                    allow list: if esInterno() || (esVendConc() && deMiSede()) || esClienteDe(resource.data.clienteId);
+                                    allow create: if esInterno() || (esVendConc() && nuevoDeMiSede() && request.resource.data.estado == 'pendiente_revision');
+                                    allow update: if esInterno() || (esVendConc() && deMiSede() && nuevoDeMiSede()
+                                                      && resource.data.estado == 'pendiente_revision' && request.resource.data.estado == 'pendiente_revision');
+                                    allow delete: if esAdmin(); }
+    match /pagos/{id}             { allow read: if esInterno() || esMiCredito(resource.data.cred); allow create: if esInterno();
+                                    allow update: if esInterno() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroPago() || esAdmin());
                                     allow delete: if esAdmin(); }
     // Borrar o restaurar una moto mueve su compra: mismo permiso que anular un gasto
-    match /motos/{id}             { allow read, create: if esStaff();
-                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()); allow delete: if esAdmin(); }
-    match /facturas/{id}          { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
-    match /cuentas/{id}           { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
-    match /cuentasPendientes/{id} { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
+    match /motos/{id}             { allow get: if esInterno() || (esVendConc() && (resource == null || deMiSede()));
+                                    allow list: if esInterno() || (esVendConc() && deMiSede());
+                                    allow create: if esInterno() || (esVendConc() && nuevoDeMiSede());
+                                    allow update: if (esInterno() && (!cambiaAnulacion() || puedeAnular()))
+                                                   || (esVendConc() && deMiSede() && nuevoDeMiSede() && !cambiaAnulacion());
+                                    allow delete: if esAdmin(); }
+    match /facturas/{id}          { allow read, create, update: if esInterno(); allow delete: if esAdmin(); }
+    match /cuentas/{id}           { allow read, create, update: if esInterno(); allow delete: if esAdmin(); }
+    match /cuentasPendientes/{id} { allow read, create, update: if esInterno(); allow delete: if esAdmin(); }
     // Anular (o revivir) un movimiento o un gasto mueve el saldo de una cuenta: pide el
     // permiso de eliminar, el mismo que muestra la app (punto 9).
-    match /movimientos/{id}       { allow read, create: if esStaff();
-                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroMov() || esAdmin());
+    match /movimientos/{id}       { allow read, create: if esInterno();
+                                    allow update: if esInterno() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroMov() || esAdmin());
                                     allow delete: if esAdmin(); }
-    match /egresos/{id}           { allow read, create: if esStaff();
-                                    allow update: if esStaff() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroEgreso() || esAdmin());
+    match /egresos/{id}           { allow read, create: if esInterno();
+                                    allow update: if esInterno() && (!cambiaAnulacion() || puedeAnular()) && (!cambiaDineroEgreso() || esAdmin());
                                     allow delete: if esAdmin(); }
-    match /concesionarios/{id}    { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
-    match /tareas/{id}            { allow read, create, update, delete: if esStaff(); }
-    match /recursos/{id}          { allow read, create, update, delete: if esStaff(); }
-    match /notas_cobranza/{id}    { allow read, create: if esStaff(); allow update, delete: if esAdmin(); }
+    match /concesionarios/{id}    { allow read: if esInterno() || (esVendConc() && resource != null && resource.data.get('id', '') in misSedes());
+                                    allow create, update: if esInterno(); allow delete: if esAdmin(); }
+    match /tareas/{id}            { allow read, create, update, delete: if esInterno(); }
+    match /recursos/{id}          { allow read, create, update, delete: if esInterno(); }
+    match /notas_cobranza/{id}    { allow read, create: if esInterno(); allow update, delete: if esAdmin(); }
 
     // == Metricas anonimas de la pagina publica (14-oct-2026) ==
     // assets/public/metricas.js (sin sesion) crea su visita y le agrega eventos, uno por vez.
@@ -535,7 +559,7 @@ service cloud.firestore {
     // Ojo: el doc guarda la password del equipo y, cuando se conecte MiCODUS,
     // su ubicacion. Quien pueda leer aqui puede ver donde esta cada moto, asi
     // que el acceso al modulo se controla ademas por permiso en la app.
-    match /gps/{id}               { allow read, create, update: if esStaff(); allow delete: if esAdmin(); }
+    match /gps/{id}               { allow read, create, update: if esInterno(); allow delete: if esAdmin(); }
 
     // == GPS en Mi cuenta (Adam, 14-sep-2026) ==
     // ubicacion_cliente/{credId}: la ficha que ve el CLIENTE en Mi cuenta. Trae
@@ -544,24 +568,24 @@ service cloud.firestore {
     // staff). Existe solo para los creditos a los que un admin le activo el GPS
     // en el modulo; la escriben el admin (al activar) y el robot de GPS.
     match /ubicacion_cliente/{credId} {
-      allow get: if esStaff() || esMiCredito(credId);
-      allow list: if esStaff();
-      allow create, update, delete: if esStaff();
+      allow get: if esInterno() || esMiCredito(credId);
+      allow list: if esInterno();
+      allow create, update, delete: if esInterno();
     }
     // pedidos_gps/{credId}: el boton "Actualizar ubicacion" del cliente. Solo el
     // dueno del credito, solo si su GPS esta activo, y como maximo UNA vez por
     // hora: lo controla esta regla, no la pagina. El robot lo lee y busca la
     // posicion. Solo guarda la hora del pedido.
     match /pedidos_gps/{credId} {
-      allow get: if esStaff() || esMiCredito(credId);
-      allow list: if esStaff();
+      allow get: if esInterno() || esMiCredito(credId);
+      allow list: if esInterno();
       allow create: if request.resource.data.keys().hasOnly(['pedidoEn'])
         && request.resource.data.pedidoEn == request.time
-        && (esStaff() || (esMiCredito(credId)
+        && (esInterno() || (esMiCredito(credId)
               && exists(/databases/$(database)/documents/ubicacion_cliente/$(credId))));
       allow update: if request.resource.data.keys().hasOnly(['pedidoEn'])
         && request.resource.data.pedidoEn == request.time
-        && (esStaff() || (esMiCredito(credId)
+        && (esInterno() || (esMiCredito(credId)
               && exists(/databases/$(database)/documents/ubicacion_cliente/$(credId))
               && request.time > resource.data.pedidoEn + duration.value(1, 'h')));
       allow delete: if esAdmin();

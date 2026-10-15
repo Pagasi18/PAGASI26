@@ -52,3 +52,5 @@ jobs:
         run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_catalogo.js"
       - name: Probar reglas de las métricas de la web
         run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_metricas.js"
+      - name: Probar reglas del vendedor de concesionario (solo su sede)
+        run: npx firebase emulators:exec --config tests/reglas/firebase.json --only firestore --project demo-pagasi "node tests/reglas/t_reglas_vendedor.js"
