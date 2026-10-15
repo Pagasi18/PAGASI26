@@ -34,13 +34,30 @@ button{font:inherit}
 .entrada-azul:before{content:'';position:absolute;right:-120px;top:-120px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.08)}
 .entrada-azul:after{content:'';position:absolute;left:-80px;bottom:-140px;width:360px;height:360px;border-radius:50%;background:rgba(0,180,255,.18)}
 .entrada-azul>*{position:relative}
-.logo-b{width:190px;height:auto;display:block}
+.logo-b{width:min(320px,70vw);height:auto;display:block;filter:drop-shadow(0 10px 24px rgba(0,30,120,.25))}
 .entrada-azul h1{font-size:clamp(30px,3.6vw,46px);line-height:1.08;letter-spacing:-.045em;margin:0 0 14px;text-wrap:balance}
 .entrada-azul p{color:#dbe7ff;font-size:16px;max-width:46ch;margin:0}
 .puntos{display:grid;gap:12px;margin-top:28px}
 .punto{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:#eaf1ff}
 .punto i{flex:none;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-style:normal;font-weight:800;font-size:12px}
 .entrada-azul small{color:#c9dbff;font-size:12px}
+/* Las motos de BERA flotando y las cifras que el aliado va a ver, para que la entrada tenga vida */
+.pared{position:relative;height:300px;margin-top:26px}
+.mini{position:absolute;width:150px;background:#fff;border-radius:14px;padding:8px 8px 6px;box-shadow:0 18px 40px rgba(0,20,90,.28);color:#101a35;transform:rotate(var(--r,0deg));animation:flota 6s ease-in-out infinite;animation-delay:var(--d,0s)}
+.mini img{width:100%;height:84px;object-fit:contain;display:block;background:#fff;border-radius:8px}
+.mini b{display:block;font-size:11.5px;margin-top:5px;letter-spacing:-.01em}
+.mini small{display:block;font-size:9.5px;color:#6b7a94}
+.burbuja{position:absolute;background:#fff;color:#065cff;border-radius:999px;padding:8px 14px;font-weight:800;font-size:13px;box-shadow:0 14px 30px rgba(0,20,90,.28);white-space:nowrap;animation:flota 7s ease-in-out infinite;animation-delay:var(--d,0s)}
+.burbuja.verde{color:#0e9f6e}.burbuja.ambar{color:#d97706}
+.burbuja span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7c88a6}
+@keyframes flota{0%,100%{translate:0 0}50%{translate:0 -12px}}
+@media (prefers-reduced-motion:reduce){.mini,.burbuja{animation:none}}
+@media (max-width:860px){.pared{height:250px}.mini{width:120px}.mini img{height:64px}}
+.aliado{display:inline-flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:8px 14px 8px 10px;color:#101a35;box-shadow:0 8px 24px rgba(0,20,90,.2)}
+.aliado .bera{font-weight:800;font-style:italic;font-size:22px;letter-spacing:-.06em;color:#e11d2e;line-height:1}
+.aliado .bera u{text-decoration:none;color:#101a35}
+.aliado div{line-height:1.15}.aliado b{font-size:12.5px}.aliado span{font-size:11px;color:#6b7a94}
+.aliado img{height:34px;width:auto;display:block}
 .entrada-form{display:grid;place-items:center;padding:40px 24px}
 .caja{width:100%;max-width:400px}
 .caja h2{font-size:26px;letter-spacing:-.03em;margin:0 0 6px}
@@ -60,7 +77,7 @@ button{font:inherit}
 .top{background:linear-gradient(115deg,#034fdf,#065cff 55%,#2f7bff);color:#fff;padding-block:16px 60px}
 .barra{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .marca{display:flex;align-items:center;gap:12px}
-.marca img{width:118px;height:auto;display:block}
+.marca img{width:168px;height:auto;display:block}
 .marca small{font-weight:700;font-size:11px;opacity:.9;letter-spacing:.14em;text-transform:uppercase;border-left:1px solid rgba(255,255,255,.4);padding-left:12px}
 .quien{display:flex;align-items:center;gap:10px;font-size:13px}
 .quien .av{width:36px;height:36px;border-radius:50%;background:#fff;color:var(--azul);display:grid;place-items:center;font-weight:800}
@@ -121,12 +138,20 @@ td.r,th.r{text-align:right}
   <div class="entrada-azul">
     <div>
       <img class="logo-b" src="../assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi">
-      <h1 style="margin-top:46px">Tu alianza con Pagasi, en una sola pantalla.</h1>
-      <p>Cuántas motos te hemos financiado, cuánto saldo tienes a tu favor, tu nivel de comisión y cuánto te falta para el bono. En tiempo real, sin llamar a preguntar.</p>
+      <h1 style="margin-top:34px">Tus motos vendidas, tu plata y tu bono. Todo en vivo.</h1>
+      <p>Entra y mira cuántas motos te hemos financiado, cuánto saldo tienes a tu favor y cuánto te falta para el bono. Sin llamar a preguntar.</p>
+      <div class="pared" aria-hidden="true">
+        <div class="mini" style="left:0;top:10px;--r:-7deg;--d:0s"><img src="../assets/public/motion-motos/new-horse-150.webp" alt=""><b>Aprobada en 31 min</b><small>Chacao · hoy 9:40</small></div>
+        <div class="mini" style="left:52%;top:0;--r:5deg;--d:-2s"><img src="../assets/public/motion-motos/veloz-hs-300y-8n-aventurera.webp" alt=""><b>Aprobada en 42 min</b><small>La Trinidad · ayer</small></div>
+        <div class="mini" style="left:26%;top:150px;--r:-3deg;--d:-4s"><img src="../assets/public/motion-motos/new-outlook-175.webp" alt=""><b>Entregada</b><small>Petare · 13 oct</small></div>
+        <div class="burbuja" style="left:54%;top:172px;--d:-1s"><span>Este mes</span>37 motos financiadas</div>
+        <div class="burbuja verde" style="left:0;top:210px;--d:-3s"><span>A tu favor</span>$12.660</div>
+        <div class="burbuja ambar" style="left:58%;top:238px;--d:-5s"><span>Bono de inicio</span>14 de 20 · ¡faltan 6!</div>
+      </div>
       <div class="puntos">
-        <div class="punto"><i>1</i><span>Aprobamos la mayoría de los créditos en menos de una hora con los requisitos completos.</span></div>
-        <div class="punto"><i>2</i><span>Pagasi deja un depósito a tu favor y lo repone según la actividad: cobras rápido.</span></div>
-        <div class="punto"><i>3</i><span>Tus vendedores envían solicitudes desde su propio usuario y ven solo lo de tu concesionario.</span></div>
+        <div class="punto"><i>⚡</i><span>Aprobamos la mayoría de los créditos en menos de una hora con los requisitos completos.</span></div>
+        <div class="punto"><i>$</i><span>Pagasi deja un depósito a tu favor y lo repone según la actividad: cobras rápido.</span></div>
+        <div class="punto"><i>★</i><span>Tus vendedores envían solicitudes desde su propio usuario y ven solo lo de tu concesionario.</span></div>
       </div>
     </div>
     <small>Pagasi · pagasi.io · Caracas, Venezuela</small>
@@ -150,11 +175,11 @@ td.r,th.r{text-align:right}
   <div class="wrap">
     <div class="barra">
       <div class="marca"><a href="https://pagasi.io" aria-label="Pagasi, inicio"><img src="../assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi"></a><small>Portal de aliados</small></div>
-      <div class="quien"><span class="av">B</span><div><b>Grupo BERA</b><br><span style="opacity:.85">3 concesionarios · aliado desde octubre 2026</span></div><a href="#" id="salir">Salir</a></div>
+      <div class="quien"><span class="aliado"><span class="bera" aria-label="BERA">BERA</span><div><b>Grupo BERA</b><br><span>3 concesionarios · aliado desde octubre 2026</span></div></span><a href="#" id="salir">Salir</a></div>
     </div>
     <div class="hola">
       <div>
-        <h1 id="titulo">Buenos días, BERA. Así va octubre.</h1>
+        <h1 id="titulo">¡Buenos días, BERA! Así va octubre.</h1>
         <p>Lo que Pagasi te debe, lo que has vendido con nosotros y lo que te falta para tu bono. Se actualiza solo con cada venta.</p>
       </div>
       <div class="sedes" role="group" aria-label="Concesionario">
@@ -300,7 +325,7 @@ td.r,th.r{text-align:right}
   function pinta(k){
     var s=SEDES[k];
     document.querySelectorAll('.sedes button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.sede===k)); });
-    $('titulo').textContent=(k==='todas'?'Buenos días, BERA. Así va octubre.':'Así va octubre en '+s.nombre+'.');
+    $('titulo').textContent=(k==='todas'?'¡Buenos días, BERA! Así va octubre.':'Así va octubre en '+s.nombre+'.');
     $('k-saldo').textContent=USD(s.saldo); $('k-saldo-sub').textContent='de '+USD(s.dep)+' depositados por Pagasi'; $('b-saldo').style.width=Math.round(s.saldo/s.dep*100)+'%';
     $('k-motos').textContent=s.motos; $('k-motos-sub').textContent=s.motosDelta;
     var n=nivelDe(s.vol), m=multDe(s.atraso), base=s.vol*n[1]/100;
