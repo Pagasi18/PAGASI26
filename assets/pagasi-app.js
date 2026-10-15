@@ -1865,6 +1865,9 @@ try {
 
     if(typeof firebase.auth === 'function') auth = firebase.auth();
     if(typeof firebase.storage === 'function') storage = firebase.storage();
+    // Si Storage no responde (bucket sin crear, sin red), que falle en menos de un minuto y
+    // no se quede "Subiendo…" diez minutos (15-oct-2026: la 26 no tenia bucket).
+    try{ if(storage){ storage.setMaxUploadRetryTime(45000); storage.setMaxOperationRetryTime(30000); } }catch(e){}
     FIREBASE_READY = true;
     console.log('Firebase inicializado correctamente');
   } else {
