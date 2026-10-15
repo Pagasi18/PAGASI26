@@ -300,7 +300,7 @@ function planCatCond(){
     if(typeof _cat !== 'undefined' && _cat && _cat.cond && typeof catCondiciones === 'function') return catCondiciones();
     if(typeof PagasiCatalog !== 'undefined' && PagasiCatalog.condValidas) return PagasiCatalog.condValidas(PagasiCatalog.condiciones || PagasiCatalog.COND_BASE);
   }catch(e){}
-  return { apy:600, seguroPct:0, inicialMin:40, inicialMax:60, plazos:[6,9,12] };
+  return { apy:500, seguroPct:0, inicialMin:40, inicialMax:60, plazos:[6,9,12] };
 }
 // precio: el de contado (precio base real). ini: la inicial en dolares (null = la minima).
 // plazo: meses. Devuelve los mismos numeros que ve el cliente en la web y en la calculadora.

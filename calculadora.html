@@ -1281,15 +1281,15 @@ input[type=number] { -moz-appearance: textfield; }
                 <div class="apy-feature-hint">Tasa anualizada equivalente que persigue el plan</div>
               </div>
               <div class="apy-feature-display">
-                <span id="apyBigVal">600</span><span class="apy-feature-sym">%</span>
+                <span id="apyBigVal">500</span><span class="apy-feature-sym">%</span>
               </div>
             </div>
-            <input id="apySlider" type="range" min="350" max="900" step="1" value="600" class="apy-slider" oninput="syncApyFromSlider(this.value)">
+            <input id="apySlider" type="range" min="350" max="900" step="1" value="500" class="apy-slider" oninput="syncApyFromSlider(this.value)">
             <div class="apy-slider-marks">
               <span>350%</span><span>460%</span><span>575%</span><span>690%</span><span>800%</span>
             </div>
             <div class="apy-feature-input-wrap">
-              <input id="a_apy" type="number" class="apy-feature-input" step="0.01" value="600" oninput="syncApyFromInput(this.value)">
+              <input id="a_apy" type="number" class="apy-feature-input" step="0.01" value="500" oninput="syncApyFromInput(this.value)">
               <span class="apy-feature-input-sfx">% APY</span>
             </div>
           </div>
@@ -1369,7 +1369,7 @@ input[type=number] { -moz-appearance: textfield; }
 </div>
 </div>
 
-<script src="assets/public/catalog.js?v=20261015-3"></script>
+<script src="assets/public/catalog.js?v=20261015-5"></script>
 <script>
 let CUSTOM_VISIBLE = true;
 let CUSTOM_SLIDER_VISIBLE = false;
@@ -1377,7 +1377,7 @@ let CUSTOM_SLIDER_VISIBLE = false;
 // en la minima. Se quitaron las de 45%, 50% y 55%, y despues la maxima ("no tenemos inicial
 // maxima"). Los porcentajes,
 // la tasa y el seguro salen del catalogo (modulo Catalogo del sistema), igual que en la web.
-const _COND = (window.PagasiCatalog && PagasiCatalog.condiciones) || { apy:600, seguroPct:0, inicialMin:40, inicialMax:60, plazos:[6,9,12] };
+const _COND = (window.PagasiCatalog && PagasiCatalog.condiciones) || { apy:500, seguroPct:0, inicialMin:40, inicialMax:60, plazos:[6,9,12] };
 const INICIAL_DEFECTO = _COND.inicialMin / 100;
 const IDX_DESTACADA = 0;   // la minima, destacada
 const IDX_CUSTOM = 1;      // la preferida: el vendedor la edita, arranca en la minima
