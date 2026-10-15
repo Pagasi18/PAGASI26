@@ -11,15 +11,18 @@
     // (Adam, 14-oct-2026: "lo de Veloz en las tiras del medio al principio y con el halo azul")
     const columns=[[5,9,8,35,1],[47,902,48,901,49,903],[16,34,3,13,27]];
     const esVeloz=m=>!!m&&((m.sede||'')+' '+(m.sedeName||'')).toLowerCase().indexOf('veloz')>-1;
+    // Una pagina puede traer sus propias tarjetas (el portal de aliados pone solo las motos
+    // de BERA, 15-oct-2026): tres columnas de {sedeName, cc, modelo, image, clase}.
+    const propias=Array.isArray(window.PagasiMotionCards)?window.PagasiMotionCards:null;
     function card(id){
-      const moto=D.get(id)||(D.proximos||[]).find(m=>m.id===id);
+      const moto=propias?id:(D.get(id)||(D.proximos||[]).find(m=>m.id===id));
       if(!moto||!moto.image)return '';
       // La version liviana solo existe para las fotos del sitio; una foto subida por Liz va tal cual
       const propia=/^assets\//.test(moto.image);
       const optimized=propia?'assets/public/motion-motos/'+moto.image.split('/').pop().replace(/\.[^.]+$/,'.webp'):moto.image;
-      return '<div class="pg-motion-card'+(esVeloz(moto)?' pg-motion-card-veloz':'')+'" data-motion-model="'+id+'"><div class="pg-motion-card-top"><span>'+S.escape(moto.sedeName)+'</span><span>'+S.escape(moto.cc)+'</span></div><picture class="pg-motion-photo pg-photo-frame"><source srcset="'+S.escape(optimized)+'" type="image/webp"><img src="'+S.escape(moto.image)+'" alt="" width="400" height="300" decoding="async"></picture><div class="pg-motion-card-bottom"><div><strong>'+S.escape(moto.name)+'</strong><small>'+S.escape(moto.type)+'</small></div><span class="pg-motion-card-mark">'+S.icon('bike')+'</span></div></div>';
+      return '<div class="pg-motion-card'+(esVeloz(moto)?' pg-motion-card-veloz':'')+(moto.clase?' '+S.escape(moto.clase):'')+'" data-motion-model="'+S.escape(propias?(moto.id||moto.modelo||''):id)+'"><div class="pg-motion-card-top"><span>'+S.escape(moto.sedeName)+'</span><span>'+S.escape(moto.cc)+'</span></div><picture class="pg-motion-photo pg-photo-frame"><source srcset="'+S.escape(optimized)+'" type="image/webp"><img src="'+S.escape(moto.image)+'" alt="" width="400" height="300" decoding="async"></picture><div class="pg-motion-card-bottom"><div><strong>'+S.escape(moto.name)+'</strong><small>'+S.escape(moto.type)+'</small></div><span class="pg-motion-card-mark">'+S.icon('bike')+'</span></div></div>';
     }
-    wall.innerHTML=columns.map(ids=>{
+    wall.innerHTML=(propias||columns).map(ids=>{
       const group='<div class="pg-motion-group">'+ids.map(card).join('')+'</div>';
       // Identical groups (including their final gap) join without a jump.
       return '<div class="pg-motion-column"><div class="pg-motion-track">'+group+group+'</div></div>';
