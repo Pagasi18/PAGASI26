@@ -13,7 +13,7 @@ const src=f=>fs.readFileSync(path.join(ROOT,f),'utf8');
 const mc=src('micuenta.html');
 // Solo el bloque FIREBASE_CONFIG dice de quién es la copia: desde el 15-oct-2026 el portal también
 // trae FIREBASE_CONFIG_OTRA con el proyecto de la otra compañía, y ese no cuenta.
-const ES18 = /var FIREBASE_CONFIG = \{[\s\S]*?projectId: *'pagasi-v2'[\s\S]*?\};/.test(mc);
+const ES18 = /var FIREBASE_CONFIG = \{[^}]*projectId: *'pagasi-v2'/.test(mc);
 console.log('esta copia es ' + (ES18 ? 'PAGASI 18 (18.pagasi.io)' : 'PAGASI 26 (pagasi.io)'));
 
 // ── El cliente que abre un enlace viejo no se queda tirado ───────────────────
