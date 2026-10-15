@@ -5,91 +5,136 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#065cff">
 <meta name="robots" content="noindex,nofollow">
+<!-- La pagina vive en /aliados/ pero usa los mismos estilos, iconos y fotos que pagasi.io, asi que todas
+     las rutas se resuelven desde la raiz (igual que en index.html). -->
+<base href="/">
 <title>Portal de aliados — Pagasi</title>
-<link rel="icon" type="image/png" href="../assets/pegaso.png">
+<link rel="icon" type="image/png" href="assets/pegaso.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/public/site.css?v=20261014-2">
+<link rel="stylesheet" href="assets/public/hero-motion.css?v=20261014-2">
 <style>
-/* Portal de aliados (demostracion, 15-oct-2026): mismo azul y misma letra de pagasi.io. Entrada con usuario y
-   clave, y un tablero de una columna con tarjetas de 12 columnas que se apilan en el telefono. */
+/* Portal de aliados (demostracion, 15-oct-2026). La portada es la misma web de pagasi.io: cabecera, hero con
+   la pared de motos en movimiento, tira de pasos, secciones y pie. Encima del hero va la tarjeta para entrar.
+   Adentro, el tablero del concesionario con sus tarjetas; aqui el aliado de muestra es BERA. */
 :root{
-  --azul:#065cff; --azul-2:#0a2cff; --azul-claro:#e8f0ff; --cielo:#00b4ff;
-  --bg:#f3f6fc; --surf:#fff; --fg:#101a35; --fg-2:#4b5875; --fg-3:#7c88a6; --line:#dfe6f3;
+  --azul:#065cff; --azul-2:#0048dc; --azul-claro:#e8f0ff; --cielo:#00b4ff;
+  --bg:#f3f7fe; --surf:#fff; --fg:#101a35; --fg-2:#4b5875; --fg-3:#7c88a6; --line:#dfe7f3;
   --bien:#0e9f6e; --bien-bg:#e6f7f0; --ojo:#d97706; --ojo-bg:#fff4e0; --mal:#dc2626; --mal-bg:#fdecec;
-  --fd:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --bronce:#c2733a; --plata:#8d9bb5; --oro:#e0a200; --diamante:#2fc0ff;
 }
-*{box-sizing:border-box}
-html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font-family:var(--fd);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-[hidden]{display:none!important}
-img{max-width:100%}
-a{color:var(--azul)}
-button{font:inherit}
+
+/* ── Portada: hero con la tarjeta de entrada ── */
+.al-hero .pg-motion-copy{width:560px;max-width:47%}
+.al-hero .pg-motion-copy h1{font-size:clamp(40px,4vw,58px)}
+.al-hero .pg-motion-description{margin-top:18px;max-width:420px}
+.al-login{background:#fff;color:var(--fg);border-radius:20px;padding:26px 26px 22px;margin-top:28px;box-shadow:0 24px 50px #002d8a33;max-width:470px}
+.al-login-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.al-login-head h2{font-size:20px;letter-spacing:-.5px;margin:0}
+.al-login-head span{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--azul);background:var(--azul-claro);border-radius:999px;padding:6px 11px}
+.al-login-head .pg-icon{width:15px;height:15px}
+.al-login .pg-field{margin-bottom:14px}
+.al-login .pg-field>label{margin-bottom:7px}
+.al-login .pg-control{border-radius:12px}
+.al-login .pg-control:focus{border-color:var(--azul);box-shadow:0 0 0 4px rgba(6,92,255,.12);outline:none}
+.al-login .pg-button{margin-top:4px;min-height:54px;font-size:15px}
+.al-error{color:var(--mal);font-size:12.5px;font-weight:700;margin-top:10px;min-height:19px}
+.al-ayuda{font-size:12px;color:var(--fg-3);line-height:1.6;margin:8px 0 0;padding-top:14px;border-top:1px solid var(--line)}
+.al-ayuda a{color:var(--azul);font-weight:800}
+.al-hero .pg-motion-note{margin-top:16px}
+@media(max-width:1150px){.al-hero .pg-motion-copy{max-width:50%}.al-hero .pg-motion-copy h1{font-size:clamp(36px,4vw,48px)}}
+@media(max-width:800px){.al-hero .pg-motion-copy{width:100%;max-width:100%}.al-login{max-width:none;margin-top:22px;padding:22px 18px 18px}.al-hero .pg-motion-wall{margin-top:26px}}
+@media(max-width:520px){.al-login-head span{display:none}}
+
+/* Tira de pasos: los mismos .pg-steps de la portada */
+.al-pasos .pg-step>.pg-icon{width:44px;height:44px;color:var(--pg-blue);stroke-width:1.4}
+@media(max-width:800px){.al-pasos .pg-steps{grid-template-columns:1fr;gap:14px;padding-block:22px}.al-pasos .pg-step+.pg-step{border-left:0;padding-left:0;border-top:1px solid var(--pg-line);padding-top:14px}}
+
+/* ── Niveles: Bronce, Plata, Oro y Diamante ── */
+.al-niveles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-top:8px}
+.al-nivel{position:relative;border:1px solid var(--line);border-radius:20px;padding:26px 24px 22px;background:#fff;display:flex;flex-direction:column;gap:6px;min-width:0;overflow:hidden}
+.al-nivel:before{content:'';position:absolute;left:0;right:0;top:0;height:5px;background:var(--m)}
+.al-medalla{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 32% 28%,#fff8 0,transparent 42%),linear-gradient(145deg,var(--m-claro),var(--m));box-shadow:inset 0 -3px 6px #0002,0 8px 18px -8px var(--m);display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;margin-bottom:12px;text-shadow:0 1px 2px #0003}
+.al-nivel h3{margin:0;font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-3)}
+.al-nivel .al-pct{font-size:50px;font-weight:800;letter-spacing:-.05em;line-height:1;margin:4px 0 2px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.al-nivel .al-pct small{font-size:14px;letter-spacing:0;font-weight:700;color:var(--fg-2);margin-left:4px}
+.al-nivel p{margin:0;font-size:12.5px;color:var(--fg-2);line-height:1.6}
+.al-nivel .al-rango{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);font-size:12px;font-weight:800;color:var(--fg);font-variant-numeric:tabular-nums}
+.al-nivel .al-rango span{display:block;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:3px}
+.al-nivel.bronce{--m:var(--bronce);--m-claro:#f1c29c}
+.al-nivel.plata{--m:var(--plata);--m-claro:#e3e9f3}
+.al-nivel.oro{--m:var(--oro);--m-claro:#ffe08a}
+.al-nivel.diamante{--m:var(--diamante);--m-claro:#c9f1ff;background:var(--azul);border-color:var(--azul);color:#fff}
+.al-nivel.diamante h3,.al-nivel.diamante p{color:#d6e6ff}
+.al-nivel.diamante .al-pct,.al-nivel.diamante .al-rango{color:#fff}
+.al-nivel.diamante .al-pct small{color:#d6e6ff}
+.al-nivel.diamante .al-rango{border-top-color:#ffffff33}.al-nivel.diamante .al-rango span{color:#b8d8ff}
+.al-nivel.diamante .al-medalla{color:var(--azul-2);text-shadow:none}
+.al-tag{position:absolute;right:16px;top:16px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;background:#fff;color:var(--azul);border-radius:999px;padding:5px 10px}
+.al-extras{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.al-extra{display:flex;gap:18px;align-items:flex-start;border:1px solid var(--line);border-radius:20px;padding:24px;background:var(--bg)}
+.al-extra .pg-icon{width:40px;height:40px;color:var(--azul);stroke-width:1.4;flex-shrink:0}
+.al-extra b{display:block;font-size:17px;letter-spacing:-.3px;margin-bottom:4px}
+.al-extra b em{font-style:normal;color:var(--azul)}
+.al-extra p{margin:0;font-size:13px;line-height:1.7;color:var(--fg-2)}
+@media(max-width:1000px){.al-niveles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.al-extras{grid-template-columns:1fr}.al-nivel .al-pct{font-size:42px}}
+@media(max-width:520px){.al-niveles{grid-template-columns:1fr}}
+
+/* ── Lo que ve el aliado: tarjetas .pg-value y una vista previa del tablero ── */
+.al-vista{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+.al-vista .pg-value-grid{grid-template-columns:1fr;gap:14px}
+.al-vista .pg-value{display:flex;gap:18px;align-items:flex-start;padding:22px 24px;background:#fff}
+.al-vista .pg-value>.pg-icon{margin:0;width:34px;height:34px;flex-shrink:0}
+.al-vista .pg-value h3{font-size:17px;margin:0 0 4px}
+.al-vista .pg-value p{font-size:13px;line-height:1.7}
+.al-previa{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 30px 60px -30px #003bab40}
+.al-previa-top{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--azul);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.al-previa-top img{height:26px;width:auto;display:block}
+.al-previa-top span{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+.al-previa-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.al-previa-kpi{border:1px solid var(--line);border-radius:12px;padding:12px}
+.al-previa-kpi small{display:block;font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.al-previa-kpi b{display:block;font-size:22px;letter-spacing:-.04em;margin-top:4px;font-variant-numeric:tabular-nums}
+.al-previa-kpi i{display:inline-block;font-style:normal;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px;margin-top:6px;background:var(--azul-claro);color:var(--azul)}
+.al-previa-kpi i.v{background:var(--bien-bg);color:var(--bien)}
+.al-previa-barra{height:10px;border-radius:999px;background:var(--azul-claro);overflow:hidden;margin:14px 0 8px}
+.al-previa-barra i{display:block;height:100%;width:62%;background:linear-gradient(90deg,var(--azul),var(--cielo))}
+.al-previa p{margin:0;font-size:12px;color:var(--fg-2)}
+@media(max-width:900px){.al-vista{grid-template-columns:1fr}.al-previa-kpis{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:480px){.al-previa-kpis{grid-template-columns:1fr 1fr}}
+
+/* Aliados que ya venden con Pagasi */
+.al-marcas{display:flex;align-items:center;gap:28px;flex-wrap:wrap;padding-block:26px;border-top:1px solid var(--line)}
+.al-marcas .pg-eyebrow{margin:0}
+.al-marcas img{height:40px;width:auto;display:block;opacity:.92}
+.al-marcas span{font-size:12.5px;color:var(--fg-2)}
+
+/* ── Tablero (adentro) ── */
+#tablero{font-size:14px;background:var(--bg);min-height:100vh}
 .wrap{max-width:1120px;margin:0 auto;padding-inline:16px}
-
-/* ── Entrada ── */
-.entrada{min-height:100vh;display:grid;grid-template-columns:1.05fr 1fr}
-.entrada-azul{background:linear-gradient(135deg,#034fdf,#065cff 55%,#2f7bff);color:#fff;padding:40px 48px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
-.entrada-azul:before{content:'';position:absolute;right:-120px;top:-120px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.08)}
-.entrada-azul:after{content:'';position:absolute;left:-80px;bottom:-140px;width:360px;height:360px;border-radius:50%;background:rgba(0,180,255,.18)}
-.entrada-azul>*{position:relative}
-.logo-b{width:min(320px,70vw);height:auto;display:block;filter:drop-shadow(0 10px 24px rgba(0,30,120,.25))}
-.entrada-azul h1{font-size:clamp(30px,3.6vw,46px);line-height:1.08;letter-spacing:-.045em;margin:0 0 14px;text-wrap:balance}
-.entrada-azul p{color:#dbe7ff;font-size:16px;max-width:46ch;margin:0}
-.puntos{display:grid;gap:12px;margin-top:28px}
-.punto{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:#eaf1ff}
-.punto i{flex:none;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-style:normal;font-weight:800;font-size:12px}
-.entrada-azul small{color:#c9dbff;font-size:12px}
-/* Las motos de BERA flotando y las cifras que el aliado va a ver, para que la entrada tenga vida */
-.pared{position:relative;height:300px;margin-top:26px}
-.mini{position:absolute;width:150px;background:#fff;border-radius:14px;padding:8px 8px 6px;box-shadow:0 18px 40px rgba(0,20,90,.28);color:#101a35;transform:rotate(var(--r,0deg));animation:flota 6s ease-in-out infinite;animation-delay:var(--d,0s)}
-.mini img{width:100%;height:84px;object-fit:contain;display:block;background:#fff;border-radius:8px}
-.mini b{display:block;font-size:11.5px;margin-top:5px;letter-spacing:-.01em}
-.mini small{display:block;font-size:9.5px;color:#6b7a94}
-.burbuja{position:absolute;background:#fff;color:#065cff;border-radius:999px;padding:8px 14px;font-weight:800;font-size:13px;box-shadow:0 14px 30px rgba(0,20,90,.28);white-space:nowrap;animation:flota 7s ease-in-out infinite;animation-delay:var(--d,0s)}
-.burbuja.verde{color:#0e9f6e}.burbuja.ambar{color:#d97706}
-.burbuja span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7c88a6}
-@keyframes flota{0%,100%{translate:0 0}50%{translate:0 -12px}}
-@media (prefers-reduced-motion:reduce){.mini,.burbuja{animation:none}}
-@media (max-width:860px){.pared{height:250px}.mini{width:120px}.mini img{height:64px}}
-.aliado{display:inline-flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:8px 14px 8px 10px;color:#101a35;box-shadow:0 8px 24px rgba(0,20,90,.2)}
-.aliado .bera{font-weight:800;font-style:italic;font-size:22px;letter-spacing:-.06em;color:#e11d2e;line-height:1}
-.aliado .bera u{text-decoration:none;color:#101a35}
-.aliado div{line-height:1.15}.aliado b{font-size:12.5px}.aliado span{font-size:11px;color:#6b7a94}
-.aliado img{height:34px;width:auto;display:block}
-.entrada-form{display:grid;place-items:center;padding:40px 24px}
-.caja{width:100%;max-width:400px}
-.caja h2{font-size:26px;letter-spacing:-.03em;margin:0 0 6px}
-.caja p{color:var(--fg-2);margin:0 0 22px}
-.campo{display:grid;gap:6px;margin-bottom:14px}
-.campo label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
-.campo input{font:inherit;font-size:15px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--surf);color:var(--fg);width:100%}
-.campo input:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 4px rgba(6,92,255,.12)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:14px 20px;font-weight:800;font-size:15px;cursor:pointer;background:var(--azul);color:#fff;width:100%}
-.btn:hover{background:var(--azul-2)}
-.btn:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
-.error{color:var(--mal);font-size:13px;font-weight:700;margin-top:10px;min-height:20px}
-.ayuda{font-size:12.5px;color:var(--fg-3);margin-top:18px;line-height:1.6}
-@media (max-width:860px){.entrada{grid-template-columns:1fr}.entrada-azul{padding:28px 20px 34px}.puntos{margin-top:18px}.entrada-form{padding:28px 16px 40px}}
-
-/* ── Tablero ── */
-.top{background:linear-gradient(115deg,#034fdf,#065cff 55%,#2f7bff);color:#fff;padding-block:16px 60px}
+.top{background:linear-gradient(115deg,#034fdf,#065cff 55%,#2f7bff);color:#fff;padding-block:16px 60px;position:relative;overflow:hidden}
+.top:before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(125deg,transparent 49%,#4195ff88 49%,#4195ff88 62%,transparent 62%)}
+.top>*{position:relative}
 .barra{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.marca{display:flex;align-items:center;gap:12px}
+.marca{display:flex;align-items:center;gap:14px}
 .marca img{width:168px;height:auto;display:block}
-.marca small{font-weight:700;font-size:11px;opacity:.9;letter-spacing:.14em;text-transform:uppercase;border-left:1px solid rgba(255,255,255,.4);padding-left:12px}
-.quien{display:flex;align-items:center;gap:10px;font-size:13px}
-.quien .av{width:36px;height:36px;border-radius:50%;background:#fff;color:var(--azul);display:grid;place-items:center;font-weight:800}
-.quien a{color:#fff;font-weight:700;font-size:12px;opacity:.9;margin-left:8px}
+.marca small{font-weight:800;font-size:11px;opacity:.9;letter-spacing:.14em;text-transform:uppercase;border-left:1px solid rgba(255,255,255,.4);padding-left:14px}
+.quien{display:flex;align-items:center;gap:14px;font-size:13px}
+.quien a{color:#fff;font-weight:800;font-size:12px;opacity:.9;text-decoration:underline;text-underline-offset:4px}
+.aliado{display:inline-flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:8px 14px 8px 10px;color:var(--fg);box-shadow:0 8px 24px rgba(0,20,90,.2)}
+.aliado img{height:30px;width:auto;display:block}
+.aliado div{line-height:1.15;border-left:1px solid var(--line);padding-left:12px}.aliado b{font-size:12.5px}.aliado span{font-size:11px;color:var(--fg-3)}
 .hola{margin-top:30px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.hola h1{margin:0;font-size:clamp(24px,3.4vw,36px);letter-spacing:-.04em;line-height:1.1;text-wrap:balance}
+.hola-logo{height:54px;width:auto;display:block;margin-bottom:14px;filter:drop-shadow(0 6px 16px rgba(0,30,120,.25))}
+.hola h1{margin:0;font-size:clamp(24px,3.4vw,36px);letter-spacing:-.04em;line-height:1.1;text-wrap:balance;font-weight:800}
 .hola p{margin:6px 0 0;color:#dbe7ff;max-width:60ch}
 .sedes{display:flex;gap:6px;flex-wrap:wrap;background:rgba(255,255,255,.14);padding:5px;border-radius:12px}
 .sedes button{border:0;background:transparent;color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:9px;cursor:pointer}
 .sedes button[aria-pressed="true"]{background:#fff;color:var(--azul-2)}
-.sedes button:focus-visible{outline:2px solid #fff;outline-offset:2px}
-main{margin-top:-40px;padding-block:0 44px}
+#tablero main{margin-top:-40px;padding-block:0 44px;position:relative}
 .fila{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin-bottom:14px}
 .card{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0;box-shadow:0 10px 30px -22px rgba(6,92,255,.35)}
 .c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
@@ -105,15 +150,17 @@ main{margin-top:-40px;padding-block:0 44px}
 .ch{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .ch h2{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em}
 .ch span{font-size:12px;color:var(--fg-3)}
-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);font-weight:800;padding:0 8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-tr:last-child td{border-bottom:0}
-td.r,th.r{text-align:right}
+#tablero table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+#tablero th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);font-weight:800;padding:0 8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+#tablero td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+#tablero tr:last-child td{border-bottom:0}
+#tablero td.r,#tablero th.r{text-align:right}
 .tabla{overflow-x:auto;margin-inline:-6px}
 .niveles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
-.nivel{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-.nivel.on{border-color:var(--azul);background:var(--azul-claro)}
+.nivel{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;--m:var(--plata);--m-claro:#e3e9f3}
+.nivel i{flex:none;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 32% 28%,#fff8 0,transparent 42%),linear-gradient(145deg,var(--m-claro),var(--m));box-shadow:inset 0 -2px 4px #0002}
+.nivel[data-n="bronce"]{--m:var(--bronce);--m-claro:#f1c29c}.nivel[data-n="plata"]{--m:var(--plata);--m-claro:#e3e9f3}.nivel[data-n="oro"]{--m:var(--oro);--m-claro:#ffe08a}.nivel[data-n="diamante"]{--m:var(--diamante);--m-claro:#c9f1ff}
+.nivel.on{border-color:var(--azul);background:var(--azul-claro);box-shadow:0 0 0 1px var(--azul)}
 .nivel b{display:block;font-size:13px}.nivel span{font-size:11.5px;color:var(--fg-2)}
 @media (max-width:560px){.niveles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .graf{width:100%;height:auto;display:block;margin-top:6px}
@@ -125,60 +172,103 @@ td.r,th.r{text-align:right}
 @media (max-width:560px){.evento{grid-template-columns:1fr;gap:4px}}
 .asesor{display:flex;gap:14px;align-items:center}
 .asesor .av{flex:none;width:48px;height:48px;border-radius:50%;background:var(--azul-claro);color:var(--azul);display:grid;place-items:center;font-weight:800;font-size:16px}
-.btn-wa{display:inline-flex;align-items:center;gap:8px;background:#25D366;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800;text-decoration:none;font-size:13px;margin-top:12px}
+.btn-wa{display:inline-flex;align-items:center;gap:8px;background:#25D366;color:#fff!important;border-radius:10px;padding:10px 14px;font-weight:800;text-decoration:none;font-size:13px;margin-top:12px}
 .btn-g{display:inline-flex;align-items:center;gap:8px;background:var(--azul-claro);color:var(--azul);border:0;border-radius:10px;padding:10px 14px;font-weight:800;font-size:13px;cursor:pointer;margin-top:12px}
 .pie{color:var(--fg-3);font-size:12px;margin-top:18px;text-align:center;line-height:1.6}
 @media (prefers-reduced-motion:no-preference){.barra-p i{transition:width .6s ease}}
 </style>
 </head>
-<body>
+<body class="pg-site pg-aliados">
 
-<!-- ── Entrada ── -->
-<section class="entrada" id="entrada" aria-labelledby="t-entrada">
-  <div class="entrada-azul">
-    <div>
-      <img class="logo-b" src="../assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi">
-      <h1 style="margin-top:34px">Tus motos vendidas, tu plata y tu bono. Todo en vivo.</h1>
-      <p>Entra y mira cuántas motos te hemos financiado, cuánto saldo tienes a tu favor y cuánto te falta para el bono. Sin llamar a preguntar.</p>
-      <div class="pared" aria-hidden="true">
-        <div class="mini" style="left:0;top:10px;--r:-7deg;--d:0s"><img src="../assets/public/motion-motos/new-horse-150.webp" alt=""><b>Aprobada en 31 min</b><small>Chacao · hoy 9:40</small></div>
-        <div class="mini" style="left:52%;top:0;--r:5deg;--d:-2s"><img src="../assets/public/motion-motos/veloz-hs-300y-8n-aventurera.webp" alt=""><b>Aprobada en 42 min</b><small>La Trinidad · ayer</small></div>
-        <div class="mini" style="left:26%;top:150px;--r:-3deg;--d:-4s"><img src="../assets/public/motion-motos/new-outlook-175.webp" alt=""><b>Entregada</b><small>Petare · 13 oct</small></div>
-        <div class="burbuja" style="left:54%;top:172px;--d:-1s"><span>Este mes</span>37 motos financiadas</div>
-        <div class="burbuja verde" style="left:0;top:210px;--d:-3s"><span>A tu favor</span>$12.660</div>
-        <div class="burbuja ambar" style="left:58%;top:238px;--d:-5s"><span>Bono de inicio</span>14 de 20 · ¡faltan 6!</div>
-      </div>
-      <div class="puntos">
-        <div class="punto"><i>⚡</i><span>Aprobamos la mayoría de los créditos en menos de una hora con los requisitos completos.</span></div>
-        <div class="punto"><i>$</i><span>Pagasi deja un depósito a tu favor y lo repone según la actividad: cobras rápido.</span></div>
-        <div class="punto"><i>★</i><span>Tus vendedores envían solicitudes desde su propio usuario y ven solo lo de tu concesionario.</span></div>
-      </div>
+<!-- ══════════ Portada: la misma web de pagasi.io, con la tarjeta de entrada en el hero ══════════ -->
+<div id="entrada">
+<header class="pg-header" id="nav"><nav class="pg-nav pg-container" aria-label="Navegación principal"><a class="pg-brand" href="index.html" aria-label="Pagasi, inicio"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><div class="pg-nav-links" id="pg-navigation"><a href="index.html">Inicio</a><a href="simulador.html">Simulador</a><a href="catalogo.html">Catálogo</a><a href="nosotros.html">Nosotros</a><a href="aliados/" aria-current="page">Aliados</a><a href="micuenta.html" class="pg-button pg-button-outline"><span data-icon="user" aria-hidden="true"></span> Mi cuenta</a><a href="solicitar.html" class="pg-button">Solicitar</a></div><button type="button" class="pg-menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="pg-navigation"><span data-icon="menu" aria-hidden="true"></span></button></nav></header>
+
+<main>
+<section class="pg-motion-hero al-hero" data-motion-running="false" aria-labelledby="t-entrada">
+  <div class="pg-container pg-motion-inner">
+    <div class="pg-motion-copy">
+      <p class="pg-motion-kicker">Programa de aliados Pagasi</p>
+      <h1 id="t-entrada">Vende más motos. <span>Cobra más.</span></h1>
+      <p class="pg-motion-description">Tu concesionario tiene su propio portal: las motos que te hemos financiado, tu saldo a favor y tu nivel de comisión, en vivo.</p>
+      <form class="al-login" id="form" autocomplete="off" novalidate>
+        <div class="al-login-head"><h2>Entrar al portal</h2><span><span data-icon="shield" aria-hidden="true"></span> Acceso de concesionarios</span></div>
+        <div class="pg-field"><label for="usuario">Usuario</label><input class="pg-control" id="usuario" name="usuario" placeholder="nombre del concesionario" autocapitalize="off" spellcheck="false" required></div>
+        <div class="pg-field"><label for="clave">Clave</label><input class="pg-control" id="clave" name="clave" type="password" placeholder="••••••••" required></div>
+        <button class="pg-button pg-button-full" type="submit">Entrar al portal <span data-icon="arrow" aria-hidden="true"></span></button>
+        <div class="al-error" id="error" role="alert"></div>
+        <p class="al-ayuda">¿No tienes usuario todavía? <a href="https://wa.me/584242177798?text=Hola%2C%20quiero%20el%20usuario%20del%20portal%20de%20aliados%20para%20mi%20concesionario." target="_blank" rel="noopener">Escríbele a tu asesor por WhatsApp</a> y te lo creamos el mismo día.</p>
+      </form>
+      <p class="pg-motion-note">Cada vendedor entra con su propio usuario y ve solo lo de su concesionario.</p>
     </div>
-    <small>Pagasi · pagasi.io · Caracas, Venezuela</small>
   </div>
-  <div class="entrada-form">
-    <form class="caja" id="form" autocomplete="off">
-      <h2 id="t-entrada">Portal de aliados</h2>
-      <p>Entra con el usuario que te dio tu asesor de Pagasi.</p>
-      <div class="campo"><label for="usuario">Usuario</label><input id="usuario" name="usuario" placeholder="nombre del concesionario" autocapitalize="off" spellcheck="false" required></div>
-      <div class="campo"><label for="clave">Clave</label><input id="clave" name="clave" type="password" placeholder="••••••••" required></div>
-      <button class="btn" type="submit">Entrar →</button>
-      <div class="error" id="error" role="alert"></div>
-      <div class="ayuda">¿No tienes usuario todavía? Escríbele a tu asesor por WhatsApp al <b>+58 424-217-7798</b> y te lo creamos el mismo día.</div>
-    </form>
+  <div class="pg-motion-wall" aria-hidden="true"><div class="pg-motion-perspective"><div class="pg-motion-columns" data-motion-columns></div></div></div>
+  <button class="pg-motion-control" type="button" data-motion-toggle aria-pressed="false" aria-label="Pausar movimiento de las motos" hidden>Pausar</button>
+</section>
+
+<div class="pg-strip al-pasos"><div class="pg-container pg-steps">
+  <div class="pg-step"><span data-icon="document" aria-hidden="true"></span><div><small>01</small><h3>Tu vendedor envía la solicitud</h3><p>Desde su usuario, con los datos y las fotos del cliente.</p></div></div>
+  <div class="pg-step"><span data-icon="clock" aria-hidden="true"></span><div><small>02</small><h3>Aprobamos en menos de una hora</h3><p>Con los requisitos completos, el cliente se va en su moto.</p></div></div>
+  <div class="pg-step"><span data-icon="wallet" aria-hidden="true"></span><div><small>03</small><h3>Cobras del depósito de Pagasi</h3><p>Dejamos un saldo a tu favor y lo reponemos según la actividad.</p></div></div>
+</div></div>
+
+<section class="pg-section" id="niveles-programa">
+  <div class="pg-container">
+    <div class="pg-section-head"><div><p class="pg-eyebrow">Niveles del programa</p><h2>Mientras más vendes, <span class="pg-accent">más ganas.</span></h2><p>Tu comisión se calcula sobre lo financiado en el mes. Subes de nivel solo, sin pedirlo.</p></div></div>
+    <div class="al-niveles">
+      <article class="al-nivel bronce"><div class="al-medalla">B</div><h3>Bronce</h3><div class="al-pct">1,0<small>%</small></div><p>Comisión sobre lo financiado en el mes.</p><div class="al-rango"><span>Volumen del mes</span>US$ 0 a 9.999</div></article>
+      <article class="al-nivel plata"><div class="al-medalla">P</div><h3>Plata</h3><div class="al-pct">1,5<small>%</small></div><p>Para concesionarios que ya mueven volumen con nosotros.</p><div class="al-rango"><span>Volumen del mes</span>US$ 10.000 a 24.999</div></article>
+      <article class="al-nivel oro"><div class="al-medalla">O</div><h3>Oro</h3><div class="al-pct">2,0<small>%</small></div><p>El doble de Bronce. Aquí está hoy la mayoría de nuestros aliados grandes.</p><div class="al-rango"><span>Volumen del mes</span>US$ 25.000 a 49.999</div></article>
+      <article class="al-nivel diamante"><span class="al-tag">El más alto</span><div class="al-medalla">D</div><h3>Diamante</h3><div class="al-pct">2,5<small>%</small></div><p>Atención prioritaria, depósito más alto y la mejor comisión.</p><div class="al-rango"><span>Volumen del mes</span>US$ 50.000 en adelante</div></article>
+    </div>
+    <div class="al-extras">
+      <div class="al-extra"><span data-icon="spark" aria-hidden="true"></span><div><b>Bono de inicio: <em>US$ 2.000</em></b><p>Por 20 solicitudes completas en tus primeros 30 días como aliado. Se abona a tu saldo a favor.</p></div></div>
+      <div class="al-extra"><span data-icon="shield" aria-hidden="true"></span><div><b>Hasta <em>110%</em> por calidad de cartera</b><p>Si menos del 5% de tus clientes se atrasa más de 30 días, tu comisión del mes se multiplica por 1,1. Los buenos clientes también te pagan a ti.</p></div></div>
+    </div>
   </div>
 </section>
 
-<!-- ── Tablero ── -->
+<section class="pg-section pg-soft" id="que-ves">
+  <div class="pg-container">
+    <div class="pg-section-head"><div><p class="pg-eyebrow">Lo que ves al entrar</p><h2>Sin llamar a preguntar.</h2><p>Todo lo que hoy te contamos por teléfono, en una sola pantalla y al día.</p></div></div>
+    <div class="al-vista">
+      <div class="pg-value-grid">
+        <div class="pg-value"><span data-icon="wallet" aria-hidden="true"></span><div><h3>Tu saldo a favor, en vivo</h3><p>Cuánto te queda del depósito de Pagasi, cada movimiento por moto y cuándo se repone.</p></div></div>
+        <div class="pg-value"><span data-icon="bike" aria-hidden="true"></span><div><h3>Tus ventas y tus solicitudes</h3><p>Cada moto financiada por sede, con el estado de cada solicitud y en cuántos minutos la aprobamos.</p></div></div>
+        <div class="pg-value"><span data-icon="spark" aria-hidden="true"></span><div><h3>Tu nivel y tu bono</h3><p>Cuánto te falta para el siguiente nivel, cómo va el bono de inicio y la calidad de tu cartera.</p></div></div>
+      </div>
+      <div class="al-previa" aria-hidden="true">
+        <div class="al-previa-top"><img src="assets/aliados/bera-blanco.png" alt=""><span>Octubre 2026</span></div>
+        <div class="al-previa-kpis">
+          <div class="al-previa-kpi"><small>Saldo a tu favor</small><b>$12.660</b><i>de $30.000</i></div>
+          <div class="al-previa-kpi"><small>Motos del mes</small><b>37</b><i class="v">+12 vs. sep</i></div>
+          <div class="al-previa-kpi"><small>Comisión</small><b>$686</b><i>Nivel Oro · 2,0%</i></div>
+        </div>
+        <div class="al-previa-barra"><i></i></div>
+        <p>Te faltan <b>$18.800</b> para Diamante (2,5%).</p>
+      </div>
+    </div>
+    <div class="al-marcas"><p class="pg-eyebrow">Ya venden con Pagasi</p><img src="assets/aliados/bera-negro.png" alt="BERA"><span>y la red de concesionarios aliados de Pagasi en Caracas.</span></div>
+  </div>
+</section>
+
+<section class="pg-section"><div class="pg-container"><div class="pg-cta"><div><h2>¿Tu concesionario todavía no está?</h2><p>Súmate al programa y empieza a cobrar comisión desde la primera moto.</p></div><a class="pg-button pg-button-white" href="https://wa.me/584242177798?text=Hola%2C%20quiero%20ser%20concesionario%20aliado%20de%20Pagasi." target="_blank" rel="noopener">Quiero ser aliado <span data-icon="arrow" aria-hidden="true"></span></a></div></div></section>
+</main>
+
+<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584242177798?text=Hola%2C%20quiero%20informacion%20sobre%20una%20moto%20en%20cuotas%20con%20Pagasi.">+58 424-217-7798</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer>
+</div>
+
+<!-- ══════════ Tablero (adentro): el aliado de muestra es BERA ══════════ -->
 <div id="tablero" hidden>
 <header class="top">
   <div class="wrap">
     <div class="barra">
-      <div class="marca"><a href="https://pagasi.io" aria-label="Pagasi, inicio"><img src="../assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi"></a><small>Portal de aliados</small></div>
-      <div class="quien"><span class="aliado"><span class="bera" aria-label="BERA">BERA</span><div><b>Grupo BERA</b><br><span>3 concesionarios · aliado desde octubre 2026</span></div></span><a href="#" id="salir">Salir</a></div>
+      <div class="marca"><a href="index.html" aria-label="Pagasi, inicio"><img src="assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi"></a><small>Portal de aliados</small></div>
+      <div class="quien"><span class="aliado"><img src="assets/aliados/bera-negro.png" alt="BERA"><div><b>Grupo BERA</b><br><span>3 concesionarios · aliado desde octubre 2026</span></div></span><a href="aliados/" id="salir">Salir</a></div>
     </div>
     <div class="hola">
       <div>
+        <img class="hola-logo" src="assets/aliados/bera-blanco.png" alt="BERA">
         <h1 id="titulo">¡Buenos días, BERA! Así va octubre.</h1>
         <p>Lo que Pagasi te debe, lo que has vendido con nosotros y lo que te falta para tu bono. Se actualiza solo con cada venta.</p>
       </div>
@@ -206,10 +296,10 @@ td.r,th.r{text-align:right}
       <div class="sub" id="n-texto">Te faltan <b>$18.800</b> para Diamante (2,5%). Al ritmo de esta semana lo alcanzas en 3 semanas.</div>
       <div class="barra-p"><i id="b-nivel" style="width:62%"></i></div>
       <div class="niveles" id="niveles">
-        <div class="nivel" data-n="bronce"><b>Bronce · 1,0%</b><span>$0 a $9.999</span></div>
-        <div class="nivel" data-n="plata"><b>Plata · 1,5%</b><span>$10.000 a $24.999</span></div>
-        <div class="nivel on" data-n="oro"><b>Oro · 2,0%</b><span>$25.000 a $49.999</span></div>
-        <div class="nivel" data-n="diamante"><b>Diamante · 2,5%</b><span>$50.000 en adelante</span></div>
+        <div class="nivel" data-n="bronce"><i></i><div><b>Bronce · 1,0%</b><span>$0 a $9.999</span></div></div>
+        <div class="nivel" data-n="plata"><i></i><div><b>Plata · 1,5%</b><span>$10.000 a $24.999</span></div></div>
+        <div class="nivel on" data-n="oro"><i></i><div><b>Oro · 2,0%</b><span>$25.000 a $49.999</span></div></div>
+        <div class="nivel" data-n="diamante"><i></i><div><b>Diamante · 2,5%</b><span>$50.000 en adelante</span></div></div>
       </div>
     </section>
     <section class="card c5">
@@ -281,6 +371,9 @@ td.r,th.r{text-align:right}
 </main>
 </div>
 
+<script src="assets/public/catalog.js?v=20261015-3"></script>
+<script src="assets/public/site.js?v=20261015-3"></script>
+<script src="assets/public/hero-motion.js?v=20261015-3"></script>
 <script>
 (function(){
   var $=function(id){ return document.getElementById(id); };
