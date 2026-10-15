@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#065cff">
+<meta name="robots" content="noindex,nofollow">
+<title>Portal de aliados — Pagasi</title>
+<link rel="icon" type="image/png" href="../assets/pegaso.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Portal de aliados (demostracion, 15-oct-2026): mismo azul y misma letra de pagasi.io. Entrada con usuario y
+   clave, y un tablero de una columna con tarjetas de 12 columnas que se apilan en el telefono. */
+:root{
+  --azul:#065cff; --azul-2:#0a2cff; --azul-claro:#e8f0ff; --cielo:#00b4ff;
+  --bg:#f3f6fc; --surf:#fff; --fg:#101a35; --fg-2:#4b5875; --fg-3:#7c88a6; --line:#dfe6f3;
+  --bien:#0e9f6e; --bien-bg:#e6f7f0; --ojo:#d97706; --ojo-bg:#fff4e0; --mal:#dc2626; --mal-bg:#fdecec;
+  --fd:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--fd);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+img{max-width:100%}
+a{color:var(--azul)}
+button{font:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px}
+
+/* ── Entrada ── */
+.entrada{min-height:100vh;display:grid;grid-template-columns:1.05fr 1fr}
+.entrada-azul{background:linear-gradient(135deg,#034fdf,#065cff 55%,#2f7bff);color:#fff;padding:40px 48px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+.entrada-azul:before{content:'';position:absolute;right:-120px;top:-120px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.08)}
+.entrada-azul:after{content:'';position:absolute;left:-80px;bottom:-140px;width:360px;height:360px;border-radius:50%;background:rgba(0,180,255,.18)}
+.entrada-azul>*{position:relative}
+.logo-b{width:190px;height:auto;display:block}
+.entrada-azul h1{font-size:clamp(30px,3.6vw,46px);line-height:1.08;letter-spacing:-.045em;margin:0 0 14px;text-wrap:balance}
+.entrada-azul p{color:#dbe7ff;font-size:16px;max-width:46ch;margin:0}
+.puntos{display:grid;gap:12px;margin-top:28px}
+.punto{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:#eaf1ff}
+.punto i{flex:none;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-style:normal;font-weight:800;font-size:12px}
+.entrada-azul small{color:#c9dbff;font-size:12px}
+.entrada-form{display:grid;place-items:center;padding:40px 24px}
+.caja{width:100%;max-width:400px}
+.caja h2{font-size:26px;letter-spacing:-.03em;margin:0 0 6px}
+.caja p{color:var(--fg-2);margin:0 0 22px}
+.campo{display:grid;gap:6px;margin-bottom:14px}
+.campo label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.campo input{font:inherit;font-size:15px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--surf);color:var(--fg);width:100%}
+.campo input:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 4px rgba(6,92,255,.12)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:14px 20px;font-weight:800;font-size:15px;cursor:pointer;background:var(--azul);color:#fff;width:100%}
+.btn:hover{background:var(--azul-2)}
+.btn:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+.error{color:var(--mal);font-size:13px;font-weight:700;margin-top:10px;min-height:20px}
+.ayuda{font-size:12.5px;color:var(--fg-3);margin-top:18px;line-height:1.6}
+@media (max-width:860px){.entrada{grid-template-columns:1fr}.entrada-azul{padding:28px 20px 34px}.puntos{margin-top:18px}.entrada-form{padding:28px 16px 40px}}
+
+/* ── Tablero ── */
+.top{background:linear-gradient(115deg,#034fdf,#065cff 55%,#2f7bff);color:#fff;padding-block:16px 60px}
+.barra{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.marca{display:flex;align-items:center;gap:12px}
+.marca img{width:118px;height:auto;display:block}
+.marca small{font-weight:700;font-size:11px;opacity:.9;letter-spacing:.14em;text-transform:uppercase;border-left:1px solid rgba(255,255,255,.4);padding-left:12px}
+.quien{display:flex;align-items:center;gap:10px;font-size:13px}
+.quien .av{width:36px;height:36px;border-radius:50%;background:#fff;color:var(--azul);display:grid;place-items:center;font-weight:800}
+.quien a{color:#fff;font-weight:700;font-size:12px;opacity:.9;margin-left:8px}
+.hola{margin-top:30px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.hola h1{margin:0;font-size:clamp(24px,3.4vw,36px);letter-spacing:-.04em;line-height:1.1;text-wrap:balance}
+.hola p{margin:6px 0 0;color:#dbe7ff;max-width:60ch}
+.sedes{display:flex;gap:6px;flex-wrap:wrap;background:rgba(255,255,255,.14);padding:5px;border-radius:12px}
+.sedes button{border:0;background:transparent;color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:9px;cursor:pointer}
+.sedes button[aria-pressed="true"]{background:#fff;color:var(--azul-2)}
+.sedes button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+main{margin-top:-40px;padding-block:0 44px}
+.fila{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0;box-shadow:0 10px 30px -22px rgba(6,92,255,.35)}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+@media (max-width:900px){.c3,.c4{grid-column:span 6}.c5,.c7,.c8{grid-column:span 12}}
+@media (max-width:560px){.c3,.c4,.c6{grid-column:span 12}}
+.et{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.num{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1.05;margin-top:6px;font-variant-numeric:tabular-nums}
+.sub{color:var(--fg-2);font-size:12.5px;margin-top:4px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;white-space:nowrap}
+.pill.bien{background:var(--bien-bg);color:var(--bien)}.pill.ojo{background:var(--ojo-bg);color:var(--ojo)}.pill.mal{background:var(--mal-bg);color:var(--mal)}.pill.azul{background:var(--azul-claro);color:var(--azul)}
+.barra-p{height:10px;border-radius:999px;background:var(--azul-claro);overflow:hidden;margin-top:10px}
+.barra-p i{display:block;height:100%;background:linear-gradient(90deg,var(--azul),var(--cielo));border-radius:999px}
+.ch{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.ch h2{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em}
+.ch span{font-size:12px;color:var(--fg-3)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);font-weight:800;padding:0 8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.tabla{overflow-x:auto;margin-inline:-6px}
+.niveles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.nivel{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.nivel.on{border-color:var(--azul);background:var(--azul-claro)}
+.nivel b{display:block;font-size:13px}.nivel span{font-size:11.5px;color:var(--fg-2)}
+@media (max-width:560px){.niveles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.graf{width:100%;height:auto;display:block;margin-top:6px}
+.linea-t{display:flex;flex-direction:column;gap:10px}
+.evento{display:grid;grid-template-columns:62px 1fr auto;gap:10px;align-items:center;font-size:13px}
+.evento time{font-size:11.5px;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.evento b{font-weight:700}
+.evento .d{font-size:12px;color:var(--fg-2)}
+@media (max-width:560px){.evento{grid-template-columns:1fr;gap:4px}}
+.asesor{display:flex;gap:14px;align-items:center}
+.asesor .av{flex:none;width:48px;height:48px;border-radius:50%;background:var(--azul-claro);color:var(--azul);display:grid;place-items:center;font-weight:800;font-size:16px}
+.btn-wa{display:inline-flex;align-items:center;gap:8px;background:#25D366;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800;text-decoration:none;font-size:13px;margin-top:12px}
+.btn-g{display:inline-flex;align-items:center;gap:8px;background:var(--azul-claro);color:var(--azul);border:0;border-radius:10px;padding:10px 14px;font-weight:800;font-size:13px;cursor:pointer;margin-top:12px}
+.pie{color:var(--fg-3);font-size:12px;margin-top:18px;text-align:center;line-height:1.6}
+@media (prefers-reduced-motion:no-preference){.barra-p i{transition:width .6s ease}}
+</style>
+</head>
+<body>
+
+<!-- ── Entrada ── -->
+<section class="entrada" id="entrada" aria-labelledby="t-entrada">
+  <div class="entrada-azul">
+    <div>
+      <img class="logo-b" src="../assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi">
+      <h1 style="margin-top:46px">Tu alianza con Pagasi, en una sola pantalla.</h1>
+      <p>Cuántas motos te hemos financiado, cuánto saldo tienes a tu favor, tu nivel de comisión y cuánto te falta para el bono. En tiempo real, sin llamar a preguntar.</p>
+      <div class="puntos">
+        <div class="punto"><i>1</i><span>Aprobamos la mayoría de los créditos en menos de una hora con los requisitos completos.</span></div>
+        <div class="punto"><i>2</i><span>Pagasi deja un depósito a tu favor y lo repone según la actividad: cobras rápido.</span></div>
+        <div class="punto"><i>3</i><span>Tus vendedores envían solicitudes desde su propio usuario y ven solo lo de tu concesionario.</span></div>
+      </div>
+    </div>
+    <small>Pagasi · pagasi.io · Caracas, Venezuela</small>
+  </div>
+  <div class="entrada-form">
+    <form class="caja" id="form" autocomplete="off">
+      <h2 id="t-entrada">Portal de aliados</h2>
+      <p>Entra con el usuario que te dio tu asesor de Pagasi.</p>
+      <div class="campo"><label for="usuario">Usuario</label><input id="usuario" name="usuario" placeholder="nombre del concesionario" autocapitalize="off" spellcheck="false" required></div>
+      <div class="campo"><label for="clave">Clave</label><input id="clave" name="clave" type="password" placeholder="••••••••" required></div>
+      <button class="btn" type="submit">Entrar →</button>
+      <div class="error" id="error" role="alert"></div>
+      <div class="ayuda">¿No tienes usuario todavía? Escríbele a tu asesor por WhatsApp al <b>+58 424-217-7798</b> y te lo creamos el mismo día.</div>
+    </form>
+  </div>
+</section>
+
+<!-- ── Tablero ── -->
+<div id="tablero" hidden>
+<header class="top">
+  <div class="wrap">
+    <div class="barra">
+      <div class="marca"><a href="https://pagasi.io" aria-label="Pagasi, inicio"><img src="../assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi"></a><small>Portal de aliados</small></div>
+      <div class="quien"><span class="av">B</span><div><b>Grupo BERA</b><br><span style="opacity:.85">3 concesionarios · aliado desde octubre 2026</span></div><a href="#" id="salir">Salir</a></div>
+    </div>
+    <div class="hola">
+      <div>
+        <h1 id="titulo">Buenos días, BERA. Así va octubre.</h1>
+        <p>Lo que Pagasi te debe, lo que has vendido con nosotros y lo que te falta para tu bono. Se actualiza solo con cada venta.</p>
+      </div>
+      <div class="sedes" role="group" aria-label="Concesionario">
+        <button type="button" data-sede="todas" aria-pressed="true">Las 3 sedes</button>
+        <button type="button" data-sede="chacao" aria-pressed="false">Chacao</button>
+        <button type="button" data-sede="petare" aria-pressed="false">Petare</button>
+        <button type="button" data-sede="trinidad" aria-pressed="false">La Trinidad</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="fila">
+    <section class="card c3"><div class="et">Saldo a tu favor</div><div class="num" id="k-saldo">$12.660</div><div class="sub" id="k-saldo-sub">de $30.000 depositados por Pagasi</div><div class="barra-p"><i id="b-saldo" style="width:42%"></i></div></section>
+    <section class="card c3"><div class="et">Motos financiadas en octubre</div><div class="num" id="k-motos">37</div><div class="sub" id="k-motos-sub">+12 frente a septiembre</div></section>
+    <section class="card c3"><div class="et">Volumen financiado del mes</div><div class="num" id="k-vol">$31.200</div><div class="sub" id="k-vol-sub"><span class="pill azul" id="k-nivel">Nivel Oro · 2,0%</span></div></section>
+    <section class="card c3"><div class="et">Comisión estimada de octubre</div><div class="num" id="k-com">$686</div><div class="sub" id="k-com-sub">$624 base × 110% por calidad de cartera</div></section>
+  </div>
+
+  <div class="fila">
+    <section class="card c7">
+      <div class="ch"><h2>Tu nivel y lo que falta para el siguiente</h2><span>Se mide sobre lo financiado y conciliado en el mes</span></div>
+      <div class="sub" id="n-texto">Te faltan <b>$18.800</b> para Diamante (2,5%). Al ritmo de esta semana lo alcanzas en 3 semanas.</div>
+      <div class="barra-p"><i id="b-nivel" style="width:62%"></i></div>
+      <div class="niveles" id="niveles">
+        <div class="nivel" data-n="bronce"><b>Bronce · 1,0%</b><span>$0 a $9.999</span></div>
+        <div class="nivel" data-n="plata"><b>Plata · 1,5%</b><span>$10.000 a $24.999</span></div>
+        <div class="nivel on" data-n="oro"><b>Oro · 2,0%</b><span>$25.000 a $49.999</span></div>
+        <div class="nivel" data-n="diamante"><b>Diamante · 2,5%</b><span>$50.000 en adelante</span></div>
+      </div>
+    </section>
+    <section class="card c5">
+      <div class="ch"><h2>Bono de inicio</h2><span>20 solicitudes completas en 30 días</span></div>
+      <div class="num" id="k-bono">14 <span style="font-size:16px;color:var(--fg-3);font-weight:700">de 20</span></div>
+      <div class="sub" id="k-bono-sub">Quedan <b>9 días</b> · 6 solicitudes más y el bono de <b>$2.000</b> es tuyo</div>
+      <div class="barra-p"><i id="b-bono" style="width:70%"></i></div>
+      <div class="sub" style="margin-top:14px"><span class="pill bien" id="p-completas">✓ 14 completas</span> &nbsp; <span class="pill ojo" id="p-pendientes">2 con documentos pendientes</span></div>
+    </section>
+  </div>
+
+  <div class="fila">
+    <section class="card c6">
+      <div class="ch"><h2>Volumen financiado por mes</h2><span>US$</span></div>
+      <svg class="graf" viewBox="0 0 560 190" role="img" aria-label="Volumen financiado por mes" id="graf"></svg>
+    </section>
+    <section class="card c6">
+      <div class="ch"><h2>Calidad de tu cartera</h2><span>Clientes referidos con más de 60 días de crédito</span></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <div><div class="et">Al día</div><div class="num" style="font-size:24px;color:var(--bien)" id="q-aldia">96,2%</div></div>
+        <div><div class="et">Atraso &gt; 30 días</div><div class="num" style="font-size:24px" id="q-atraso">3,8%</div></div>
+        <div><div class="et">Multiplicador</div><div class="num" style="font-size:24px;color:var(--azul)" id="q-mult">110%</div></div>
+      </div>
+      <div class="tabla" style="margin-top:14px"><table>
+        <thead><tr><th>Atraso &gt; 30 días</th><th class="r">Comisión pagadera</th></tr></thead>
+        <tbody>
+          <tr id="m1"><td>Menos de 5%</td><td class="r"><b>110%</b></td></tr>
+          <tr id="m2"><td>5% a 10%</td><td class="r">100%</td></tr>
+          <tr id="m3"><td>Más de 10% a 15%</td><td class="r">75%</td></tr>
+          <tr id="m4"><td>Más de 15%</td><td class="r">50%</td></tr>
+        </tbody></table></div>
+    </section>
+  </div>
+
+  <div class="fila">
+    <section class="card c7">
+      <div class="ch"><h2>Últimas ventas financiadas</h2><span id="v-cuenta">37 este mes</span></div>
+      <div class="tabla"><table>
+        <thead><tr><th>Fecha</th><th>Sede</th><th>Moto</th><th>Cliente</th><th>Estado</th><th class="r">Financiado</th></tr></thead>
+        <tbody id="ventas"></tbody>
+      </table></div>
+    </section>
+    <section class="card c5">
+      <div class="ch"><h2>Solicitudes de tus vendedores</h2><span>Aprobación promedio: <b id="a-prom">38 min</b></span></div>
+      <div class="linea-t" id="solicitudes"></div>
+    </section>
+  </div>
+
+  <div class="fila">
+    <section class="card c8">
+      <div class="ch"><h2>Movimientos de tu depósito</h2><span>Cada moto financiada se descuenta; Pagasi lo repone según la actividad</span></div>
+      <div class="tabla"><table>
+        <thead><tr><th>Fecha</th><th>Sede</th><th>Detalle</th><th class="r">Movimiento</th><th class="r">Saldo de la sede</th></tr></thead>
+        <tbody id="movs"></tbody>
+      </table></div>
+    </section>
+    <section class="card c4">
+      <div class="ch"><h2>Tu asesora en Pagasi</h2></div>
+      <div class="asesor"><span class="av">S</span><div><b>Samantha</b><div class="sub" style="margin-top:0">Gerente de Cobranzas · lunes a sábado, 8 am a 6 pm</div></div></div>
+      <a class="btn-wa" href="https://wa.me/584242177798?text=Hola%2C%20escribo%20desde%20el%20portal%20de%20aliados%20de%20BERA." target="_blank" rel="noopener">Escribir por WhatsApp</a>
+      <div style="height:1px;background:var(--line);margin:16px 0"></div>
+      <div class="et">Estado de cuenta</div>
+      <div class="sub">Octubre 2026 · se cierra el 31 con la conciliación del mes</div>
+      <button class="btn-g" type="button" id="pdf">Descargar estado de cuenta (PDF)</button>
+      <div class="sub" id="pdf-msj" style="min-height:18px"></div>
+    </section>
+  </div>
+  <p class="pie">Demostración del portal de aliados con datos de muestra. Los números reales salen del sistema de Pagasi en tiempo real.<br>Pagasi · pagasi.io · +58 424-217-7798</p>
+</main>
+</div>
+
+<script>
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var USD=function(n){ return '$'+Math.round(n).toLocaleString('es-VE'); };
+  // ── Entrada de demostracion: el usuario y la clave los da Pagasi ──
+  var CUENTAS={ bera:'demo', 'grupo bera':'demo' };
+  $('form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var u=String($('usuario').value||'').trim().toLowerCase(), c=String($('clave').value||'');
+    if(CUENTAS[u] && CUENTAS[u]===c){ $('error').textContent=''; $('entrada').hidden=true; $('tablero').hidden=false; window.scrollTo(0,0); pinta('todas'); }
+    else { $('error').textContent='Usuario o clave incorrectos. Si no los tienes, pídeselos a tu asesor.'; }
+  });
+  $('salir').addEventListener('click', function(e){ e.preventDefault(); $('tablero').hidden=true; $('entrada').hidden=false; $('clave').value=''; window.scrollTo(0,0); });
+  $('pdf').addEventListener('click', function(){ $('pdf-msj').textContent='El estado de cuenta en PDF estará disponible al cierre del mes.'; });
+
+  var SEDES={
+    todas:{ nombre:'BERA', dep:30000, saldo:12660, motos:37, motosDelta:'+12 frente a septiembre', vol:31200, bono:14, bonoPend:2, atraso:3.8, aprom:38, meses:[0,0,4200,12900,22400,31200] },
+    chacao:{ nombre:'BERA Chacao', dep:10000, saldo:3160, motos:15, motosDelta:'+5 frente a septiembre', vol:12400, bono:6, bonoPend:1, atraso:2.9, aprom:34, meses:[0,0,2100,6300,9800,12400] },
+    petare:{ nombre:'BERA Petare', dep:10000, saldo:5420, motos:10, motosDelta:'+3 frente a septiembre', vol:8300, bono:3, bonoPend:1, atraso:6.4, aprom:45, meses:[0,0,0,2800,5600,8300] },
+    trinidad:{ nombre:'BERA La Trinidad', dep:10000, saldo:4080, motos:12, motosDelta:'+4 frente a septiembre', vol:10500, bono:5, bonoPend:0, atraso:3.1, aprom:36, meses:[0,0,2100,3800,7000,10500] }
+  };
+  var VENTAS=[
+    ['14 oct','chacao','Lechuza II','M. Pérez','aldia',1140],['14 oct','trinidad','Fénix 200','J. Rodríguez','aldia',954],
+    ['13 oct','petare','Cuervo','A. Gómez','aldia',786],['13 oct','chacao','Canario','L. Martínez','aldia',798],
+    ['11 oct','trinidad','Tucán II','R. Silva','atraso',743],['10 oct','chacao','Fénix 150','C. Hernández','aldia',870],
+    ['9 oct','petare','Águila','D. Torres','aldia',588],['8 oct','trinidad','Cóndor','P. Ramírez','aldia',714]
+  ];
+  var SOL=[
+    ['09:40','chacao','Lechuza II · V. Rojas','Aprobada en 31 min','bien'],['Ayer','trinidad','Fénix 200 · J. Rodríguez','Aprobada en 42 min','bien'],
+    ['Ayer','petare','Cuervo · A. Gómez','Faltan dos fotos de la cédula','ojo'],['12 oct','chacao','Canario · L. Martínez','Aprobada en 28 min','bien'],
+    ['11 oct','trinidad','Tucán II · R. Silva','Aprobada en 55 min','bien']
+  ];
+  var MOVS=[
+    ['14 oct','chacao','Lechuza II · M. Pérez',-1140,3160],['14 oct','trinidad','Fénix 200 · J. Rodríguez',-954,4080],
+    ['13 oct','petare','Cuervo · A. Gómez',-786,5420],['13 oct','chacao','Canario · L. Martínez',-798,4300],
+    ['1 oct','todas','Depósito de Pagasi al activar la alianza',30000,30000]
+  ];
+  var NOM={chacao:'Chacao',petare:'Petare',trinidad:'La Trinidad',todas:'Las 3'};
+  function nivelDe(v){ return v>=50000?['Diamante',2.5,'diamante',null]:v>=25000?['Oro',2.0,'oro',50000]:v>=10000?['Plata',1.5,'plata',25000]:['Bronce',1.0,'bronce',10000]; }
+  function multDe(a){ return a<5?110:a<=10?100:a<=15?75:50; }
+  function pct(x){ return x.toFixed(1).replace('.',','); }
+  function pinta(k){
+    var s=SEDES[k];
+    document.querySelectorAll('.sedes button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.sede===k)); });
+    $('titulo').textContent=(k==='todas'?'Buenos días, BERA. Así va octubre.':'Así va octubre en '+s.nombre+'.');
+    $('k-saldo').textContent=USD(s.saldo); $('k-saldo-sub').textContent='de '+USD(s.dep)+' depositados por Pagasi'; $('b-saldo').style.width=Math.round(s.saldo/s.dep*100)+'%';
+    $('k-motos').textContent=s.motos; $('k-motos-sub').textContent=s.motosDelta;
+    var n=nivelDe(s.vol), m=multDe(s.atraso), base=s.vol*n[1]/100;
+    $('k-vol').textContent=USD(s.vol); $('k-nivel').textContent='Nivel '+n[0]+' · '+pct(n[1])+'%';
+    $('k-com').textContent=USD(base*m/100); $('k-com-sub').textContent=USD(base)+' base × '+m+'% por calidad de cartera';
+    if(n[3]){ var falta=n[3]-s.vol, sig=nivelDe(n[3]); $('n-texto').innerHTML='Te faltan <b>'+USD(falta)+'</b> para '+sig[0]+' ('+pct(sig[1])+'%).'+(k==='todas'?' Al ritmo de esta semana lo alcanzas en 3 semanas.':''); $('b-nivel').style.width=Math.round(s.vol/n[3]*100)+'%'; }
+    else { $('n-texto').innerHTML='Estás en el nivel más alto. <b>Diamante · 2,5%</b>'; $('b-nivel').style.width='100%'; }
+    document.querySelectorAll('.nivel').forEach(function(e){ e.classList.toggle('on', e.dataset.n===n[2]); });
+    $('k-bono').innerHTML=s.bono+' <span style="font-size:16px;color:var(--fg-3);font-weight:700">de 20</span>';
+    $('k-bono-sub').innerHTML='Quedan <b>9 días</b> · '+(20-s.bono)+' solicitudes más y el bono de <b>$2.000</b> es tuyo'; $('b-bono').style.width=Math.round(s.bono/20*100)+'%';
+    $('p-completas').textContent='✓ '+s.bono+' completas'; $('p-pendientes').textContent=s.bonoPend+' con documentos pendientes'; $('p-pendientes').hidden=!s.bonoPend;
+    $('q-aldia').textContent=pct(100-s.atraso)+'%'; $('q-atraso').textContent=pct(s.atraso)+'%'; $('q-mult').textContent=m+'%';
+    [['m1',110],['m2',100],['m3',75],['m4',50]].forEach(function(p){ var tr=$(p[0]); tr.style.background=(p[1]===m)?'var(--azul-claro)':''; tr.querySelector('td:last-child').innerHTML=(p[1]===m)?'<b>'+p[1]+'%</b>':p[1]+'%'; });
+    $('a-prom').textContent=s.aprom+' min';
+    var ventas=VENTAS.filter(function(v){ return k==='todas'||v[1]===k; });
+    $('v-cuenta').textContent=s.motos+' este mes';
+    $('ventas').innerHTML=ventas.map(function(v){ return '<tr><td>'+v[0]+'</td><td>'+NOM[v[1]]+'</td><td><b>'+v[2]+'</b></td><td>'+v[3]+'</td><td>'+(v[4]==='aldia'?'<span class="pill bien">Al día</span>':'<span class="pill ojo">Atraso 12 d</span>')+'</td><td class="r">'+USD(v[5])+'</td></tr>'; }).join('');
+    var sol=SOL.filter(function(v){ return k==='todas'||v[1]===k; });
+    $('solicitudes').innerHTML=sol.map(function(v){ return '<div class="evento"><time>'+v[0]+'</time><div><b>'+v[2]+'</b><div class="d">'+NOM[v[1]]+'</div></div><span class="pill '+v[4]+'">'+v[3]+'</span></div>'; }).join('');
+    var movs=MOVS.filter(function(v){ return k==='todas'||v[1]===k||v[1]==='todas'; });
+    $('movs').innerHTML=movs.map(function(v){ var dep=v[3]>0; return '<tr><td>'+v[0]+'</td><td>'+(v[1]==='todas'?'Las 3':NOM[v[1]])+'</td><td>'+v[2]+'</td><td class="r" style="color:'+(dep?'var(--bien)':'var(--fg)')+';font-weight:700">'+(dep?'+':'−')+USD(Math.abs(v[3]))+'</td><td class="r">'+USD(v[4])+'</td></tr>'; }).join('');
+    grafica(s.meses);
+  }
+  function grafica(vals){
+    var svg=$('graf'), W=560, H=190, p={l:52,r:12,t:18,b:30}, meses=['May','Jun','Jul','Ago','Sep','Oct'];
+    var max=Math.max.apply(null, vals.concat([1])), paso=max>20000?10000:max>8000?5000:2000, top=Math.ceil(max/paso)*paso;
+    var x=function(i){ return p.l+i*((W-p.l-p.r)/vals.length); }, y=function(v){ return p.t+(H-p.t-p.b)*(1-v/top); }, bw=(W-p.l-p.r)/vals.length-14;
+    var out='';
+    for(var g=0; g<=top; g+=paso){ out+='<line x1="'+p.l+'" x2="'+(W-p.r)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="#dfe6f3"/><text x="'+(p.l-6)+'" y="'+(y(g)+4)+'" text-anchor="end" font-size="10" fill="#7c88a6">'+(g/1000)+'k</text>'; }
+    vals.forEach(function(v,i){ var h=y(0)-y(v); out+='<rect x="'+(x(i)+7)+'" y="'+y(v)+'" width="'+bw+'" height="'+Math.max(h,0)+'" rx="4" fill="#065cff" opacity="'+(i===vals.length-1?1:.55)+'"><title>'+meses[i]+': '+USD(v)+'</title></rect>';
+      if(v) out+='<text x="'+(x(i)+7+bw/2)+'" y="'+(y(v)-5)+'" text-anchor="middle" font-size="10.5" font-weight="700" fill="#4b5875">'+USD(v)+'</text>';
+      out+='<text x="'+(x(i)+7+bw/2)+'" y="'+(H-10)+'" text-anchor="middle" font-size="11" fill="#7c88a6">'+meses[i]+'</text>'; });
+    svg.innerHTML=out;
+  }
+  document.querySelectorAll('.sedes button').forEach(function(b){ b.addEventListener('click', function(){ pinta(b.dataset.sede); }); });
+  pinta('todas');
+})();
+</script>
+</body>
+</html>
