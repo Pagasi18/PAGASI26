@@ -369,16 +369,197 @@ details summary::-webkit-details-marker{display:none}
 .gps-meta{font-size:13.5px;font-weight:700;color:var(--ink-2);margin-bottom:12px;line-height:1.45}
 .gps-meta small{display:block;font-size:12px;font-weight:600;color:var(--ink-4);margin-top:2px}
 </style>
-<link rel="stylesheet" href="assets/public/site.css?v=26-20261014-2358"><link rel="stylesheet" href="assets/public/account.css?v=26-20261014-2358"></head>
+<link rel="stylesheet" href="assets/public/site.css?v=26-20261014-2358"><link rel="stylesheet" href="assets/public/account.css?v=26-20261014-2358"><link rel="stylesheet" href="assets/public/hero-motion.css?v=26-20261014-2">
+<style>
+/* ══ Mi cuenta como el panel de aliados (15-oct-2026) ══ */
+:root{--azul:#065cff;--azul-2:#0048dc;--azul-claro:#e8f0ff;--cielo:#00b4ff;--fg:#101a35;--fg-2:#4b5875;--fg-3:#7c88a6;--linea:#dfe7f3;--bien:#0e9f6e;--bien-bg:#e6f7f0;--ojo:#d97706;--ojo-bg:#fff4e0;--mal:#dc2626;--mal-bg:#fdecec;--bronce:#c2733a;--plata:#8d9bb5;--oro:#e0a200;--platino:#2fc0ff}
+/* ── Entrada: el hero de pagasi.io con la tarjeta encima ── */
+.pg-account #scLogin.lg{display:block;padding:0;min-height:0;background:#fff}
+.al-hero .pg-motion-copy{width:560px;max-width:47%}
+.al-hero .pg-motion-copy h1{font-size:clamp(40px,4vw,58px)}
+.al-hero .pg-motion-description{margin-top:18px;max-width:420px}
+.pg-account .lg-card.al-login{max-width:470px;padding:26px 26px 22px;margin:28px 0 0;border:0;border-radius:20px;background:#fff;color:var(--fg);box-shadow:0 24px 50px #002d8a33;text-align:left}
+.al-login-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.pg-account .al-login .lg-t{font-size:20px;letter-spacing:-.5px;margin:0;text-align:left;line-height:1.2}
+.al-acceso{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--azul);background:var(--azul-claro);border-radius:999px;padding:6px 11px;white-space:nowrap}
+.al-acceso .pg-icon{width:15px;height:15px}
+.pg-account .al-login .lg-s{font-size:13px;color:var(--fg-2);text-align:left;margin:0 0 16px;line-height:1.6}
+.pg-account .al-login .fg{margin-bottom:14px}
+.pg-account .al-login label{font-size:12px;font-weight:800;color:var(--fg);margin-bottom:7px;text-transform:none;letter-spacing:0}
+.pg-account .al-login input{border-radius:12px;border:1px solid #cedbee;background:#fff;min-height:52px;font-size:16px;font-weight:500}
+.pg-account .al-login input:focus{border-color:var(--azul);box-shadow:0 0 0 4px rgba(6,92,255,.12)}
+.pg-account .al-login .btn{min-height:54px;border-radius:12px;font-size:15px;font-weight:800}
+.pg-account .al-login .btn-p{background:var(--azul)}
+.pg-account .al-login .btn-g{background:var(--azul-claro);color:var(--azul);font-size:12px;min-height:46px}
+.pg-account .al-login .tiny{font-size:11.5px;line-height:1.7;color:var(--fg-3);margin-top:10px;text-align:left}
+.pg-account .al-login .err{font-size:12.5px}
+.al-ayuda-wrap{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--linea)}
+.pg-account .al-login #lgWa{display:inline;margin:0;border:0;padding:0;font-size:12px;font-weight:800;color:var(--azul);text-decoration:none}
+.pg-account .al-login #lgStaff{font-size:11px;color:#8ca0bd;text-decoration:none}
+.al-hero .pg-motion-note{margin-top:16px}
+@media(max-width:1150px){.al-hero .pg-motion-copy{max-width:50%}.al-hero .pg-motion-copy h1{font-size:clamp(36px,4vw,48px)}}
+@media(max-width:800px){.al-hero .pg-motion-copy{width:100%;max-width:100%}.pg-account .lg-card.al-login{max-width:none;margin-top:22px;padding:22px 18px 18px}.al-hero .pg-motion-wall{margin-top:26px}}
+@media(max-width:520px){.al-acceso{display:none}}
+.al-pasos .pg-step>.pg-icon{width:44px;height:44px;color:var(--azul);stroke-width:1.4}
+@media(max-width:800px){.al-pasos .pg-steps{grid-template-columns:1fr;gap:14px;padding-block:22px}.al-pasos .pg-step+.pg-step{border-left:0;padding-left:0;border-top:1px solid var(--linea);padding-top:14px}}
+
+/* ── Adentro: cabecera azul, tarjetas de 12 columnas ── */
+#scApp.v2{background:#f3f7fe;min-height:100vh;font-size:14px;color:var(--fg)}
+#scApp.v2 .top{position:relative;top:auto;z-index:auto;border:0;overflow:hidden;color:#fff;background:linear-gradient(115deg,#034fdf,#065cff 55%,#2f7bff);padding:14px 0 58px}
+#scApp.v2 .top:before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(125deg,transparent 49%,#4195ff88 49%,#4195ff88 62%,transparent 62%)}
+#scApp.v2 .top>*{position:relative}
+#scApp.v2 .top-in{max-width:1120px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+#scApp.v2 .marca{display:flex;align-items:center;gap:14px;min-width:0}
+#scApp.v2 .marca img{width:168px;height:auto;display:block}
+#scApp.v2 .marca small{font-weight:800;font-size:11px;opacity:.9;letter-spacing:.14em;text-transform:uppercase;border-left:1px solid rgba(255,255,255,.4);padding-left:14px;white-space:nowrap}
+#scApp.v2 .av{background:#fff;color:var(--azul);box-shadow:0 8px 20px rgba(0,30,120,.25)}
+#scApp.v2 .umenu{top:66px}
+#scApp.v2 .hola{max-width:1120px;margin:26px auto 0;padding:0 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+#scApp.v2 .hola h1{margin:0;font-size:clamp(24px,3.4vw,36px);letter-spacing:-.04em;line-height:1.1;font-weight:800;color:#fff;text-wrap:balance}
+#scApp.v2 .hola p{margin:6px 0 0;color:#dbe7ff;max-width:60ch;font-size:14px}
+#scApp.v2 .hola p b{color:#fff}
+#scApp.v2 .vivo{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:#dbe7ff;margin-top:12px}
+#scApp.v2 .vivo i{width:8px;height:8px;border-radius:50%;background:#3ddc84;animation:pulso 1.8s ease-out infinite}
+@keyframes pulso{0%{box-shadow:0 0 0 0 rgba(61,220,132,.6)}70%{box-shadow:0 0 0 9px rgba(61,220,132,0)}100%{box-shadow:0 0 0 0 rgba(61,220,132,0)}}
+#scApp.v2 .estado-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);border-radius:12px;padding:10px 14px;font-weight:800;font-size:13px;color:#fff}
+#scApp.v2 .estado-pill i{width:9px;height:9px;border-radius:50%;background:#3ddc84}
+#scApp.v2 .estado-pill.mal i{background:#ff8a8a}
+#scApp.v2 .wrap{max-width:1120px;margin:-40px auto 0;padding:0 16px 44px;position:relative}
+#scApp.v2 .fila{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin-bottom:14px}
+#scApp.v2 .card{background:#fff;border:1px solid var(--linea);border-radius:16px;padding:18px;margin:0;min-width:0;box-shadow:0 10px 30px -22px rgba(6,92,255,.35)}
+#scApp.v2 .c3{grid-column:span 3}#scApp.v2 .c4{grid-column:span 4}#scApp.v2 .c5{grid-column:span 5}#scApp.v2 .c6{grid-column:span 6}#scApp.v2 .c7{grid-column:span 7}#scApp.v2 .c8{grid-column:span 8}#scApp.v2 .c12{grid-column:span 12}
+@media(max-width:900px){#scApp.v2 .c3,#scApp.v2 .c4{grid-column:span 6}#scApp.v2 .c5,#scApp.v2 .c7,#scApp.v2 .c8{grid-column:span 12}}
+@media(max-width:560px){#scApp.v2 .c4,#scApp.v2 .c6{grid-column:span 12}#scApp.v2 .c3{grid-column:span 6}#scApp.v2 .card{padding:16px 14px}}
+#scApp.v2 .cred-titulo{display:flex;align-items:center;gap:10px;margin:22px 2px 10px;font-size:13px;font-weight:800;color:var(--fg-2)}
+#scApp.v2 .cred-titulo b{font-size:15px;color:var(--fg)}
+#scApp.v2 .et{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+#scApp.v2 .num{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1.05;margin-top:6px;font-variant-numeric:tabular-nums}
+@media(max-width:560px){#scApp.v2 .num{font-size:24px}}
+#scApp.v2 .sub{color:var(--fg-2);font-size:12.5px;margin-top:4px;line-height:1.5}
+#scApp.v2 .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;white-space:nowrap;text-transform:none;letter-spacing:0;backdrop-filter:none}
+#scApp.v2 .pill.bien{background:var(--bien-bg);color:var(--bien)}#scApp.v2 .pill.ojo{background:var(--ojo-bg);color:var(--ojo)}#scApp.v2 .pill.mal{background:var(--mal-bg);color:var(--mal)}#scApp.v2 .pill.azul{background:var(--azul-claro);color:var(--azul)}
+#scApp.v2 .barra-p{height:10px;border-radius:999px;background:var(--azul-claro);overflow:hidden;margin-top:10px}
+#scApp.v2 .barra-p i{display:block;height:100%;background:linear-gradient(90deg,var(--azul),var(--cielo));border-radius:999px;transition:width .6s ease}
+#scApp.v2 .ch{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+#scApp.v2 .ch h2{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em}
+#scApp.v2 .ch span{font-size:12px;color:var(--fg-3)}
+/* Tu moto: anillo azul sobre blanco */
+#scApp.v2 .card.moto{display:flex;flex-direction:column}
+#scApp.v2 .card.moto .btn-full{margin-top:auto!important}
+#scApp.v2 .mrow{display:flex;align-items:center;gap:18px}
+@media(min-width:900px){#scApp.v2 .rwrap,#scApp.v2 .ring{width:128px;height:128px}#scApp.v2 .rpct b{font-size:28px}#scApp.v2 .mnom{font-size:26px}}
+#scApp.v2 .mdatos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+#scApp.v2 .mdatos div{border:1px solid var(--linea);border-radius:12px;padding:10px 12px}
+#scApp.v2 .mdatos small{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+#scApp.v2 .mdatos b{font-size:15px;letter-spacing:-.02em}
+#scApp.v2 .mnom{font-size:22px;font-weight:800;letter-spacing:-.04em;line-height:1.15}
+#scApp.v2 .msede{font-size:12.5px;color:var(--fg-3);margin-top:4px}
+#scApp.v2 .mpag{font-size:13px;color:var(--fg-2);margin-top:10px}
+#scApp.v2 .mpag b{color:var(--bien)}
+#scApp.v2 .ring .rbg{stroke:var(--azul-claro)}
+#scApp.v2 .rpct b{color:var(--fg)}#scApp.v2 .rpct i{color:var(--fg-3)}
+#scApp.v2 .segs{display:flex;gap:3px;margin:16px 0 8px}
+#scApp.v2 .segs i{flex:1;height:8px;border-radius:4px;background:var(--azul-claro)}
+#scApp.v2 .segs i.on{background:var(--azul)}
+#scApp.v2 .segs i.now{background:var(--azul);box-shadow:0 0 0 3px rgba(6,92,255,.22)}
+#scApp.v2 .pmeta{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--fg-2)}
+#scApp.v2 .btn{width:auto;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:800}
+#scApp.v2 .btn-p{background:var(--azul);color:#fff}
+#scApp.v2 .btn-g{background:var(--azul-claro);color:var(--azul)}
+#scApp.v2 .btn-wa{background:#25D366;color:#fff}
+#scApp.v2 .btn-full{width:100%;min-height:52px;font-size:15px}
+/* Ruta de niveles con medallas (misma que en el portal de aliados) */
+#scApp.v2 .racha-row{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer}
+#scApp.v2 .fuego{width:46px;height:46px;border-radius:14px;background:var(--azul-claro)}
+#scApp.v2 .fuego.off{background:#eef2f8}
+#scApp.v2 .rnum{font-size:28px;letter-spacing:-.04em;font-weight:800}
+#scApp.v2 .rlbl{font-size:12px;color:var(--fg-3);margin-top:2px}
+#scApp.v2 .ruta{position:relative;height:40px;margin:30px 0 4px}
+#scApp.v2 .ruta-linea{position:absolute;left:12.5%;right:12.5%;top:50%;height:8px;translate:0 -50%;background:var(--azul-claro);border-radius:999px}
+#scApp.v2 .ruta-linea i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--azul),var(--cielo));max-width:100%;transition:width .6s ease}
+#scApp.v2 .ruta-nodo{position:absolute;top:50%;translate:-50% -50%;width:32px;height:32px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center;font-size:10.5px;font-weight:800;color:#fff;text-shadow:0 1px 2px #0003;background:radial-gradient(circle at 32% 28%,#fff8 0,transparent 42%),linear-gradient(145deg,var(--m-claro),var(--m));box-shadow:0 6px 14px -4px var(--m);--m:var(--plata);--m-claro:#e3e9f3}
+#scApp.v2 .ruta-nodo[data-n="bronce"]{--m:var(--bronce);--m-claro:#f1c29c}#scApp.v2 .ruta-nodo[data-n="plata"]{--m:var(--plata);--m-claro:#e3e9f3}#scApp.v2 .ruta-nodo[data-n="oro"]{--m:var(--oro);--m-claro:#ffe08a}#scApp.v2 .ruta-nodo[data-n="platino"]{--m:var(--platino);--m-claro:#c9f1ff;color:var(--azul-2);text-shadow:none}
+#scApp.v2 .ruta-nodo.falta{filter:grayscale(1);opacity:.45}
+#scApp.v2 .ruta-nodo.aqui{box-shadow:0 0 0 4px #fff,0 0 0 6px var(--azul),0 8px 18px -4px var(--m)}
+#scApp.v2 .ruta-tu{position:absolute;top:-30px;translate:-50% 0;transition:left .6s ease}
+#scApp.v2 .ruta-tu span{display:block;background:var(--fg);color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:4px 10px;white-space:nowrap;position:relative}
+#scApp.v2 .ruta-tu span:after{content:'';position:absolute;left:50%;bottom:-5px;translate:-50% 0;border:5px solid transparent;border-top-color:var(--fg);border-bottom:0}
+#scApp.v2 .niveles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+#scApp.v2 .nivel{border:1px solid var(--linea);border-radius:12px;padding:8px 6px;text-align:center}
+#scApp.v2 .nivel.on{border-color:var(--azul);background:var(--azul-claro);box-shadow:0 0 0 1px var(--azul)}
+#scApp.v2 .nivel b{display:block;font-size:12px}#scApp.v2 .nivel span{font-size:10.5px;color:var(--fg-2)}
+@media(max-width:560px){#scApp.v2 .nivel span{display:none}}
+#scApp.v2 .nprem{background:#f3f7fe;border:1px solid var(--linea);border-radius:14px;padding:14px 16px;margin-top:14px}
+#scApp.v2 .nprem-t{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3)}
+#scApp.v2 .nprem-v{font-size:22px;letter-spacing:-.04em;color:var(--azul);margin-top:4px;font-weight:800}
+#scApp.v2 .nprem-s{font-size:12.5px;color:var(--fg-2);margin-top:6px;line-height:1.5}
+/* Calendario y pagos */
+#scApp.v2 .tl-i{padding:10px 0 10px 2px}
+#scApp.v2 .tl-i::before{background:var(--linea)}
+#scApp.v2 .tl-d{background:var(--linea)}#scApp.v2 .tl-d.paid{background:var(--bien)}#scApp.v2 .tl-d.now{background:var(--azul);box-shadow:0 0 0 4px rgba(6,92,255,.16)}#scApp.v2 .tl-d.late{background:var(--mal)}
+#scApp.v2 .tl-n{font-size:14px}#scApp.v2 .tl-f{font-size:12px;color:var(--fg-3)}#scApp.v2 .tl-v{font-size:14.5px}
+#scApp.v2 .tl-i.is-now .tl-n{color:var(--azul)}
+#scApp.v2 .tag{font-size:10.5px;text-transform:none;letter-spacing:0}
+#scApp.v2 .t-ok{background:var(--bien-bg);color:var(--bien)}#scApp.v2 .t-bad{background:var(--mal-bg);color:var(--mal)}#scApp.v2 .t-wait{background:var(--ojo-bg);color:var(--ojo)}#scApp.v2 .t-gray{background:var(--azul-claro);color:var(--azul)}
+#scApp.v2 .more{color:var(--azul);font-size:13px}
+#scApp.v2 .row{padding:11px 0;border-color:var(--linea)}
+#scApp.v2 .rl{font-size:14px}#scApp.v2 .rl small{font-size:12px;color:var(--fg-3)}
+#scApp.v2 .rv{font-size:15px}
+#scApp.v2 .pay .pc{background:var(--bien-bg);border-radius:10px}
+#scApp.v2 .empty{color:var(--fg-3);font-size:13px}
+/* Premios */
+#scApp.v2 .pgrid{margin:0 -18px;padding:0 18px 4px}
+#scApp.v2 .pcard{border-radius:14px}
+#scApp.v2 .pnota{font-size:12.5px;color:var(--fg-2)}
+/* Ayuda y estado de cuenta */
+#scApp.v2 .asesor{display:flex;gap:14px;align-items:center}
+#scApp.v2 .asesor .avat{flex:none;width:48px;height:48px;border-radius:50%;background:var(--azul-claro);color:var(--azul);display:grid;place-items:center;font-weight:800;font-size:16px}
+#scApp.v2 .sep{height:1px;background:var(--linea);margin:16px 0}
+#scApp.v2 .foot{color:var(--fg-3);font-size:12px;margin-top:18px;text-align:center;line-height:1.6}
+#scApp.v2 .ok{border-radius:12px}
+#scApp.v2 .gps-map{border-radius:14px}
+
+/* ── Estado de cuenta para imprimir (solo sale al imprimir) ── */
+#estado{display:none;font-family:var(--pg-font,'Manrope',sans-serif);color:#101a35;font-size:12px;line-height:1.5}
+.est-cab{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #065cff;padding-bottom:10px;margin-bottom:12px}
+.est-cab img{height:32px;width:auto}
+.est-cab h1{font-size:18px;margin:0;letter-spacing:-.02em}
+.est-cab p{margin:2px 0 0;color:#64718b;font-size:11px}
+.est-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+.est-kpi{border:1px solid #dfe7f3;border-radius:8px;padding:8px 10px}
+.est-kpi small{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#64718b;font-weight:800}
+.est-kpi b{font-size:17px;letter-spacing:-.03em}
+.est-kpi span{display:block;font-size:10px;color:#64718b}
+#estado h3{font-size:13px;margin:16px 0 4px}
+#estado table{width:100%;border-collapse:collapse}
+#estado th{font-size:9px;text-transform:uppercase;letter-spacing:.08em;text-align:left;border-bottom:1px solid #dfe7f3;padding:4px 6px;color:#64718b}
+#estado td{padding:4px 6px;border-bottom:1px solid #eef2f8;vertical-align:top}
+#estado .r{text-align:right}
+.est-pie{margin-top:18px;font-size:9.5px;color:#64718b;border-top:1px solid #dfe7f3;padding-top:8px}
+@media print{
+  @page{size:A4;margin:14mm}
+  body.pg-site{background:#fff}
+  .pg-header,.pg-footer,#scLogin,#scApp,#scRacha,#psheet,#ovPago,.pg-whatsapp{display:none!important}
+  #estado{display:block!important}
+}
+</style>
+</head>
 <body class="pg-site pg-account"><a class="pg-skip" href="#main">Ir al contenido</a><header class="pg-header" id="nav"><nav class="pg-nav pg-container" aria-label="Navegación principal"><a class="pg-brand" href="index.html" aria-label="Pagasi, inicio"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><div class="pg-nav-links" id="pg-navigation"><a href="index.html" class="">Inicio</a><a href="simulador.html" class="">Simulador</a><a href="catalogo.html" class="">Catálogo</a><a href="nosotros.html" class="">Nosotros</a><a href="micuenta.html" class="pg-button pg-button-outline" aria-current="page"><span data-icon="user" aria-hidden="true"></span> Mi cuenta</a><a href="solicitar.html" class="pg-button">Solicitar</a></div><button type="button" class="pg-menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="pg-navigation"><span data-icon="menu" aria-hidden="true"></span></button></nav></header>
 
 <!-- ══ LOGIN ══ -->
-<div id="scLogin" class="lg" role="main"><div class="pg-login-story"><h1>Tu moto <i>contigo.</i><br>Tu cuenta también.</h1><p>Consulta tus cuotas, revisa tus pagos y mantén tu plan al día.</p><div class="pg-login-benefits"><span><span data-icon="calculator" aria-hidden="true"></span> Consulta tus cuotas</span><span><span data-icon="wallet" aria-hidden="true"></span> Reporta tus pagos</span><span><span data-icon="clock" aria-hidden="true"></span> Revisa tu historial</span></div><div class="pg-login-moto"><img src="assets/public/ek-xpress-scene-v2.webp" width="1254" height="1254" alt="Vista ilustrativa de una EK Xpress 150 Lite"></div></div><div class="pg-login-panel" id="main">
-  <div class="lg-card"><div class="pg-login-icon"><span data-icon="phone" aria-hidden="true"></span></div>
-    <img id="lgLogo" alt="Pagasi">
-    <div class="lg-t" id="lgT">Entra a tu cuenta</div>
-    <div class="lg-s" id="lgSub">Consulta tu crédito y envía tus pagos.</div>
-    <div id="lgErr" class="err hide" role="alert"></div>
+<div id="scLogin" class="lg" role="main">
+<section class="pg-motion-hero al-hero" data-motion-running="false" aria-labelledby="lgT">
+  <div class="pg-container pg-motion-inner">
+    <div class="pg-motion-copy">
+      <p class="pg-motion-kicker">Mi cuenta Pagasi</p>
+      <h1>Tu moto contigo. <span>Tu cuenta también.</span></h1>
+      <p class="pg-motion-description">Mira tu próxima cuota, cuánto de tu moto ya es tuya y reporta tus pagos desde el celular.</p>
+      <div class="lg-card al-login">
+        <img id="lgLogo" alt="Pagasi" class="hide">
+        <div class="al-login-head"><h2 class="lg-t" id="lgT">Entra a tu cuenta</h2><span class="al-acceso"><span data-icon="shield" aria-hidden="true"></span> Solo clientes</span></div>
+        <p class="lg-s" id="lgSub">Consulta tu crédito y envía tus pagos.</p>
+        <div id="lgErr" class="err hide" role="alert"></div>
+
 
     <!-- Paso 1: teléfono -->
     <div id="stepTel">
@@ -425,19 +606,27 @@ details summary::-webkit-details-marker{display:none}
       <button id="btnStaff" class="btn btn-p" onclick="loginStaff()">Entrar</button>
       <div class="tiny">Entras con el mismo correo y clave del panel de administración. Podrás ver la cuenta de cualquier cliente.</div>
     </div>
-
-    <div style="text-align:center;margin-top:16px">
-      <a class="lnk" id="lgWa" href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20para%20entrar%20a%20Mi%20Cuenta%20Pagasi" target="_blank" rel="noopener">¿Problemas para entrar? Escríbenos</a>
-      <div style="margin-top:12px">
-        <button class="lnk" id="lgStaff" onclick="toggleStaff()" style="color:var(--ink-4);text-decoration:none">Pagasi</button>
+        <div class="al-ayuda-wrap">
+          <a class="lnk" id="lgWa" href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20para%20entrar%20a%20Mi%20Cuenta%20Pagasi" target="_blank" rel="noopener">¿Problemas para entrar? Escríbenos</a>
+          <button class="lnk" id="lgStaff" onclick="toggleStaff()">Pagasi</button>
+        </div>
+        <div id="recaptcha-container"></div>
       </div>
+      <p class="pg-motion-note">Usa el mismo número de celular que tienes registrado con Pagasi.</p>
     </div>
-    <a class="pg-login-back" href="index.html">← Volver al inicio</a><div id="recaptcha-container"></div>
   </div>
+  <div class="pg-motion-wall" aria-hidden="true"><div class="pg-motion-perspective"><div class="pg-motion-columns" data-motion-columns></div></div></div>
+  <button class="pg-motion-control" type="button" data-motion-toggle aria-pressed="false" aria-label="Pausar movimiento de las motos" hidden>Pausar</button>
+</section>
+<div class="pg-strip al-pasos"><div class="pg-container pg-steps">
+  <div class="pg-step"><span data-icon="phone" aria-hidden="true"></span><div><small>01</small><h3>Escribe tu celular</h3><p>El mismo que diste cuando sacaste tu moto.</p></div></div>
+  <div class="pg-step"><span data-icon="chat" aria-hidden="true"></span><div><small>02</small><h3>Te llega un código por SMS</h3><p>Lo escribes y entras. Sin claves que recordar.</p></div></div>
+  <div class="pg-step"><span data-icon="wallet" aria-hidden="true"></span><div><small>03</small><h3>Ves tu crédito y reportas tus pagos</h3><p>Tu próxima cuota, tu calendario y la foto de tu comprobante.</p></div></div>
+</div></div>
 </div>
 
-</div><!-- ══ PORTAL ══ -->
-<div id="scApp" class="hide">
+<!-- ══ PORTAL ══ -->
+<div id="scApp" class="hide v2">
   <!-- Solo visible con cuenta Pagasi: deja claro que NO es la sesion del cliente -->
   <div class="mbar hide" id="mBar">
     <div class="mbar-in">
@@ -448,7 +637,7 @@ details summary::-webkit-details-marker{display:none}
   </div>
   <div class="top">
     <div class="top-in">
-      <img id="apLogo" alt="Pagasi">
+      <div class="marca"><img id="apLogo" alt="Pagasi"><small>Mi cuenta</small></div>
       <button class="av" id="avBtn" onclick="toggleMenu(event)" aria-label="Mi cuenta"><span id="avIni"></span></button>
     </div>
     <div class="umenu hide" id="uMenu">
@@ -465,9 +654,12 @@ details summary::-webkit-details-marker{display:none}
         Cerrar sesión
       </button>
     </div>
+    <div class="hola" id="apHola"></div>
   </div>
   <div class="wrap" id="apBody"></div>
 </div>
+<!-- Estado de cuenta: solo se ve al imprimir (el boton lo abre y ahi se guarda como PDF) -->
+<section id="estado" aria-hidden="true"></section>
 
 <!-- ══ PANTALLA MI RACHA ══ -->
 <div id="scRacha" class="rcs hide">
@@ -540,6 +732,7 @@ details summary::-webkit-details-marker{display:none}
 <script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <!-- Mismo motor de calculo que usa el admin: el cliente ve exactamente las
      mismas cifras que el cobrador, sin posibilidad de divergencia. -->
+<script src="assets/public/catalog.js?v=26-20261015-3"></script>
 <script src="logic/credito-ledger.js?v=26-20261014-2358"></script>
 <script src="logic/gamificacion.js?v=26-20261014-2358"></script>
 <script>
@@ -577,6 +770,7 @@ var DIAS_GRACIA = 5;          // igual que PLAN.diasGracia del admin
 // con ventas 0424-2177798, que es lo correcto para prospectos.
 var WA_PAGASI = '584222285526';
 var LOGO = 'assets/pagasi-logo.png';
+var LOGO_BLANCO = 'assets/pagasi-logo-blanco.png';   // sobre la cabecera azul
 
 var app=null, auth=null, db=null, storage=null;
 var S = { base:'propia', entrando:false, clienteId:'', token:'', cliente:null, creditos:[], pagosPorCred:{}, comprobantes:[], credSel:'',
@@ -722,7 +916,7 @@ function _enlaceHermano(){
 }
 
 (function boot(){
-  $('lgLogo').src = LOGO; $('apLogo').src = LOGO;
+  $('lgLogo').src = LOGO; $('apLogo').src = LOGO_BLANCO;
   $('pFecha').value = hoyISO();
   var qs = new URLSearchParams(location.search);
   S.token = qs.get('t') || '';
@@ -1441,6 +1635,9 @@ function toggleMenu(ev){
   }
 }
 
+function _saludoHora(){ var h = new Date().getHours(); return h < 12 ? '¡Buenos días' : h < 19 ? '¡Buenas tardes' : '¡Buenas noches'; }
+function _nombrePila(nom){ return String(nom||'').trim().split(/\s+/)[0] || ''; }
+function _hora(){ var d = new Date(); return d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2); }
 function render(){
   var cli = S.cliente || {};
   var nom = String(cli.nombre||'').trim();
@@ -1457,23 +1654,53 @@ function render(){
     $('umS').textContent = 'Viendo como ' + (nom || S.clienteId);
   }
 
+  // Saludo con la hora y resumen de cómo va, como en el portal de aliados
+  var vivos = S.creditos.filter(function(c){ var e = estadoDe(c); return e && e.cuotasPagadas < e.totalCuotas; });
+  var atrasados = vivos.filter(function(c){ var e = estadoDe(c); return e && e._nVencidas > 0; });
+  var hola = '<div><h1>' + _saludoHora() + (nom ? ', ' + esc(_nombrePila(nom)) : '') + '! '
+    + (vivos.length ? (atrasados.length ? 'Ponte al día con tu moto.' : 'Así va tu moto.') : 'Esta es tu cuenta.') + '</h1>'
+    + '<p>' + (vivos.length === 1 ? 'Tu próxima cuota, lo que ya pagaste y lo que te falta. Se actualiza solo con cada pago.' : (vivos.length > 1 ? 'Tienes <b>' + vivos.length + ' créditos</b> activos. Cada uno con su calendario y sus pagos.' : 'Aquí quedan tus créditos y tus pagos con Pagasi.')) + '</p>'
+    + '<span class="vivo"><i></i>En vivo · actualizado hoy a las ' + _hora() + '</span></div>'
+    + (vivos.length ? '<span class="estado-pill' + (atrasados.length ? ' mal' : '') + '"><i></i>' + (atrasados.length ? 'En atraso' : 'Al día') + '</span>' : '');
+  $('apHola').innerHTML = hola;
+
   if(!S.creditos.length){
-    $('apBody').innerHTML = '<div class="card" style="margin-top:18px"><div class="ct">Mi cuenta</div>'
+    $('apBody').innerHTML = '<div class="fila"><div class="card c12"><div class="ch"><h2>Mi cuenta</h2></div>'
       + '<div class="empty" style="padding:22px 0">Todavía no tienes créditos activos registrados a tu nombre.</div>'
-      + '<a class="btn btn-wa" href="https://wa.me/'+WA_PAGASI+'" target="_blank" rel="noopener">Escribir a Pagasi</a></div>' + pieHTML();
+      + '<a class="btn btn-wa" href="https://wa.me/'+WA_PAGASI+'" target="_blank" rel="noopener">Escribir a Pagasi</a></div></div>' + pieHTML();
+    $('estado').innerHTML = '';
     return;
   }
 
   var html = '';
   S.creditos.forEach(function(c){ html += creditoHTML(c); });
   html += comprobantesHTML();
-  html += '<div class="card"><div class="ct">¿Necesitas ayuda?</div>'
-    + '<a class="btn btn-wa" href="https://wa.me/'+WA_PAGASI+'?text=Hola%2C%20soy%20'+encodeURIComponent(cli.nombre||'')+'%20y%20tengo%20una%20consulta%20sobre%20mi%20crédito" target="_blank" rel="noopener">'
-    + 'Escribir a Pagasi por WhatsApp</a></div>';
   html += pieHTML();
   $('apBody').innerHTML = html;
+  $('estado').innerHTML = estadoCuentaHTML();
   animarEntrada();
   pintarMapasGps();
+}
+
+// El botón "Descargar estado de cuenta (PDF)": se imprime la sección #estado y el navegador la guarda como PDF
+function imprimirEstado(){
+  var m = $('estado-msj'); if(m) m.textContent = 'Se abre la ventana de impresión: elige «Guardar como PDF».';
+  setTimeout(function(){ try{ window.print(); }catch(e){} }, 50);
+}
+
+// Los números grandes cuentan desde cero al entrar (y respetan prefers-reduced-motion)
+function contarNumeros(raiz){
+  var reducir = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  [].forEach.call((raiz||document).querySelectorAll('[data-cuenta]'), function(el){
+    var hasta = parseFloat(el.getAttribute('data-cuenta')) || 0, fin = el.textContent;
+    if(reducir || !hasta){ el.textContent = fin; return; }
+    var t0 = Date.now(), dur = 700;
+    (function paso(){
+      var p = Math.min(1, (Date.now() - t0) / dur); p = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(hasta * p);
+      if(p < 1) setTimeout(paso, 16); else el.textContent = fin;
+    })();
+  });
 }
 
 /* La pagina se arma sola al entrar: las tarjetas suben escalonadas, el anillo
@@ -1491,6 +1718,7 @@ function animarEntrada(cont){
   // segundo plano, asi que si el cliente abria la pagina y se iba a otra app,
   // volvia y encontraba el anillo vacio para siempre.
   setTimeout(aplicarValores, 240);
+  contarNumeros(raiz);
 }
 
 function aplicarValores(){
@@ -1528,7 +1756,7 @@ var COL_PREMIO = {
 function premiosHTML(g){
   var nv = g.nivel;
   var abierto = nv.cupo > 0;
-  var h = '<div class="card rev"><div class="ct">Qué puedes pedir con tu vale</div><div class="pgrid">';
+  var h = '<section class="card c7 rev"><div class="ch"><h2>Qué puedes pedir con tu vale</h2><span>Se financia en tus cuotas</span></div><div class="pgrid">';
   ((typeof Gamificacion!=='undefined' && Gamificacion.PREMIOS) || []).forEach(function(p){
     var col = COL_PREMIO[p.ico] || {c:'#2563EB', bg:'#EAF1FF'};
     h += '<div class="pcard' + (abierto ? '' : ' plock') + '" style="--pc:' + col.c + ';--pbg:' + col.bg + '">'
@@ -1541,49 +1769,59 @@ function premiosHTML(g){
     + (abierto
         ? 'Tienes <b>hasta $' + nv.cupo + '</b> disponibles. Lo pides en tu concesionario y lo financiamos en tus cuotas; el precio final lo confirma el concesionario.'
         : 'Con <b>' + Gamificacion.NIVELES[1].min + ' pagos al día</b> desbloqueas tu primer vale y puedes pedir cualquiera de estos.')
-    + '</div></div>';
+    + '</div></section>';
   return h;
 }
 
+// Dónde va el cliente en la ruta: cada nivel ocupa un cuarto; adentro avanza según sus pagos puntuales
+function _posRuta(g){
+  var nivs = Gamificacion.NIVELES || [], i = 0;
+  for(var k = 0; k < nivs.length; k++){ if(nivs[k].id === g.nivel.id) i = k; }
+  var centro = 12.5 + i * 25, sig = nivs[i + 1];
+  if(!sig) return 87.5;
+  var tramo = Math.max(1, sig.min - nivs[i].min);
+  return centro + 25 * Math.min(1, Math.max(0, (g.puntuales - nivs[i].min) / tramo));
+}
+var _LETRA_NIVEL = { bronce:'B', plata:'P', oro:'O', platino:'Pt' };
+
 function nivelHTML(g, c){
   var nv = g.nivel, sig = g.siguiente;
-  var h = '<div class="card rev">';
-
-  // El pegaso reemplaza la llama naranja: la racha es de Pagasi, no un icono
-  // genérico. Toda la fila abre la pantalla completa de racha.
-  h += '<div onclick="abrirRacha(\'' + esc(c.id) + '\')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px">'
-    + '<div style="display:flex;align-items:center;gap:13px">'
-    + '<div class="fuego' + (g.racha>0?'':' off') + '"><img src="assets/pegaso.png" alt="" style="width:30px;height:30px;object-fit:contain"></div>'
+  var nivs = Gamificacion.NIVELES || [];
+  var h = '<section class="card c5 rev">';
+  h += '<div class="ch"><h2>Tu constancia</h2><span>Paga a tiempo y ganas premios</span></div>';
+  // La racha abre su pantalla completa, como antes
+  h += '<div class="racha-row" onclick="abrirRacha(\'' + esc(c.id) + '\')">'
+    + '<div style="display:flex;align-items:center;gap:12px">'
+    + '<div class="fuego' + (g.racha>0?'':' off') + '"><img src="assets/pegaso.png" alt="" style="width:28px;height:28px;object-fit:contain"></div>'
     + '<div><div class="rnum money">' + g.racha + '</div>'
     + '<div class="rlbl">' + (g.racha===1 ? 'quincena al día' : 'quincenas al día seguidas') + '</div></div>'
     + '</div>'
     + '<div style="display:flex;align-items:center;gap:9px">'
-    +   '<div class="nbadge" style="color:' + nv.col + ';background:' + nv.bg + '">' + nv.nom + '</div>'
-    +   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ADADBC" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>'
-    + '</div>'
-    + '</div>';
+    +   '<span class="pill azul">Nivel ' + esc(nv.nom) + '</span>'
+    +   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#7c88a6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>'
+    + '</div></div>';
 
-  // El camino completo Bronce -> Platino: ver los cuatro escalones de un vistazo
-  // motiva mucho mas que una barra suelta hacia el siguiente.
-  h += '<div class="ntrack">';
-  (Gamificacion.NIVELES || []).forEach(function(n){
-    var cls = n.id === nv.id ? 'cur' : (g.puntuales >= n.min ? 'done' : '');
-    h += '<div class="ntk ' + cls + '"><div class="ntd"></div><div class="ntl">' + esc(n.nom) + '</div></div>';
+  // La ruta con las cuatro medallas: Bronce → Plata → Oro → Platino
+  var pos = _posRuta(g);
+  h += '<div class="ruta" aria-hidden="true"><div class="ruta-linea"><i style="width:' + Math.max(0, Math.min(100, (pos - 12.5) / 75 * 100)).toFixed(1) + '%"></i></div>';
+  nivs.forEach(function(n, i){
+    var cls = n.id === nv.id ? ' aqui' : (g.puntuales >= n.min ? '' : ' falta');
+    h += '<div class="ruta-nodo' + cls + '" data-n="' + esc(n.id) + '" style="left:' + (12.5 + i * 25) + '%">' + (_LETRA_NIVEL[n.id] || n.nom.charAt(0)) + '</div>';
+  });
+  h += '<div class="ruta-tu" style="left:' + pos.toFixed(1) + '%"><span>Tú · ' + g.puntuales + (g.puntuales === 1 ? ' pago al día' : ' pagos al día') + '</span></div></div>';
+  h += '<div class="niveles">';
+  nivs.forEach(function(n){
+    h += '<div class="nivel' + (n.id === nv.id ? ' on' : '') + '"><b>' + esc(n.nom) + '</b><span>' + (n.min === 0 ? 'Desde el inicio' : n.min + ' pagos' + (n.cupo ? ' · vale $' + n.cupo : '')) + '</span></div>';
   });
   h += '</div>';
 
   if(sig){
-    // Sin barra: el camino de niveles de arriba ya muestra el avance, y una
-    // barra recien empezada (0%) se lee como si la pagina estuviera rota.
-    h += '<div class="nsub" style="margin-top:15px">Te ' + (g.faltan===1?'falta':'faltan') + ' <b>' + g.faltan + '</b> '
-      + (g.faltan===1?'pago puntual':'pagos puntuales') + ' para <b style="color:'+sig.col+'">' + sig.nom + '</b></div>';
+    h += '<div class="sub" style="margin-top:12px">Te ' + (g.faltan===1?'falta':'faltan') + ' <b>' + g.faltan + '</b> '
+      + (g.faltan===1?'pago puntual':'pagos puntuales') + ' para <b style="color:'+sig.col+'">' + esc(sig.nom) + '</b>'
+      + ' · ' + g.puntuales + ' de ' + g.cortes + ' pagos al día' + (g.adelantadas ? ' · ' + g.adelantadas + ' adelantados' : '') + '</div>';
   } else {
-    h += '<div style="margin-top:14px" class="nsub">Llegaste al nivel más alto. Eres cliente <b style="color:'+nv.col+'">Platino</b>.</div>';
+    h += '<div class="sub" style="margin-top:12px">Llegaste al nivel más alto. Eres cliente <b style="color:'+nv.col+'">Platino</b>.</div>';
   }
-
-  h += '<div class="nstats"><span><b>' + g.puntos + '</b> puntos</span><span>·</span><span>'
-    + g.puntuales + ' de ' + g.cortes + ' pagos al día</span>'
-    + (g.adelantadas ? '<span>·</span><span>' + g.adelantadas + ' adelantados</span>' : '') + '</div>';
 
   if(nv.cupo > 0){
     var msg = 'Hola, soy ' + ((S.cliente&&S.cliente.nombre)||'') + ' (credito ' + c.id + '). '
@@ -1592,16 +1830,16 @@ function nivelHTML(g, c){
       + '<div class="nprem-t">Ya desbloqueaste</div>'
       + '<div class="nprem-v money">Vale de hasta $' + nv.cupo + '</div>'
       + '<div class="nprem-s">Para usar en tu concesionario: cauchos, cascos, aceite, repuestos o mantenimiento. Lo financiamos en tus cuotas.</div>'
-      + '<a class="btn btn-wa" style="margin-top:13px" href="https://wa.me/' + WA_PAGASI + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">Pedir mi vale</a>'
-      + (nv.id==='platino' ? '<div class="nprem-s" style="margin-top:11px">También estás <b>precalificado para tu segunda moto</b> con mejor inicial.</div>' : '')
+      + '<a class="btn btn-wa" style="margin-top:12px" href="https://wa.me/' + WA_PAGASI + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">Pedir mi vale</a>'
+      + (nv.id==='platino' ? '<div class="nprem-s" style="margin-top:10px">También estás <b>precalificado para tu segunda moto</b> con mejor inicial.</div>' : '')
       + '</div>';
   } else {
     h += '<div class="nprem"><div class="nprem-t">Tu próximo premio</div>'
-      + '<div class="nprem-v money" style="color:var(--ink-3)">Vale de hasta $' + Gamificacion.NIVELES[1].cupo + '</div>'
+      + '<div class="nprem-v money" style="color:var(--fg-3)">Vale de hasta $' + Gamificacion.NIVELES[1].cupo + '</div>'
       + '<div class="nprem-s">Con <b>' + Gamificacion.NIVELES[1].min + ' pagos al día</b> llegas a <b>Plata</b> y puedes pedir cauchos, casco, aceite o mantenimiento financiados en tu concesionario.</div>'
       + '</div>';
   }
-  h += '</div>';
+  h += '</section>';
   return h;
 }
 
@@ -1614,26 +1852,17 @@ function motoHTML(c, est, moto, completado){
   var totalMoto = (parseFloat(c.ini)||0) + (parseFloat(c.total)||0);
   var pagadoMoto = (parseFloat(c.ini)||0) + (parseFloat(est.totalPagado)||0);
   var pct = totalMoto > 0 ? Math.min(100, Math.round(pagadoMoto / totalMoto * 100)) : 0;
-  // Solo dos datos: mas se parte en dos lineas y empuja el anillo
   var meta = [ (c.placa && c.placa !== '—' ? 'Placa ' + c.placa : c.sede), c.id ]
                .filter(Boolean).map(esc).join(' · ');
-  // Id unico por credito: con dos motos, dos <defs> con el mismo id y el
-  // navegador pinta ambos anillos con el primero.
   var gid = 'gring-' + String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
+  var pctC = est.totalCuotas ? Math.round(est.cuotasPagadas/est.totalCuotas*100) : 0;
 
-  return '<div class="card mcard rev"><div class="mrow">'
-    + '<div class="mtxt">'
-    +   '<div class="mlb">' + (completado ? 'Tu moto es 100% tuya' : 'Tu moto') + '</div>'
-    +   '<div class="mnom">' + esc(moto) + '</div>'
-    +   '<div class="msede">' + meta + '</div>'
-    +   '<div class="mpag">Ya pagaste <b>' + fmt(pagadoMoto) + '</b> de ' + fmt(totalMoto) + '</div>'
-    + '</div>'
+  var h = '<section class="card c7 moto rev"><div class="ch"><h2>' + (completado ? 'Tu moto es 100% tuya' : 'Tu moto') + '</h2><span>' + meta + '</span></div>'
+    + '<div class="mrow">'
     + '<div class="rwrap">'
     +   '<svg class="ring" viewBox="0 0 100 100" aria-hidden="true">'
-    // Verde -> cian: los dos extremos brillan sobre la tarjeta oscura. Con el
-    // azul original, el tramo del arco que caia en esa zona casi desaparecia.
     +     '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">'
-    +       '<stop offset="0%" stop-color="#5EE9A0"/><stop offset="100%" stop-color="#38BDF8"/>'
+    +       '<stop offset="0%" stop-color="#065cff"/><stop offset="100%" stop-color="#00b4ff"/>'
     +     '</linearGradient></defs>'
     +     '<circle class="rbg" cx="50" cy="50" r="' + RING_R + '"/>'
     +     '<circle class="rfg" cx="50" cy="50" r="' + RING_R + '" stroke="url(#' + gid + ')"'
@@ -1643,7 +1872,29 @@ function motoHTML(c, est, moto, completado){
     +   '</svg>'
     +   '<div class="rpct"><b>' + pct + '%</b><i>tuya</i></div>'
     + '</div>'
+    + '<div class="mtxt">'
+    +   '<div class="mnom">' + esc(moto) + '</div>'
+    +   '<div class="mpag">Ya pagaste <b>' + fmt(pagadoMoto) + '</b> de ' + fmt(totalMoto) + ' (inicial incluida)</div>'
     + '</div></div>';
+  // Progreso de cuotas: un tramo por cuota (hasta 30); si son más, barra simple
+  if(est.totalCuotas && est.totalCuotas <= 30){
+    h += '<div class="segs">';
+    for(var i=0;i<est.totalCuotas;i++){
+      var cls = i < est.cuotasPagadas ? 'on' : (i === est.cuotasPagadas && !completado ? 'now' : '');
+      h += '<i class="'+cls+'"></i>';
+    }
+    h += '</div>';
+  } else {
+    h += '<div class="barra-p"><i style="width:'+pctC+'%"></i></div>';
+  }
+  h += '<div class="pmeta"><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas pagadas</span><span>' + pctC + '%</span></div>';
+  // Las tres cifras de la compra, para que el cliente vea de dónde sale todo
+  h += '<div class="mdatos"><div><small>Precio</small><b class="money">' + fmt(parseFloat(c.precio)||totalMoto) + '</b></div><div><small>Inicial</small><b class="money">' + fmt(parseFloat(c.ini)||0) + '</b></div><div><small>Financiado</small><b class="money">' + fmt(parseFloat(c.total)||0) + '</b></div></div>';
+  if(!completado){
+    h += '<button class="btn btn-p btn-full" style="margin-top:16px" onclick="abrirPago(\''+esc(c.id)+'\')">Reportar mi pago</button>';
+  }
+  h += '</section>';
+  return h;
 }
 
 /* ══ PANTALLA "MI RACHA" ═══════════════════════════════════════════════════
@@ -1769,105 +2020,65 @@ function rachaGoalsHTML(g){
 function creditoHTML(c){
   var est = estadoDe(c);
   if(!est){
-    return '<div class="card"><div class="ct">'+esc(c.id)+'</div><div class="empty">No pudimos calcular el estado de este crédito. Escríbenos.</div></div>';
+    return '<div class="fila"><div class="card c12"><div class="ch"><h2>'+esc(c.id)+'</h2></div><div class="empty">No pudimos calcular el estado de este crédito. Escríbenos.</div></div></div>';
   }
   var moto = [c.marca, c.modelo].filter(Boolean).join(' ') || c.moto || 'Motocicleta';
   var atrasado = est._nVencidas > 0;
   var completado = est.cuotasPagadas >= est.totalCuotas;
   var cuotaPlena = parseFloat(c.cuotaQ||c.cuota||0);
   var h = '';
+  if(S.creditos.length > 1) h += '<div class="cred-titulo"><b>' + esc(moto) + '</b> · ' + esc(c.id) + '</div>';
 
-  /* ── HERO ── */
+  /* ── Fila 1: las cuatro cifras ── */
   var monto = completado ? est.totalPagado : (atrasado ? est._vencido : (est._prox ? est._prox.saldo : 0));
-  h += '<div class="card hero rev' + (atrasado ? ' late' : '') + '">'
-    + '<div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
-    + '<div class="lb">' + (completado ? 'Crédito pagado' : (atrasado ? 'Debes ahora' : 'Tu próximo pago')) + '</div>'
-    + '<span class="pill ' + (atrasado?'pill-bad':'pill-ok') + '">' + (completado?'Completado':(atrasado?'En atraso':'Al día')) + '</span>'
-    + '</div>'
-    + '<div class="big money">' + fmt(monto) + '</div>';
-
-  if(completado){
-    h += '<div class="sm">Terminaste de pagar tu moto. ¡Gracias por tu confianza!</div>';
-  } else if(atrasado){
-    h += '<div class="sm">' + est._nVencidas + ' ' + (est._nVencidas===1?'cuota vencida':'cuotas vencidas') + '</div>'
-      + '<div class="note">Ponte al día para evitar más intereses de mora.</div>';
-  } else if(est._prox){
-    // Cuenta regresiva: "en 15 dias" mueve mas que una fecha suelta
+  var sub = '';
+  if(completado){ sub = 'Terminaste de pagar tu moto. ¡Gracias por tu confianza!'; }
+  else if(atrasado){ sub = est._nVencidas + ' ' + (est._nVencidas===1?'cuota vencida':'cuotas vencidas') + ' · ponte al día para evitar más mora'; }
+  else if(est._prox){
     var dd = diasHasta(est._prox.fechaVence);
-    var cuando = dd === 0 ? 'Vence hoy'
-               : dd === 1 ? 'Vence mañana'
-               : dd > 1   ? 'Vence en ' + dd + ' días'
-               : 'Vence el ' + fechaLarga(est._prox.fechaVence);
-    h += '<div class="sm">' + cuando + (dd > 1 ? ' · ' + fechaCorta(est._prox.fechaVence) : '') + '</div>';
-    // Si ya abonó parte de esta cuota, decirlo claro (si no, el monto confunde)
-    if(est._prox.pagado > 0.001 && cuotaPlena > 0){
-      h += '<div class="note">Ya abonaste ' + fmt(est._prox.pagado) + ' de la cuota de ' + fmt(cuotaPlena) + '.</div>';
-    }
+    sub = (dd === 0 ? 'Vence hoy' : dd === 1 ? 'Vence mañana' : dd > 1 ? 'Vence en ' + dd + ' días' : 'Vence el ' + fechaLarga(est._prox.fechaVence)) + (dd > 1 ? ' · ' + fechaCorta(est._prox.fechaVence) : '');
+    if(est._prox.pagado > 0.001 && cuotaPlena > 0) sub += ' · ya abonaste ' + fmt(est._prox.pagado) + ' de ' + fmt(cuotaPlena);
   }
-
-  // Progreso: un tramo por cuota (hasta 30); si son más, barra simple
-  var pct = est.totalCuotas ? Math.round(est.cuotasPagadas/est.totalCuotas*100) : 0;
-  if(est.totalCuotas && est.totalCuotas <= 30){
-    h += '<div class="segs">';
-    for(var i=0;i<est.totalCuotas;i++){
-      var cls = i < est.cuotasPagadas ? 'on' : (i === est.cuotasPagadas && !completado ? 'now' : '');
-      h += '<i class="'+cls+'"></i>';
-    }
-    h += '</div>';
-  } else {
-    h += '<div class="bar"><i style="width:'+pct+'%"></i></div>';
-  }
-  h += '<div class="pmeta"><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas pagadas</span><span>' + pct + '%</span></div>'
+  h += '<div class="fila">'
+    + '<section class="card c3 rev"><div class="et">' + (completado ? 'Crédito pagado' : (atrasado ? 'Debes ahora' : 'Tu próximo pago')) + '</div>'
+    +   '<div class="num money" data-cuenta="' + (parseFloat(monto)||0) + '">' + fmt(monto) + '</div>'
+    +   '<div class="sub">' + sub + '</div>'
+    +   '<div class="sub" style="margin-top:8px"><span class="pill ' + (completado ? 'azul' : atrasado ? 'mal' : 'bien') + '">' + (completado?'Completado':(atrasado?'En atraso':'Al día')) + '</span></div></section>'
+    + '<section class="card c3 rev"><div class="et">Ya pagaste</div><div class="num money" style="color:var(--bien)" data-cuenta="' + (parseFloat(est.totalPagado)||0) + '">' + fmt(est.totalPagado) + '</div><div class="sub">' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas</div><div class="barra-p"><i style="width:' + (est.totalCuotas ? Math.round(est.cuotasPagadas/est.totalCuotas*100) : 0) + '%"></i></div></section>'
+    + '<section class="card c3 rev"><div class="et">Te falta</div><div class="num money" data-cuenta="' + (parseFloat(est.saldoPendiente)||0) + '">' + fmt(est.saldoPendiente) + '</div><div class="sub">' + Math.max(0, est.totalCuotas - est.cuotasPagadas) + ' cuotas por pagar</div></section>'
+    + '<section class="card c3 rev"><div class="et">Tu cuota</div><div class="num money">' + fmt(cuotaPlena) + '</div><div class="sub">' + (String(c.frecuencia||'quincenal') === 'mensual' ? 'cada mes' : 'cada quincena') + '</div></section>'
     + '</div>';
 
-  if(!completado){
-    h += '<button class="btn btn-p" style="margin-top:14px" onclick="abrirPago(\''+esc(c.id)+'\')">Reportar mi pago</button>';
-  }
+  /* ── Fila 2: la moto y la constancia ── */
+  h += '<div class="fila">' + motoHTML(c, est, moto, completado);
+  var g = null;
+  try{ g = Gamificacion.calcularRacha(est, S.pagosPorCred[c.id]||[], DIAS_GRACIA, hoyISO()); }catch(e){ console.warn('racha:', e); }
+  if(g) h += nivelHTML(g, c);
+  h += '</div>';
 
-  /* ── El relato: lo que debo -> lo que estoy construyendo -> mi premio -> el detalle ── */
+  var gps = gpsHTML(c);   // solo si Pagasi le activo el GPS a este credito
+  if(gps) h += '<div class="fila"><div class="c12">' + gps + '</div></div>';
 
-  /* ── Tu moto: anillo de "cuanto ya es tuya" ── */
-  h += motoHTML(c, est, moto, completado);
-  h += gpsHTML(c);   // solo si Pagasi le activo el GPS a este credito
-
-  /* ── Racha, nivel y premios ── */
-  try{
-    var g = Gamificacion.calcularRacha(est, S.pagosPorCred[c.id]||[], DIAS_GRACIA, hoyISO());
-    h += '<div class="sec">Tu constancia<span>Paga a tiempo y ganas premios</span></div>';
-    h += nivelHTML(g, c);
-    h += premiosHTML(g);
-  }catch(e){ console.warn('racha:', e); }
-
-  /* ── 3 datos grandes ── */
-  h += '<div class="sec">Tus números</div>'
-    + '<div class="tiles rev">'
-    + '<div class="tile"><div class="tv money" style="color:var(--green)">' + fmt(est.totalPagado) + '</div><div class="tl">Ya pagaste</div></div>'
-    + '<div class="tile"><div class="tv money">' + fmt(est.saldoPendiente) + '</div><div class="tl">Te falta</div></div>'
-    + '<div class="tile"><div class="tv money">' + fmt(cuotaPlena) + '</div><div class="tl">Tu cuota</div></div>'
-    + '</div>';
-
-  /* ── Línea de tiempo de cuotas ── */
+  /* ── Fila 3: calendario y pagos ── */
   var cuotas = est.cuotas || [];
   var desde = Math.max(0, est.cuotasPagadas - 1);
   var hasta = Math.min(cuotas.length, desde + 6);
-  h += '<div class="sec">Tu calendario<span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas pagadas</span></div>'
-    + '<div class="card rev">'
+  h += '<div class="fila"><section class="card c7 rev"><div class="ch"><h2>Tu calendario</h2><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas pagadas</span></div>'
     + '<div class="tl-wrap" id="tlw-'+esc(c.id)+'">';
   cuotas.forEach(function(q, idx){
     var pagada = q.saldo <= 0.001;
     var vencida = !pagada && q.fechaVence <= hoyISO();
-    // "Próxima" solo si de verdad está por vencer: si ya venció, manda el rojo
     var esProx = !pagada && !vencida && idx === est.cuotasPagadas;
     var dot = pagada ? 'paid' : (vencida ? 'late' : (esProx ? 'now' : ''));
     var tag = pagada ? '<span class="tag t-ok">Pagada</span>'
             : vencida ? '<span class="tag t-bad">Vencida</span>'
             : esProx ? '<span class="tag t-gray">Próxima</span>' : '';
     var oculta = (idx < desde || idx >= hasta) ? ' tl-hid' : '';
-    var sub = fechaLarga(q.fechaVence);
-    if(!pagada && q.pagado > 0.001) sub += ' · abonaste ' + fmt(q.pagado);
+    var sub2 = fechaLarga(q.fechaVence);
+    if(!pagada && q.pagado > 0.001) sub2 += ' · abonaste ' + fmt(q.pagado);
     h += '<div class="tl-i'+oculta+(esProx?' is-now':'')+'">'
       + '<div class="tl-d '+dot+'"></div>'
-      + '<div class="tl-b"><div><div class="tl-n">Cuota '+q.numero+'</div><div class="tl-f">'+sub+'</div></div>'
+      + '<div class="tl-b"><div><div class="tl-n">Cuota '+q.numero+'</div><div class="tl-f">'+sub2+'</div></div>'
       + '<div><div class="tl-v money">'+fmt(pagada ? q.monto : q.saldo)+'</div>'
       + (tag?'<div style="margin-top:4px;text-align:right">'+tag+'</div>':'')
       + '</div></div></div>';
@@ -1876,24 +2087,63 @@ function creditoHTML(c){
   if(cuotas.length > (hasta - desde)){
     h += '<button class="more" onclick="toggleCuotas(\''+esc(c.id)+'\',this)">Ver las '+cuotas.length+' cuotas</button>';
   }
-  h += '</div>';
+  h += '</section>';
 
-  /* ── Mis pagos ── */
   var pagos = (S.pagosPorCred[c.id]||[]).slice().sort(function(a,b){ return String(b.fecha||'').localeCompare(String(a.fecha||'')); });
-  h += '<div class="sec">Tus pagos<span>' + (pagos.length === 1 ? '1 pago registrado' : pagos.length + ' pagos registrados') + '</span></div>'
-    + '<div class="card rev">';
+  h += '<section class="card c5 rev"><div class="ch"><h2>Tus pagos</h2><span>' + (pagos.length === 1 ? '1 pago registrado' : pagos.length + ' pagos registrados') + '</span></div>';
   if(!pagos.length){ h += '<div class="empty">Aún no hay pagos registrados.</div>'; }
   else {
     pagos.slice(0,12).forEach(function(p){
       h += '<div class="row"><div class="pay"><div class="pc">'+ICO_CHECK+'</div>'
         + '<div><div class="rl">'+fechaLarga(p.fecha)+'</div>'
         + '<div class="tl-f">'+esc(p.metodo||'')+(p.referencia?' · Ref '+esc(p.referencia):'')+'</div></div></div>'
-        + '<div class="rv money" style="color:var(--green)">'+fmt(p.monto)+'</div></div>';
+        + '<div class="rv money" style="color:var(--bien)">'+fmt(p.monto)+'</div></div>';
     });
     if(pagos.length>12) h += '<div class="empty">Mostrando los 12 más recientes</div>';
   }
-  h += '</div>';
+  h += '</section></div>';
 
+  /* ── Fila 4: premios y ayuda ── */
+  h += '<div class="fila">';
+  if(g) h += premiosHTML(g);
+  h += '<section class="card ' + (g ? 'c5' : 'c12') + ' rev"><div class="ch"><h2>¿Necesitas ayuda?</h2></div>'
+    + '<div class="asesor"><span class="avat">P</span><div><b>Tu asesor Pagasi</b><div class="sub" style="margin-top:0">Cobranzas · lunes a sábado, 8 am a 6 pm</div></div></div>'
+    + '<a class="btn btn-wa" style="margin-top:12px" href="https://wa.me/'+WA_PAGASI+'?text=Hola%2C%20soy%20'+encodeURIComponent((S.cliente&&S.cliente.nombre)||'')+'%20y%20tengo%20una%20consulta%20sobre%20mi%20crédito%20'+encodeURIComponent(c.id)+'" target="_blank" rel="noopener">Escribir por WhatsApp</a>'
+    + '<div class="sep"></div><div class="et">Estado de cuenta</div><div class="sub">Tus cuotas y tus pagos, listos para guardar o enviar.</div>'
+    + '<button class="btn btn-g" style="margin-top:12px" type="button" onclick="imprimirEstado()">Descargar estado de cuenta (PDF)</button>'
+    + '<div class="sub" id="estado-msj" style="min-height:18px"></div></section>';
+  h += '</div>';
+  return h;
+}
+
+// El estado de cuenta que se imprime: cabecera, cifras, calendario y pagos de cada crédito
+function estadoCuentaHTML(){
+  var cli = S.cliente || {};
+  var hoy = new Date().toLocaleDateString('es-VE', {day:'numeric', month:'long', year:'numeric'});
+  var h = '<div class="est-cab"><div><h1>Estado de cuenta</h1><p>' + esc(cli.nombre||'') + (cli.cedula ? ' · ' + esc(cli.cedula) : '') + ' · emitido el ' + hoy + '</p></div><img src="' + LOGO + '" alt="Pagasi"></div>';
+  S.creditos.forEach(function(c){
+    var est = estadoDe(c); if(!est) return;
+    var moto = [c.marca, c.modelo].filter(Boolean).join(' ') || c.moto || 'Motocicleta';
+    var atrasado = est._nVencidas > 0, completado = est.cuotasPagadas >= est.totalCuotas;
+    h += '<h3>' + esc(moto) + ' · crédito ' + esc(c.id) + (c.placa && c.placa !== '—' ? ' · placa ' + esc(c.placa) : '') + '</h3>'
+      + '<div class="est-kpis"><div class="est-kpi"><small>' + (completado ? 'Crédito pagado' : atrasado ? 'Debes ahora' : 'Próximo pago') + '</small><b>' + fmt(completado ? est.totalPagado : atrasado ? est._vencido : (est._prox ? est._prox.saldo : 0)) + '</b><span>' + (completado ? 'Completado' : atrasado ? est._nVencidas + ' cuotas vencidas' : (est._prox ? 'vence el ' + fechaLarga(est._prox.fechaVence) : '')) + '</span></div>'
+      + '<div class="est-kpi"><small>Ya pagaste</small><b>' + fmt(est.totalPagado) + '</b><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas</span></div>'
+      + '<div class="est-kpi"><small>Te falta</small><b>' + fmt(est.saldoPendiente) + '</b><span>' + Math.max(0, est.totalCuotas - est.cuotasPagadas) + ' cuotas</span></div>'
+      + '<div class="est-kpi"><small>Tu cuota</small><b>' + fmt(parseFloat(c.cuotaQ||c.cuota||0)) + '</b><span>' + (String(c.frecuencia||'quincenal') === 'mensual' ? 'mensual' : 'quincenal') + '</span></div></div>'
+      + '<table><thead><tr><th>Cuota</th><th>Vence</th><th class="r">Monto</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Estado</th></tr></thead><tbody>';
+    (est.cuotas||[]).forEach(function(q){
+      var pagada = q.saldo <= 0.001, vencida = !pagada && q.fechaVence <= hoyISO();
+      h += '<tr><td>' + q.numero + '</td><td>' + esc(fechaCorta(q.fechaVence)) + '</td><td class="r">' + fmt(q.monto) + '</td><td class="r">' + fmt(q.pagado||0) + '</td><td class="r">' + fmt(q.saldo) + '</td><td>' + (pagada ? 'Pagada' : vencida ? 'Vencida' : 'Pendiente') + '</td></tr>';
+    });
+    h += '</tbody></table>';
+    var pagos = (S.pagosPorCred[c.id]||[]).slice().sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
+    if(pagos.length){
+      h += '<h3>Pagos registrados</h3><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="r">Monto</th></tr></thead><tbody>';
+      pagos.forEach(function(p){ h += '<tr><td>' + esc(fechaCorta(p.fecha)) + '</td><td>' + esc(p.metodo||'') + '</td><td>' + esc(p.referencia||'') + '</td><td class="r">' + fmt(p.monto) + '</td></tr>'; });
+      h += '</tbody></table>';
+    }
+  });
+  h += '<p class="est-pie">' + pieTexto() + '</p>';
   return h;
 }
 
@@ -1907,7 +2157,7 @@ function toggleCuotas(credId, btn){
 function comprobantesHTML(){
   if(!S.comprobantes.length) return '';
   var arr = S.comprobantes.slice().sort(function(a,b){ return String(b.creadoEn||'').localeCompare(String(a.creadoEn||'')); });
-  var h = '<div class="card rev"><div class="ct">Comprobantes que enviaste</div>';
+  var h = '<div class="fila"><section class="card c12 rev"><div class="ch"><h2>Comprobantes que enviaste</h2><span>Se aplican a tu crédito cuando el equipo los confirma</span></div>';
   arr.forEach(function(x){
     var t = x.estado==='aprobado' ? '<span class="tag t-ok">Aprobado</span>'
           : x.estado==='rechazado' ? '<span class="tag t-bad">Rechazado</span>'
@@ -1916,8 +2166,7 @@ function comprobantesHTML(){
     h += '<div class="row"><div class="rl">'+fechaLarga(x.fecha)+'<small>'+esc(x.metodo||'')+'</small>'+nota+'</div>'
        + '<div style="display:flex;align-items:center;gap:9px"><span class="rv money">'+fmt(x.monto)+'</span>'+t+'</div></div>';
   });
-  h += '<div style="font-size:11.5px;color:var(--ink-4);font-weight:600;margin-top:12px;line-height:1.5">Los comprobantes en revisión se aplican a tu crédito cuando nuestro equipo los confirma.</div>';
-  h += '</div>';
+  h += '</section></div>';
   return h;
 }
 
@@ -2035,5 +2284,6 @@ function enviarCodigoWhatsApp(cedula){
   return Promise.reject(new Error('pendiente-aprobacion-meta'));
 }
 </script>
-<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20con%20mi%20cuenta%20Pagasi">+58 422-2285526</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer><script src="assets/public/site.js?v=26-20261014-2358"></script></body>
+<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20con%20mi%20cuenta%20Pagasi">+58 422-2285526</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer><script src="assets/public/site.js?v=26-20261014-2358"></script>
+<script src="assets/public/hero-motion.js?v=26-20261015-4"></script></body>
 </html>
