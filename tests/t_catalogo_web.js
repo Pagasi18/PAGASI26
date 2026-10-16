@@ -100,7 +100,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   };
   const S = ctx.S;
   ok('Catálogo web está en el menú (Sistema), con nombre y en el rol Administrador', ctx.MODULOS.some(m => m.id === 'catalogo' && m.grupo === 'Sistema') && /catalogo:'Catálogo web'/.test(src('assets/pagasi-app.js')) && /'cumplimiento','catalogo',('metricas',)?'perm_delete'/.test(src('assets/pagasi-app.js')));
-  ok('...y también en el menú de un empleado con el permiso', /keys:\['plan','config','scores','users','catalogo'\]/.test(src('assets/pagasi-app.js')));
+  ok('...y también en el menú de un empleado con el permiso', /keys:\['plan','config','concesionarios','scores','users','cumplimiento','catalogo'\]/.test(src('assets/pagasi-app.js')));
 
   S.currentUser = { uid:'u1', nombre:'Pedro', rol:'Empleado', permisos:['dash'] };
   ok('sin el permiso no entra', ctx.catPuedeEditar() === false && /Pídele a un administrador/.test(ctx.PG.catalogo()));
