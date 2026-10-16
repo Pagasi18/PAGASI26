@@ -3169,9 +3169,12 @@ function renderSidebar(){
     var grposEmp = [
       {label:'Mi Trabajo', keys:['dash','centro','recursos']},
       {label:'Gestión', keys:['clientes','motos','creditos','pagos']},
-      {label:'Operaciones',keys:['contratos','gps','notif','calculadora']},
+      {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
       {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
-      {label:'Sistema', keys:['plan','config','scores','users','catalogo']},
+      // 16-oct-2026: el menu del empleado no listaba Concesionarios ni Cumplimiento, asi que el
+      // permiso se daba y el modulo no aparecia (Adam: "le puse concesionarios y nada").
+      // Mismos modulos que el menu general; el permiso sigue decidiendo cual se ve.
+      {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','catalogo']},
     ];
     var iconMapEmp = {
       dash:'DB',centro:'WK',clientes:'CLI',motos:'MOT',creditos:'SOL',pagos:'PAG',
@@ -3179,7 +3182,8 @@ function renderSidebar(){
       cuentas:'CTA',comisiones:'CMS',conta:'CNT',plan:'PLN',config:'CFG',scores:'SCR',users:'USR'
     };
     var nameMapEmp = { dash:'Mi Dashboard', creditos:'Solicitudes' };
-    var extraMapEmp = {pagos:'<span class="si-bx" id="sb-badge-cob"></span>', centro:'<span class="si-bx" id="sb-badge-wt"></span>'};
+    var extraMapEmp = {pagos:'<span class="si-bx" id="sb-badge-cob"></span>', centro:'<span class="si-bx" id="sb-badge-wt"></span>',
+      aprobaciones:'<span class="si-bx">'+_sidebarAprobPendientes()+'</span>'};
 
     var sidebarEmp = '<div style="padding:10px 8px">'
       + (_puedeVender()
