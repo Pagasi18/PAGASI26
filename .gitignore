@@ -4,6 +4,13 @@
 bot/.wrangler/
 exportar-26.html
 
+# Cloud Functions (cobranza por WhatsApp): dependencias y la copia de logic/ que hace el deploy
+functions/node_modules/
+functions/logic/
+
+# log de la CLI de Firebase
+firebase-debug.log
+
 # nada de esto va al repositorio
 node_modules/
 bot/node_modules/

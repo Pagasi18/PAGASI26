@@ -1,9 +1,18 @@
-// Pagasi module: whatsapp (Cobranza por WhatsApp, 18-oct-2026). Tres pestanas: Hoy (la cola de
-// recordatorios calculada con la cartera), Conversaciones (lista + hilo + ficha del cliente) y
-// Asistente (instrucciones y estado de la conexion con Meta). Ver logic/whatsapp.js.
-window._waTab = window._waTab || 'hoy';
-function waTab(t){ window._waTab = t; nav('whatsapp'); }
-function waAbrir(id){ window._waSel = id; var c = _waConv(id); if(c && c.noLeidos && !waConectado()) c.noLeidos = 0; nav('whatsapp'); }
+// Pagasi module: whatsapp (18-oct-2026). Dos areas: COBRANZA (Hoy = la cola de recordatorios
+// calculada con la cartera, Conversaciones y Asistente) y VENTAS (quien escribe al WhatsApp
+// preguntando por una moto: Conversaciones y Asistente de ventas). El motor de la pantalla
+// (lista + hilo + ficha, pestana Asistente) es compartido con modules/instagram.js, que es
+// otro modulo con el mismo asistente de ventas por mensajes directos. Ver logic/whatsapp.js.
+window._waArea = window._waArea || 'cobranza';
+window._waTabs = window._waTabs || {};
+function _waCtxActual(){ return S.page === 'instagram' ? { modulo: 'instagram', canal: 'instagram', area: 'ventas' } : { modulo: 'whatsapp', canal: 'whatsapp', area: window._waArea || 'cobranza' }; }
+function _waClave(ctx){ ctx = ctx || _waCtxActual(); return ctx.modulo + ':' + ctx.area; }
+function _waTabActual(ctx){ ctx = ctx || _waCtxActual(); return window._waTabs[_waClave(ctx)] || (ctx.modulo === 'whatsapp' && ctx.area === 'cobranza' ? 'hoy' : 'conv'); }
+function waTab(t){ window._waTabs[_waClave()] = t; nav(S.page === 'instagram' ? 'instagram' : 'whatsapp'); }
+function waArea(a){ window._waArea = a === 'ventas' ? 'ventas' : 'cobranza'; window._waSel = null; nav('whatsapp'); }
+function waAbrir(id){ window._waSel = id; var c = _waConv(id); if(c && c.noLeidos && !waConectadoCanal(c.canal)) c.noLeidos = 0; if(c && c.canal !== 'instagram'){ window._waArea = c.area === 'ventas' ? 'ventas' : 'cobranza'; } window._waTabs[_waClave(c && c.canal === 'instagram' ? { modulo: 'instagram', area: 'ventas' } : { modulo: 'whatsapp', area: window._waArea })] = 'conv'; nav(_waModuloDe(id)); }
+// Las conversaciones que le tocan a este contexto (canal y, en WhatsApp, el area)
+function _waConvsDe(ctx){ return (window._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') === ctx.canal && (ctx.canal === 'instagram' || (c.area || 'cobranza') === ctx.area); }); }
 
 var _WA_CSS = '<style id="wa-css">'
   + '.wa-tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}.wa-tabs button{border:1px solid var(--rim);background:var(--surf);border-radius:999px;padding:8px 14px;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink2);cursor:pointer}.wa-tabs button.on{background:var(--p1);border-color:var(--p1);color:#fff}'
@@ -19,25 +28,28 @@ var _WA_CSS = '<style id="wa-css">'
   + '.wa-ficha{display:flex;flex-direction:column;gap:12px}.wa-ficha .card{padding:16px}.wa-ficha .ct{margin-bottom:8px}.wa-kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px solid var(--rim)}.wa-kv:first-of-type{border-top:0}.wa-kv span:last-child{font-weight:800;text-align:right}'
   + '.wa-demo-cliente{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px dashed var(--rim);background:#fffdf5}.wa-demo-cliente button{font:inherit;font-size:11px;border:1px solid var(--rim);background:#fff;border-radius:999px;padding:4px 10px;cursor:pointer}.wa-demo-cliente small{width:100%;color:var(--ink3);font-size:10.5px}'
   + '.wa-stats .stat{text-align:left}.wa-stats .st-v{font-size:26px}'
+  + '.wa-pill.ig{background:linear-gradient(90deg,#f58529,#dd2a7b,#8134af);color:#fff}.wa-pill.verde{background:#e6f7ee;color:#0f7a3e}.wa-item .av.ig{background:linear-gradient(135deg,#f58529,#dd2a7b,#8134af);color:#fff}'
+  + '.wa-areas{display:flex;gap:0;margin:0 0 14px;border:1px solid var(--rim);border-radius:14px;overflow:hidden;width:max-content;max-width:100%}.wa-areas button{border:0;background:var(--surf);font:inherit;font-size:13px;font-weight:800;color:var(--ink2);padding:10px 18px;cursor:pointer;display:flex;gap:8px;align-items:center}.wa-areas button+button{border-left:1px solid var(--rim)}.wa-areas button.on{background:var(--p1);color:#fff}.wa-areas button .wa-pill{background:rgba(255,255,255,.25);color:inherit}.wa-areas button:not(.on) .wa-pill{background:var(--surf2);color:var(--ink2)}'
   + '</style>';
 
 function _waIni(n){ var p = String(n || '').trim().split(/\s+/); return ((p[0] || '')[0] || '') + ((p[1] || '')[0] || ''); }
 function _waHora(iso){ if(!iso) return ''; var d = new Date(iso), hoy = new Date(); var hm = d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2); return d.toDateString() === hoy.toDateString() ? hm : _waFechaCorta(iso) + ' ' + hm; }
-function _waAtencion(a){ return a === 'pide_persona' ? '<span class="wa-pill rojo">Pide una persona</span>' : a === 'queja' ? '<span class="wa-pill rojo">Queja</span>' : a === 'comprobante' ? '<span class="wa-pill ambar">Comprobante por revisar</span>' : a === 'promesa_vencida' ? '<span class="wa-pill ambar">Promesa vencida</span>' : a === 'error' ? '<span class="wa-pill rojo">El asistente falló</span>' : ''; }
+function _waAtencion(a){ return a === 'lead' ? '<span class="wa-pill verde">Quiere comprar</span>' : a === 'pide_persona' ? '<span class="wa-pill rojo">Pide una persona</span>' : a === 'queja' ? '<span class="wa-pill rojo">Queja</span>' : a === 'comprobante' ? '<span class="wa-pill ambar">Comprobante por revisar</span>' : a === 'promesa_vencida' ? '<span class="wa-pill ambar">Promesa vencida</span>' : a === 'error' ? '<span class="wa-pill rojo">El asistente falló</span>' : ''; }
 function _waEstadoIcono(e){ return e === 'leido' ? '✓✓' : e === 'entregado' ? '✓✓' : e === 'enviado' ? '✓' : e === 'pendiente' ? '…' : e === 'fallo' ? '✕ no se envió' : ''; }
 
 function _waPintarLista(){
   var cont = document.getElementById('wa-items'); if(!cont) return;
   var q = String((document.getElementById('wa-q') || {}).value || '').toLowerCase();
-  var convs = (window._waConvs || []).filter(function(c){ return !q || (String(c.nombre || '') + ' ' + String(c.telE164 || '') + ' ' + String(c.clienteNombre || '')).toLowerCase().indexOf(q) > -1; })
+  var convs = _waConvsDe(_waCtxActual())
+    .filter(function(c){ return !q || (String(c.nombre || '') + ' ' + String(c.telE164 || '') + ' ' + String(c.clienteNombre || '') + ' ' + String(c.usuario || '')).toLowerCase().indexOf(q) > -1; })
     .slice().sort(function(a, b){ return (b.atencion ? 1 : 0) - (a.atencion ? 1 : 0) || String(b.ultimoMensajeHora || '').localeCompare(String(a.ultimoMensajeHora || '')); });
   cont.innerHTML = convs.length ? convs.map(function(c){
     return '<div class="wa-item' + (c.id === window._waSel ? ' on' : '') + '" onclick="waAbrir(\'' + _waEsc(c.id) + '\')">'
-      + '<div class="av">' + _waEsc(_waIni(c.nombre || c.clienteNombre)) + '</div>'
-      + '<div><div class="n">' + _waEsc(c.nombre || c.clienteNombre || c.telE164) + (c.modo === 'humano' ? '<span class="wa-pill verde">' + _waEsc(c.atendidoPor || 'Equipo') + '</span>' : '') + (c.borrador && c.borrador.tipo === 'promesa' ? '<span class="wa-pill azul">Promesa ' + _waFechaCorta(c.borrador.fecha) + '</span>' : '') + '</div>'
+      + '<div class="av' + (c.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(_waIni(c.nombre || c.clienteNombre)) + '</div>'
+      + '<div><div class="n">' + _waEsc(c.nombre || c.clienteNombre || c.telE164) + (c.canal === 'instagram' ? '<span class="wa-pill ig">IG</span>' : '') + (c.modo === 'humano' ? '<span class="wa-pill verde">' + _waEsc(c.atendidoPor || 'Equipo') + '</span>' : '') + (c.borrador && c.borrador.tipo === 'promesa' ? '<span class="wa-pill azul">Promesa ' + _waFechaCorta(c.borrador.fecha) + '</span>' : '') + '</div>'
       + '<div class="u">' + _waEsc(c.ultimoMensaje || '') + '</div>' + (c.atencion ? '<div style="margin-top:4px">' + _waAtencion(c.atencion) + '</div>' : '') + '</div>'
       + '<div class="h">' + _waHora(c.ultimoMensajeHora) + (c.noLeidos ? '<br><span class="nl">' + c.noLeidos + '</span>' : '') + '</div></div>';
-  }).join('') : '<div class="empty" style="padding:30px 16px">' + (waConectado() ? 'Todavía no hay conversaciones.' : 'Sin conversaciones de muestra.') + '</div>';
+  }).join('') : '<div class="empty" style="padding:30px 16px">' + (waConectadoCanal(_waCtxActual().canal) ? 'Todavía no hay conversaciones.' : 'Sin conversaciones de muestra.') + '</div>';
 }
 function _waPintarHilo(id){
   var cont = document.getElementById('wa-burbujas'); if(!cont || window._waSel !== id) return;
@@ -63,24 +75,102 @@ function _waPasarAPedido(id){
   }
 }
 
+function _waPanelConversaciones(ctx){
+  var conectado = waConectadoCanal(ctx.canal), convs = _waConvsDe(ctx), h = '';
+    var sel = _waConv(window._waSel); if(sel && convs.indexOf(sel) < 0) sel = null; sel = sel || convs[0] || null;
+    if(sel && window._waSel !== sel.id){ window._waSel = sel.id; }
+    var cred = sel ? (S.creds || []).find(function(x){ return x.id === sel.cred || (sel.clienteId && String(x.clienteId) === String(sel.clienteId) && x.estado !== 'cancelado'); }) : null;
+    var est = null; if(cred){ try{ est = CreditoLedger.generarEstadoCredito(cred, S.pagos || [], { diasGracia: WA_GRACIA, today: hoyLocalISO() }); }catch(e){} }
+    var prox = est ? (est.cuotas || []).filter(function(x){ return x && x.saldo > 0.001; })[0] : null;
+    var abierta = sel ? waVentanaAbierta(sel) : false;
+    h += '<div class="wa-split">'
+      + '<div class="wa-lista"><div class="wa-busca"><input class="fi" id="wa-q" placeholder="' + (ctx.canal === 'instagram' ? 'Buscar por nombre o usuario' : 'Buscar por nombre o teléfono') + '" oninput="_waPintarLista()" style="width:100%"></div><div class="items" id="wa-items"></div></div>'
+      + '<div class="wa-hilo">' + (sel
+        ? '<div class="wa-hilo-top"><div class="quien"><b>' + _waEsc(sel.nombre || sel.telE164) + '</b><small>' + (sel.canal === 'instagram' ? 'Instagram' + (sel.usuario ? ' · @' + _waEsc(sel.usuario) : '') + ' · ventas' : _waEsc(String(sel.telE164 || '').replace('+58', '0')) + (sel.area === 'ventas' ? ' · ventas' + (sel.clienteNombre ? ' · ya es cliente' : '') : (sel.clienteNombre ? ' · cliente del sistema' : ' · no está en el sistema'))) + ' · ' + (sel.modo === 'humano' ? 'lo atiende ' + _waEsc(sel.atendidoPor || 'el equipo') : 'lo atiende el asistente') + '</small></div>'
+          + '<div class="acc">' + (sel.atencion ? '<button class="btn btn-g btn-sm" onclick="waVisto(\'' + _waEsc(sel.id) + '\')">Visto</button>' : '') + (sel.modo === 'humano' ? '<button class="btn btn-g btn-sm" onclick="waDevolver(\'' + _waEsc(sel.id) + '\')">Devolver al asistente</button>' : '<button class="btn btn-p btn-sm" onclick="waAtender(\'' + _waEsc(sel.id) + '\')">Atender yo</button>') + '</div></div>'
+          + '<div class="wa-burbujas" id="wa-burbujas"></div>'
+          + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" placeholder="Escribir como ' + _waEsc((S.currentUser && S.currentUser.nombre) || 'equipo') + '… (al escribir, tomas la conversación)"></textarea><button class="btn btn-p" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div>'
+            : (sel.canal === 'instagram' ? '<div class="wa-cerrada">Pasaron más de 7 días desde el último mensaje de la persona' + (sel.ultimoEntranteHora ? ' (' + _waHora(sel.ultimoEntranteHora) + ')' : '') + ': Instagram no deja escribirle hasta que vuelva a escribir.</div>'
+              : '<div class="wa-cerrada">La ventana de 24 horas de WhatsApp está cerrada: el cliente escribió por última vez ' + (sel.ultimoEntranteHora ? 'el ' + _waHora(sel.ultimoEntranteHora) : 'hace más de un día') + '. Solo se le puede escribir con una plantilla aprobada, o esperar a que vuelva a escribir.</div>'))
+          + (conectado ? '' : '<div class="wa-demo-cliente"><small>Demostración · ' + (sel.area === 'ventas' ? 'la persona' : 'el cliente') + ' escribe:</small>' + (sel.area === 'ventas' ? ['precio de la BRZ 200?', 'qué piden para el crédito?', 'quiero una, cómo hago?', 'tienen en Maracay?', 'quiero hablar con una persona'] : ['cuánto debo?', 'ya pagué', 'pago el sábado', 'cómo pago?', 'quiero hablar con una persona', 'no puedo pagar']).map(function(t){ return '<button onclick="waDemoClienteEscribe(\'' + _waEsc(sel.id) + '\',\'' + _waEsc(t) + '\')">' + _waEsc(t) + '</button>'; }).join('') + '</div>')
+        : '<div class="empty" style="padding:60px 20px">Elige una conversación.</div>') + '</div>'
+      + '<div class="wa-ficha">'
+      + (sel && sel.area === 'ventas' ? '<div class="card"><div class="ct">Persona</div>'
+          + (sel.canal === 'instagram' ? '<div class="wa-kv"><span>Instagram</span><span>' + (sel.usuario ? '@' + _waEsc(sel.usuario) : '—') + '</span></div>' : '<div class="wa-kv"><span>WhatsApp</span><span>' + _waEsc(String(sel.telE164 || '').replace('+58', '0')) + '</span></div>')
+          + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.nombre || '—') + '</span></div>'
+          + '<div class="wa-kv"><span>Canal</span><span>' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' · ventas</span></div>'
+          + (sel.clienteNombre ? '<div class="wa-kv"><span>En el sistema</span><span>' + _waEsc(sel.clienteNombre) + '</span></div>' : '') + '</div>'
+        + '<div class="card"><div class="ct">Lo que anotó el asistente</div>'
+          + (sel.borrador && sel.borrador.tipo === 'lead' ? '<div class="wa-kv"><span>Quiere</span><span>' + _waEsc(sel.borrador.modelo || 'una moto') + '</span></div><div class="wa-kv"><span>Ciudad</span><span>' + _waEsc(sel.borrador.ciudad || '—') + '</span></div><div class="wa-kv"><span>WhatsApp</span><span>' + (sel.borrador.telefono ? '<a href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '" target="_blank" rel="noopener">' + _waEsc(sel.borrador.telefono) + '</a>' : '—') + '</span></div>' + (sel.borrador.telefono && sel.canal === 'instagram' ? '<a class="btn btn-p btn-sm" style="margin-top:10px;display:inline-block" href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '?text=' + encodeURIComponent('Hola ' + (sel.borrador.nombre || '') + ', te escribo de Pagasi por la ' + (sel.borrador.modelo || 'moto') + ' que preguntaste en Instagram.') + '" target="_blank" rel="noopener">Escribirle por WhatsApp</a>' : '') + '<button class="btn btn-g btn-sm" style="margin-top:10px;margin-left:6px" onclick="nav(\'clientes\')">Crear cliente</button>' : '<div class="cs">Todavía no dejó sus datos.</div>')
+          + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '') + '</div>'
+        + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
+      : sel ? '<div class="card"><div class="ct">Cliente</div>'
+          + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.clienteNombre || sel.nombre || '—') + '</span></div>'
+          + '<div class="wa-kv"><span>Crédito</span><span>' + (cred ? _waEsc(cred.id) + ' · ' + _waEsc(cred.modelo || '') : '—') + '</span></div>'
+          + (est ? '<div class="wa-kv"><span>Cuotas</span><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + '</span></div><div class="wa-kv"><span>Próxima</span><span>' + (prox ? _waMoney(prox.saldo) + ' · ' + _waFechaCorta(prox.fechaVence) : '—') + '</span></div><div class="wa-kv"><span>Estado</span><span>' + (prox && prox.fechaVence < hoyLocalISO() ? '<span class="wa-pill rojo">Atraso ' + _waDias(prox.fechaVence, hoyLocalISO()) + ' d</span>' : '<span class="wa-pill verde">Al día</span>') + '</span></div>' : '')
+          + (sel.clienteId && cred ? '<button class="btn btn-g btn-sm" style="margin-top:10px" onclick="nav(\'pagos\')">Ver en Cobranza</button>' : '') + '</div>'
+        + '<div class="card"><div class="ct">Lo que anotó el asistente</div>'
+          + (sel.borrador && sel.borrador.tipo === 'promesa' ? '<div class="wa-kv"><span>Promesa de pago</span><span>' + _waFechaCorta(sel.borrador.fecha) + ' · ' + _waMoney(sel.borrador.monto) + '</span></div><button class="btn btn-p btn-sm" style="margin-top:10px" onclick="_waPasarAPedido(\'' + _waEsc(sel.id) + '\')">Anotar el compromiso en el crédito</button>' : '<div class="cs">Sin promesas ni solicitudes pendientes.</div>')
+          + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '') + '</div>'
+        + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
+        : '') + '</div></div>';
+    setTimeout(function(){ _waPintarLista(); if(sel){ if(conectado) waAbrirMensajes(sel.id); else _waPintarHilo(sel.id); } }, 0);
+  return h;
+}
+
+function _waPanelAsistente(ctx){
+  var cfg = window._waCfg || {}, conectado = waConectadoCanal(ctx.canal), h = '';
+  var puede = typeof isAdminUser === 'function' && isAdminUser();
+  var pie = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap"><div class="cs">' + (cfg.actualizadoEn ? 'Última edición: ' + _waEsc(cfg.actualizadoPor || '') + ' · ' + _waHora(cfg.actualizadoEn) : 'Nadie las ha editado todavía') + (puede ? '' : ' · solo administración las edita') + '</div>';
+  var conexionWa = conectado && ctx.canal === 'whatsapp' ? '<div class="cs">WhatsApp: número ' + _waEsc(cfg.telefono || '') + ' conectado por la API oficial.</div>' : (ctx.canal === 'whatsapp' ? '<div class="cs" style="line-height:1.6">WhatsApp pendiente: verificación del negocio en Meta, el número, plantillas aprobadas y las claves en el servidor. Mientras tanto el módulo funciona en demostración.</div>' : '');
+  var conexionIg = ctx.canal === 'instagram' ? (cfg.instagram ? '<div class="cs">Instagram: @' + _waEsc(cfg.instagram) + ' conectado (mensajes directos).</div>' : '<div class="cs" style="line-height:1.6">Instagram pendiente: cuenta profesional ligada a una página de Facebook y permiso de mensajes en la misma app de Meta. Mientras tanto el módulo funciona en demostración.</div>') : '';
+  if(ctx.area === 'cobranza'){
+    h += '<div class="sg" style="grid-template-columns:1.4fr 1fr;align-items:start">'
+      + '<div class="card"><div class="ch"><div><div class="ct">Instrucciones del asistente de cobranza</div><div class="cs">Texto libre. El asistente lo lee antes de cada respuesta y manda sobre todo lo demás. Ejemplos: "esta semana no se reciben pagos en efectivo", "si preguntan por refinanciar, pásalos a Samantha".</div></div></div>'
+      + '<textarea class="fta" id="wa-instr" style="width:100%;min-height:160px" ' + (puede ? '' : 'disabled') + '>' + _waEsc(cfg.instrucciones || '') + '</textarea>'
+      + '<div class="ct" style="margin-top:14px">Cómo pagar</div><div class="cs" style="margin-bottom:6px">Lo único que el asistente le da al cliente cuando pregunta dónde pagar: Pago Móvil, cuenta, RIF, Zelle. Si está vacío, lo manda con el equipo.</div>'
+      + '<textarea class="fta" id="wa-pago" style="width:100%;min-height:80px" ' + (puede ? '' : 'disabled') + '>' + _waEsc(cfg.datosPago || '') + '</textarea>'
+      + pie + (puede ? '<button class="btn btn-p btn-sm" onclick="waGuardarInstrucciones(document.getElementById(\'wa-instr\').value, document.getElementById(\'wa-pago\').value)">Guardar</button>' : '') + '</div></div>'
+      + '<div style="display:grid;gap:12px">'
+      + '<div class="card"><div class="ct">Reglas fijas (no se cambian desde aquí)</div><ul style="margin:8px 0 0 18px;padding:0;font-size:12.5px;line-height:1.7;color:var(--ink2)">'
+      + '<li>Solo habla del crédito del cliente: cuánto debe, cuándo vence, cómo pagar y su comprobante.</li><li>Nunca aprueba, descuenta, refinancia ni promete nada: eso lo consulta con el equipo.</li><li>No inventa montos: todo sale del ledger del sistema.</li><li>No pide cédula ni documentos por el chat.</li><li>Si el cliente se queja, pide una persona o manda una imagen, se calla y avisa.</li><li>Tono: cercano, breve, en el español de Venezuela; recuerda, nunca amenaza.</li></ul></div>'
+      + '<div class="card"><div class="ct">Conexión con Meta</div>' + conexionWa + '</div>'
+      + '<div class="card"><div class="ct">Horario de los recordatorios</div><div class="cs" style="line-height:1.6">Todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento, al tercer día de vencida y al sexto; de 10 días en adelante no insiste y lo pasa a un cobrador.</div></div>'
+      + '</div></div>';
+  } else {
+    h += '<div class="sg" style="grid-template-columns:1.4fr 1fr;align-items:start">'
+      + '<div class="card"><div class="ch"><div><div class="ct">Instrucciones del asistente de ventas</div><div class="cs">Lo que debe saber además del catálogo: promociones, horarios, qué decir de una sede, a quién pasar los interesados. Él ya conoce precios, inicial, cuotas y cómo se solicita. Son las mismas instrucciones para WhatsApp e Instagram.</div></div></div>'
+      + '<textarea class="fta" id="wa-ventas" style="width:100%;min-height:200px" ' + (puede ? '' : 'disabled') + '>' + _waEsc(cfg.instruccionesVentas || '') + '</textarea>'
+      + pie + (puede ? '<button class="btn btn-p btn-sm" onclick="waGuardarInstrucciones(null, null, document.getElementById(\'wa-ventas\').value)">Guardar</button>' : '') + '</div></div>'
+      + '<div style="display:grid;gap:12px">'
+      + '<div class="card"><div class="ct">Reglas fijas (no se cambian desde aquí)</div><ul style="margin:8px 0 0 18px;padding:0;font-size:12.5px;line-height:1.7;color:var(--ink2)">'
+      + '<li>Solo habla de las motos, los planes y cómo solicitar; los precios y cuotas salen del catálogo de pagasi.io.</li><li>Nunca aprueba ni promete aprobación, entrega ni descuentos: "eso lo confirma tu asesor".</li><li>No pide cédula ni documentos: para que un asesor llame basta nombre, ciudad, modelo y WhatsApp.</li><li>Quien quiere comprar queda anotado como "Quiere comprar" con sus datos, para que el equipo lo llame.</li><li>Si pregunta por un crédito que ya tiene, lo manda a Mi cuenta o a cobranza.</li><li>Tono: cercano, entusiasta y breve, en el español de Venezuela.</li></ul></div>'
+      + '<div class="card"><div class="ct">Conexión con Meta</div>' + conexionWa + conexionIg + '</div>'
+      + '<div class="card"><div class="ct">Ventana para responder</div><div class="cs" style="line-height:1.6">' + (ctx.canal === 'instagram' ? 'El equipo puede escribirle a la persona hasta 7 días después de su último mensaje; pasado eso, hay que esperar a que vuelva a escribir.' : 'El equipo puede escribirle libremente durante las 24 horas siguientes a su último mensaje; después solo con una plantilla aprobada.') + '</div></div>'
+      + '</div></div>';
+  }
+  return h;
+}
 PG.whatsapp = function(){
   if(!document.getElementById('wa-css')) document.head.insertAdjacentHTML('beforeend', _WA_CSS);
   if(!window._waCfg){ waCargarCfg(function(){ if(S.page === 'whatsapp') nav('whatsapp'); }); }
   var cola = waColaHoy();
   var conectado = waConectado();
-  if(!conectado) waDemoConversaciones(cola); else waAbrirConversaciones();
-  var tab = window._waTab || 'hoy';
-  var convs = window._waConvs || [];
-  var conAtencion = convs.filter(function(c){ return c.atencion; }).length;
-  var promesas = convs.filter(function(c){ return c.borrador && c.borrador.tipo === 'promesa'; }).length;
+  if(!conectado) waDemoConversaciones(cola); else waAbrirConversaciones('whatsapp');
+  var ctx = _waCtxActual(), tab = _waTabActual(ctx);
+  var cob = _waConvsDe({ canal: 'whatsapp', area: 'cobranza' }), ven = _waConvsDe({ canal: 'whatsapp', area: 'ventas' });
+  var esperanCob = cob.filter(function(c){ return c.atencion; }).length, esperanVen = ven.filter(function(c){ return c.atencion; }).length;
+  var convs = _waConvsDe(ctx), conAtencion = convs.filter(function(c){ return c.atencion; }).length;
+  var promesas = cob.filter(function(c){ return c.borrador && c.borrador.tipo === 'promesa'; }).length;
 
   var h = '<div class="page">'
-    + '<div class="ch" style="margin-bottom:12px"><div><div class="ct" style="font-size:20px">Cobranza por WhatsApp</div><div class="cs">El asistente recuerda las cuotas, responde al cliente y le pasa al equipo lo que necesita una persona.</div></div>'
+    + '<div class="ch" style="margin-bottom:12px"><div><div class="ct" style="font-size:20px">WhatsApp</div><div class="cs">' + (ctx.area === 'cobranza' ? 'Cobranza: el asistente recuerda las cuotas, responde al cliente y le pasa al equipo lo que necesita una persona.' : 'Ventas: el asistente atiende a quien escribe preguntando por una moto, con el catálogo de pagasi.io, y anota a quien quiere comprar.') + '</div></div>'
     + '<div>' + (conectado ? '<span class="wa-pill verde">Conectado a Meta · ' + _waEsc((window._waCfg || {}).telefono || '') + '</span>' : '<span class="wa-pill ambar">Modo demostración</span>') + '</div></div>'
-    + (conectado ? '' : '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>Meta todavía no está conectado.</b> La cola de hoy es real (sale de tu cartera y del ledger) pero no se manda nada; las conversaciones son de muestra, en memoria, para ver cómo trabaja el asistente. Cuando se conecte el número, esta misma pantalla pasa a ser la de verdad.</div></div>')
-    + '<div class="wa-tabs"><button class="' + (tab === 'hoy' ? 'on' : '') + '" onclick="waTab(\'hoy\')">Hoy · ' + cola.total + '</button><button class="' + (tab === 'conv' ? 'on' : '') + '" onclick="waTab(\'conv\')">Conversaciones' + (conAtencion ? ' · ' + conAtencion + ' esperan' : '') + '</button><button class="' + (tab === 'asistente' ? 'on' : '') + '" onclick="waTab(\'asistente\')">Asistente</button></div>';
+    + '<div class="wa-areas"><button class="' + (ctx.area === 'cobranza' ? 'on' : '') + '" onclick="waArea(\'cobranza\')">Cobranza' + (esperanCob ? ' <span class="wa-pill">' + esperanCob + '</span>' : '') + '</button><button class="' + (ctx.area === 'ventas' ? 'on' : '') + '" onclick="waArea(\'ventas\')">Ventas' + (esperanVen ? ' <span class="wa-pill">' + esperanVen + '</span>' : '') + '</button></div>'
+    + (conectado ? '' : '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>Meta todavía no está conectado.</b> ' + (ctx.area === 'cobranza' ? 'La cola de hoy es real (sale de tu cartera y del ledger) pero no se manda nada; las conversaciones son de muestra, en memoria, para ver cómo trabaja el asistente.' : 'Las conversaciones son de muestra, en memoria, para ver cómo atiende el asistente de ventas.') + ' Cuando se conecte el número, esta misma pantalla pasa a ser la de verdad.</div></div>')
+    + '<div class="wa-tabs">' + (ctx.area === 'cobranza' ? '<button class="' + (tab === 'hoy' ? 'on' : '') + '" onclick="waTab(\'hoy\')">Hoy · ' + cola.total + '</button>' : '') + '<button class="' + (tab === 'conv' ? 'on' : '') + '" onclick="waTab(\'conv\')">Conversaciones' + (conAtencion ? ' · ' + conAtencion + ' esperan' : '') + '</button><button class="' + (tab === 'asistente' ? 'on' : '') + '" onclick="waTab(\'asistente\')">Asistente</button></div>';
 
-  if(tab === 'hoy'){
+  if(tab === 'hoy' && ctx.area === 'cobranza'){
     h += '<div class="sg wa-stats">'
       + '<div class="stat"><div class="st-v">' + (cola.grupos.proximas.length + cola.grupos.hoy.length) + '</div><div class="st-l">Recordatorios antes de vencer (2 días y hoy)</div></div>'
       + '<div class="stat"><div class="st-v" style="color:var(--amber)">' + (cola.grupos.gracia.length + cola.grupos.atrasadas.length) + '</div><div class="st-l">Vencidas que el asistente persigue (1 a 10 días)</div></div>'
@@ -105,51 +195,8 @@ PG.whatsapp = function(){
     });
   }
 
-  if(tab === 'conv'){
-    var sel = _waConv(window._waSel) || convs[0] || null;
-    if(sel && window._waSel !== sel.id){ window._waSel = sel.id; }
-    var cred = sel ? (S.creds || []).find(function(x){ return x.id === sel.cred || (sel.clienteId && String(x.clienteId) === String(sel.clienteId) && x.estado !== 'cancelado'); }) : null;
-    var est = null; if(cred){ try{ est = CreditoLedger.generarEstadoCredito(cred, S.pagos || [], { diasGracia: WA_GRACIA, today: hoyLocalISO() }); }catch(e){} }
-    var prox = est ? (est.cuotas || []).filter(function(x){ return x && x.saldo > 0.001; })[0] : null;
-    var abierta = sel ? waVentanaAbierta(sel) : false;
-    h += '<div class="wa-split">'
-      + '<div class="wa-lista"><div class="wa-busca"><input class="fi" id="wa-q" placeholder="Buscar por nombre o teléfono" oninput="_waPintarLista()" style="width:100%"></div><div class="items" id="wa-items"></div></div>'
-      + '<div class="wa-hilo">' + (sel
-        ? '<div class="wa-hilo-top"><div class="quien"><b>' + _waEsc(sel.nombre || sel.telE164) + '</b><small>' + _waEsc(String(sel.telE164 || '').replace('+58', '0')) + (sel.clienteNombre ? ' · cliente del sistema' : ' · no está en el sistema') + ' · ' + (sel.modo === 'humano' ? 'lo atiende ' + _waEsc(sel.atendidoPor || 'el equipo') : 'lo atiende el asistente') + '</small></div>'
-          + '<div class="acc">' + (sel.atencion ? '<button class="btn btn-g btn-sm" onclick="waVisto(\'' + _waEsc(sel.id) + '\')">Visto</button>' : '') + (sel.modo === 'humano' ? '<button class="btn btn-g btn-sm" onclick="waDevolver(\'' + _waEsc(sel.id) + '\')">Devolver al asistente</button>' : '<button class="btn btn-p btn-sm" onclick="waAtender(\'' + _waEsc(sel.id) + '\')">Atender yo</button>') + '</div></div>'
-          + '<div class="wa-burbujas" id="wa-burbujas"></div>'
-          + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" placeholder="Escribir como ' + _waEsc((S.currentUser && S.currentUser.nombre) || 'equipo') + '… (al escribir, tomas la conversación)"></textarea><button class="btn btn-p" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div>'
-            : '<div class="wa-cerrada">La ventana de 24 horas de WhatsApp está cerrada: el cliente escribió por última vez ' + (sel.ultimoEntranteHora ? 'el ' + _waHora(sel.ultimoEntranteHora) : 'hace más de un día') + '. Solo se le puede escribir con una plantilla aprobada, o esperar a que vuelva a escribir.</div>')
-          + (conectado ? '' : '<div class="wa-demo-cliente"><small>Demostración · el cliente escribe:</small>' + ['cuánto debo?', 'ya pagué', 'pago el sábado', 'cómo pago?', 'quiero hablar con una persona', 'no puedo pagar'].map(function(t){ return '<button onclick="waDemoClienteEscribe(\'' + _waEsc(sel.id) + '\',\'' + _waEsc(t) + '\')">' + _waEsc(t) + '</button>'; }).join('') + '</div>')
-        : '<div class="empty" style="padding:60px 20px">Elige una conversación.</div>') + '</div>'
-      + '<div class="wa-ficha">'
-      + (sel ? '<div class="card"><div class="ct">Cliente</div>'
-          + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.clienteNombre || sel.nombre || '—') + '</span></div>'
-          + '<div class="wa-kv"><span>Crédito</span><span>' + (cred ? _waEsc(cred.id) + ' · ' + _waEsc(cred.modelo || '') : '—') + '</span></div>'
-          + (est ? '<div class="wa-kv"><span>Cuotas</span><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + '</span></div><div class="wa-kv"><span>Próxima</span><span>' + (prox ? _waMoney(prox.saldo) + ' · ' + _waFechaCorta(prox.fechaVence) : '—') + '</span></div><div class="wa-kv"><span>Estado</span><span>' + (prox && prox.fechaVence < hoyLocalISO() ? '<span class="wa-pill rojo">Atraso ' + _waDias(prox.fechaVence, hoyLocalISO()) + ' d</span>' : '<span class="wa-pill verde">Al día</span>') + '</span></div>' : '')
-          + (sel.clienteId && cred ? '<button class="btn btn-g btn-sm" style="margin-top:10px" onclick="nav(\'pagos\')">Ver en Cobranza</button>' : '') + '</div>'
-        + '<div class="card"><div class="ct">Lo que anotó el asistente</div>'
-          + (sel.borrador && sel.borrador.tipo === 'promesa' ? '<div class="wa-kv"><span>Promesa de pago</span><span>' + _waFechaCorta(sel.borrador.fecha) + ' · ' + _waMoney(sel.borrador.monto) + '</span></div><button class="btn btn-p btn-sm" style="margin-top:10px" onclick="_waPasarAPedido(\'' + _waEsc(sel.id) + '\')">Anotar el compromiso en el crédito</button>' : '<div class="cs">Sin promesas ni solicitudes pendientes.</div>')
-          + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '') + '</div>'
-        + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
-        : '') + '</div></div>';
-    setTimeout(function(){ _waPintarLista(); if(sel){ if(conectado) waAbrirMensajes(sel.id); else _waPintarHilo(sel.id); } }, 0);
-  }
-
-  if(tab === 'asistente'){
-    var cfg = window._waCfg || {};
-    var puede = typeof isAdminUser === 'function' && isAdminUser();
-    h += '<div class="sg" style="grid-template-columns:1.4fr 1fr;align-items:start">'
-      + '<div class="card"><div class="ch"><div><div class="ct">Instrucciones del asistente</div><div class="cs">Texto libre. El asistente lo lee antes de cada respuesta y manda sobre todo lo demás. Ejemplos: "esta semana no se reciben pagos en efectivo", "si preguntan por refinanciar, pásalos a Samantha".</div></div></div>'
-      + '<textarea class="fta" id="wa-instr" style="width:100%;min-height:200px" ' + (puede ? '' : 'disabled') + '>' + _waEsc(cfg.instrucciones || '') + '</textarea>'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap"><div class="cs">' + (cfg.actualizadoEn ? 'Última edición: ' + _waEsc(cfg.actualizadoPor || '') + ' · ' + _waHora(cfg.actualizadoEn) : 'Nadie las ha editado todavía') + (puede ? '' : ' · solo administración las edita') + '</div>' + (puede ? '<button class="btn btn-p btn-sm" onclick="waGuardarInstrucciones(document.getElementById(\'wa-instr\').value)">Guardar</button>' : '') + '</div></div>'
-      + '<div style="display:grid;gap:12px">'
-      + '<div class="card"><div class="ct">Reglas fijas (no se cambian desde aquí)</div><ul style="margin:8px 0 0 18px;padding:0;font-size:12.5px;line-height:1.7;color:var(--ink2)">'
-      + '<li>Solo habla del crédito del cliente: cuánto debe, cuándo vence, cómo pagar y su comprobante.</li><li>Nunca aprueba, descuenta, refinancia ni promete nada: eso lo consulta con el equipo.</li><li>No inventa montos: todo sale del ledger del sistema.</li><li>No pide cédula ni documentos por el chat.</li><li>Si el cliente se queja, pide una persona o manda una imagen, se calla y avisa.</li><li>Tono: cercano, breve, en el español de Venezuela; recuerda, nunca amenaza.</li></ul></div>'
-      + '<div class="card"><div class="ct">Conexión con Meta</div>' + (conectado ? '<div class="cs">Número ' + _waEsc(cfg.telefono || '') + ' conectado por la API oficial de WhatsApp.</div>' : '<div class="cs" style="line-height:1.6">Pendiente: verificación del negocio en Meta, número de WhatsApp dedicado a cobranza, plantillas aprobadas y las claves en el servidor. Mientras tanto el módulo funciona en demostración.</div>') + '</div>'
-      + '<div class="card"><div class="ct">Horario de los recordatorios</div><div class="cs" style="line-height:1.6">Todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento, al tercer día de vencida y al sexto; de 10 días en adelante no insiste y lo pasa a un cobrador.</div></div>'
-      + '</div></div>';
-  }
+  if(tab === 'conv') h += _waPanelConversaciones(ctx);
+  if(tab === 'asistente') h += _waPanelAsistente(ctx);
   h += '</div>';
   return h;
 };

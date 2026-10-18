@@ -53,6 +53,10 @@ function waCargarCfg(cb){
   }).catch(function(){ _waRoot._waCfg = { instrucciones:'', conectado:false }; if(cb) cb(_waRoot._waCfg); });
 }
 function waConectado(){ return !!(_waRoot._waCfg && _waRoot._waCfg.conectado); }
+// Instagram cuenta como conectado cuando config/asistente trae el usuario de la cuenta (lo pone quien lo conecta)
+function waConectadoCanal(canal){ return canal === 'instagram' ? !!(_waRoot._waCfg && _waRoot._waCfg.instagram) : waConectado(); }
+// A qué módulo del panel pertenece una conversación (por su id)
+function _waModuloDe(id){ return String(id || '').indexOf('ig:') === 0 ? 'instagram' : 'whatsapp'; }
 
 // ── La cola de hoy: a quién le tocaría un mensaje, calculado con el ledger ──
 function waColaHoy(creds, pagos, clientes, hoy){
@@ -104,7 +108,7 @@ _waRoot._waUnsub = _waRoot._waUnsub || null;
 function _waAhoraMenos(min){ return new Date(Date.now() - min * 60000).toISOString(); }
 // Conversaciones de muestra: nacen de la cola real para que se parezcan a la cartera de verdad
 function waDemoConversaciones(cola){
-  if(_waRoot._waConvs.length) return _waRoot._waConvs;
+  if(_waRoot._waConvs.some(function(c){ return (c.canal || 'whatsapp') === 'whatsapp'; })) return _waRoot._waConvs;
   var cand = [].concat(cola.grupos.hoy, cola.grupos.gracia, cola.grupos.atrasadas, cola.grupos.proximas).filter(function(i){ return i.tel; }).slice(0, 5);
   var nombres = ['María Pérez', 'José Rojas', 'Luisa Mora', 'Carlos Díaz', 'Rosa Gil'];
   while(cand.length < 5){ var k = cand.length; cand.push({ cred: 'M-0' + (11 + k), clienteId: 'demo-' + k, nombre: nombres[k], tel: '+5841400000' + k, cuota: 4 + k, totalCuotas: 24, monto: 50, fechaVence: cola.hoy, dias: k - 1, modelo: 'EK XPRESS 150', vencidas: k > 1 ? 1 : 0, montoVencido: k > 1 ? 50 : 0 }); }
@@ -127,13 +131,39 @@ function waDemoConversaciones(cola){
       if(m[2] === 'promesa'){ var f = new Date(); f.setDate(f.getDate() + ((6 - f.getDay() + 7) % 7 || 7)); borrador = { tipo: 'promesa', fecha: f.toISOString().slice(0, 10), monto: it.monto, cuota: it.cuota }; }
     });
     var ult = msgs[msgs.length - 1];
-    convs.push({ id: id, canal: 'whatsapp', telE164: it.tel, nombre: it.nombre, clienteId: it.clienteId, clienteNombre: it.nombre, cred: it.cred, modo: 'bot', atencion: aten, borrador: borrador,
+    convs.push({ id: id, canal: 'whatsapp', area: 'cobranza', telE164: it.tel, nombre: it.nombre, clienteId: it.clienteId, clienteNombre: it.nombre, cred: it.cred, modo: 'bot', atencion: aten, borrador: borrador,
       resumen: i === 1 ? 'Preguntó cuánto debe; se le dieron los datos de pago.' : (i === 2 ? 'Prometió pagar el sábado.' : ''), noLeidos: aten ? 1 : 0, ultimoMensaje: ult.texto, ultimoMensajeHora: ult.hora,
       ultimoEntranteHora: msgs.filter(function(m){ return m.autor === 'cliente'; }).map(function(m){ return m.hora; }).pop() || _waAhoraMenos(60 * 30), demo: true });
     _waRoot._waMsgs[id] = msgs;
   });
-  _waRoot._waConvs = convs;
-  return convs;
+  // Y una de VENTAS por WhatsApp: alguien que no es cliente y pregunta por una moto
+  var wv = 'wa:+584125550000', hWv = _waAhoraMenos(40);
+  _waRoot._waMsgs[wv] = [
+    { id: wv + '-0', autor: 'cliente', direccion: 'entrante', tipo: 'texto', texto: 'buenas, vi la Kavak 250 en la página. cuánto es la cuota?', hora: _waAhoraMenos(46), estado: 'recibido' },
+    { id: wv + '-1', autor: 'asistente', direccion: 'saliente', tipo: 'texto', texto: '¡Hola! La Kavak 250 está en $2,900: inicial desde $1,160 (40%) y cuota quincenal de $245 a 12 meses. Son montos de referencia; tu asesor los confirma. ¿En qué ciudad estás?', hora: _waAhoraMenos(45), estado: 'leido' },
+    { id: wv + '-2', autor: 'cliente', direccion: 'entrante', tipo: 'texto', texto: 'Valencia. soy Ana Torres, me interesa', hora: _waAhoraMenos(41), estado: 'recibido' },
+    { id: wv + '-3', autor: 'asistente', direccion: 'saliente', tipo: 'texto', texto: 'Perfecto, Ana 🙌 Ya le pasé tus datos a un asesor de Pagasi para que te escriba por aquí mismo. Si quieres adelantar, la solicitud está en pagasi.io/solicitar.', hora: hWv, estado: 'entregado' }
+  ];
+  convs.push({ id: wv, canal: 'whatsapp', area: 'ventas', telE164: '+584125550000', nombre: 'Ana Torres', clienteId: '', clienteNombre: '', cred: '', modo: 'bot', atencion: 'lead',
+    borrador: { tipo: 'lead', nombre: 'Ana Torres', ciudad: 'Valencia', modelo: 'Kavak 250', telefono: '584125550000' }, resumen: 'Preguntó por la Kavak 250; quiere que la llamen (Valencia).',
+    noLeidos: 1, ultimoMensaje: _waRoot._waMsgs[wv][3].texto, ultimoMensajeHora: hWv, ultimoEntranteHora: _waAhoraMenos(41), demo: true });
+  _waRoot._waConvs = _waRoot._waConvs.concat(convs);
+  return _waRoot._waConvs;
+}
+// La demostración de Instagram (ventas): alguien que pregunta por una moto y deja sus datos
+function waDemoInstagram(){
+  if(_waRoot._waConvs.some(function(c){ return c.canal === 'instagram'; })) return _waRoot._waConvs;
+  var ig = 'ig:demo-1', hIg = _waAhoraMenos(25);
+  _waRoot._waMsgs[ig] = [
+    { id: ig + '-0', autor: 'cliente', direccion: 'entrante', tipo: 'texto', texto: 'hola, cuánto es la inicial de la BRZ 200?', hora: _waAhoraMenos(31), estado: 'recibido' },
+    { id: ig + '-1', autor: 'asistente', direccion: 'saliente', tipo: 'texto', texto: '¡Hola! La BRZ 200 está en $1,750: inicial desde $700 (40%) y cuota quincenal de $148 a 12 meses. Son montos de referencia; tu asesor los confirma. ¿En qué ciudad estás?', hora: _waAhoraMenos(30), estado: 'leido' },
+    { id: ig + '-2', autor: 'cliente', direccion: 'entrante', tipo: 'texto', texto: 'en Maracay. me interesa, soy Luis Pérez 0414-5550000', hora: _waAhoraMenos(26), estado: 'recibido' },
+    { id: ig + '-3', autor: 'asistente', direccion: 'saliente', tipo: 'texto', texto: 'Perfecto, Luis 🙌 Ya le pasé tus datos a un asesor de Pagasi: te escribe por WhatsApp para confirmar disponibilidad en la sede más cercana. Mientras, puedes adelantar la solicitud en pagasi.io/solicitar.', hora: hIg, estado: 'entregado' }
+  ];
+  _waRoot._waConvs.push({ id: ig, canal: 'instagram', area: 'ventas', igsid: 'demo-1', usuario: 'luisperez.ve', nombre: 'Luis Pérez', telE164: '', clienteId: '', clienteNombre: '', cred: '', modo: 'bot', atencion: 'lead',
+    borrador: { tipo: 'lead', nombre: 'Luis Pérez', ciudad: 'Maracay', modelo: 'BRZ 200', telefono: '584145550000' }, resumen: 'Preguntó por la BRZ 200; quiere que lo llamen (Maracay).',
+    noLeidos: 1, ultimoMensaje: _waRoot._waMsgs[ig][3].texto, ultimoMensajeHora: hIg, ultimoEntranteHora: _waAhoraMenos(26), demo: true });
+  return _waRoot._waConvs;
 }
 // El asistente de muestra: unas pocas reglas, para ver el flujo sin Meta ni Claude
 function waDemoResponder(conv, texto){
@@ -147,15 +177,19 @@ function waDemoResponder(conv, texto){
   return { texto: 'Soy el asistente de cobranza de Pagasi y solo puedo ayudarte con tu crédito: cuánto debes, cuándo vence y cómo pagar. Si necesitas otra cosa, te comunico con una persona.', atencion: '' };
 }
 
-function waAbrirConversaciones(cb){
-  if(!waConectado()){ if(cb) cb(_waRoot._waConvs); return; }
-  if(_waRoot._waUnsub){ if(cb) cb(_waRoot._waConvs); return; }
+function waAbrirConversaciones(canal, cb){
+  if(typeof canal === 'function'){ cb = canal; canal = 'whatsapp'; }
+  canal = canal || 'whatsapp';
+  if(!waConectadoCanal(canal)){ if(cb) cb(_waRoot._waConvs); return; }
+  _waRoot._waUnsubs = _waRoot._waUnsubs || {};
+  if(_waRoot._waUnsubs[canal]){ if(cb) cb(_waRoot._waConvs); return; }
   if(typeof db === 'undefined' || !db){ if(cb) cb([]); return; }
-  _waRoot._waUnsub = db.collection('conversaciones').orderBy('actualizado', 'desc').limit(200).onSnapshot(function(snap){
-    _waRoot._waConvs = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
-    if(S.page === 'whatsapp' && typeof nav === 'function') nav('whatsapp');
+  _waRoot._waUnsubs[canal] = db.collection('conversaciones').where('canal', '==', canal).orderBy('actualizado', 'desc').limit(200).onSnapshot(function(snap){
+    var otras = (_waRoot._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') !== canal; });
+    _waRoot._waConvs = otras.concat(snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }));
+    if((S.page === 'whatsapp' || S.page === 'instagram') && typeof nav === 'function') nav(S.page);
     if(cb){ cb(_waRoot._waConvs); cb = null; }
-  }, function(e){ console.warn('conversaciones:', e); if(cb) cb([]); });
+  }, function(e){ console.warn('conversaciones ' + canal + ':', e); if(cb) cb([]); });
 }
 function waAbrirMensajes(id, cb){
   if(!waConectado()){ if(cb) cb(_waRoot._waMsgs[id] || []); return; }
@@ -171,30 +205,51 @@ function _waActualizar(id, cambios, accion){
   var c = _waConv(id); if(!c) return Promise.resolve();
   Object.assign(c, cambios);
   if(typeof logActividad === 'function' && accion) logActividad(accion, 'whatsapp', id, {});
-  if(!waConectado() || typeof db === 'undefined' || !db) return Promise.resolve();
+  if(!waConectadoCanal(c.canal) || typeof db === 'undefined' || !db) return Promise.resolve();
   return db.collection('conversaciones').doc(id).set(Object.assign({}, cambios, { actualizado: new Date().toISOString() }), { merge: true }).catch(function(e){ toast('No se pudo guardar: ' + (e && e.message || e), 'error'); });
 }
-function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){ toast('La conversación es tuya: el asistente se calla hasta que la devuelvas', 'success'); nav('whatsapp'); }); }
-function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa_devolver').then(function(){ toast('El asistente vuelve a atender', 'info'); nav('whatsapp'); }); }
-function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ nav('whatsapp'); }); }
+function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){ toast('La conversación es tuya: el asistente se calla hasta que la devuelvas', 'success'); nav(_waModuloDe(id)); }); }
+function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa_devolver').then(function(){ toast('El asistente vuelve a atender', 'info'); nav(_waModuloDe(id)); }); }
+function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ nav(_waModuloDe(id)); }); }
 // Ventana de 24 h de Meta: solo se puede escribir libre si el cliente escribió en las últimas 24 h
-function waVentanaAbierta(conv, ahora){ if(!conv || !conv.ultimoEntranteHora) return false; return (Date.parse(ahora || new Date().toISOString()) - Date.parse(conv.ultimoEntranteHora)) < 24 * 3600 * 1000; }
+function waVentanaAbierta(conv, ahora){ if(!conv || !conv.ultimoEntranteHora) return false; var t = (ahora ? new Date(ahora) : new Date()).getTime() - new Date(conv.ultimoEntranteHora).getTime(); return t < (conv.canal === 'instagram' ? 7 * 24 : 24) * 3600 * 1000; }
 function waEnviarEquipo(id, texto){
   var c = _waConv(id); texto = String(texto || '').trim();
   if(!c || !texto) return;
   if(!waVentanaAbierta(c)){ toast('La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return; }
-  var m = { autor: 'equipo', direccion: 'saliente', tipo: 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectado() ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
+  var m = { autor: 'equipo', direccion: 'saliente', tipo: 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
   (_waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []).push(Object.assign({ id: 'local-' + Date.now() }, m));
   Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por });
-  if(waConectado() && typeof db !== 'undefined' && db){
-    var ref = db.collection('conversaciones').doc(id);
-    ref.collection('mensajes').add(m).then(function(){ return ref.set({ modo: 'humano', atendidoPor: m.por, ultimoMensaje: texto, ultimoMensajeHora: m.hora, actualizado: m.hora }, { merge: true }); })
-      .catch(function(e){ toast('No se pudo enviar: ' + (e && e.message || e), 'error'); });
-  }
+  if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m);
   if(typeof logActividad === 'function') logActividad('wa_mensaje_equipo', 'whatsapp', id, { largo: texto.length });
   if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
 }
+// Con Meta conectado el mensaje del equipo lo manda el servidor (Cloud Functions): él habla con
+// Meta y guarda el mensaje; aquí solo se pide con la sesión del usuario. La URL se puede cambiar
+// en config/asistente.urlEquipo.
+var WA_URL_EQUIPO = 'https://us-east1-pagasi26-65ced.cloudfunctions.net/whatsappWebhook/equipo';
+function waEmpresa(){ return (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG && FIREBASE_CONFIG.projectId === 'pagasi-v2') ? '18' : '26'; }
+function _waMandarAlServidor(id, texto, m){
+  var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
+  var fallo = function(msg){ m.estado = 'fallo'; toast('No se pudo enviar: ' + msg, 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); };
+  var user = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) || null;
+  if(!user){ fallo('sin sesión'); return Promise.resolve(); }
+  return user.getIdToken().then(function(tok){
+    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify({ empresa: waEmpresa(), conv: id, texto: texto }) });
+  }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); m.estado = 'enviado'; }); })
+    .catch(function(e){ fallo(e && e.message || e); });
+}
 // En la demostración el "cliente" responde para que se vea el ida y vuelta del asistente
+// En la demostración de Instagram el asistente de ventas contesta con frases de muestra
+function waDemoResponderVentas(conv, texto){
+  var t = String(texto || '').toLowerCase();
+  if(/precio|cu[aá]nto|inicial|cuota/.test(t)) return { texto: 'La BRZ 200 está en $1,750: inicial desde $700 (40%) y cuota quincenal de $148 a 12 meses. Son montos de referencia; tu asesor los confirma. ¿Te interesa esa o quieres ver otras?' };
+  if(/piden|requisito|papeles|documento|necesito/.test(t)) return { texto: 'Es sencillo: llenas la solicitud en pagasi.io/solicitar (datos personales, trabajo e ingresos y dos referencias), la revisa un asesor y te escribe por WhatsApp. Sin garantía de aprobación hasta esa revisión. ¿Quieres que te llamen?' };
+  if(/quiero|c[oó]mo hago|ll[aá]menme|llamen|interesa/.test(t)) return { texto: conv && conv.canal === 'instagram' ? 'Dame tu nombre, tu ciudad y tu WhatsApp y un asesor te escribe hoy mismo 🙌' : 'Dime tu nombre y tu ciudad y un asesor te escribe por aquí mismo hoy 🙌', atencion: 'lead' };
+  if(/maracay|valencia|caracas|barquisimeto|tienen en/.test(t)) return { texto: 'Trabajamos con concesionarios aliados; tu asesor te confirma la sede más cercana y la disponibilidad. ¿Qué modelo te interesa?' };
+  if(/persona|humano|asesor/.test(t)) return { texto: 'Claro, ya le avisé a un asesor de Pagasi para que te escriba por aquí.', atencion: 'pide_persona' };
+  return { texto: '¡Hola! Soy el asistente de Pagasi. ¿Qué moto te interesa o en qué ciudad estás? Te digo inicial y cuota al momento.' };
+}
 function waDemoClienteEscribe(id, texto){
   var c = _waConv(id); if(!c) return;
   var hora = new Date().toISOString();
@@ -203,20 +258,22 @@ function waDemoClienteEscribe(id, texto){
   if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
   if(c.modo !== 'bot') return;
   setTimeout(function(){
-    var r = waDemoResponder(c, texto), h2 = new Date().toISOString();
+    var r = (c.area === 'ventas' ? waDemoResponderVentas : waDemoResponder)(c, texto), h2 = new Date().toISOString();
     _waRoot._waMsgs[id].push({ id: 'local-' + Date.now(), autor: 'asistente', direccion: 'saliente', tipo: 'texto', texto: r.texto, hora: h2, estado: 'entregado' });
     Object.assign(c, { ultimoMensaje: r.texto, ultimoMensajeHora: h2, atencion: r.atencion || c.atencion || '', borrador: r.borrador || c.borrador || null, resumen: r.borrador ? 'Prometió pagar el ' + _waFechaCorta(r.borrador.fecha) + '.' : c.resumen });
     if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
     if(typeof _waPintarLista === 'function') _waPintarLista();
   }, 900);
 }
-function waGuardarInstrucciones(texto){
+function waGuardarInstrucciones(texto, datosPago, ventas){
   if(typeof isAdminUser === 'function' && !isAdminUser()){ toast('Solo un administrador cambia las instrucciones del asistente', 'error'); return; }
-  texto = String(texto || '');
-  var datos = { instrucciones: texto, actualizadoPor: (S.currentUser && S.currentUser.nombre) || '', actualizadoEn: new Date().toISOString() };
+  var datos = { actualizadoPor: (S.currentUser && S.currentUser.nombre) || '', actualizadoEn: new Date().toISOString() };
+  if(typeof texto === 'string') datos.instrucciones = texto;        // cobranza
+  if(typeof datosPago === 'string') datos.datosPago = datosPago;   // cómo pagar: lo que el asistente le dice al cliente
+  if(typeof ventas === 'string') datos.instruccionesVentas = ventas;   // lo que sabe el de ventas (Instagram)
   _waRoot._waCfg = Object.assign(_waRoot._waCfg || {}, datos);
-  var fin = function(){ if(typeof logActividad === 'function') logActividad('asistente_instrucciones', 'whatsapp', 'config/asistente', { largo: texto.length }); toast('Instrucciones guardadas: el asistente las lee en su próxima respuesta', 'success'); };
+  var fin = function(){ if(typeof logActividad === 'function') logActividad('asistente_instrucciones', 'whatsapp', 'config/asistente', { campos: Object.keys(datos).join(',') }); toast('Instrucciones guardadas: el asistente las lee en su próxima respuesta', 'success'); };
   if(typeof db === 'undefined' || !db){ fin(); return; }
   db.collection('config').doc('asistente').set(datos, { merge: true }).then(fin).catch(function(e){ toast('No se pudo guardar: ' + (e && e.message || e), 'error'); });
 }
-if(typeof module !== 'undefined' && module.exports) module.exports = { waTelE164: waTelE164, waColaHoy: waColaHoy, waPlantilla: waPlantilla, waDemoResponder: waDemoResponder, waVentanaAbierta: waVentanaAbierta, WA_GRUPOS: WA_GRUPOS };
+if(typeof module !== 'undefined' && module.exports) module.exports = { waTelE164: waTelE164, waColaHoy: waColaHoy, waPlantilla: waPlantilla, waDemoResponder: waDemoResponder, waVentanaAbierta: waVentanaAbierta, waEmpresa: waEmpresa, waDemoResponderVentas: waDemoResponderVentas, waConectadoCanal: waConectadoCanal, _waModuloDe: _waModuloDe, WA_GRUPOS: WA_GRUPOS, WA_URL_EQUIPO: WA_URL_EQUIPO };
