@@ -227,7 +227,7 @@ function waEnviarEquipo(id, texto){
 // Con Meta conectado el mensaje del equipo lo manda el servidor (Cloud Functions): él habla con
 // Meta y guarda el mensaje; aquí solo se pide con la sesión del usuario. La URL se puede cambiar
 // en config/asistente.urlEquipo.
-var WA_URL_EQUIPO = 'https://us-east1-pagasi26-65ced.cloudfunctions.net/whatsappWebhook/equipo';
+var WA_URL_EQUIPO = 'https://pagasi-webhook-5ao0p23z.ue.gateway.dev/equipo';   // la puerta pública (API Gateway) delante del servidor
 function waEmpresa(){ return (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG && FIREBASE_CONFIG.projectId === 'pagasi-v2') ? '18' : '26'; }
 function _waMandarAlServidor(id, texto, m){
   var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
