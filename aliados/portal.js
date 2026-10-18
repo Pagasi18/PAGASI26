@@ -218,23 +218,53 @@
       return true;
     }catch(e){ console.warn('firebase:', e); return false; }
   }
+  // Modo Pagasi: el personal entra con su cuenta del sistema y elige qué aliado ver (las Reglas le
+  // dejan leer todos los resúmenes). Así Adam revisa el portal de EK antes de invitar al dueño.
+  var TODOS = [];
   function cargarAliado(user){
     return db.collection('usuarios').doc(user.uid).get().then(function(d){
       var u = d.exists ? d.data() : null;
-      if(!u || u.rol !== 'Aliado'){ var e = new Error('no-aliado'); e.code = 'pagasi/no-aliado'; throw e; }
+      if(!u){ var e = new Error('no-aliado'); e.code = 'pagasi/no-aliado'; throw e; }
+      if(u.rol !== 'Aliado'){
+        return db.collection('aliados_resumen').get().then(function(snap){
+          TODOS = snap.docs.map(function(x){ return x.data(); }).filter(function(r){ return r && r.concId; })
+            .sort(function(a, b){ return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'); });
+          if(!TODOS.length){ var e0 = new Error('sin-resumen'); e0.code = 'pagasi/sin-resumen'; throw e0; }
+          return { modo: 'pagasi', quien: u.nombre || user.email || '' };
+        });
+      }
       var sedes = (u.concesionarios || []).map(String).filter(Boolean);
       if(!sedes.length){ var e2 = new Error('sin-sedes'); e2.code = 'pagasi/sin-sedes'; throw e2; }
       return Promise.all(sedes.map(function(id){ return db.collection('aliados_resumen').doc(id).get().then(function(r){ return r.exists ? r.data() : null; }).catch(function(){ return null; }); }))
         .then(function(rs){
           rs = rs.filter(Boolean);
           if(!rs.length){ var e3 = new Error('sin-resumen'); e3.code = 'pagasi/sin-resumen'; throw e3; }
-          return desdeResumenes(rs, { nombre: u.nombre || '', grupo: u.grupo || '', logoAliado: u.logoAliado || '' });
+          return { modo: 'aliado', datos: desdeResumenes(rs, { nombre: u.nombre || '', grupo: u.grupo || '', logoAliado: u.logoAliado || '' }) };
         });
     });
   }
+  function recibir(res){
+    if(res.modo === 'pagasi'){ $('modo-pagasi').hidden = false; $('modo-quien').textContent = res.quien ? ' · ' + res.quien : ''; abrirPicker(); return; }
+    $('modo-pagasi').hidden = true; entrar(res.datos);
+  }
+  function abrirPicker(){
+    var lista = $('picker-lista');
+    lista.innerHTML = TODOS.map(function(r){ return '<label><input type="checkbox" value="' + r.concId + '"> <b>' + String(r.nombre || r.concId) + '</b><span>' + (r.mes ? (r.mes.motos || 0) + ' motos este mes · ' + USD(r.mes.vol || 0) : '') + '</span></label>'; }).join('');
+    $('picker').hidden = false; $('entrada').hidden = true;
+  }
+  function verElegidos(){
+    var ids = [].map.call(document.querySelectorAll('#picker-lista input:checked'), function(i){ return i.value; });
+    if(!ids.length){ $('picker-msj').textContent = 'Marca al menos una sede.'; return; }
+    $('picker-msj').textContent = '';
+    var rs = TODOS.filter(function(r){ return ids.indexOf(r.concId) > -1; });
+    var grupo = String($('picker-grupo').value || '').trim();
+    var logo = /empire|ek\b|haojin/i.test(rs.map(function(r){ return r.nombre; }).join(' ')) && !rs.some(function(r){ return !/empire|ek\b|haojin/i.test(String(r.nombre)); }) ? 'assets/aliados/ek-blanco.png' : '';
+    $('picker').hidden = true;
+    entrar(desdeResumenes(rs, { nombre: grupo || (rs.length === 1 ? rs[0].nombre : rs.map(function(r){ return String(r.nombre).replace(/^EMPIRE\s+/i, 'EK '); }).join(' · ')), grupo: grupo, logoAliado: logo }));
+  }
   function mensajeDe(e){
     var c = String((e && e.code) || '');
-    if(c === 'pagasi/no-aliado') return 'Esta entrada es para concesionarios aliados. Si eres del equipo de Pagasi, entra por el sistema.';
+    if(c === 'pagasi/no-aliado') return 'Ese correo no tiene cuenta en Pagasi. Si eres aliado, pídele a tu asesor la invitación.';
     if(c === 'pagasi/sin-sedes') return 'Tu cuenta todavía no tiene concesionarios asignados. Escríbele a tu asesor.';
     if(c === 'pagasi/sin-resumen') return 'Tus datos se están preparando. Vuelve a intentar en una hora o escríbele a tu asesor.';
     if(/wrong-password|invalid-credential|user-not-found|invalid-login/.test(c)) return 'Correo o clave incorrectos. Si no los tienes, pídeselos a tu asesor.';
@@ -269,7 +299,7 @@
       if(!firebaseListo()){ fallo('No se pudo conectar. Revisa tu internet e intenta de nuevo.'); return; }
       entrando = true; botonEsperando(true); $('error').textContent = '';
       auth.signInWithEmailAndPassword(u, c).then(function(r){ return cargarAliado(r.user); })
-        .then(function(datos){ entrando = false; botonEsperando(false); entrar(datos); })
+        .then(function(res){ entrando = false; botonEsperando(false); recibir(res); })
         .catch(function(err){ entrando = false; console.warn('entrada:', err && err.code); fallo(mensajeDe(err)); if(/pagasi\//.test(String(err && err.code))){ try{ auth.signOut(); }catch(_e){} } });
       return;
     }
@@ -278,13 +308,18 @@
       setTimeout(function(){ botonEsperando(false); entrar(DEMO); }, REDUCIR ? 0 : 750);
     } else { fallo('Usuario o clave incorrectos. Si no los tienes, pídeselos a tu asesor.'); }
   });
-  $('salir').addEventListener('click', function(e){ e.preventDefault(); var fin = function(){ D = DEMO; mostrarEntrada(); }; if(auth && auth.currentUser) auth.signOut().then(fin, fin); else fin(); });
+  var salir = function(e){ if(e) e.preventDefault(); var fin = function(){ D = DEMO; TODOS = []; $('picker').hidden = true; $('modo-pagasi').hidden = true; mostrarEntrada(); }; if(auth && auth.currentUser) auth.signOut().then(fin, fin); else fin(); };
+  $('salir').addEventListener('click', salir);
+  $('picker-salir').addEventListener('click', salir);
+  $('picker-ver').addEventListener('click', verElegidos);
+  $('cambiar-aliado').addEventListener('click', function(){ $('tablero').hidden = true; abrirPicker(); });
   $('pdf').addEventListener('click', function(){ $('pdf-msj').textContent = 'Se abre la ventana de impresión: elige «Guardar como PDF».'; setTimeout(function(){ window.print(); }, 50); });
   // Si ya hay sesión de aliado (viene del sistema o volvió a abrir la página), entra directo
   if(firebaseListo()){
     auth.onAuthStateChanged(function(user){
       if(!user || entrando || !$('tablero').hidden) return;
-      cargarAliado(user).then(function(datos){ entrar(datos); }).catch(function(){ /* no es aliado: se queda en la entrada */ });
+      if(!$('picker').hidden) return;
+      cargarAliado(user).then(recibir).catch(function(){ /* sin ficha: se queda en la entrada */ });
     });
   }
   window.PortalAliados = { desdeResumenes: desdeResumenes, DEMO: DEMO, pinta: pinta };

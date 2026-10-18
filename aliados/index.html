@@ -125,6 +125,20 @@
 .al-marcas img{height:40px;width:auto;display:block;opacity:.92}
 .al-marcas span{font-size:12.5px;color:var(--fg-2)}
 
+/* ── Modo Pagasi: elegir aliado ── */
+.picker{min-height:100vh;background:#f3f7fe;display:grid;place-items:center;padding:24px 16px}
+.picker-caja{width:100%;max-width:560px;background:#fff;border:1px solid var(--linea);border-radius:20px;padding:28px 26px;box-shadow:0 24px 50px -30px #002d8a55}
+.picker-caja h2{font-size:22px;letter-spacing:-.5px;margin:18px 0 6px}
+.picker-caja p{color:var(--fg-2);margin:0 0 14px;font-size:14px}
+.picker-lista{display:grid;gap:6px;max-height:46vh;overflow:auto;padding:4px;margin-bottom:12px}
+.picker-lista label{display:flex;align-items:center;gap:10px;border:1px solid var(--linea);border-radius:12px;padding:10px 12px;cursor:pointer;font-size:13px}
+.picker-lista label:has(input:checked){border-color:var(--azul);background:var(--azul-claro)}
+.picker-lista label span{margin-left:auto;color:var(--fg-3);font-size:11.5px;white-space:nowrap}
+.picker-msj{color:var(--mal);font-size:12.5px;font-weight:700;min-height:18px;margin-top:8px}
+.picker-acciones{display:flex;gap:10px;align-items:center;margin-top:8px}
+.picker-acciones .btn-g{margin:0}
+.modo-pagasi{background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;font-size:12.5px;font-weight:700;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.modo-pagasi button{background:#fff;color:#0F172A;border:0;border-radius:9px;font:inherit;font-size:12px;font-weight:800;padding:7px 11px;cursor:pointer}
 /* ── Tablero (adentro) ── */
 #tablero{font-size:14px;background:var(--bg);min-height:100vh}
 .wrap{max-width:1120px;margin:0 auto;padding-inline:16px}
@@ -322,8 +336,22 @@
 <footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584242177798?text=Hola%2C%20quiero%20informacion%20sobre%20una%20moto%20en%20cuotas%20con%20Pagasi.">+58 424-217-7798</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer>
 </div>
 
+<!-- ══════════ Modo Pagasi: el personal elige qué aliado ver ══════════ -->
+<div id="picker" class="picker" hidden>
+  <div class="picker-caja">
+    <img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi" style="width:150px;height:auto">
+    <h2>¿Qué aliado quieres ver?</h2>
+    <p>Marca una o varias sedes (las del mismo dueño se ven juntas, como las verá él).</p>
+    <div class="picker-lista" id="picker-lista"></div>
+    <input class="pg-control" id="picker-grupo" placeholder="Nombre del grupo (opcional, p. ej. Grupo EK · Haojin)">
+    <div class="picker-msj" id="picker-msj"></div>
+    <div class="picker-acciones"><button type="button" class="pg-button" id="picker-ver">Ver su portal</button><button type="button" class="btn-g" id="picker-salir">Salir</button></div>
+  </div>
+</div>
+
 <!-- ══════════ Tablero (adentro): el aliado de muestra es BERA ══════════ -->
 <div id="tablero" hidden>
+<div class="modo-pagasi" id="modo-pagasi" hidden><span>Modo Pagasi · viendo el portal como lo ve el aliado<span id="modo-quien"></span></span><button type="button" id="cambiar-aliado">Cambiar de aliado</button></div>
 <header class="top">
   <div class="wrap">
     <div class="barra">
@@ -463,6 +491,6 @@
 })();
 </script>
 <script src="assets/public/hero-motion.js?v=20261015-4"></script>
-<script src="aliados/portal.js?v=20261018-1"></script>
+<script src="aliados/portal.js?v=20261018-2"></script>
 </body>
 </html>
