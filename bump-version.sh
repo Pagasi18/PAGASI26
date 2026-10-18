@@ -16,6 +16,9 @@ echo "→ Bumpeando versión a: $VERSION"
 # viejo en caché (punto 37 de la lista del 18-sep).
 perl -i -pe "s#(\.(?:js|css))\?v=[^\"\s]+#\1?v=$VERSION#g" admin.html
 [ -f micuenta.html ] && perl -i -pe "s#(\.(?:js|css))\?v=[^\"\s]+#\1?v=$VERSION#g" micuenta.html
+# aliados/index.html (portal de aliados): su portal.js no se versionaba y el 18-oct-2026 el navegador
+# de Adam siguió con el JS viejo después de publicar un cambio.
+[ -f aliados/index.html ] && perl -i -pe "s#(aliados/portal\.js)\?v=[^\"\s]+#\1?v=$VERSION#g" aliados/index.html
 
 COUNT=$(grep -cE "\.(js|css)\?v=$VERSION" admin.html)
 echo "✓ $COUNT archivos actualizados a v=$VERSION (admin.html, scripts y estilos)"
