@@ -33,7 +33,7 @@ ok('el bono no aplica (aliado viejo) y la cartera >60 días son los dos crédito
 ok('las ventas vienen ordenadas por fecha, con sede, modelo, nombre corto y estado', D.VENTAS.length === 5 && D.VENTAS[0][1] === 'C-BM' && D.VENTAS[0][2] === 'EK XPRESS 150' && D.VENTAS[0][3] === 'Ana López' && ['aldia','atraso'].includes(D.VENTAS[0][4]));
 ok('la solicitud pendiente aparece primero, con el vendedor', D.SOL[0][0] === 'Pendiente' && /Luis/.test(D.SOL[0][3]) && D.SOL[0][4] === 'ojo');
 ok('los movimientos del depósito llevan saldo acumulado', D.MOVS.length === 5 && typeof D.MOVS[0][4] === 'number');
-ok('el ranking de la sede marca "tú" y deja a los demás sin nombre', D.RANK['C-BM'].some(r => r[2]) && D.RANK['C-BM'].some(r => /Concesionario · /.test(r[0])) && D.totalAliados === 3);
+ok('en vez del ranking, los modelos más financiados: por sede y sumados para el grupo', D.MODELOS['C-BM'][0][0] === 'EK XPRESS 150' && D.MODELOS['C-BM'][0][1] === 2 && D.MODELOS.todas[0][1] === 3 && D.MODELOS.todas[0][2] === 2460);
 ok('la hora de actualización sale del robot', /a las \d{1,2}:\d{2}/.test(D.actualizado));
 ok('las etiquetas de la gráfica son los últimos seis meses', D.SEDES.todas.etiquetas.length === 6 && D.SEDES.todas.etiquetas[5] === 'Oct' && D.SEDES.todas.meses[5] === 2460);
 ok('sin resúmenes no se rompe', ctx.PortalAliados.desdeResumenes([], {}).orden.join() === 'todas');
@@ -48,7 +48,7 @@ const docsG = ['C-BM', 'C-HJ'].map(id => Object.assign({ concId: id, actualizado
 const grupoDoc = Object.assign({ concId: 'G-EK', actualizadoEn: '2026-10-17T14:05:00.000Z', hoy: HOY }, resGr['G-EK']);
 const G = ctx.PortalAliados.desdeResumenes(docsG, { nombre: 'Dueño EK', grupo: '', logoAliado: '' }, grupoDoc);
 ok('con el grupo del robot, "todas" es el resumen del grupo y lleva su nombre', G.esGrupo === true && G.nombre === 'EK' && G.NOM.todas === 'EK' && G.SEDES.todas.motos === 3 && G.SEDES.todas.vol === 2460 && G.SEDES.todas.saldo === 10660);
-ok('...el ranking es el del grupo: cuenta como un solo aliado (2 en total) y va de primero o segundo frente a C-X', G.RANK.todas.some(r => r[2] && /EK \(tú\)/.test(r[0])) && G.totalAliados === 2);
+ok('...los modelos del grupo salen del resumen del grupo (3 motos del modelo del mes)', G.MODELOS.todas[0][0] === 'EK XPRESS 150' && G.MODELOS.todas[0][1] === 3);
 ok('...las sedes siguen como desglose y el logo de EK sale solo', G.orden.join() === 'todas,C-BM,C-HJ' && G.SEDES['C-BM'].vol === 1680 && G.logo === 'assets/aliados/ek-blanco.png');
 ok('sin el grupo del robot sigue sumando como antes', ctx.PortalAliados.desdeResumenes(docsG, { nombre: 'Dueño EK' }).esGrupo === false);
 

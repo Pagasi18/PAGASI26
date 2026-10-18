@@ -38,6 +38,8 @@ ok('el kardex va del más nuevo al más viejo con saldo acumulado', r.deposito.m
 ok('las ventas salen sin datos personales: fecha, modelo, nombre corto, financiado y días de atraso', r.ventas.length === 4 && r.ventas.every(v => Object.keys(v).sort().join() === 'completado,dias,empresa,fecha,fin,modelo,nombre') && r.ventas[0].nombre === 'María José');
 ok('la solicitud pendiente lleva el nombre de pila del vendedor y la aprobada sus minutos (31)', r.solicitudes.pendientes.length === 1 && r.solicitudes.pendientes[0].vendedor === 'Luis' && r.solicitudes.ultimas[0].minutos === 31 && r.solicitudes.prom === 31 && r.solicitudes.rec === 31);
 ok('seis meses, el último es el actual', r.meses.length === 6 && r.meses[5].ym === '2026-10' && r.meses[5].vol === 1680 && r.meses[2].motos === 1);
+ok('los modelos más financiados salen del mes (2 EK XPRESS 150) y de los últimos seis meses, solo con datos propios', r.modelos.mes.length === 1 && r.modelos.mes[0].modelo === 'EK XPRESS 150' && r.modelos.mes[0].motos === 2 && r.modelos.mes[0].vol === 1680 && r.modelos.seis[0].motos >= 2);
+ok('lo que se escribe para el aliado no lleva el ranking entre aliados (privacidad)', !('ranking' in R.sinRankingParaEscribir(Object.assign({}, r, { ranking: { posicion: 1 } }))));
 ok('desde el inicio: 4 motos, la primera hace 120 días, y el bono ya no aplica', r.desde.motos === 4 && r.desde.dias === 120 && r.bono.aplica === false);
 
 // ── ranking entre sedes, sin nombres ajenos ──

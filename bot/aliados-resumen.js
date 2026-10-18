@@ -123,6 +123,9 @@ function resumenSede(datos, hoy) {
   // Comision acumulada estimada: cada mes con el nivel que le toco (sin multiplicador)
   const porMes = {}; ventas.forEach(v => { const m = mesDe(v.fecha); if (m) porMes[m] = r2((porMes[m] || 0) + v.fin); });
   const comisionAcum = r2(Object.values(porMes).reduce((s, v) => s + v * nivelDe(v).pct / 100, 0));
+  // Modelos mas financiados: del mes y de los ultimos seis meses (solo datos propios del aliado)
+  const topModelos = vs => { const m = {}; vs.forEach(v => { const k = v.modelo || 'Moto'; m[k] = m[k] || { modelo: k, motos: 0, vol: 0 }; m[k].motos++; m[k].vol = r2(m[k].vol + v.fin); }); return Object.values(m).sort((a, b) => b.motos - a.motos || b.vol - a.vol).slice(0, 5); };
+  const seisMeses = ventas.filter(v => v.fecha && mesDe(v.fecha) >= restarMeses(mes, 5));
   const inicio = ventas.length ? ventas[ventas.length - 1].fecha : '';
   const diasAliado = inicio ? diasEntre(inicio, hoy) : 0;
   const primeras30 = inicio ? creditos.filter(c => c.estado !== 'cancelado' && fechaDe(c) && diasEntre(inicio, fechaDe(c)) <= 30).length : 0;
@@ -137,6 +140,7 @@ function resumenSede(datos, hoy) {
     solicitudes: { pendientes: pendientes.slice(0, 10).map(c => ({ empresa: c.empresa, creado: c.creado || '', modelo: [c.marca, c.modelo].filter(Boolean).join(' ').trim() || 'Moto', nombre: nombreCorto(c.cli), vendedor: String(c.vendedorNombre || '').split(/\s+/)[0] || '' })),
       ultimas: aprobadas.map(a => ({ empresa: a.empresa, fecha: a.aprobadoEn.slice(0, 10), modelo: a.modelo, nombre: a.nombre, minutos: a.minutos })), prom, rec },
     meses,
+    modelos: { mes: topModelos(delMes), seis: topModelos(seisMeses) },
     desde: { inicio, dias: diasAliado, motos: ventas.length, comision: comisionAcum },
     bono: { aplica: !!inicio && diasAliado <= 60, completas: primeras30, meta: 20, diasRestantes: inicio ? Math.max(0, 30 - diasAliado) : 0 }
   };
@@ -249,12 +253,15 @@ async function main() {
   if (soloLeer) { console.log('SOLO_LEER: no se escribió nada (' + Object.keys(resumenes).length + ' resúmenes + ' + Object.keys(resumenesGrupos).length + ' grupos calculados)'); return; }
   const { Firestore } = require('@google-cloud/firestore');
   const db = new Firestore({ projectId: DESTINO });
+  // El ranking entre aliados NO se guarda (Adam, 18-oct-2026: "es un tema de privacidad con los
+  // otros, aunque no diga nombres"); queda solo en el log para nosotros.
+  const sinRanking = r => { const c = Object.assign({}, r); delete c.ranking; return c; };
   const lote = db.batch();
-  Object.keys(resumenes).forEach(id => { lote.set(db.collection('aliados_resumen').doc(id), Object.assign({ concId: id, actualizadoEn: ahora, hoy }, resumenes[id])); });
-  Object.keys(resumenesGrupos).forEach(gid => { lote.set(db.collection('aliados_resumen').doc(gid), Object.assign({ concId: gid, actualizadoEn: ahora, hoy }, resumenesGrupos[gid])); });
+  Object.keys(resumenes).forEach(id => { lote.set(db.collection('aliados_resumen').doc(id), Object.assign({ concId: id, actualizadoEn: ahora, hoy }, sinRanking(resumenes[id]))); });
+  Object.keys(resumenesGrupos).forEach(gid => { lote.set(db.collection('aliados_resumen').doc(gid), Object.assign({ concId: gid, actualizadoEn: ahora, hoy }, sinRanking(resumenesGrupos[gid]))); });
   await lote.commit();
   console.log('Escritos ' + Object.keys(resumenes).length + ' resúmenes y ' + Object.keys(resumenesGrupos).length + ' grupos en aliados_resumen de ' + DESTINO + ' (' + ahora + ')');
 }
 
-module.exports = { nivelDe, multDe, costoSalida, nombreCorto, atrasoDe, resumenSede, ranking, rankingAliados, armarSedes, armarGrupos, grupoIdDe, hoyCaracas, horaCaracas, NIVELES, GRUPOS_POR_DEFECTO };
+module.exports = { nivelDe, multDe, costoSalida, nombreCorto, atrasoDe, resumenSede, ranking, rankingAliados, sinRankingParaEscribir: r => { const c = Object.assign({}, r); delete c.ranking; return c; }, armarSedes, armarGrupos, grupoIdDe, hoyCaracas, horaCaracas, NIVELES, GRUPOS_POR_DEFECTO };
 if (require.main === module) main().catch(e => { console.error('FALLO:', e && e.message || e); process.exit(1); });

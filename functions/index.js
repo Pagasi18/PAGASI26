@@ -72,7 +72,9 @@ function armarDeps(cfg) {
 
 // Quien escribe desde el panel: su token de Firebase (de la 26 o de la 18) y su ficha en /usuarios
 async function quienEscribe(req) {
-  const h = String(req.headers.authorization || ''); const tok = h.startsWith('Bearer ') ? h.slice(7) : '';
+  // Detrás de la puerta pública (API Gateway) el Authorization original del panel llega en
+  // X-Forwarded-Authorization; directo a Cloud Run, en Authorization.
+  const h = String(req.headers['x-forwarded-authorization'] || req.headers.authorization || ''); const tok = h.startsWith('Bearer ') ? h.slice(7) : '';
   if (!tok) return null;
   for (const emp of ['26', '18']) {
     try {

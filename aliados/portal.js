@@ -46,9 +46,9 @@
       ['13 oct','petare','SBR · A. Gómez',-741,5420],['13 oct','chacao','Runner · L. Martínez',-882,4522],
       ['1 oct','todas','Depósito de Pagasi al activar la alianza',30000,30000]
     ],
-    RANK: { todas: [['Concesionario · Guarenas',33600],['Grupo BERA',31200,true],['Concesionario · La Candelaria',24900],['Concesionario · Los Teques',18200],['Concesionario · Guatire',12700]] }
+    MODELOS: { todas: [['BRZ 200',14,11760],['Kavak 250',9,10800],['SBR 150',7,4900],['Runner 200',4,2240],['BR 200',3,1500]] }
   };
-  DEMO.RANK.chacao = DEMO.RANK.petare = DEMO.RANK.trinidad = DEMO.RANK.todas;
+  DEMO.MODELOS.chacao = DEMO.MODELOS.petare = DEMO.MODELOS.trinidad = DEMO.MODELOS.todas;
 
   // ── De los resúmenes del robot a lo que pinta el tablero ──
   // Logo del aliado: el que tenga en su ficha; si todas sus sedes son EK/Empire/Haojin, el de EK
@@ -61,7 +61,7 @@
   // (un nivel, un saldo, una posición en el ranking); si viene, "todas" es ese resumen y no la suma.
   function desdeResumenes(resumenes, usuario, grupoDoc){
     var rs = (resumenes || []).filter(Boolean);
-    var D = { demo:false, esGrupo:false, nombre:'', grupo:'', logo:logoPara(rs.map(function(r){ return r.nombre; }).concat(grupoDoc ? [grupoDoc.nombre] : []), usuario && usuario.logoAliado), mesNombre:'', desde:'', totalAliados:0, actualizado:null, orden:['todas'], NOM:{}, SEDES:{}, VENTAS:[], SOL:[], MOVS:[], RANK:{} };
+    var D = { demo:false, esGrupo:false, nombre:'', grupo:'', logo:logoPara(rs.map(function(r){ return r.nombre; }).concat(grupoDoc ? [grupoDoc.nombre] : []), usuario && usuario.logoAliado), mesNombre:'', desde:'', totalAliados:0, actualizado:null, orden:['todas'], NOM:{}, SEDES:{}, VENTAS:[], SOL:[], MOVS:[], MODELOS:{} };
     if(!rs.length) return D;
     var hoyYm = (rs[0].hoy || new Date().toISOString().slice(0, 10)).slice(0, 7);
     D.mesNombre = mesNombre(rs[0].mes && rs[0].mes.ym || hoyYm);
@@ -71,6 +71,15 @@
     if(act){ var dAct = new Date(act); D.actualizado = (isNaN(dAct) ? '' : ('a las ' + dAct.getHours() + ':' + ('0' + dAct.getMinutes()).slice(-2))); }
     var mesAntNombre = mesNombre(rs[0].meses && rs[0].meses.length > 1 ? rs[0].meses[rs[0].meses.length - 2].ym : hoyYm);
     var etiquetas = (rs[0].meses || []).map(function(m){ return MES3[parseInt(String(m.ym).slice(5, 7), 10) - 1] || m.ym; });
+    // Los modelos más financiados: los del mes; si el mes va vacío, los de los últimos seis meses
+    function modelosDe(r){
+      var m = r.modelos || {}; var lista = (m.mes && m.mes.length) ? m.mes : (m.seis || []);
+      return lista.map(function(x){ return [x.modelo, x.motos || 0, x.vol || 0, !!(m.mes && m.mes.length)]; });
+    }
+    function sumarModelos(listas){
+      var acc = {}; listas.forEach(function(l){ (l || []).forEach(function(x){ var a = acc[x[0]] || (acc[x[0]] = [x[0], 0, 0, x[3]]); a[1] += x[1]; a[2] = Math.round((a[2] + x[2]) * 100) / 100; }); });
+      return Object.keys(acc).map(function(k){ return acc[k]; }).sort(function(a, b){ return b[1] - a[1] || b[2] - a[2]; }).slice(0, 5);
+    }
     function sedeDe(r){
       var m = r.mes || {}, c = r.calidad || {}, dep = r.deposito || {}, s = r.solicitudes || {}, d = r.desde || {}, b = r.bono || {};
       var delta = (m.motos || 0) - (m.motosAnt || 0);
@@ -78,7 +87,7 @@
         motosDelta: (delta >= 0 ? '+' : '') + delta + ' frente a ' + mesAntNombre, vol: m.vol || 0,
         bono: b.aplica ? (b.completas || 0) : null, bonoPend: 0, bonoDias: b.diasRestantes || 0,
         atraso: c.atrasoPct || 0, cartera: c.cartera || 0, atrasados: c.atrasados || 0, aprom: s.prom || null, rec: s.rec || null,
-        total: d.motos || 0, comAcum: d.comision || 0, inicio: d.inicio || '', meses: (r.meses || []).map(function(x){ return x.vol || 0; }), etiquetas: etiquetas, ranking: r.ranking || null };
+        total: d.motos || 0, comAcum: d.comision || 0, inicio: d.inicio || '', meses: (r.meses || []).map(function(x){ return x.vol || 0; }), etiquetas: etiquetas, ranking: null };
     }
     rs.forEach(function(r){
       var k = r.concId; D.orden.push(k); D.NOM[k] = String(r.nombre || k).replace(/^EMPIRE\s+/i, 'EK ');
@@ -88,8 +97,7 @@
       (sol.pendientes || []).forEach(function(p){ D.SOL.push(['Pendiente', k, p.modelo + ' · ' + p.nombre, 'En revisión' + (p.vendedor ? ' · ' + p.vendedor : ''), 'ojo', '9999']); });
       (sol.ultimas || []).forEach(function(a){ D.SOL.push([fechaCorta(a.fecha), k, a.modelo + ' · ' + a.nombre, 'Aprobada en ' + a.minutos + ' min', 'bien', a.fecha]); });
       ((r.deposito || {}).movimientos || []).forEach(function(mv){ D.MOVS.push([fechaCorta(mv.fecha), k, mv.detalle, mv.monto, mv.saldo, mv.fecha, mv.empresa || '']); });
-      if(r.ranking) D.RANK[k] = (r.ranking.lista || []).map(function(f){ return [f.tu ? D.NOM[k] + ' (tú)' : f.nombre, f.vol, !!f.tu]; });
-      if(r.ranking && r.ranking.total > D.totalAliados) D.totalAliados = r.ranking.total;
+      D.MODELOS[k] = modelosDe(r);
     });
     D.VENTAS.sort(function(a, b){ return String(b[7]).localeCompare(String(a[7])); });
     D.SOL.sort(function(a, b){ return String(b[5]).localeCompare(String(a[5])); });
@@ -110,8 +118,8 @@
       aprom: proms.length ? Math.round(proms.reduce(function(a, x){ return a + x; }, 0) / proms.length) : null, rec: recs.length ? Math.min.apply(null, recs) : null,
       total: sum('total'), comAcum: Math.round(sum('comAcum') * 100) / 100, inicio: inicios[0] || '',
       meses: ss[0].meses.map(function(_, i){ return ss.reduce(function(a, s){ return a + (s.meses[i] || 0); }, 0); }), etiquetas: etiquetas,
-      ranking: mejor ? mejor.ranking : null, rankingDe: mejor ? D.NOM[rs[ss.indexOf(mejor)].concId] : '' };
-    D.RANK.todas = mejor ? D.RANK[rs[ss.indexOf(mejor)].concId] : [];
+      ranking: null, rankingDe: '' };
+    D.MODELOS.todas = sumarModelos(rs.map(function(r){ return D.MODELOS[r.concId]; }));
     D.desde = inicios[0] ? mesNombre(inicios[0].slice(0, 7)) + ' de ' + inicios[0].slice(0, 4) : '';
     // Un grupo de verdad: el robot ya juntó las sedes como un solo aliado
     if(grupoDoc && grupoDoc.mes){
@@ -119,8 +127,7 @@
       var g = sedeDe(grupoDoc); g.nombre = D.nombre; g.esGrupo = true; g.rankingDe = '';
       D.SEDES.todas = g;
       D.NOM.todas = D.nombre;
-      D.RANK.todas = grupoDoc.ranking ? (grupoDoc.ranking.lista || []).map(function(f){ return [f.tu ? D.nombre + ' (tú)' : f.nombre, f.vol, !!f.tu]; }) : D.RANK.todas;
-      if(grupoDoc.ranking && grupoDoc.ranking.total > D.totalAliados) D.totalAliados = grupoDoc.ranking.total;
+      D.MODELOS.todas = modelosDe(grupoDoc).length ? modelosDe(grupoDoc) : D.MODELOS.todas;
       var ini = grupoDoc.desde && grupoDoc.desde.inicio; if(ini) D.desde = mesNombre(ini.slice(0, 7)) + ' de ' + ini.slice(0, 4);
     }
     return D;
@@ -182,12 +189,13 @@
     $('q-aldia').textContent = pct(100 - s.atraso) + '%'; $('q-atraso').textContent = pct(s.atraso) + '%'; $('q-mult').textContent = m + '%';
     var qSub = $('q-sub'); if(qSub) qSub.textContent = D.demo ? 'Clientes referidos con más de 60 días de crédito' : (s.cartera ? s.cartera + ' créditos con más de 60 días · ' + s.atrasados + ' con más de 30 días de atraso' : 'Todavía no hay créditos con más de 60 días');
     [['m1',110],['m2',100],['m3',75],['m4',50]].forEach(function(p){ var tr = $(p[0]); tr.style.background = (p[1] === m) ? 'var(--azul-claro)' : ''; tr.querySelector('td:last-child').innerHTML = (p[1] === m) ? '<b>' + p[1] + '%</b>' : p[1] + '%'; });
-    // Ranking
-    var rank = D.RANK[k] || [];
-    var max = rank.length ? Math.max.apply(null, rank.map(function(r){ return r[1]; })) : 1, yo = rank.findIndex(function(r){ return r[2]; });
-    $('rank').innerHTML = rank.map(function(r, i){ return '<li' + (r[2] ? ' class="tu"' : '') + '><span class="pos">' + (i + 1) + '</span><span class="nom">' + r[0] + '</span><span class="val">' + USD(r[1]) + '</span><i><b style="width:' + (max ? Math.round(r[1] / max * 100) : 0) + '%"></b></i></li>'; }).join('');
-    var posR = (!D.demo && s.ranking) ? s.ranking.posicion : (yo + 1);
-    $('rank-txt').innerHTML = !rank.length ? 'Sin datos de ranking todavía.' : (posR === 1 ? '<b>Vas de primero</b> entre los aliados de Pagasi este mes.' : 'Vas de <b>#' + posR + '</b> entre ' + D.totalAliados + ' aliados.' + (yo > 0 ? ' Te faltan <b>' + USD(rank[yo - 1][1] - rank[yo][1]) + '</b> para el primer lugar.' : '')) + (k === 'todas' && !D.demo && s.rankingDe ? ' El ranking es por sede; esta es la de ' + s.rankingDe + '.' : (D.esGrupo && !D.demo ? ' Tus ' + (D.orden.length - 1) + ' sedes cuentan como un solo aliado.' : (k !== 'todas' && D.demo ? ' El ranking es por grupo.' : '')));
+    // Tus modelos más financiados (solo datos del propio aliado; el ranking entre aliados se quitó por privacidad)
+    var modelos = D.MODELOS[k] || [];
+    var maxM = modelos.length ? Math.max.apply(null, modelos.map(function(r){ return r[1]; })) : 1;
+    var delMes = modelos.length ? modelos[0][3] !== false : true;
+    var subM = $('modelos-sub'); if(subM) subM.textContent = (delMes ? (D.mesNombre.charAt(0).toUpperCase() + D.mesNombre.slice(1)) : 'Últimos 6 meses') + ' · motos y volumen';
+    $('rank').innerHTML = modelos.map(function(r, i){ return '<li' + (i === 0 ? ' class="tu"' : '') + '><span class="pos">' + (i + 1) + '</span><span class="nom">' + r[0] + '</span><span class="val">' + r[1] + ' moto' + (r[1] === 1 ? '' : 's') + ' · ' + USD(r[2]) + '</span><i><b style="width:' + Math.round(r[1] / maxM * 100) + '%"></b></i></li>'; }).join('');
+    $('rank-txt').innerHTML = !modelos.length ? 'Todavía no hay ventas financiadas' + (k === 'todas' ? '' : ' en ' + s.nombre) + '.' : ('<b>' + modelos[0][0] + '</b> es ' + (k === 'todas' ? 'tu' : 'su') + ' modelo estrella' + (delMes ? ' este mes' : ' de los últimos seis meses') + ': ' + modelos[0][1] + ' moto' + (modelos[0][1] === 1 ? '' : 's') + ' y ' + USD(modelos[0][2]) + ' financiados.' + (modelos.length > 1 ? ' Le sigue ' + modelos[1][0] + ' con ' + modelos[1][1] + '.' : ''));
     $('a-prom').textContent = s.aprom ? s.aprom + ' min' : '—'; $('a-rec').textContent = s.rec ? s.rec + ' min' : '—';
     var ventas = D.VENTAS.filter(function(v){ return k === 'todas' || v[1] === k; }).slice(0, 12);
     $('v-cuenta').textContent = s.motos + ' este mes';
