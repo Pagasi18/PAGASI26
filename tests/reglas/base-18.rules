@@ -257,8 +257,46 @@ service cloud.firestore {
                        .hasOnly(['refrescoPedido','refrescoPedidoPor','refrescoPedidoEn']) ) )
         : ( id in ['plan','cuentasBanc','empresa','rolesPermisos','score','cobradores','avisosTelegram','avisosChats']
             ? (esAdmin() || permiso('config'))
-            : esInterno() ) ) );
+        // config/asistente (18-oct-2026): las instrucciones y los datos de pago que lee el
+        // asistente de cobranza por WhatsApp. Solo administracion, como en la pantalla.
+        : ( id == 'asistente' ? esAdmin()
+            : esInterno() ) ) ) );
     }
+
+    // == WhatsApp e Instagram (18-oct-2026) ==
+    // Las conversaciones y sus mensajes los escribe el servidor (Cloud Functions, con la
+    // cuenta de servicio). Desde el navegador cada canal lo ve quien tiene su modulo:
+    // 'whatsapp' (cobranza y ventas por WhatsApp) o 'instagram' (ventas por Instagram), y
+    // solo cambia lo de atenderlas (tomarla, devolverla, marcar vista, el borrador). Las
+    // listas deben pedir un canal (where canal ==), que es como las lee el panel. Los
+    // mensajes del equipo salen por el endpoint /equipo, no por aqui, para que nada quede
+    // guardado como enviado sin haber pasado por Meta.
+    function veWhatsapp() { return esInterno() && (esAdmin() || permiso('whatsapp')); }
+    function veInstagram() { return esInterno() && (esAdmin() || permiso('instagram')); }
+    function veCanal(d) { return (d.canal == 'whatsapp' && veWhatsapp()) || (d.canal == 'instagram' && veInstagram()); }
+    match /conversaciones/{id} {
+      allow read: if veCanal(resource.data);
+      allow update: if veCanal(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['modo','atendidoPor','atencion','noLeidos','borrador','actualizado']);
+      allow create, delete: if false;
+      match /mensajes/{mid} {
+        allow read: if veCanal(get(/databases/$(database)/documents/conversaciones/$(id)).data);
+        allow write: if false;
+      }
+    }
+    // Los leads (quien quiere comprar y dejo sus datos, por WhatsApp o Instagram): los anota
+    // el asistente desde el servidor; el equipo de ese canal los ve y los marca atendidos.
+    match /leads/{id} {
+      allow read: if veCanal(resource.data);
+      allow update: if veCanal(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado','atendidoPor','nota','actualizado']);
+      allow create, delete: if false;
+    }
+    // Lo que guarda el servidor para auditoria: los avisos crudos de Meta, los recordatorios
+    // mandados y el resultado de cada corrida. Se leen desde administracion, no se tocan.
+    match /webhooks_meta/{id} { allow read: if esAdmin(); allow write: if false; }
+    match /recordatorios/{id} { allow read: if veWhatsapp(); allow write: if false; }
+    match /recordatorios_corridas/{id} { allow read: if esAdmin(); allow write: if false; }
 
     // == Portal de aliados (17-oct-2026) ==
     // aliados_resumen/{concId}: lo escribe el robot (cuenta de servicio, no pasa por aqui) con
