@@ -44,6 +44,24 @@ ok('desde el inicio: 4 motos, la primera hace 120 días, y el bono ya no aplica'
 const todos = { 'C-EK': r, 'C-OTRO': R.resumenSede(sedes['C-OTRO'], HOY) };
 R.ranking(todos);
 ok('el ranking ordena por volumen del mes y el otro sale sin nombre', todos['C-OTRO'].ranking.posicion === 1 && todos['C-EK'].ranking.posicion === 2 && todos['C-EK'].ranking.lista[0].nombre === 'Concesionario · Valera' && todos['C-EK'].ranking.lista[1].tu === true && todos['C-EK'].ranking.faltaPrimero === 12000 - 1680);
+// ── grupos: varias sedes de un mismo dueño cuentan como un solo aliado ──
+const porEmpresaG = JSON.parse(JSON.stringify(porEmpresa));
+porEmpresaG['26'].concesionarios.push({ id: 'C-TRU', nombre: 'EK Trujillo', ciudad: 'Valera', grupoAliado: 'EK', anticipos: [{ fecha: iso(-15), monto: 3000 }] });
+porEmpresaG['26'].concesionarios[0].grupoAliado = 'EK';
+porEmpresaG['26'].creditos.push(cred('M-9', '26', 1, { concesionarioId: 'C-TRU', fin: 9000, precio: 15000, precioBaseReal: 15000, ini: 6000 }));
+const sedesG = R.armarSedes(porEmpresaG);
+ok('el grupo se lee de la ficha del concesionario (grupoAliado) y las sedes sin grupo quedan sueltas', sedesG['C-EK'].grupo === 'EK' && sedesG['C-TRU'].grupo === 'EK' && !sedesG['C-OTRO'].grupo);
+ok('las 3 sedes reales de EK/Haojin se agrupan por defecto aunque la base no tenga el campo', (() => { const pe = { '26': { concesionarios: ['CONC-1778507170776', 'CONC-1781627695646', 'CONC-1779891725132'].map(id => ({ id, nombre: id })), creditos: [], pagos: [] } }; const sd = R.armarSedes(pe); return ['CONC-1778507170776', 'CONC-1781627695646', 'CONC-1779891725132'].every(id => sd[id].grupo === 'EK'); })());
+const gruposG = R.armarGrupos(sedesG);
+ok('el grupo junta créditos, pagos y anticipos de sus sedes con id G-EK', Object.keys(gruposG).join() === 'G-EK' && gruposG['G-EK'].sedes.join() === 'C-EK,C-TRU' && gruposG['G-EK'].creditos.length === 7 && gruposG['G-EK'].anticipos.length === 3 && gruposG['G-EK'].pagosPorCred['CRED-1'].length === 8);
+const resG = {}; Object.keys(sedesG).forEach(id => { resG[id] = R.resumenSede(sedesG[id], HOY); });
+const resGr = { 'G-EK': Object.assign(R.resumenSede(gruposG['G-EK'], HOY), { tipo: 'grupo', sedes: gruposG['G-EK'].sedes }) };
+ok('el resumen del grupo se calcula sobre todo junto: 3 motos del mes, $10.680 → nivel Plata, depósito $10.000', resGr['G-EK'].mes.motos === 3 && resGr['G-EK'].mes.vol === 10680 && resGr['G-EK'].mes.nivel === 'plata' && resGr['G-EK'].deposito.enviado === 10000);
+R.rankingAliados(resG, resGr, sedesG);
+ok('en el ranking el grupo cuenta como UN aliado: 2 aliados en total ("Otro" con $12.000 primero, el grupo con $10.680 segundo), y el otro ve al grupo sin nombre', resGr['G-EK'].ranking.total === 2 && resGr['G-EK'].ranking.posicion === 2 && resG['C-OTRO'].ranking.posicion === 1 && resG['C-OTRO'].ranking.total === 2 && resG['C-OTRO'].ranking.lista[1].nombre === 'Concesionario · Caracas' && resG['C-OTRO'].ranking.lista[1].vol === 10680);
+ok('las sedes del grupo heredan la posición del grupo y saben a qué grupo pertenecen', resG['C-EK'].ranking.posicion === 2 && resG['C-EK'].ranking.deGrupo === 'EK' && resG['C-EK'].grupoId === 'G-EK' && resG['C-TRU'].grupo === 'EK');
+ok('el id del grupo sale del nombre, sin acentos ni espacios', R.grupoIdDe('Grupo Bera · Chacao') === 'G-GRUPO-BERA-CHACAO');
+
 ok('el día de hoy sale en hora de Venezuela', /^\d{4}-\d{2}-\d{2}$/.test(R.hoyCaracas('2026-10-17T03:30:00Z')) && R.hoyCaracas('2026-10-17T03:30:00Z') === '2026-10-16');
 
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

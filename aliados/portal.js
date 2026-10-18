@@ -51,14 +51,22 @@
   DEMO.RANK.chacao = DEMO.RANK.petare = DEMO.RANK.trinidad = DEMO.RANK.todas;
 
   // ── De los resúmenes del robot a lo que pinta el tablero ──
-  function desdeResumenes(resumenes, usuario){
+  // Logo del aliado: el que tenga en su ficha; si todas sus sedes son EK/Empire/Haojin, el de EK
+  function logoPara(nombres, logoFicha){
+    if(logoFicha) return logoFicha;
+    var ns = (nombres || []).filter(Boolean);
+    return ns.length && ns.every(function(n){ return /empire|\bek\b|haojin/i.test(String(n)); }) ? 'assets/aliados/ek-blanco.png' : '';
+  }
+  // `grupoDoc`: el resumen del GRUPO que arma el robot cuando varias sedes son de un mismo dueño
+  // (un nivel, un saldo, una posición en el ranking); si viene, "todas" es ese resumen y no la suma.
+  function desdeResumenes(resumenes, usuario, grupoDoc){
     var rs = (resumenes || []).filter(Boolean);
-    var D = { demo:false, nombre:'', grupo:'', logo:(usuario && usuario.logoAliado) || '', mesNombre:'', desde:'', totalAliados:0, actualizado:null, orden:['todas'], NOM:{}, SEDES:{}, VENTAS:[], SOL:[], MOVS:[], RANK:{} };
+    var D = { demo:false, esGrupo:false, nombre:'', grupo:'', logo:logoPara(rs.map(function(r){ return r.nombre; }).concat(grupoDoc ? [grupoDoc.nombre] : []), usuario && usuario.logoAliado), mesNombre:'', desde:'', totalAliados:0, actualizado:null, orden:['todas'], NOM:{}, SEDES:{}, VENTAS:[], SOL:[], MOVS:[], RANK:{} };
     if(!rs.length) return D;
     var hoyYm = (rs[0].hoy || new Date().toISOString().slice(0, 10)).slice(0, 7);
     D.mesNombre = mesNombre(rs[0].mes && rs[0].mes.ym || hoyYm);
-    D.grupo = (usuario && (usuario.grupo || usuario.nombre)) || rs[0].nombre || 'Aliado';
-    D.nombre = (usuario && usuario.grupo) || (rs.length === 1 ? rs[0].nombre : D.grupo);
+    D.grupo = (usuario && usuario.grupo) || (grupoDoc && grupoDoc.nombre) || (usuario && usuario.nombre) || rs[0].nombre || 'Aliado';
+    D.nombre = (usuario && usuario.grupo) || (grupoDoc && grupoDoc.nombre) || (rs.length === 1 ? rs[0].nombre : D.grupo);
     var act = rs.map(function(r){ return r.actualizadoEn || ''; }).sort().pop();
     if(act){ var dAct = new Date(act); D.actualizado = (isNaN(dAct) ? '' : ('a las ' + dAct.getHours() + ':' + ('0' + dAct.getMinutes()).slice(-2))); }
     var mesAntNombre = mesNombre(rs[0].meses && rs[0].meses.length > 1 ? rs[0].meses[rs[0].meses.length - 2].ym : hoyYm);
@@ -105,6 +113,16 @@
       ranking: mejor ? mejor.ranking : null, rankingDe: mejor ? D.NOM[rs[ss.indexOf(mejor)].concId] : '' };
     D.RANK.todas = mejor ? D.RANK[rs[ss.indexOf(mejor)].concId] : [];
     D.desde = inicios[0] ? mesNombre(inicios[0].slice(0, 7)) + ' de ' + inicios[0].slice(0, 4) : '';
+    // Un grupo de verdad: el robot ya juntó las sedes como un solo aliado
+    if(grupoDoc && grupoDoc.mes){
+      D.esGrupo = true;
+      var g = sedeDe(grupoDoc); g.nombre = D.nombre; g.esGrupo = true; g.rankingDe = '';
+      D.SEDES.todas = g;
+      D.NOM.todas = D.nombre;
+      D.RANK.todas = grupoDoc.ranking ? (grupoDoc.ranking.lista || []).map(function(f){ return [f.tu ? D.nombre + ' (tú)' : f.nombre, f.vol, !!f.tu]; }) : D.RANK.todas;
+      if(grupoDoc.ranking && grupoDoc.ranking.total > D.totalAliados) D.totalAliados = grupoDoc.ranking.total;
+      var ini = grupoDoc.desde && grupoDoc.desde.inicio; if(ini) D.desde = mesNombre(ini.slice(0, 7)) + ' de ' + ini.slice(0, 4);
+    }
     return D;
   }
 
@@ -118,7 +136,7 @@
   }
   function botonesSedes(){
     var cont = $('sedes'); if(!cont) return;
-    cont.innerHTML = D.orden.map(function(k){ return '<button type="button" data-sede="' + k + '" aria-pressed="' + (k === 'todas') + '">' + (k === 'todas' ? 'Las ' + (D.orden.length - 1) + ' sedes' : D.NOM[k]) + '</button>'; }).join('');
+    cont.innerHTML = D.orden.map(function(k){ return '<button type="button" data-sede="' + k + '" aria-pressed="' + (k === 'todas') + '">' + (k === 'todas' ? (D.esGrupo ? D.nombre + ' · las ' + (D.orden.length - 1) + ' sedes' : 'Las ' + (D.orden.length - 1) + ' sedes') : D.NOM[k]) + '</button>'; }).join('');
     cont.hidden = D.orden.length <= 2;
     cont.querySelectorAll('button').forEach(function(b){ b.addEventListener('click', function(){ pinta(b.dataset.sede); }); });
   }
@@ -169,7 +187,7 @@
     var max = rank.length ? Math.max.apply(null, rank.map(function(r){ return r[1]; })) : 1, yo = rank.findIndex(function(r){ return r[2]; });
     $('rank').innerHTML = rank.map(function(r, i){ return '<li' + (r[2] ? ' class="tu"' : '') + '><span class="pos">' + (i + 1) + '</span><span class="nom">' + r[0] + '</span><span class="val">' + USD(r[1]) + '</span><i><b style="width:' + (max ? Math.round(r[1] / max * 100) : 0) + '%"></b></i></li>'; }).join('');
     var posR = (!D.demo && s.ranking) ? s.ranking.posicion : (yo + 1);
-    $('rank-txt').innerHTML = !rank.length ? 'Sin datos de ranking todavía.' : (posR === 1 ? '<b>Vas de primero</b> entre los aliados de Pagasi este mes.' : 'Vas de <b>#' + posR + '</b> entre ' + D.totalAliados + ' aliados.' + (yo > 0 ? ' Te faltan <b>' + USD(rank[yo - 1][1] - rank[yo][1]) + '</b> para el primer lugar.' : '')) + (k === 'todas' && !D.demo && s.rankingDe ? ' El ranking es por sede; esta es la de ' + s.rankingDe + '.' : (k !== 'todas' && D.demo ? ' El ranking es por grupo.' : ''));
+    $('rank-txt').innerHTML = !rank.length ? 'Sin datos de ranking todavía.' : (posR === 1 ? '<b>Vas de primero</b> entre los aliados de Pagasi este mes.' : 'Vas de <b>#' + posR + '</b> entre ' + D.totalAliados + ' aliados.' + (yo > 0 ? ' Te faltan <b>' + USD(rank[yo - 1][1] - rank[yo][1]) + '</b> para el primer lugar.' : '')) + (k === 'todas' && !D.demo && s.rankingDe ? ' El ranking es por sede; esta es la de ' + s.rankingDe + '.' : (D.esGrupo && !D.demo ? ' Tus ' + (D.orden.length - 1) + ' sedes cuentan como un solo aliado.' : (k !== 'todas' && D.demo ? ' El ranking es por grupo.' : '')));
     $('a-prom').textContent = s.aprom ? s.aprom + ' min' : '—'; $('a-rec').textContent = s.rec ? s.rec + ' min' : '—';
     var ventas = D.VENTAS.filter(function(v){ return k === 'todas' || v[1] === k; }).slice(0, 12);
     $('v-cuenta').textContent = s.motos + ' este mes';
@@ -239,7 +257,10 @@
         .then(function(rs){
           rs = rs.filter(Boolean);
           if(!rs.length){ var e3 = new Error('sin-resumen'); e3.code = 'pagasi/sin-resumen'; throw e3; }
-          return { modo: 'aliado', datos: desdeResumenes(rs, { nombre: u.nombre || '', grupo: u.grupo || '', logoAliado: u.logoAliado || '' }) };
+          var gids = rs.map(function(r){ return r.grupoId || ''; });
+          var gid = gids[0] && gids.every(function(x){ return x === gids[0]; }) ? gids[0] : '';
+          var traerGrupo = gid ? db.collection('aliados_resumen').doc(gid).get().then(function(r){ return r.exists ? r.data() : null; }).catch(function(){ return null; }) : Promise.resolve(null);
+          return traerGrupo.then(function(gd){ return { modo: 'aliado', datos: desdeResumenes(rs, { nombre: u.nombre || '', grupo: u.grupo || '', logoAliado: u.logoAliado || '' }, gd) }; });
         });
     });
   }
@@ -249,18 +270,31 @@
   }
   function abrirPicker(){
     var lista = $('picker-lista');
-    lista.innerHTML = TODOS.map(function(r){ return '<label><input type="checkbox" value="' + r.concId + '"> <b>' + String(r.nombre || r.concId) + '</b><span>' + (r.mes ? (r.mes.motos || 0) + ' motos este mes · ' + USD(r.mes.vol || 0) : '') + '</span></label>'; }).join('');
+    var grupos = TODOS.filter(function(r){ return r.tipo === 'grupo'; });
+    var sueltas = TODOS.filter(function(r){ return r.tipo !== 'grupo' && !r.grupoId; });
+    var fila = function(r, extra){ return '<label><input type="checkbox" value="' + r.concId + '"> <b>' + String(r.nombre || r.concId) + '</b>' + (extra || '') + '<span>' + (r.mes ? (r.mes.motos || 0) + ' motos este mes · ' + USD(r.mes.vol || 0) : '') + '</span></label>'; };
+    lista.innerHTML = grupos.map(function(g){
+      var nombres = (g.sedes || []).map(function(id){ var s = TODOS.filter(function(r){ return r.concId === id; })[0]; return s ? String(s.nombre).replace(/^EMPIRE\s+/i, 'EK ') : id; });
+      return fila(g, ' <small style="color:var(--fg-3)">· un solo aliado: ' + nombres.join(', ') + '</small>');
+    }).concat(sueltas.map(function(r){ return fila(r); })).join('');
     $('picker').hidden = false; $('entrada').hidden = true;
   }
   function verElegidos(){
     var ids = [].map.call(document.querySelectorAll('#picker-lista input:checked'), function(i){ return i.value; });
-    if(!ids.length){ $('picker-msj').textContent = 'Marca al menos una sede.'; return; }
+    if(!ids.length){ $('picker-msj').textContent = 'Marca al menos un aliado.'; return; }
     $('picker-msj').textContent = '';
-    var rs = TODOS.filter(function(r){ return ids.indexOf(r.concId) > -1; });
+    var elegidos = TODOS.filter(function(r){ return ids.indexOf(r.concId) > -1; });
+    var gruposElegidos = elegidos.filter(function(r){ return r.tipo === 'grupo'; });
+    // Un grupo marcado = sus sedes, con el resumen del grupo como "todas"
+    var rs = [];
+    elegidos.forEach(function(r){
+      if(r.tipo !== 'grupo'){ rs.push(r); return; }
+      (r.sedes || []).forEach(function(id){ var s = TODOS.filter(function(x){ return x.concId === id; })[0]; if(s && rs.indexOf(s) < 0) rs.push(s); });
+    });
+    var grupoDoc = gruposElegidos.length === 1 && elegidos.length === 1 ? gruposElegidos[0] : null;
     var grupo = String($('picker-grupo').value || '').trim();
-    var logo = /empire|ek\b|haojin/i.test(rs.map(function(r){ return r.nombre; }).join(' ')) && !rs.some(function(r){ return !/empire|ek\b|haojin/i.test(String(r.nombre)); }) ? 'assets/aliados/ek-blanco.png' : '';
     $('picker').hidden = true;
-    entrar(desdeResumenes(rs, { nombre: grupo || (rs.length === 1 ? rs[0].nombre : rs.map(function(r){ return String(r.nombre).replace(/^EMPIRE\s+/i, 'EK '); }).join(' · ')), grupo: grupo, logoAliado: logo }));
+    entrar(desdeResumenes(rs, { nombre: grupo || (grupoDoc ? grupoDoc.nombre : (rs.length === 1 ? rs[0].nombre : rs.map(function(r){ return String(r.nombre).replace(/^EMPIRE\s+/i, 'EK '); }).join(' · '))), grupo: grupo, logoAliado: '' }, grupoDoc));
   }
   function mensajeDe(e){
     var c = String((e && e.code) || '');

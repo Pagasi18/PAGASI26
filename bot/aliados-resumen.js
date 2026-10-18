@@ -17,6 +17,12 @@ const Ledger = require(path.join(__dirname, '..', 'logic', 'credito-ledger.js'))
 const PROYECTOS = { '18': 'pagasi-v2', '26': 'pagasi26-65ced' };
 const DESTINO = 'pagasi26-65ced';          // donde vive la cuenta del aliado y el portal
 const DIAS_GRACIA = 5;
+// Grupos de aliados: varias sedes de un mismo dueno cuentan como UN aliado (un nivel, un saldo,
+// una posicion en el ranking). Se marca en la ficha del concesionario ("Grupo de aliado"); mientras
+// no este marcado en la base, estos ids se agrupan por defecto (Adam, 18-oct-2026: "el portal de
+// EK Bello Monte, EK Trujillo y Haojin deberia ser uno solo, es un mismo dueno").
+const GRUPOS_POR_DEFECTO = { 'EK': ['CONC-1778507170776', 'CONC-1781627695646', 'CONC-1779891725132'] };
+function grupoIdDe(nombre) { return 'G-' + String(nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toUpperCase(); }
 const NIVELES = [
   { id: 'bronce',   nom: 'Bronce',   min: 0,     pct: 1.0 },
   { id: 'plata',    nom: 'Plata',    min: 10000, pct: 1.5 },
@@ -157,8 +163,9 @@ function armarSedes(porEmpresa) {
     const d = porEmpresa[emp];
     (d.concesionarios || []).forEach(c => {
       if (!c || c.eliminado) return;
-      const s = sedes[c.id] || (sedes[c.id] = { id: c.id, nombre: '', ciudad: '', creditos: [], pagosPorCred: {}, anticipos: [] });
+      const s = sedes[c.id] || (sedes[c.id] = { id: c.id, nombre: '', ciudad: '', grupo: '', creditos: [], pagosPorCred: {}, anticipos: [] });
       if (emp === '26' || !s.nombre) { s.nombre = c.nombre || s.nombre; s.ciudad = c.ciudad || s.ciudad; }
+      if (c.grupoAliado && String(c.grupoAliado).trim()) s.grupo = String(c.grupoAliado).trim();
       (Array.isArray(c.anticipos) ? c.anticipos : []).forEach(a => { if (a && !a.eliminado) s.anticipos.push({ empresa: emp, fecha: a.fecha, monto: a.monto }); });
     });
     (d.creditos || []).forEach(cr => {
@@ -172,7 +179,40 @@ function armarSedes(porEmpresa) {
       });
     });
   });
+  // Lo que no tenga grupo en la base pero si en la lista por defecto
+  Object.keys(GRUPOS_POR_DEFECTO).forEach(g => GRUPOS_POR_DEFECTO[g].forEach(id => { if (sedes[id] && !sedes[id].grupo) sedes[id].grupo = g; }));
   return sedes;
+}
+
+// Las sedes de un mismo dueno, juntas como si fueran una: mismos creditos, pagos y anticipos.
+// Devuelve { 'G-EK': { id, nombre, ciudad, grupo, sedes:[ids], creditos, pagosPorCred, anticipos } }
+function armarGrupos(sedes) {
+  const grupos = {};
+  Object.keys(sedes).forEach(id => {
+    const s = sedes[id]; if (!s.grupo) return;
+    const gid = grupoIdDe(s.grupo);
+    const g = grupos[gid] || (grupos[gid] = { id: gid, nombre: s.grupo, ciudad: s.ciudad || '', grupo: s.grupo, sedes: [], creditos: [], pagosPorCred: {}, anticipos: [] });
+    g.sedes.push(id);
+    if (!g.ciudad && s.ciudad) g.ciudad = s.ciudad;
+    s.creditos.forEach(c => g.creditos.push(c));
+    Object.keys(s.pagosPorCred).forEach(k => { g.pagosPorCred[k] = (g.pagosPorCred[k] || []).concat(s.pagosPorCred[k]); });
+    s.anticipos.forEach(a => g.anticipos.push(a));
+  });
+  Object.values(grupos).forEach(g => g.sedes.sort());
+  return grupos;
+}
+
+// Ranking entre ALIADOS: un grupo cuenta como uno solo; sus sedes heredan la posicion del grupo.
+function rankingAliados(resumenes, resumenesGrupos, sedes) {
+  const enGrupo = new Set(Object.values(resumenesGrupos).flatMap(g => g.sedes || []));
+  const sueltos = {}; Object.keys(resumenes).forEach(id => { if (!enGrupo.has(id)) sueltos[id] = resumenes[id]; });
+  const entidades = Object.assign({}, sueltos, resumenesGrupos);
+  ranking(entidades);
+  Object.keys(resumenesGrupos).forEach(gid => {
+    const g = resumenesGrupos[gid];
+    (g.sedes || []).forEach(id => { if (resumenes[id]) { resumenes[id].ranking = Object.assign({}, g.ranking, { deGrupo: g.nombre }); resumenes[id].grupo = g.nombre; resumenes[id].grupoId = gid; } });
+  });
+  return { resumenes, resumenesGrupos };
 }
 
 // ── Firestore ──────────────────────────────────────────────────────────────────────
@@ -197,22 +237,24 @@ async function main() {
     console.log('PAGASI ' + emp + ': ' + porEmpresa[emp].concesionarios.length + ' concesionarios · ' + porEmpresa[emp].creditos.length + ' créditos · ' + porEmpresa[emp].pagos.length + ' pagos');
   }
   const sedes = armarSedes(porEmpresa);
-  const resumenes = {};
+  const grupos = armarGrupos(sedes);
+  const resumenes = {}, resumenesGrupos = {};
   Object.keys(sedes).forEach(id => { resumenes[id] = resumenSede(sedes[id], hoy); });
-  ranking(resumenes);
+  Object.keys(grupos).forEach(gid => { resumenesGrupos[gid] = Object.assign(resumenSede(grupos[gid], hoy), { tipo: 'grupo', sedes: grupos[gid].sedes }); });
+  rankingAliados(resumenes, resumenesGrupos, sedes);
   const ahora = new Date().toISOString();
-  Object.keys(resumenes).sort().forEach(id => {
-    const r = resumenes[id];
-    console.log('  ' + id + ' · ' + r.mes.motos + ' motos del mes · $' + r.mes.vol + ' · ' + r.mes.nivelNom + ' · saldo $' + r.deposito.saldo + ' (' + (r.deposito.empresas.join('+') || 'sin depósito') + ') · atraso ' + r.calidad.atrasoPct + '% · #' + r.ranking.posicion + '/' + r.ranking.total + ' · ventas ' + r.desde.motos);
-  });
-  if (soloLeer) { console.log('SOLO_LEER: no se escribió nada (' + Object.keys(resumenes).length + ' resúmenes calculados)'); return; }
+  const linea = (id, r) => '  ' + id + ' · ' + r.mes.motos + ' motos del mes · $' + r.mes.vol + ' · ' + r.mes.nivelNom + ' · saldo $' + r.deposito.saldo + ' (' + (r.deposito.empresas.join('+') || 'sin depósito') + ') · atraso ' + r.calidad.atrasoPct + '% · #' + r.ranking.posicion + '/' + r.ranking.total + ' · ventas ' + r.desde.motos;
+  Object.keys(resumenes).sort().forEach(id => console.log(linea(id, resumenes[id]) + (resumenes[id].grupo ? ' · grupo ' + resumenes[id].grupo : '')));
+  Object.keys(resumenesGrupos).sort().forEach(gid => console.log(linea(gid, resumenesGrupos[gid]) + ' · ' + resumenesGrupos[gid].sedes.length + ' sedes como un solo aliado'));
+  if (soloLeer) { console.log('SOLO_LEER: no se escribió nada (' + Object.keys(resumenes).length + ' resúmenes + ' + Object.keys(resumenesGrupos).length + ' grupos calculados)'); return; }
   const { Firestore } = require('@google-cloud/firestore');
   const db = new Firestore({ projectId: DESTINO });
   const lote = db.batch();
   Object.keys(resumenes).forEach(id => { lote.set(db.collection('aliados_resumen').doc(id), Object.assign({ concId: id, actualizadoEn: ahora, hoy }, resumenes[id])); });
+  Object.keys(resumenesGrupos).forEach(gid => { lote.set(db.collection('aliados_resumen').doc(gid), Object.assign({ concId: gid, actualizadoEn: ahora, hoy }, resumenesGrupos[gid])); });
   await lote.commit();
-  console.log('Escritos ' + Object.keys(resumenes).length + ' resúmenes en aliados_resumen de ' + DESTINO + ' (' + ahora + ')');
+  console.log('Escritos ' + Object.keys(resumenes).length + ' resúmenes y ' + Object.keys(resumenesGrupos).length + ' grupos en aliados_resumen de ' + DESTINO + ' (' + ahora + ')');
 }
 
-module.exports = { nivelDe, multDe, costoSalida, nombreCorto, atrasoDe, resumenSede, ranking, armarSedes, hoyCaracas, horaCaracas, NIVELES };
+module.exports = { nivelDe, multDe, costoSalida, nombreCorto, atrasoDe, resumenSede, ranking, rankingAliados, armarSedes, armarGrupos, grupoIdDe, hoyCaracas, horaCaracas, NIVELES, GRUPOS_POR_DEFECTO };
 if (require.main === module) main().catch(e => { console.error('FALLO:', e && e.message || e); process.exit(1); });

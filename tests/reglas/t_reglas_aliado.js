@@ -26,6 +26,8 @@ async function prueba(nombre, promesa) {
     await setDoc(doc(db, 'aliados_resumen/C-EK'), { concId: 'C-EK', nombre: 'EMPIRE Bello Monte', mes: { motos: 3 } });
     await setDoc(doc(db, 'aliados_resumen/C-HJ'), { concId: 'C-HJ', nombre: 'HAOJIN', mes: { motos: 1 } });
     await setDoc(doc(db, 'aliados_resumen/C-OTRO'), { concId: 'C-OTRO', nombre: 'BERA Chacao', mes: { motos: 9 } });
+    await setDoc(doc(db, 'aliados_resumen/G-EK'), { concId: 'G-EK', tipo: 'grupo', nombre: 'EK', sedes: ['C-EK', 'C-HJ'], mes: { motos: 4 } });
+    await setDoc(doc(db, 'aliados_resumen/G-OTRO'), { concId: 'G-OTRO', tipo: 'grupo', nombre: 'Otro grupo', sedes: ['C-OTRO'], mes: { motos: 9 } });
     await setDoc(doc(db, 'clientes/1'), { id: 1, nombre: 'CLIENTE', cedula: '1', concesionarioId: 'C-EK' });
     await setDoc(doc(db, 'creditos/M-1'), { id: 'M-1', cli: 'CLIENTE', concesionarioId: 'C-EK', estado: 'activo' });
     await setDoc(doc(db, 'pagos/P1'), { id: 'P1', cred: 'M-1', monto: 50 });
@@ -43,6 +45,8 @@ async function prueba(nombre, promesa) {
   // ── Lo que SI puede el aliado ──
   await prueba('el aliado lee el resumen de su sede', assertSucceeds(getDoc(doc(ali, 'aliados_resumen/C-EK'))));
   await prueba('...y el de su otra sede', assertSucceeds(getDoc(doc(ali, 'aliados_resumen/C-HJ'))));
+  await prueba('...y el de su GRUPO (sus sedes como un solo aliado)', assertSucceeds(getDoc(doc(ali, 'aliados_resumen/G-EK'))));
+  await prueba('...pero no el de un grupo ajeno', assertFails(getDoc(doc(ali, 'aliados_resumen/G-OTRO'))));
   await prueba('...y su propia ficha (de ahí sabe sus sedes)', assertSucceeds(getDoc(doc(ali, 'usuarios/ali1'))));
 
   // ── Lo que NO puede ──

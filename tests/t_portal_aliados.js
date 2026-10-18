@@ -38,4 +38,18 @@ ok('la hora de actualización sale del robot', /a las \d{1,2}:\d{2}/.test(D.actu
 ok('las etiquetas de la gráfica son los últimos seis meses', D.SEDES.todas.etiquetas.length === 6 && D.SEDES.todas.etiquetas[5] === 'Oct' && D.SEDES.todas.meses[5] === 2460);
 ok('sin resúmenes no se rompe', ctx.PortalAliados.desdeResumenes([], {}).orden.join() === 'todas');
 
+// ── con el resumen del GRUPO que arma el robot: un solo aliado ──
+porEmpresa['26'].concesionarios.forEach(c => { if (c.id === 'C-BM' || c.id === 'C-HJ') c.grupoAliado = 'EK'; });
+const sedesG = R.armarSedes(porEmpresa), gruposG = R.armarGrupos(sedesG);
+const resG = {}; Object.keys(sedesG).forEach(id => { resG[id] = R.resumenSede(sedesG[id], HOY); });
+const resGr = {}; Object.keys(gruposG).forEach(g => { resGr[g] = Object.assign(R.resumenSede(gruposG[g], HOY), { tipo: 'grupo', sedes: gruposG[g].sedes }); });
+R.rankingAliados(resG, resGr, sedesG);
+const docsG = ['C-BM', 'C-HJ'].map(id => Object.assign({ concId: id, actualizadoEn: '2026-10-17T14:05:00.000Z', hoy: HOY }, resG[id]));
+const grupoDoc = Object.assign({ concId: 'G-EK', actualizadoEn: '2026-10-17T14:05:00.000Z', hoy: HOY }, resGr['G-EK']);
+const G = ctx.PortalAliados.desdeResumenes(docsG, { nombre: 'Dueño EK', grupo: '', logoAliado: '' }, grupoDoc);
+ok('con el grupo del robot, "todas" es el resumen del grupo y lleva su nombre', G.esGrupo === true && G.nombre === 'EK' && G.NOM.todas === 'EK' && G.SEDES.todas.motos === 3 && G.SEDES.todas.vol === 2460 && G.SEDES.todas.saldo === 10660);
+ok('...el ranking es el del grupo: cuenta como un solo aliado (2 en total) y va de primero o segundo frente a C-X', G.RANK.todas.some(r => r[2] && /EK \(tú\)/.test(r[0])) && G.totalAliados === 2);
+ok('...las sedes siguen como desglose y el logo de EK sale solo', G.orden.join() === 'todas,C-BM,C-HJ' && G.SEDES['C-BM'].vol === 1680 && G.logo === 'assets/aliados/ek-blanco.png');
+ok('sin el grupo del robot sigue sumando como antes', ctx.PortalAliados.desdeResumenes(docsG, { nombre: 'Dueño EK' }).esGrupo === false);
+
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

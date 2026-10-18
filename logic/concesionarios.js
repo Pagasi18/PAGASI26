@@ -416,6 +416,10 @@ function _concOpenEdit(id){
     + '<div class="fg"><label>Teléfono</label><input class="fi" id="conc_telefono" value="'+(c.telefono||'').replace(/"/g,'&quot;')+'" placeholder="Ej: 0414-1234567"></div>'
     + '</div>'
     + '<div class="fg"><label>Dirección</label><textarea class="fi" id="conc_direccion" rows="2" placeholder="Av. Bolívar, c/c Av. Sucre...">'+(c.direccion||'').replace(/</g,'&lt;')+'</textarea></div>'
+    // 18-oct-2026 (Adam): las sedes de un mismo dueño son UN aliado en el portal (un nivel, un
+    // saldo, un ranking). Mismo texto en cada sede = mismo grupo. Lo lee el robot de aliados.
+    + '<div class="fg"><label>Grupo de aliado <span style="font-weight:400;color:var(--ink3)">(mismo dueño: escribe el mismo nombre en cada sede, ej. EK)</span></label>'
+    + '<input class="fi" id="conc_grupo" value="'+(c.grupoAliado||'').replace(/"/g,'&quot;')+'" placeholder="Ej: EK" maxlength="40"></div>'
     + '<div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="conc_activo" '+(c.activo!==false?'checked':'')+' style="accent-color:var(--green);transform:scale(1.15)"> Concesionario activo</label>'
     + '<div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Si está inactivo, no aparecerá en los selectores de creación de motos/créditos.</div></div>'
     + '</div>';
@@ -429,6 +433,7 @@ function _concOpenEdit(id){
     newConc.ciudad = (($('conc_ciudad')&&$('conc_ciudad').value)||'').trim();
     newConc.telefono = (($('conc_telefono')&&$('conc_telefono').value)||'').trim();
     newConc.direccion = (($('conc_direccion')&&$('conc_direccion').value)||'').trim();
+    newConc.grupoAliado = (($('conc_grupo')&&$('conc_grupo').value)||'').trim();
     newConc.activo = !!($('conc_activo')&&$('conc_activo').checked);
     if(!existing){
       newConc.createdAt = new Date().toISOString();
