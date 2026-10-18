@@ -2660,6 +2660,7 @@ var MODULOS = [
   {id:'motos', label:'Motocicletas', grupo:'Gestión'},
   {id:'creditos', label:'Créditos', grupo:'Gestión'},
   {id:'pagos', label:'Cobranza', grupo:'Gestión'},
+  {id:'whatsapp', label:'Cobranza WhatsApp', grupo:'Gestión'},
   {id:'contratos', label:'Contratos', grupo:'Operaciones'},
   {id:'notif', label:'Notificaciones', grupo:'Operaciones'},
   {id:'calculadora', label:'Calculadora', grupo:'Operaciones'},
@@ -2921,7 +2922,7 @@ function fmtFecha(iso){
 }
 const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
-const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
+const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Cobranza WhatsApp',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
 
 const EXTRA_PERMS={perm_delete:'Permiso para eliminar'};
 function getCurrentPerms(){ return (S.currentUser&&Array.isArray(S.currentUser.permisos)) ? S.currentUser.permisos : []; }
@@ -2931,17 +2932,17 @@ function isAdminUser(){ return !!(S.currentUser && S.currentUser.rol==='Administ
 // ══════════════════════════════════════════
 var ROL_PERMISOS = {
   // Acceso total: dueño del sistema
-  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','catalogo','metricas','perm_delete'],
+  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','whatsapp','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','catalogo','metricas','perm_delete'],
   // Supervisa operaciones, ve reportes, NO toca config ni usuarios
-  Gerente: ['dash','centro','clientes','motos','creditos','pagos','cobranza','contratos','notif','reportes','cuentas'],
+  Gerente: ['dash','centro','clientes','motos','creditos','pagos','cobranza','whatsapp','contratos','notif','reportes','cuentas'],
   // Cobra en la oficina: ve todos los clientes, registra pagos, ve cobranza y deudores
-  Cobrador: ['dash','centro','clientes','cobranza','pagos','creditos'],
+  Cobrador: ['dash','centro','clientes','cobranza','whatsapp','pagos','creditos'],
   // Capta clientes, hace solicitudes, NO toca pagos ni cobranza
   Vendedor: ['dash','centro','clientes','creditos','motos'],
   // Solo finanzas: reportes, pagos, cuentas y contabilidad
   Contador: ['dash','centro','pagos','reportes','cuentas'],
   // Empleado general: hace casi todo excepto config/users
-  Empleado: ['dash','centro','clientes','motos','creditos','pagos','cobranza','contratos','notif'],
+  Empleado: ['dash','centro','clientes','motos','creditos','pagos','cobranza','whatsapp','contratos','notif'],
   // Vendedor Concesionario: solo calculadora (motos), clientes y solicitudes (creditos)
   // Los créditos que crea quedan en estado 'pendiente_revision' hasta que admin apruebe
   'Vendedor Concesionario': ['motos','clientes','creditos'],
@@ -3130,6 +3131,7 @@ var PG_NAVICONS = {
   cobranza:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L16 13l1 4v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>',
   contratos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
   notif:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg>',
+  whatsapp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9.2 8.4 8.6 8.6 0 0 1-3.4-.8L3 21l1.9-5.1A8.4 8.4 0 1 1 21 11.5z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
   calculadora:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="10" height="3" rx="0.5"/><circle cx="8" cy="13" r="0.6" fill="currentColor"/><circle cx="12" cy="13" r="0.6" fill="currentColor"/><circle cx="16" cy="13" r="0.6" fill="currentColor"/><circle cx="8" cy="17" r="0.6" fill="currentColor"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/><circle cx="16" cy="17" r="0.6" fill="currentColor"/></svg>',
   reportes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>',
   aprobaciones:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
@@ -3178,7 +3180,7 @@ function renderSidebar(){
     var permsEmp = getCurrentPerms();
     var grposEmp = [
       {label:'Mi Trabajo', keys:['dash','centro','recursos']},
-      {label:'Gestión', keys:['clientes','motos','creditos','pagos']},
+      {label:'Gestión', keys:['clientes','motos','creditos','pagos','whatsapp']},
       {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
       {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
       // 16-oct-2026: el menu del empleado no listaba Concesionarios ni Cumplimiento, asi que el
@@ -3245,7 +3247,7 @@ function renderSidebar(){
   var perms = getCurrentPerms();
   var grupos = [
     {label:'Principal', keys:['dash','centro','recursos']},
-    {label:'Gestión', keys:['clientes','motos','creditos','pagos']},
+    {label:'Gestión', keys:['clientes','motos','creditos','pagos','whatsapp']},
     {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
     {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
     {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','catalogo']},
