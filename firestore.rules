@@ -20,6 +20,17 @@ service cloud.firestore {
       return noAnonimo()
         && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
         && fichaUsuario().get('suspendido', false) != true
+        && fichaUsuario().get('eliminado', false) != true
+        && fichaUsuario().get('rol', '') != 'Aliado';
+    }
+    // == Aliado (17-oct-2026): el dueno de un concesionario aliado ==
+    // Tiene ficha en /usuarios con rol 'Aliado' y sus sedes en `concesionarios`, pero NO es
+    // staff: aqui queda fuera de todo lo demas. Solo lee los resumenes que le arma el robot.
+    function esAliado() {
+      return noAnonimo()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && fichaUsuario().get('rol', '') == 'Aliado'
+        && fichaUsuario().get('suspendido', false) != true
         && fichaUsuario().get('eliminado', false) != true;
     }
     function esAdmin() {
@@ -363,6 +374,17 @@ service cloud.firestore {
         : ( id in ['plan','cuentasBanc','empresa','rolesPermisos','score','cobradores','avisosTelegram','avisosChats']
             ? (esAdmin() || permiso('config'))
             : esInterno() ) ) );
+    }
+
+    // == Portal de aliados (17-oct-2026) ==
+    // aliados_resumen/{concId}: lo escribe el robot (cuenta de servicio, no pasa por aqui) con
+    // las cifras de cada sede: ventas, saldo del deposito, nivel, comision estimada, ranking.
+    // El aliado lee SOLO los de sus sedes; el personal interno los lee todos; nadie los escribe
+    // desde el navegador.
+    match /aliados_resumen/{concId} {
+      allow get: if esInterno() || (esAliado() && concId in misSedes());
+      allow list: if esInterno();
+      allow create, update, delete: if false;
     }
 
     // == Portal del cliente: accesos y sesiones ==
