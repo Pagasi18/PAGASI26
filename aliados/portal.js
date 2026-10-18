@@ -75,11 +75,11 @@
     rs.forEach(function(r){
       var k = r.concId; D.orden.push(k); D.NOM[k] = String(r.nombre || k).replace(/^EMPIRE\s+/i, 'EK ');
       D.SEDES[k] = sedeDe(r);
-      (r.ventas || []).forEach(function(v){ D.VENTAS.push([fechaCorta(v.fecha), k, v.modelo, v.nombre, v.dias > 0 ? 'atraso' : 'aldia', v.fin || 0, v.dias || 0, v.fecha]); });
+      (r.ventas || []).forEach(function(v){ D.VENTAS.push([fechaCorta(v.fecha), k, v.modelo, v.nombre, v.dias > 0 ? 'atraso' : 'aldia', v.fin || 0, v.dias || 0, v.fecha, v.empresa || '']); });
       var sol = r.solicitudes || {};
       (sol.pendientes || []).forEach(function(p){ D.SOL.push(['Pendiente', k, p.modelo + ' · ' + p.nombre, 'En revisión' + (p.vendedor ? ' · ' + p.vendedor : ''), 'ojo', '9999']); });
       (sol.ultimas || []).forEach(function(a){ D.SOL.push([fechaCorta(a.fecha), k, a.modelo + ' · ' + a.nombre, 'Aprobada en ' + a.minutos + ' min', 'bien', a.fecha]); });
-      ((r.deposito || {}).movimientos || []).forEach(function(mv){ D.MOVS.push([fechaCorta(mv.fecha), k, mv.detalle, mv.monto, mv.saldo, mv.fecha]); });
+      ((r.deposito || {}).movimientos || []).forEach(function(mv){ D.MOVS.push([fechaCorta(mv.fecha), k, mv.detalle, mv.monto, mv.saldo, mv.fecha, mv.empresa || '']); });
       if(r.ranking) D.RANK[k] = (r.ranking.lista || []).map(function(f){ return [f.tu ? D.NOM[k] + ' (tú)' : f.nombre, f.vol, !!f.tu]; });
       if(r.ranking && r.ranking.total > D.totalAliados) D.totalAliados = r.ranking.total;
     });
@@ -173,7 +173,8 @@
     $('a-prom').textContent = s.aprom ? s.aprom + ' min' : '—'; $('a-rec').textContent = s.rec ? s.rec + ' min' : '—';
     var ventas = D.VENTAS.filter(function(v){ return k === 'todas' || v[1] === k; }).slice(0, 12);
     $('v-cuenta').textContent = s.motos + ' este mes';
-    $('ventas').innerHTML = ventas.length ? ventas.map(function(v){ return '<tr><td>' + v[0] + '</td><td>' + D.NOM[v[1]] + '</td><td><b>' + v[2] + '</b></td><td>' + v[3] + '</td><td>' + (v[4] === 'aldia' ? '<span class="pill bien">Al día</span>' : '<span class="pill ' + (v[6] > 30 ? 'mal' : 'ojo') + '">Atraso ' + v[6] + ' d</span>') + '</td><td class="r">' + USD(v[5]) + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="sub">Todavía no hay ventas financiadas.</td></tr>';
+    var emp = function(e){ return e === '18' ? ' <span class="pill azul" title="Crédito de PAGASI 18">18</span>' : ''; };
+    $('ventas').innerHTML = ventas.length ? ventas.map(function(v){ return '<tr><td>' + v[0] + emp(v[8]) + '</td><td>' + D.NOM[v[1]] + '</td><td><b>' + v[2] + '</b></td><td>' + v[3] + '</td><td>' + (v[4] === 'aldia' ? '<span class="pill bien">Al día</span>' : '<span class="pill ' + (v[6] > 30 ? 'mal' : 'ojo') + '">Atraso ' + v[6] + ' d</span>') + '</td><td class="r">' + USD(v[5]) + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="sub">Todavía no hay ventas financiadas.</td></tr>';
     var sol = D.SOL.filter(function(v){ return k === 'todas' || v[1] === k; }).slice(0, 8);
     $('solicitudes').innerHTML = sol.length ? sol.map(function(v){ return '<div class="evento"><time>' + v[0] + '</time><div><b>' + v[2] + '</b><div class="d">' + D.NOM[v[1]] + '</div></div><span class="pill ' + v[4] + '">' + v[3] + '</span></div>'; }).join('') : '<div class="sub">Sin solicitudes recientes.</div>';
     var movs = D.MOVS.filter(function(v){ return k === 'todas' || v[1] === k || v[1] === 'todas'; }).slice(0, 12);
@@ -184,7 +185,7 @@
     $('estado').innerHTML = '<div class="est-cab"><div><h1>Estado de cuenta · ' + D.mesNombre.charAt(0).toUpperCase() + D.mesNombre.slice(1) + ' ' + new Date().getFullYear() + '</h1><p>' + (k === 'todas' ? D.grupo + ' · ' + D.orden.slice(1).map(function(x){ return D.NOM[x]; }).join(', ') : s.nombre) + ' · emitido el ' + new Date().toLocaleDateString('es-VE', { day:'numeric', month:'long', year:'numeric' }) + '</p></div><img src="assets/pagasi-logo.png" alt="Pagasi"></div>'
       + '<div class="est-kpis"><div class="est-kpi"><small>Saldo a tu favor</small><b>' + USD(s.saldo) + '</b><span>de ' + USD(s.dep) + ' depositados</span></div><div class="est-kpi"><small>Motos financiadas</small><b>' + s.motos + '</b><span>' + s.motosDelta + '</span></div><div class="est-kpi"><small>Volumen del mes</small><b>' + USD(s.vol) + '</b><span>Nivel ' + n[0] + ' · ' + pct(n[1]) + '%</span></div><div class="est-kpi"><small>Comisión estimada</small><b>' + USD(base * m / 100) + '</b><span>' + USD(base) + ' × ' + m + '% por calidad de cartera</span></div></div>'
       + '<h3>Movimientos del depósito</h3><table><thead><tr><th>Fecha</th><th>Sede</th><th>Detalle</th><th class="r">Movimiento</th><th class="r">Saldo</th></tr></thead><tbody>' + movs.map(function(v){ return '<tr><td>' + v[0] + '</td><td>' + (v[1] === 'todas' ? 'Las ' + (D.orden.length - 1) : D.NOM[v[1]]) + '</td><td>' + v[2] + '</td><td class="r">' + (v[3] > 0 ? '+' : '−') + USD(Math.abs(v[3])) + '</td><td class="r">' + USD(v[4]) + '</td></tr>'; }).join('') + '</tbody></table>'
-      + '<h3>Ventas financiadas</h3><table><thead><tr><th>Fecha</th><th>Sede</th><th>Moto</th><th>Cliente</th><th>Estado</th><th class="r">Financiado</th></tr></thead><tbody>' + ventas.map(function(v){ return '<tr><td>' + v[0] + '</td><td>' + D.NOM[v[1]] + '</td><td>' + v[2] + '</td><td>' + v[3] + '</td><td>' + (v[4] === 'aldia' ? 'Al día' : 'Atraso ' + v[6] + ' d') + '</td><td class="r">' + USD(v[5]) + '</td></tr>'; }).join('') + '</tbody></table>'
+      + '<h3>Ventas financiadas</h3><table><thead><tr><th>Fecha</th><th>Sede</th><th>Moto</th><th>Cliente</th><th>Estado</th><th class="r">Financiado</th></tr></thead><tbody>' + ventas.map(function(v){ return '<tr><td>' + v[0] + (v[8] === '18' ? ' (P18)' : '') + '</td><td>' + D.NOM[v[1]] + '</td><td>' + v[2] + '</td><td>' + v[3] + '</td><td>' + (v[4] === 'aldia' ? 'Al día' : 'Atraso ' + v[6] + ' d') + '</td><td class="r">' + USD(v[5]) + '</td></tr>'; }).join('') + '</tbody></table>'
       + '<p class="est-pie">' + (D.demo ? 'Demostración con datos de muestra. ' : '') + 'Comisiones y bonos estimados; se confirman con la conciliación del cierre de mes. Pagasi · pagasi.io · info@pagasi.io · +58 424-217-7798</p>';
     var pie = $('pie-demo'); if(pie) pie.hidden = !D.demo;
   }
