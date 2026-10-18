@@ -304,7 +304,10 @@ service cloud.firestore {
     // El aliado lee SOLO los de sus sedes; el personal interno los lee todos; nadie los escribe
     // desde el navegador.
     match /aliados_resumen/{concId} {
-      allow get: if esInterno() || (esAliado() && concId in misSedes());
+      // 18-oct-2026: varias sedes de un mismo dueno son UN aliado; el robot escribe ademas un
+      // resumen del grupo (tipo 'grupo', con sus sedes) que el aliado lee si alguna sede es suya.
+      allow get: if esInterno() || (esAliado() && (concId in misSedes()
+        || (resource.data.get('tipo', '') == 'grupo' && resource.data.get('sedes', []).hasAny(misSedes()))));
       allow list: if esInterno();
       allow create, update, delete: if false;
     }
