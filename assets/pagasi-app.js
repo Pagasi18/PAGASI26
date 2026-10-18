@@ -2945,6 +2945,9 @@ var ROL_PERMISOS = {
   // Vendedor Concesionario: solo calculadora (motos), clientes y solicitudes (creditos)
   // Los créditos que crea quedan en estado 'pendiente_revision' hasta que admin apruebe
   'Vendedor Concesionario': ['motos','clientes','creditos'],
+  // Aliado (17-oct-2026): el dueno de un concesionario aliado. No entra al sistema: su cuenta
+  // sirve para pagasi.io/aliados, donde ve el resumen de sus sedes (las de su ficha).
+  'Aliado': [],
 };
 
 // Roles disponibles para invitar (el nombre visible y su descripción)
@@ -2955,8 +2958,14 @@ var ROLES_INFO = {
   Vendedor: { desc:'Capta clientes y crea solicitudes de crédito. No ve cobranza ni pagos.', color:'#2194ff', icon:'VEN' },
   Contador: { desc:'Acceso exclusivo a pagos, reportes financieros, cuentas y contabilidad.', color:'#9c64ff', icon:'CNT' },
   Empleado: { desc:'Empleado general. Hace casi todo menos configuración y gestión de usuarios.', color:'#ff6b6b', icon:'EMP' },
-  'Vendedor Concesionario': { desc:'Vendedor de un concesionario externo. Solo calculadora, clientes y solicitudes. Los créditos requieren aprobación del admin.', color:'#0ea5e9', icon:'VCO' }
+  'Vendedor Concesionario': { desc:'Vendedor de un concesionario externo. Solo calculadora, clientes y solicitudes. Los créditos requieren aprobación del admin.', color:'#0ea5e9', icon:'VCO' },
+  'Aliado': { desc:'Dueño o gerente de un concesionario aliado. No entra al sistema: entra a pagasi.io/aliados y ve el resumen de las sedes que le marques (ventas, saldo del depósito, nivel y comisión).', color:'#065cff', icon:'ALI' }
 };
+// El aliado no tiene nada que hacer en el sistema: su sitio es el portal de aliados
+function isAliadoRole(){ return !!(S.currentUser && S.currentUser.rol === 'Aliado'); }
+function _salirAlPortalDeAliados(){
+  try{ location.replace((location.pathname.replace(/[^/]*$/, '') || '/') + 'aliados/'); }catch(e){ location.href = 'aliados/'; }
+}
 
 // Helper: devuelve true si el usuario es un Empleado (o legacy Cobrador/Vendedor)
 function isEmpleadoRole(){
@@ -3026,6 +3035,7 @@ function _attachCurrentUserListener(uid){
       if(!doc || !doc.exists) return;
       if(!S.currentUser || S.currentUser.uid !== uid) return;
       var data = doc.data() || {};
+      if(data.rol === 'Aliado'){ _salirAlPortalDeAliados(); return; }
       // Suspendido o eliminado: fuera, antes que cualquier otra cosa. Las Reglas ya no lo
       // dejan tocar la base, asi que seguir en pantalla solo produce errores mudos.
       if((data.suspendido === true || data.eliminado === true) && typeof auth !== 'undefined' && auth){

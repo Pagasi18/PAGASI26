@@ -138,6 +138,7 @@
 .quien{display:flex;align-items:center;gap:56px;font-size:13px}
 .quien a{color:#fff;font-weight:800;font-size:12px;opacity:.9;text-decoration:underline;text-underline-offset:4px}
 .quien-logo{height:74px;width:auto;display:block;translate:0 12px;filter:drop-shadow(0 6px 16px rgba(0,30,120,.3))}
+.quien-nombre{font-weight:800;font-size:15px;background:rgba(255,255,255,.16);padding:10px 14px;border-radius:12px;white-space:nowrap}
 @media (max-width:560px){.barra{flex-wrap:nowrap;gap:10px}.marca{gap:0;min-width:0}.marca small{display:none}.marca img{width:132px}.quien{gap:14px;flex-shrink:0}.quien-logo{height:46px;translate:0 4px}.quien a{padding:8px 0}}
 .hola{margin-top:30px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .hola p b{color:#fff}
@@ -327,7 +328,7 @@
   <div class="wrap">
     <div class="barra">
       <div class="marca"><a href="index.html" aria-label="Pagasi, inicio"><img src="assets/pagasi-logo-blanco.png" width="955" height="256" alt="Pagasi"></a><small>Portal de aliados</small></div>
-      <div class="quien"><img class="quien-logo" src="assets/aliados/bera-blanco.png" alt="BERA"><a href="aliados/" id="salir">Salir</a></div>
+      <div class="quien"><span class="quien-nombre" id="quien-nombre" hidden></span><img class="quien-logo" id="quien-logo" src="assets/aliados/bera-blanco.png" alt=""><a href="aliados/" id="salir">Salir</a></div>
     </div>
     <div class="hola">
       <div>
@@ -335,26 +336,21 @@
         <p id="desde">Desde que empezaste con Pagasi en julio: <b>84 motos</b> y <b>$1.196</b> en comisiones.</p>
         <span class="vivo"><i></i>En vivo · actualizado <span id="vivo-hora">hoy</span></span>
       </div>
-      <div class="sedes" role="group" aria-label="Concesionario">
-        <button type="button" data-sede="todas" aria-pressed="true">Las 3 sedes</button>
-        <button type="button" data-sede="chacao" aria-pressed="false">Chacao</button>
-        <button type="button" data-sede="petare" aria-pressed="false">Petare</button>
-        <button type="button" data-sede="trinidad" aria-pressed="false">La Trinidad</button>
-      </div>
+      <div class="sedes" id="sedes" role="group" aria-label="Concesionario"></div>
     </div>
   </div>
 </header>
 
 <main class="wrap">
   <div class="fila">
-    <section class="card c3"><div class="et">Saldo a tu favor</div><div class="num" id="k-saldo">$12.660</div><div class="sub" id="k-saldo-sub">de $30.000 depositados por Pagasi</div><div class="barra-p"><i id="b-saldo" style="width:42%"></i></div></section>
+    <section class="card c3"><div class="et" id="k-saldo-et">Saldo a tu favor</div><div class="num" id="k-saldo">$12.660</div><div class="sub" id="k-saldo-sub">de $30.000 depositados por Pagasi</div><div class="barra-p"><i id="b-saldo" style="width:42%"></i></div></section>
     <section class="card c3"><div class="et">Motos financiadas en octubre</div><div class="num" id="k-motos">37</div><div class="sub" id="k-motos-sub">+12 frente a septiembre</div></section>
     <section class="card c3"><div class="et">Volumen financiado del mes</div><div class="num" id="k-vol">$31.200</div><div class="sub" id="k-vol-sub"><span class="pill azul" id="k-nivel">Nivel Oro · 2,0%</span></div></section>
     <section class="card c3"><div class="et">Comisión estimada de octubre</div><div class="num" id="k-com">$686</div><div class="sub" id="k-com-sub">$624 base × 110% por calidad de cartera</div></section>
   </div>
 
   <div class="fila">
-    <section class="card c7">
+    <section class="card c7" id="card-nivel">
       <div class="ch"><h2>Tu nivel y lo que falta para el siguiente</h2><span>Se mide sobre lo financiado y conciliado en el mes</span></div>
       <div class="sub" id="n-texto">Te faltan <b>$18.800</b> para Diamante (2,5%). Al ritmo de esta semana lo alcanzas en 3 semanas.</div>
       <div class="ruta" aria-hidden="true">
@@ -372,7 +368,7 @@
         <div class="nivel" data-n="diamante"><b>Diamante · 2,5%</b><span>$50.000 en adelante</span></div>
       </div>
     </section>
-    <section class="card c5">
+    <section class="card c5" id="card-bono">
       <div class="ch"><h2>Bono de inicio</h2><span>20 solicitudes completas en 30 días</span></div>
       <div class="num"><span id="k-bono">14</span> <span class="de">de 20</span></div>
       <div class="sub" id="k-bono-sub">Quedan <b>9 días</b> · 6 solicitudes más y el bono de <b>$2.000</b> es tuyo</div>
@@ -387,7 +383,7 @@
       <svg class="graf" viewBox="0 0 380 330" role="img" aria-label="Volumen financiado por mes" id="graf"></svg>
     </section>
     <section class="card c4">
-      <div class="ch"><h2>Calidad de tu cartera</h2><span>Clientes referidos con más de 60 días de crédito</span></div>
+      <div class="ch"><h2>Calidad de tu cartera</h2><span id="q-sub">Clientes referidos con más de 60 días de crédito</span></div>
       <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end">
         <div><div class="et">Al día</div><div class="num" style="font-size:24px;color:var(--bien)" id="q-aldia">96,2%</div></div>
         <div><div class="et">Con atraso</div><div class="num" style="font-size:24px" id="q-atraso">3,8%</div></div>
@@ -434,7 +430,7 @@
     <section class="card c4">
       <div class="ch"><h2>Tu asesora en Pagasi</h2></div>
       <div class="asesor"><span class="av">S</span><div><b>Samantha</b><div class="sub" style="margin-top:0">Gerente de Cobranzas · lunes a sábado, 8 am a 6 pm</div></div></div>
-      <a class="btn-wa" href="https://wa.me/584242177798?text=Hola%2C%20escribo%20desde%20el%20portal%20de%20aliados%20de%20BERA." target="_blank" rel="noopener">Escribir por WhatsApp</a>
+      <a class="btn-wa" id="wa-asesor" href="https://wa.me/584242177798?text=Hola%2C%20escribo%20desde%20el%20portal%20de%20aliados." target="_blank" rel="noopener">Escribir por WhatsApp</a>
       <div style="height:1px;background:var(--line);margin:16px 0"></div>
       <div class="et">Estado de cuenta</div>
       <div class="sub">Octubre 2026 · se cierra el 31 con la conciliación del mes</div>
@@ -443,13 +439,17 @@
       <div class="sub" id="pdf-msj" style="min-height:18px"></div>
     </section>
   </div>
-  <p class="pie">Demostración del portal de aliados con datos de muestra. Los números reales salen del sistema de Pagasi en tiempo real.<br>Pagasi · pagasi.io · +58 424-217-7798</p>
+  <p class="pie" id="pie-demo">Demostración del portal de aliados con datos de muestra. Los números reales salen del sistema de Pagasi en tiempo real.<br>Pagasi · pagasi.io · +58 424-217-7798</p>
+  <p class="pie">Cifras del sistema de Pagasi, actualizadas cada hora. Comisiones y bonos estimados: se confirman con la conciliación del cierre de mes.<br>Pagasi · pagasi.io · +58 424-217-7798</p>
 </main>
 </div>
 
 <!-- Estado de cuenta: solo se ve al imprimir (el boton "Descargar estado de cuenta" abre el dialogo y ahi se guarda como PDF) -->
 <section id="estado" aria-hidden="true"></section>
 
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="assets/public/catalog.js?v=20261015-5"></script>
 <script src="assets/public/site.js?v=20261015-3"></script>
 <script>
@@ -463,139 +463,6 @@
 })();
 </script>
 <script src="assets/public/hero-motion.js?v=20261015-4"></script>
-<script>
-(function(){
-  var $=function(id){ return document.getElementById(id); };
-  var USD=function(n){ return '$'+Math.round(n).toLocaleString('es-VE'); };
-  // ── Entrada de demostracion: el usuario y la clave los da Pagasi ──
-  var CUENTAS={ bera:'1234', 'grupo bera':'1234' };
-  var FICHAS={ bera:{ nombre:'Grupo BERA', detalle:'Grupo BERA · 3 sedes', logo:'assets/aliados/bera-negro.png' } }; FICHAS['grupo bera']=FICHAS.bera;
-  var REDUCIR=!!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  // Mientras escribe el usuario, la tarjeta reconoce al concesionario y le muestra su logo
-  $('usuario').addEventListener('input', function(){
-    var f=FICHAS[String(this.value||'').trim().toLowerCase()];
-    $('al-quien').hidden=!f; $('al-acceso').hidden=!!f;
-    if(f){ $('al-quien-logo').src=f.logo; $('al-quien-txt').textContent=f.detalle; $('al-saludo').textContent='Hola, '+f.nombre; }
-    else { $('al-saludo').textContent='Entrar al portal'; }
-  });
-  $('ojo').addEventListener('click', function(){ var ver=$('clave').type==='password'; $('clave').type=ver?'text':'password'; this.setAttribute('aria-pressed', String(ver)); this.setAttribute('aria-label', ver?'Ocultar la clave':'Mostrar la clave'); $('clave').focus(); });
-  $('form').addEventListener('submit', function(e){
-    e.preventDefault();
-    var u=String($('usuario').value||'').trim().toLowerCase(), c=String($('clave').value||''), btn=$('entrar');
-    if(CUENTAS[u] && CUENTAS[u]===c){
-      $('error').textContent=''; btn.disabled=true; btn.querySelector('.txt').textContent='Entrando…'; btn.querySelector('.pg-icon').outerHTML='<span class="gira" aria-hidden="true"></span>';
-      setTimeout(function(){
-        $('entrada').hidden=true; $('tablero').hidden=false; $('tablero').classList.add('entra'); window.scrollTo(0,0);
-        var ahora=new Date(); $('vivo-hora').textContent='hoy a las '+ahora.getHours()+':'+('0'+ahora.getMinutes()).slice(-2);
-        prev={}; pinta('todas');
-        btn.disabled=false; btn.querySelector('.txt').textContent='Entrar al portal'; btn.querySelector('.gira').outerHTML=window.PagasiSite?PagasiSite.icon('arrow'):'→';
-      }, REDUCIR?0:750);
-    } else {
-      $('error').textContent='Usuario o clave incorrectos. Si no los tienes, pídeselos a tu asesor.';
-      var caja=$('form'); caja.classList.remove('mal'); void caja.offsetWidth; caja.classList.add('mal');
-    }
-  });
-  $('salir').addEventListener('click', function(e){ e.preventDefault(); $('tablero').hidden=true; $('tablero').classList.remove('entra'); $('entrada').hidden=false; $('clave').value=''; window.scrollTo(0,0); });
-  // El estado de cuenta se imprime de verdad: el navegador lo guarda como PDF
-  $('pdf').addEventListener('click', function(){ $('pdf-msj').textContent='Se abre la ventana de impresión: elige «Guardar como PDF».'; setTimeout(function(){ window.print(); }, 50); });
-  // Los numeros grandes cuentan desde el valor anterior hasta el nuevo
-  var prev={};
-  function cuenta(id, hasta, fmt){
-    var el=$(id), desde=(id in prev)?prev[id]:0; prev[id]=hasta;
-    if(REDUCIR || desde===hasta || !window.requestAnimationFrame){ el.textContent=fmt(hasta); return; }
-    var t0=null, dur=700;
-    requestAnimationFrame(function paso(t){ if(t0===null) t0=t; var p=Math.min(1,(t-t0)/dur); p=1-Math.pow(1-p,3); el.textContent=fmt(desde+(hasta-desde)*p); if(p<1) requestAnimationFrame(paso); else el.textContent=fmt(hasta); });
-  }
-
-  var SEDES={
-    todas:{ nombre:'BERA', dep:30000, saldo:12660, motos:37, motosDelta:'+12 frente a septiembre', vol:31200, bono:14, bonoPend:2, atraso:3.8, aprom:38, rec:19, total:84, meses:[0,0,4200,12900,22400,31200] },
-    chacao:{ nombre:'BERA Chacao', dep:10000, saldo:3160, motos:15, motosDelta:'+5 frente a septiembre', vol:12400, bono:6, bonoPend:1, atraso:2.9, aprom:34, rec:19, total:37, meses:[0,0,2100,6300,9800,12400] },
-    petare:{ nombre:'BERA Petare', dep:10000, saldo:5420, motos:10, motosDelta:'+3 frente a septiembre', vol:8300, bono:3, bonoPend:1, atraso:6.4, aprom:45, rec:27, total:20, meses:[0,0,0,2800,5600,8300] },
-    trinidad:{ nombre:'BERA La Trinidad', dep:10000, saldo:4080, motos:12, motosDelta:'+4 frente a septiembre', vol:10500, bono:5, bonoPend:0, atraso:3.1, aprom:36, rec:22, total:27, meses:[0,0,2100,3800,7000,10500] }
-  };
-  // Los demas aliados salen sin nombre: cada concesionario solo se ve a si mismo con nombre
-  var RANK=[['Concesionario · Guarenas',33600],['Grupo BERA',31200,true],['Concesionario · La Candelaria',24900],['Concesionario · Los Teques',18200],['Concesionario · Guatire',12700]];
-  var VENTAS=[
-    ['14 oct','chacao','BRZ','M. Pérez','aldia',1362],['14 oct','trinidad','Kavak','J. Rodríguez','aldia',942],
-    ['13 oct','petare','SBR','A. Gómez','aldia',741],['13 oct','chacao','Runner','L. Martínez','aldia',882],
-    ['11 oct','trinidad','BR200','R. Silva','atraso',735],['10 oct','chacao','DT 250','C. Hernández','aldia',1485],
-    ['9 oct','petare','Socialista','D. Torres','aldia',735],['8 oct','trinidad','X1','P. Ramírez','aldia',738]
-  ];
-  var SOL=[
-    ['09:40','chacao','BRZ · V. Rojas','Aprobada en 31 min','bien'],['Ayer','trinidad','Kavak · J. Rodríguez','Aprobada en 42 min','bien'],
-    ['Ayer','petare','SBR · A. Gómez','Faltan dos fotos de la cédula','ojo'],['12 oct','chacao','Runner · L. Martínez','Aprobada en 28 min','bien'],
-    ['11 oct','trinidad','BR200 · R. Silva','Aprobada en 55 min','bien']
-  ];
-  var MOVS=[
-    ['14 oct','chacao','BRZ · M. Pérez',-1362,3160],['14 oct','trinidad','Kavak · J. Rodríguez',-942,4080],
-    ['13 oct','petare','SBR · A. Gómez',-741,5420],['13 oct','chacao','Runner · L. Martínez',-882,4522],
-    ['1 oct','todas','Depósito de Pagasi al activar la alianza',30000,30000]
-  ];
-  var NOM={chacao:'Chacao',petare:'Petare',trinidad:'La Trinidad',todas:'Las 3'};
-  function nivelDe(v){ return v>=50000?['Diamante',2.5,'diamante',null]:v>=25000?['Oro',2.0,'oro',50000]:v>=10000?['Plata',1.5,'plata',25000]:['Bronce',1.0,'bronce',10000]; }
-  function multDe(a){ return a<5?110:a<=10?100:a<=15?75:50; }
-  function pct(x){ return x.toFixed(1).replace('.',','); }
-  function saludo(){ var h=new Date().getHours(); return h<12?'¡Buenos días':h<19?'¡Buenas tardes':'¡Buenas noches'; }
-  var ORDEN=['bronce','plata','oro','diamante'], PISOS={bronce:0,plata:10000,oro:25000,diamante:50000};
-  // Donde cae el aliado en la ruta: cada nivel ocupa un cuarto; adentro del nivel avanza segun lo que lleva
-  function posRuta(v, n){ var i=ORDEN.indexOf(n[2]), centro=12.5+i*25; if(!n[3]) return 87.5; return centro+25*((v-PISOS[n[2]])/(n[3]-PISOS[n[2]])); }
-  function pinta(k){
-    var s=SEDES[k];
-    document.querySelectorAll('.sedes button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.sede===k)); });
-    $('titulo').textContent=(k==='todas'?saludo()+', BERA! Así va octubre.':'Así va octubre en '+s.nombre+'.');
-    var comAcum=s.meses.reduce(function(a,v){ return a+v*nivelDe(v)[1]/100; },0);
-    $('desde').innerHTML='Desde que '+(k==='todas'?'empezaste':'empezó '+s.nombre)+' con Pagasi en julio: <b>'+s.total+' motos</b> y <b>'+USD(comAcum)+'</b> en comisiones.';
-    cuenta('k-saldo', s.saldo, USD); $('k-saldo-sub').textContent='de '+USD(s.dep)+' depositados por Pagasi'; $('b-saldo').style.width=Math.round(s.saldo/s.dep*100)+'%';
-    cuenta('k-motos', s.motos, function(v){ return String(Math.round(v)); }); $('k-motos-sub').textContent=s.motosDelta;
-    var n=nivelDe(s.vol), m=multDe(s.atraso), base=s.vol*n[1]/100;
-    cuenta('k-vol', s.vol, USD); $('k-nivel').textContent='Nivel '+n[0]+' · '+pct(n[1])+'%';
-    cuenta('k-com', base*m/100, USD); $('k-com-sub').textContent=USD(base)+' base × '+m+'% por calidad de cartera';
-    if(n[3]){ var falta=n[3]-s.vol, sig=nivelDe(n[3]); $('n-texto').innerHTML='Te faltan <b>'+USD(falta)+'</b> para '+sig[0]+' ('+pct(sig[1])+'%).'+(k==='todas'?' Al ritmo de esta semana lo alcanzas en 3 semanas.':''); }
-    else { $('n-texto').innerHTML='Estás en el nivel más alto. <b>Diamante · 2,5%</b>'; }
-    var pos=posRuta(s.vol, n); $('ruta-fill').style.width=Math.max(0,Math.min(100,(pos-12.5)/75*100))+'%'; $('ruta-tu').style.left=pos+'%'; $('ruta-tu').querySelector('span').textContent='Tú · '+USD(s.vol);
-    document.querySelectorAll('.ruta-nodo').forEach(function(e){ var i=ORDEN.indexOf(e.dataset.n), act=ORDEN.indexOf(n[2]); e.classList.toggle('falta', i>act); e.classList.toggle('aqui', i===act); });
-    document.querySelectorAll('.nivel').forEach(function(e){ e.classList.toggle('on', e.dataset.n===n[2]); });
-    cuenta('k-bono', s.bono, function(v){ return String(Math.round(v)); });
-    $('k-bono-sub').innerHTML='Quedan <b>9 días</b> · '+(20-s.bono)+' solicitudes más y el bono de <b>$2.000</b> es tuyo'; $('b-bono').style.width=Math.round(s.bono/20*100)+'%';
-    $('p-completas').textContent='✓ '+s.bono+' completas'; $('p-pendientes').textContent=s.bonoPend+' con documentos pendientes'; $('p-pendientes').hidden=!s.bonoPend;
-    $('q-aldia').textContent=pct(100-s.atraso)+'%'; $('q-atraso').textContent=pct(s.atraso)+'%'; $('q-mult').textContent=m+'%';
-    [['m1',110],['m2',100],['m3',75],['m4',50]].forEach(function(p){ var tr=$(p[0]); tr.style.background=(p[1]===m)?'var(--azul-claro)':''; tr.querySelector('td:last-child').innerHTML=(p[1]===m)?'<b>'+p[1]+'%</b>':p[1]+'%'; });
-    var max=RANK[0][1], yo=RANK.findIndex(function(r){ return r[2]; });
-    $('rank').innerHTML=RANK.map(function(r,i){ return '<li'+(r[2]?' class="tu"':'')+'><span class="pos">'+(i+1)+'</span><span class="nom">'+r[0]+(r[2]?' (tú)':'')+'</span><span class="val">'+USD(r[1])+'</span><i><b style="width:'+Math.round(r[1]/max*100)+'%"></b></i></li>'; }).join('');
-    $('rank-txt').innerHTML=(yo===0?'<b>Vas de primero</b> entre los aliados de Pagasi este mes.':'Vas de <b>#'+(yo+1)+'</b> entre '+13+' aliados. Te faltan <b>'+USD(RANK[yo-1][1]-RANK[yo][1])+'</b> para el primer lugar.')+(k==='todas'?'':' El ranking es por grupo.');
-    $('a-prom').textContent=s.aprom+' min'; $('a-rec').textContent=s.rec+' min';
-    var ventas=VENTAS.filter(function(v){ return k==='todas'||v[1]===k; });
-    $('v-cuenta').textContent=s.motos+' este mes';
-    $('ventas').innerHTML=ventas.map(function(v){ return '<tr><td>'+v[0]+'</td><td>'+NOM[v[1]]+'</td><td><b>'+v[2]+'</b></td><td>'+v[3]+'</td><td>'+(v[4]==='aldia'?'<span class="pill bien">Al día</span>':'<span class="pill ojo">Atraso 12 d</span>')+'</td><td class="r">'+USD(v[5])+'</td></tr>'; }).join('');
-    var sol=SOL.filter(function(v){ return k==='todas'||v[1]===k; });
-    $('solicitudes').innerHTML=sol.map(function(v){ return '<div class="evento"><time>'+v[0]+'</time><div><b>'+v[2]+'</b><div class="d">'+NOM[v[1]]+'</div></div><span class="pill '+v[4]+'">'+v[3]+'</span></div>'; }).join('');
-    var movs=MOVS.filter(function(v){ return k==='todas'||v[1]===k||v[1]==='todas'; });
-    $('movs').innerHTML=movs.map(function(v){ var dep=v[3]>0; return '<tr><td>'+v[0]+'</td><td>'+(v[1]==='todas'?'Las 3':NOM[v[1]])+'</td><td>'+v[2]+'</td><td class="r" style="color:'+(dep?'var(--bien)':'var(--fg)')+';font-weight:700">'+(dep?'+':'−')+USD(Math.abs(v[3]))+'</td><td class="r">'+USD(v[4])+'</td></tr>'; }).join('');
-    grafica(s.meses);
-    // Resumen para mandar por WhatsApp al equipo del concesionario
-    var resumen='Resumen Pagasi · '+s.nombre+' · octubre: '+s.motos+' motos financiadas, '+USD(s.vol)+' de volumen, nivel '+n[0]+' ('+pct(n[1])+'%), comisión estimada '+USD(base*m/100)+', saldo a favor '+USD(s.saldo)+'. pagasi.io/aliados';
-    $('compartir').href='https://wa.me/?text='+encodeURIComponent(resumen);
-    // Estado de cuenta (solo sale al imprimir)
-    $('estado').innerHTML='<div class="est-cab"><div><h1>Estado de cuenta · Octubre 2026</h1><p>'+(k==='todas'?'Grupo BERA · Chacao, Petare y La Trinidad':s.nombre)+' · emitido el '+new Date().toLocaleDateString('es-VE',{day:'numeric',month:'long',year:'numeric'})+'</p></div><img src="assets/pagasi-logo.png" alt="Pagasi"></div>'
-      +'<div class="est-kpis"><div class="est-kpi"><small>Saldo a tu favor</small><b>'+USD(s.saldo)+'</b><span>de '+USD(s.dep)+' depositados</span></div><div class="est-kpi"><small>Motos financiadas</small><b>'+s.motos+'</b><span>'+s.motosDelta+'</span></div><div class="est-kpi"><small>Volumen del mes</small><b>'+USD(s.vol)+'</b><span>Nivel '+n[0]+' · '+pct(n[1])+'%</span></div><div class="est-kpi"><small>Comisión estimada</small><b>'+USD(base*m/100)+'</b><span>'+USD(base)+' × '+m+'% por calidad de cartera</span></div></div>'
-      +'<h3>Movimientos del depósito</h3><table><thead><tr><th>Fecha</th><th>Sede</th><th>Detalle</th><th class="r">Movimiento</th><th class="r">Saldo</th></tr></thead><tbody>'+movs.map(function(v){ return '<tr><td>'+v[0]+'</td><td>'+(v[1]==='todas'?'Las 3':NOM[v[1]])+'</td><td>'+v[2]+'</td><td class="r">'+(v[3]>0?'+':'−')+USD(Math.abs(v[3]))+'</td><td class="r">'+USD(v[4])+'</td></tr>'; }).join('')+'</tbody></table>'
-      +'<h3>Ventas financiadas del mes</h3><table><thead><tr><th>Fecha</th><th>Sede</th><th>Moto</th><th>Cliente</th><th>Estado</th><th class="r">Financiado</th></tr></thead><tbody>'+ventas.map(function(v){ return '<tr><td>'+v[0]+'</td><td>'+NOM[v[1]]+'</td><td>'+v[2]+'</td><td>'+v[3]+'</td><td>'+(v[4]==='aldia'?'Al día':'Atraso 12 d')+'</td><td class="r">'+USD(v[5])+'</td></tr>'; }).join('')+'</tbody></table>'
-      +'<p class="est-pie">Demostración con datos de muestra. Comisiones y bonos estimados; se confirman con la conciliación del cierre de mes. Pagasi · pagasi.io · info@pagasi.io · +58 424-217-7798</p>';
-  }
-  function grafica(vals){
-    var svg=$('graf'), W=380, H=330, p={l:44,r:10,t:28,b:30}, meses=['May','Jun','Jul','Ago','Sep','Oct'];
-    var max=Math.max.apply(null, vals.concat([1])), paso=max>20000?10000:max>8000?5000:2000, top=Math.ceil(max/paso)*paso;
-    var x=function(i){ return p.l+i*((W-p.l-p.r)/vals.length); }, y=function(v){ return p.t+(H-p.t-p.b)*(1-v/top); }, bw=(W-p.l-p.r)/vals.length-12;
-    var out='';
-    for(var g=0; g<=top; g+=paso){ out+='<line x1="'+p.l+'" x2="'+(W-p.r)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="#dfe6f3"/><text x="'+(p.l-6)+'" y="'+(y(g)+4)+'" text-anchor="end" font-size="11" fill="#7c88a6">'+(g/1000)+'k</text>'; }
-    vals.forEach(function(v,i){ var h=y(0)-y(v); out+='<rect x="'+(x(i)+6)+'" y="'+y(v)+'" width="'+bw+'" height="'+Math.max(h,0)+'" rx="4" fill="#065cff" opacity="'+(i===vals.length-1?1:.55)+'" style="animation-delay:'+(i*70)+'ms"><title>'+meses[i]+': '+USD(v)+'</title></rect>';
-      if(v) out+='<text class="v" x="'+(x(i)+6+bw/2)+'" y="'+(y(v)-6)+'" text-anchor="middle" font-size="11" font-weight="700" fill="#4b5875">'+USD(v)+'</text>';
-      out+='<text x="'+(x(i)+6+bw/2)+'" y="'+(H-10)+'" text-anchor="middle" font-size="12" fill="#7c88a6">'+meses[i]+'</text>'; });
-    svg.innerHTML=out;
-  }
-  document.querySelectorAll('.sedes button').forEach(function(b){ b.addEventListener('click', function(){ pinta(b.dataset.sede); }); });
-  pinta('todas');
-})();
-</script>
+<script src="aliados/portal.js?v=20261017-1"></script>
 </body>
 </html>
