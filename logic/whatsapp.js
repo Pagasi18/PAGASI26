@@ -192,13 +192,16 @@ function waAbrirConversaciones(canal, cb){
   }, function(e){ console.warn('conversaciones ' + canal + ':', e); if(cb) cb([]); });
 }
 function waAbrirMensajes(id, cb){
-  if(!waConectado()){ if(cb) cb(_waRoot._waMsgs[id] || []); return; }
+  // La conexion que manda es la del canal de ESTA conversacion (Instagram puede estar conectado
+  // con WhatsApp todavia en demostracion): si no, el hilo de Instagram salia en blanco (19-oct-2026).
+  var conv = _waConv(id), canal = (conv && conv.canal) || (String(id).indexOf('ig:') === 0 ? 'instagram' : 'whatsapp');
+  if(!waConectadoCanal(canal)){ if(cb) cb(_waRoot._waMsgs[id] || []); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); return; }
   if(_waRoot._waMsgUnsub) { try{ _waRoot._waMsgUnsub(); }catch(e){} }
   _waRoot._waMsgUnsub = db.collection('conversaciones').doc(id).collection('mensajes').orderBy('hora', 'asc').limit(200).onSnapshot(function(snap){
     _waRoot._waMsgs[id] = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
     if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
     if(cb){ cb(_waRoot._waMsgs[id]); cb = null; }
-  });
+  }, function(e){ console.warn('mensajes ' + id + ':', e); _waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []; if(typeof toast === 'function') toast('No se pudieron leer los mensajes: ' + (e && e.message || e), 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); if(cb){ cb([]); cb = null; } });
 }
 function _waConv(id){ return (_waRoot._waConvs || []).find(function(c){ return c.id === id; }); }
 function _waActualizar(id, cambios, accion){
@@ -216,7 +219,7 @@ function waVentanaAbierta(conv, ahora){ if(!conv || !conv.ultimoEntranteHora) re
 function waEnviarEquipo(id, texto){
   var c = _waConv(id); texto = String(texto || '').trim();
   if(!c || !texto) return;
-  if(!waVentanaAbierta(c)){ toast('La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return; }
+  if(!waVentanaAbierta(c)){ toast(c.canal === 'instagram' ? 'La ventana de 7 días de Instagram está cerrada: solo se puede escribir cuando la persona vuelva a escribir.' : 'La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return; }
   var m = { autor: 'equipo', direccion: 'saliente', tipo: 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
   (_waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []).push(Object.assign({ id: 'local-' + Date.now() }, m));
   Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por });

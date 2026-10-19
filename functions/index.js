@@ -119,13 +119,21 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
   const parsed = meta.parsearWebhook(cuerpo);
   const avisoRef = bases['26'].collection('webhooks_meta').doc();
   await avisoRef.set({ recibido: new Date().toISOString(), objeto: parsed.objeto || '', mensajes: parsed.mensajes.length, estados: parsed.estados.length, crudo: crudo.slice(0, 200000) }).catch(() => {});
+  if (!parsed.mensajes.length && !parsed.estados.length) return res.status(200).send('EVENT_RECEIVED');
+  // Se procesa ANTES de responder: Cloud Run le quita la CPU al contenedor en cuanto sale la
+  // respuesta y lo que quedaba pendiente (pensar, mandar) se congelaba (19-oct-2026). Meta espera
+  // la respuesta unos segundos, asi que hay un tope: si no termina en 20 s se responde igual y
+  // el resto sigue como pueda.
+  const inicio = Date.now();
+  const trabajo = (async () => {
+    try {
+      const cfg = await cfgAsistente();
+      const r = await procesar.procesarAviso(armarDeps(cfg), parsed);
+      await avisoRef.set({ procesado: new Date().toISOString(), ms: Date.now() - inicio, resultado: JSON.stringify(r).slice(0, 4000) }, { merge: true }).catch(() => {});
+    } catch (e) { logger.error('procesar', e); await avisoRef.set({ error: String(e && e.message || e).slice(0, 500), ms: Date.now() - inicio }, { merge: true }).catch(() => {}); }
+  })();
+  await Promise.race([trabajo, new Promise(ok => setTimeout(ok, 20000))]);
   res.status(200).send('EVENT_RECEIVED');
-  if (!parsed.mensajes.length && !parsed.estados.length) return;
-  try {
-    const cfg = await cfgAsistente();
-    const r = await procesar.procesarAviso(armarDeps(cfg), parsed);
-    await avisoRef.set({ procesado: new Date().toISOString(), resultado: JSON.stringify(r).slice(0, 4000) }, { merge: true }).catch(() => {});
-  } catch (e) { logger.error('procesar', e); await avisoRef.set({ error: String(e && e.message || e).slice(0, 500) }, { merge: true }).catch(() => {}); }
 });
 
 exports.recordatoriosWhatsApp = onSchedule({ schedule: '30 8 * * *', timeZone: 'America/Caracas', region: 'us-east1', secrets: [TOKEN, PHONE_ID], memory: '1GiB', timeoutSeconds: 540 }, async () => {

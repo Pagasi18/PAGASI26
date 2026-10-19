@@ -105,11 +105,14 @@ function cliente(cfg) {
   };
 }
 
-// Instagram: se manda desde la cuenta profesional (accountId) a un IGSID. Dentro de la ventana de
-// 24 h va texto normal; con {humano:true} va con la etiqueta HUMAN_AGENT (hasta 7 dias, solo
-// personas del equipo), que Meta debe tener aprobada en la app.
+// Instagram: se manda a un IGSID con el token de la PAGINA de Facebook ligada a la cuenta
+// profesional (API de Instagram con inicio de sesion con Facebook): el envio va por /me/messages,
+// donde 'me' es la pagina; POST /{accountId}/messages responde "Unsupported post request"
+// (comprobado el 19-oct-2026). accountId queda para reconocer la cuenta en los avisos. Dentro de
+// la ventana de 24 h va texto normal; con {humano:true} va con la etiqueta HUMAN_AGENT (hasta 7
+// dias, solo personas del equipo), que Meta debe tener aprobada en la app.
 function clienteInstagram(cfg) {
-  const base = `${GRAPH}/${cfg.accountId}`;
+  const base = `${GRAPH}/me`;
   const cab = { authorization: 'Bearer ' + cfg.accessToken, 'content-type': 'application/json' };
   async function enviar(payload) {
     const r = await fetch(base + '/messages', { method: 'POST', headers: cab, body: JSON.stringify(payload) });
