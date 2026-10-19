@@ -32,6 +32,9 @@ const IG_TOKEN = defineSecret('INSTAGRAM_ACCESS_TOKEN');
 const IG_CUENTA = defineSecret('INSTAGRAM_ACCOUNT_ID');
 const PROYECTOS = { '26': 'pagasi26-65ced', '18': 'pagasi-v2' };
 const BUCKETS = { '26': 'pagasi26-65ced.firebasestorage.app', '18': 'pagasi-v2.firebasestorage.app' };
+// El valor limpio de un secreto: 'echo valor | firebase functions:secrets:set' guarda un salto de
+// linea al final (paso con WHATSAPP_VERIFY_TOKEN, 19-oct-2026) y Meta compara el token exacto.
+const sec = p => String(p.value() || '').trim();
 
 const app26 = getApps().find(a => a.name === '[DEFAULT]') || initializeApp({ projectId: PROYECTOS['26'], storageBucket: BUCKETS['26'] });
 const app18 = getApps().find(a => a.name === 'p18') || initializeApp({ projectId: PROYECTOS['18'], storageBucket: BUCKETS['18'] }, 'p18');
@@ -64,10 +67,10 @@ function storageDe(empresa) {
 }
 function configurado(v) { return !!v && v !== 'pendiente'; }
 function armarDeps(cfg) {
-  const m = meta.cliente({ accessToken: TOKEN.value(), phoneNumberId: PHONE_ID.value() });
-  const ig = configurado(IG_TOKEN.value()) && configurado(IG_CUENTA.value()) ? meta.clienteInstagram({ accessToken: IG_TOKEN.value(), accountId: IG_CUENTA.value() }) : null;
+  const m = meta.cliente({ accessToken: sec(TOKEN), phoneNumberId: sec(PHONE_ID) });
+  const ig = configurado(sec(IG_TOKEN)) && configurado(sec(IG_CUENTA)) ? meta.clienteInstagram({ accessToken: sec(IG_TOKEN), accountId: sec(IG_CUENTA) }) : null;
   return { bases, storage: storageDe, meta: m, metaIG: ig, ventas: catalogoVentas, cfg, ahora: () => new Date().toISOString(), hoy: hoyCaracas, log: (q, d) => logger.info(q, d || {}),
-    cerebro: { pensar: ({ sistema, mensajes }) => cerebro.pensar({ apiKey: ANTHROPIC.value(), sistema, mensajes }) } };
+    cerebro: { pensar: ({ sistema, mensajes }) => cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes }) } };
 }
 
 // Quien escribe desde el panel: su token de Firebase (de la 26 o de la 18) y su ficha en /usuarios
@@ -90,7 +93,7 @@ async function quienEscribe(req) {
 // de Meta (POST) y el token de Firebase del usuario (/equipo).
 exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', secrets: [VERIFY, TOKEN, PHONE_ID, APP_SECRET, ANTHROPIC, IG_TOKEN, IG_CUENTA], memory: '512MiB', timeoutSeconds: 120, cors: true }, async (req, res) => {
   if (req.method === 'GET') {
-    const reto = meta.verificacion(req.query, VERIFY.value());
+    const reto = meta.verificacion(req.query, sec(VERIFY));
     if (reto) return res.status(200).send(reto);
     return res.status(403).send('verificacion rechazada');
   }
@@ -109,7 +112,7 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
 
   // El aviso de Meta: firma, guardar crudo, responder, procesar
   const crudo = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
-  const secreto = APP_SECRET.value() || '';
+  const secreto = sec(APP_SECRET) || '';
   if (!secreto || secreto === 'pendiente') { logger.warn('falta WHATSAPP_APP_SECRET: el aviso se rechaza'); return res.status(401).send('falta el secreto de la app'); }
   if (!meta.firmaValida(crudo, req.headers['x-hub-signature-256'], secreto)) { logger.warn('firma inválida'); return res.status(401).send('firma inválida'); }
   const cuerpo = req.body || {};
