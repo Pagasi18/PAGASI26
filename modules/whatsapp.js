@@ -10,20 +10,48 @@ function _waClave(ctx){ ctx = ctx || _waCtxActual(); return ctx.modulo + ':' + c
 function _waTabActual(ctx){ ctx = ctx || _waCtxActual(); return window._waTabs[_waClave(ctx)] || (ctx.modulo === 'whatsapp' && ctx.area === 'cobranza' ? 'hoy' : 'conv'); }
 function waTab(t){ window._waTabs[_waClave()] = t; nav(S.page === 'instagram' ? 'instagram' : 'whatsapp'); }
 function waArea(a){ window._waArea = a === 'ventas' ? 'ventas' : 'cobranza'; window._waSel = null; nav('whatsapp'); }
-function waAbrir(id){ window._waSel = id; var c = _waConv(id); if(c && c.noLeidos && !waConectadoCanal(c.canal)) c.noLeidos = 0; if(c && c.canal !== 'instagram'){ window._waArea = c.area === 'ventas' ? 'ventas' : 'cobranza'; } window._waTabs[_waClave(c && c.canal === 'instagram' ? { modulo: 'instagram', area: 'ventas' } : { modulo: 'whatsapp', area: window._waArea })] = 'conv'; nav(_waModuloDe(id)); }
+// Abrir una conversacion: si ya estamos en esa pantalla se cambia solo el hilo y la ficha (sin
+// recargar la pagina, que saltaba el formato y el scroll con cada clic, 19-oct-2026); si no, nav.
+function waAbrir(id){
+  var c = _waConv(id), mod = _waModuloDe(id), antes = _waCtxActual();
+  window._waSel = id;
+  if(c && c.canal !== 'instagram'){ window._waArea = c.area === 'ventas' ? 'ventas' : 'cobranza'; }
+  window._waTabs[_waClave(c && c.canal === 'instagram' ? { modulo: 'instagram', area: 'ventas' } : { modulo: 'whatsapp', area: window._waArea })] = 'conv';
+  var enSitio = S.page === mod && document.getElementById('wa-hilo') && antes.modulo === mod && antes.area === _waCtxActual().area;
+  if(enSitio) _waPintarSeleccion(); else nav(mod);
+}
+// Filtros de la lista (por pantalla): la clave es modulo:area
+window._waFiltros = window._waFiltros || {};
+function _waFiltroActual(ctx){ return window._waFiltros[_waClave(ctx || _waCtxActual())] || 'todas'; }
+function waFiltro(f){ window._waFiltros[_waClave()] = f; _waPintarLista(); }
+// "Sin responder": el ultimo mensaje lo mando el cliente. El servidor anota ultimoAutor; para las
+// conversaciones de antes, si la hora del ultimo mensaje es la del ultimo entrante, fue el cliente.
+function _waSinResponder(c){ if(!c || !c.ultimoEntranteHora) return false; return c.ultimoAutor ? c.ultimoAutor === 'cliente' : String(c.ultimoMensajeHora || '') === String(c.ultimoEntranteHora || ''); }
+function _waEsHoy(iso){ return !!iso && new Date(iso).toDateString() === new Date().toDateString(); }
+var WA_FILTROS = [
+  { id: 'todas', nombre: 'Todas', f: function(){ return true; } },
+  { id: 'sin', nombre: 'Sin responder', f: _waSinResponder },
+  { id: 'noleidas', nombre: 'No leídas', f: function(c){ return (c.noLeidos || 0) > 0; } },
+  { id: 'esperan', nombre: 'Esperan persona', f: function(c){ return !!c.atencion; } },
+  { id: 'humano', nombre: 'Atiende una persona', f: function(c){ return c.modo === 'humano'; } },
+  { id: 'leads', nombre: 'Quieren comprar', f: function(c){ return !!(c.borrador && c.borrador.tipo === 'lead'); }, solo: 'ventas' },
+  { id: 'promesas', nombre: 'Con promesa', f: function(c){ return !!(c.borrador && c.borrador.tipo === 'promesa'); }, solo: 'cobranza' },
+  { id: 'hoy', nombre: 'Hoy', f: function(c){ return _waEsHoy(c.ultimoMensajeHora); } }
+];
+function _waFiltrosDe(ctx){ return WA_FILTROS.filter(function(f){ return !f.solo || f.solo === ctx.area; }); }
 // Las conversaciones que le tocan a este contexto (canal y, en WhatsApp, el area)
 function _waConvsDe(ctx){ return (window._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') === ctx.canal && (ctx.canal === 'instagram' || (c.area || 'cobranza') === ctx.area); }); }
 
 var _WA_CSS = '<style id="wa-css">'
-  + '.wa-tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}.wa-tabs button{border:1px solid var(--rim);background:var(--surf);border-radius:999px;padding:8px 14px;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink2);cursor:pointer}.wa-tabs button.on{background:var(--p1);border-color:var(--p1);color:#fff}'
+  + '.wa-cab{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:12px}.wa-cab-izq .cs{max-width:620px}.wa-cab-der{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.wa-cab .wa-tabs,.wa-cab .wa-areas{margin:0}.wa-minis{display:flex;gap:6px;flex-wrap:wrap}.wa-minis span{border:1px solid var(--rim);background:var(--surf);border-radius:999px;padding:5px 11px;font-size:11.5px;color:var(--ink3);white-space:nowrap}.wa-minis b{color:var(--ink);font-size:13px;margin-right:3px}.wa-minis .ambar b{color:#b45309}.wa-minis .verde b{color:#0f7a3e}.wa-tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}.wa-tabs button{border:1px solid var(--rim);background:var(--surf);border-radius:999px;padding:8px 14px;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink2);cursor:pointer}.wa-tabs button.on{background:var(--p1);border-color:var(--p1);color:#fff}'
   + '.wa-aviso{display:flex;gap:12px;align-items:center;background:#fff7e6;border:1px solid #f3d9a4;color:#7a4d00;border-radius:12px;padding:11px 14px;font-size:12.5px;margin-bottom:14px}.wa-aviso b{font-weight:800}'
   + '.wa-grupo{margin-bottom:14px}.wa-grupo .ch{align-items:center}.wa-fila{display:grid;grid-template-columns:1.3fr 1fr .7fr .9fr 1.6fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--rim);font-size:12.5px}.wa-fila:first-of-type{border-top:0}.wa-fila b{font-weight:800}.wa-fila small{display:block;color:var(--ink3);font-size:11px}.wa-fila .msg{color:var(--ink3);font-size:11px;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}'
   + '.wa-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:800}.wa-pill.azul{background:#e8f0ff;color:#065cff}.wa-pill.ambar{background:#fff4e0;color:#b45309}.wa-pill.rojo{background:#fdecec;color:#c81e1e}.wa-pill.gris{background:var(--surf2);color:var(--ink3)}.wa-pill.verde{background:#e6f7f0;color:#0e9f6e}'
-  + '.wa-split{display:grid;grid-template-columns:320px 1fr 300px;gap:14px;min-height:560px}@media(max-width:1200px){.wa-split{grid-template-columns:280px 1fr}.wa-ficha{grid-column:1/-1}}@media(max-width:800px){.wa-split{grid-template-columns:1fr}}'
-  + '.wa-lista{background:var(--surf);border:1px solid var(--rim);border-radius:var(--r20);overflow:hidden;display:flex;flex-direction:column}.wa-lista .wa-busca{padding:10px;border-bottom:1px solid var(--rim)}.wa-lista .items{overflow:auto;max-height:70vh}'
+  + '.wa-split{display:grid;grid-template-columns:320px 1fr 300px;gap:14px;min-height:560px}@media(min-width:1201px){.wa-split{min-height:460px}.wa-split>*{min-height:0}.wa-ficha{overflow:auto}}@media(max-width:1200px){.wa-split{grid-template-columns:280px 1fr}.wa-ficha{grid-column:1/-1}.wa-lista .items{max-height:60vh}.wa-burbujas{max-height:60vh}}@media(max-width:800px){.wa-split{grid-template-columns:1fr}}.wa-filtros{display:flex;gap:5px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--rim)}.wa-filtros button{border:1px solid var(--rim);background:var(--surf);border-radius:999px;padding:4px 9px;font:inherit;font-size:11px;font-weight:700;color:var(--ink2);cursor:pointer;white-space:nowrap}.wa-filtros button.on{background:var(--ink);border-color:var(--ink);color:#fff}.wa-filtros button i{font-style:normal;opacity:.65;margin-left:4px}.wa-filtros button:disabled{opacity:.45;cursor:default}.wa-item .sr{width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;flex:none}.wa-item .n .wa-pill{font-size:9.5px;padding:1px 6px}'
+  + '.wa-lista{background:var(--surf);border:1px solid var(--rim);border-radius:var(--r20);overflow:hidden;display:flex;flex-direction:column}.wa-lista .wa-busca{padding:10px;border-bottom:1px solid var(--rim)}.wa-lista .items{overflow:auto;flex:1;min-height:0}'
   + '.wa-item{display:grid;grid-template-columns:38px 1fr auto;gap:10px;padding:11px 12px;border-bottom:1px solid var(--rim);cursor:pointer;align-items:center}.wa-item:hover{background:var(--surf2)}.wa-item.on{background:#e8f0ff}.wa-item .av{width:38px;height:38px;border-radius:50%;background:var(--surf2);color:var(--ink2);display:grid;place-items:center;font-weight:800;font-size:12px}.wa-item .n{font-weight:800;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.wa-item .u{font-size:11.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}.wa-item .h{font-size:10.5px;color:var(--ink3);text-align:right}.wa-item .nl{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:999px;background:var(--p1);color:#fff;font-size:10px;font-weight:800;padding:0 5px;margin-top:4px}'
-  + '.wa-hilo{background:var(--surf);border:1px solid var(--rim);border-radius:var(--r20);display:flex;flex-direction:column;min-height:560px}.wa-hilo-top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rim);flex-wrap:wrap}.wa-hilo-top .quien b{font-size:14px}.wa-hilo-top .quien small{display:block;color:var(--ink3);font-size:11.5px}.wa-hilo-top .acc{display:flex;gap:6px;flex-wrap:wrap}'
-  + '.wa-burbujas{flex:1;overflow:auto;padding:16px;background:#f3f6fc;display:flex;flex-direction:column;gap:8px;max-height:60vh}.wa-b{max-width:78%;border-radius:14px;padding:9px 12px;font-size:13px;line-height:1.5;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.05)}.wa-b.cliente{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}.wa-b.asistente{align-self:flex-end;background:#dcf2ff;border-bottom-right-radius:4px}.wa-b.equipo{align-self:flex-end;background:#d9fbe6;border-bottom-right-radius:4px}.wa-b .meta{display:flex;gap:6px;justify-content:flex-end;font-size:10px;color:var(--ink3);margin-top:4px}.wa-b .meta .quien{font-weight:800}.wa-b img{max-width:220px;border-radius:10px;display:block;margin-bottom:6px}.wa-b .plantilla{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#065cff;margin-bottom:3px}'
+  + '.wa-hilo{background:var(--surf);border:1px solid var(--rim);border-radius:var(--r20);display:flex;flex-direction:column;min-height:0}.wa-hilo-top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rim);flex-wrap:wrap}.wa-hilo-top .quien b{font-size:14px}.wa-hilo-top .quien small{display:block;color:var(--ink3);font-size:11.5px}.wa-hilo-top .acc{display:flex;gap:6px;flex-wrap:wrap}'
+  + '.wa-burbujas{flex:1;overflow:auto;padding:16px;background:#f3f6fc;display:flex;flex-direction:column;gap:8px;min-height:160px}.wa-b{max-width:78%;border-radius:14px;padding:9px 12px;font-size:13px;line-height:1.5;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.05)}.wa-b.cliente{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}.wa-b.asistente{align-self:flex-end;background:#dcf2ff;border-bottom-right-radius:4px}.wa-b.equipo{align-self:flex-end;background:#d9fbe6;border-bottom-right-radius:4px}.wa-b .meta{display:flex;gap:6px;justify-content:flex-end;font-size:10px;color:var(--ink3);margin-top:4px}.wa-b .meta .quien{font-weight:800}.wa-b img{max-width:220px;border-radius:10px;display:block;margin-bottom:6px}.wa-b .plantilla{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#065cff;margin-bottom:3px}'
   + '.wa-escribir{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rim)}.wa-escribir textarea{flex:1;min-height:44px;max-height:120px;resize:vertical}.wa-cerrada{padding:10px 14px;font-size:12px;color:#b45309;background:#fff4e0;border-top:1px solid #f3d9a4}'
   + '.wa-ficha{display:flex;flex-direction:column;gap:12px}.wa-ficha .card{padding:16px}.wa-ficha .ct{margin-bottom:8px}.wa-kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px solid var(--rim)}.wa-kv:first-of-type{border-top:0}.wa-kv span:last-child{font-weight:800;text-align:right}'
   + '.wa-demo-cliente{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px dashed var(--rim);background:#fffdf5}.wa-demo-cliente button{font:inherit;font-size:11px;border:1px solid var(--rim);background:#fff;border-radius:999px;padding:4px 10px;cursor:pointer}.wa-demo-cliente small{width:100%;color:var(--ink3);font-size:10.5px}'
@@ -39,17 +67,22 @@ function _waEstadoIcono(e){ return e === 'leido' ? '✓✓' : e === 'entregado' 
 
 function _waPintarLista(){
   var cont = document.getElementById('wa-items'); if(!cont) return;
-  var q = String((document.getElementById('wa-q') || {}).value || '').toLowerCase();
-  var convs = _waConvsDe(_waCtxActual())
+  var ctx = _waCtxActual(), q = String((document.getElementById('wa-q') || {}).value || '').toLowerCase();
+  var todas = _waConvsDe(ctx), filtros = _waFiltrosDe(ctx), fid = _waFiltroActual(ctx);
+  var filtro = filtros.find(function(f){ return f.id === fid; }) || filtros[0];
+  var chips = document.getElementById('wa-filtros');
+  if(chips) chips.innerHTML = filtros.map(function(f){ var n = f.id === 'todas' ? todas.length : todas.filter(f.f).length; return '<button class="' + (f.id === filtro.id ? 'on' : '') + '" onclick="waFiltro(\'' + f.id + '\')"' + (!n && f.id !== 'todas' && f.id !== filtro.id ? ' disabled' : '') + '>' + f.nombre + '<i>' + n + '</i></button>'; }).join('');
+  var convs = todas
+    .filter(filtro.f)
     .filter(function(c){ return !q || (String(c.nombre || '') + ' ' + String(c.telE164 || '') + ' ' + String(c.clienteNombre || '') + ' ' + String(c.usuario || '')).toLowerCase().indexOf(q) > -1; })
     .slice().sort(function(a, b){ return (b.atencion ? 1 : 0) - (a.atencion ? 1 : 0) || String(b.ultimoMensajeHora || '').localeCompare(String(a.ultimoMensajeHora || '')); });
   cont.innerHTML = convs.length ? convs.map(function(c){
     return '<div class="wa-item' + (c.id === window._waSel ? ' on' : '') + '" onclick="waAbrir(\'' + _waEsc(c.id) + '\')">'
       + '<div class="av' + (c.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(_waIni(c.nombre || c.clienteNombre)) + '</div>'
-      + '<div><div class="n">' + _waEsc(c.nombre || c.clienteNombre || c.telE164) + (c.canal === 'instagram' ? '<span class="wa-pill ig">IG</span>' : '') + (c.modo === 'humano' ? '<span class="wa-pill verde">' + _waEsc(c.atendidoPor || 'Equipo') + '</span>' : '') + (c.borrador && c.borrador.tipo === 'promesa' ? '<span class="wa-pill azul">Promesa ' + _waFechaCorta(c.borrador.fecha) + '</span>' : '') + '</div>'
+      + '<div><div class="n">' + (_waSinResponder(c) ? '<span class="sr" title="Sin responder"></span>' : '') + _waEsc(c.nombre || c.clienteNombre || c.telE164) + (c.canal === 'instagram' ? '<span class="wa-pill ig">IG</span>' : (c.area === 'ventas' ? '<span class="wa-pill azul">ventas</span>' : '')) + (c.modo === 'humano' ? '<span class="wa-pill gris" title="' + _waEsc(c.atendidoPor || '') + '">persona</span>' : '') + '</div>'
       + '<div class="u">' + _waEsc(c.ultimoMensaje || '') + '</div>' + (c.atencion ? '<div style="margin-top:4px">' + _waAtencion(c.atencion) + '</div>' : '') + '</div>'
       + '<div class="h">' + _waHora(c.ultimoMensajeHora) + (c.noLeidos ? '<br><span class="nl">' + c.noLeidos + '</span>' : '') + '</div></div>';
-  }).join('') : '<div class="empty" style="padding:30px 16px">' + (waConectadoCanal(_waCtxActual().canal) ? 'Todavía no hay conversaciones.' : 'Sin conversaciones de muestra.') + '</div>';
+  }).join('') : '<div class="empty" style="padding:30px 16px">' + (todas.length ? 'Ninguna conversación con ese filtro.' : (waConectadoCanal(ctx.canal) ? 'Todavía no hay conversaciones.' : 'Sin conversaciones de muestra.')) + '</div>';
 }
 function _waPintarHilo(id){
   var cont = document.getElementById('wa-burbujas'); if(!cont || window._waSel !== id) return;
@@ -76,26 +109,78 @@ function _waPasarAPedido(id){
 }
 
 function _waPanelConversaciones(ctx){
-  var conectado = waConectadoCanal(ctx.canal), convs = _waConvsDe(ctx), h = '';
-    var sel = _waConv(window._waSel); if(sel && convs.indexOf(sel) < 0) sel = null; sel = sel || convs[0] || null;
-    if(sel && window._waSel !== sel.id){ window._waSel = sel.id; }
-    var cred = sel ? (S.creds || []).find(function(x){ return x.id === sel.cred || (sel.clienteId && String(x.clienteId) === String(sel.clienteId) && x.estado !== 'cancelado'); }) : null;
-    var est = null; if(cred){ try{ est = CreditoLedger.generarEstadoCredito(cred, S.pagos || [], { diasGracia: WA_GRACIA, today: hoyLocalISO() }); }catch(e){} }
-    var prox = est ? (est.cuotas || []).filter(function(x){ return x && x.saldo > 0.001; })[0] : null;
-    var abierta = sel ? waVentanaAbierta(sel) : false;
-    h += '<div class="wa-split">'
-      + '<div class="wa-lista"><div class="wa-busca"><input class="fi" id="wa-q" placeholder="' + (ctx.canal === 'instagram' ? 'Buscar por nombre o usuario' : 'Buscar por nombre o teléfono') + '" oninput="_waPintarLista()" style="width:100%"></div><div class="items" id="wa-items"></div></div>'
-      + '<div class="wa-hilo">' + (sel
-        ? '<div class="wa-hilo-top"><div class="quien"><b>' + _waEsc(sel.nombre || sel.telE164) + '</b><small>' + (sel.canal === 'instagram' ? 'Instagram' + (sel.usuario ? ' · @' + _waEsc(sel.usuario) : '') + ' · ventas' : _waEsc(String(sel.telE164 || '').replace('+58', '0')) + (sel.area === 'ventas' ? ' · ventas' + (sel.clienteNombre ? ' · ya es cliente' : '') : (sel.clienteNombre ? ' · cliente del sistema' : ' · no está en el sistema'))) + ' · ' + (sel.modo === 'humano' ? 'lo atiende ' + _waEsc(sel.atendidoPor || 'el equipo') : 'lo atiende el asistente') + '</small></div>'
+  // Solo el esqueleto: la lista, el hilo y la ficha se llenan en el sitio (_waPintarSeleccion) y se
+  // refrescan solos cuando llegan mensajes, sin volver a armar la pagina.
+  var h = '<div class="wa-split">'
+    + '<div class="wa-lista"><div class="wa-busca"><input class="fi" id="wa-q" placeholder="' + (ctx.canal === 'instagram' ? 'Buscar por nombre o usuario' : 'Buscar por nombre o teléfono') + '" oninput="_waPintarLista()" style="width:100%"></div><div class="wa-filtros" id="wa-filtros"></div><div class="items" id="wa-items"></div></div>'
+    + '<div class="wa-hilo" id="wa-hilo"></div>'
+    + '<div class="wa-ficha" id="wa-ficha"></div></div>';
+  window._waFirma = ''; window._waMsgSel = null;
+  setTimeout(_waPintarSeleccion, 0);
+  return h;
+}
+// La conversacion elegida (o la primera) y lo que depende de ella: hilo + ficha + lista
+function _waSeleccionada(ctx){
+  var convs = _waConvsDe(ctx), sel = _waConv(window._waSel);
+  if(sel && convs.indexOf(sel) < 0) sel = null; sel = sel || convs[0] || null;
+  if(sel && window._waSel !== sel.id) window._waSel = sel.id;
+  return sel;
+}
+function _waFirmaDe(sel){ return sel ? JSON.stringify([sel.id, sel.nombre, sel.usuario, sel.clienteNombre, sel.modo, sel.atendidoPor, sel.atencion, sel.borrador, sel.resumen, sel.ultimoEntranteHora, sel.telE164]) : 'nada'; }
+function _waAjustarAltura(){
+  var sp = document.querySelector('.wa-split'); if(!sp) return;
+  if(window.innerWidth <= 1200){ sp.style.height = ''; return; }
+  var alto = window.innerHeight - sp.getBoundingClientRect().top - 18;
+  sp.style.height = Math.max(460, Math.round(alto)) + 'px';
+}
+if(typeof window.addEventListener === 'function' && !window._waResize){ window._waResize = true; window.addEventListener('resize', function(){ _waAjustarAltura(); }); }
+function _waPintarSeleccion(){
+  var ctx = _waCtxActual(), hilo = document.getElementById('wa-hilo'), ficha = document.getElementById('wa-ficha'); if(!hilo || !ficha) return;
+  _waAjustarAltura();
+  var conectado = waConectadoCanal(ctx.canal), sel = _waSeleccionada(ctx);
+  var borrador = (document.getElementById('wa-texto') || {}).value || '';
+  hilo.innerHTML = _waHtmlHilo(sel, ctx, conectado);
+  ficha.innerHTML = _waHtmlFicha(sel, ctx);
+  if(borrador && sel && window._waMsgSel === sel.id){ var ta = document.getElementById('wa-texto'); if(ta) ta.value = borrador; }
+  window._waFirma = _waFirmaDe(sel);
+  if(sel) _waMarcarLeida(sel);   // antes de pintar la lista, para que el globo de no leidos se apague ya
+  _waPintarLista();
+  if(!sel) return;
+  if(window._waMsgSel !== sel.id){ window._waMsgSel = sel.id; if(conectado) waAbrirMensajes(sel.id); else _waPintarHilo(sel.id); }
+  else _waPintarHilo(sel.id);
+}
+// Al abrir una conversacion los mensajes quedan leidos (el servidor los va contando)
+function _waMarcarLeida(c){ if(!c || !(c.noLeidos > 0)) return; c.noLeidos = 0; if(waConectadoCanal(c.canal) && typeof _waActualizar === 'function') _waActualizar(c.id, { noLeidos: 0 }); }
+// Llamada cuando cambian las conversaciones en la base o tras una accion: refresca en el sitio
+// y devuelve true; si la pantalla no esta puesta devuelve false y el que llama hace nav.
+function _waRefrescarEnSitio(forzar){
+  if(!(S.page === 'whatsapp' || S.page === 'instagram') || !document.getElementById('wa-items')) return false;
+  var ctx = _waCtxActual(), convs = _waConvsDe(ctx), esperan = convs.filter(function(c){ return c.atencion; }).length;
+  var e;
+  if((e = document.getElementById('wa-st-conv'))) e.textContent = convs.length;
+  if((e = document.getElementById('wa-st-esperan'))) e.textContent = esperan;
+  if((e = document.getElementById('wa-st-leads'))) e.textContent = convs.filter(function(c){ return c.borrador && c.borrador.tipo === 'lead'; }).length;
+  if((e = document.getElementById('wa-tab-conv'))) e.textContent = 'Conversaciones' + (esperan ? ' · ' + esperan + ' esperan' : '');
+  var sel = _waSeleccionada(ctx);
+  if(forzar || _waFirmaDe(sel) !== window._waFirma) _waPintarSeleccion(); else _waPintarLista();
+  return true;
+}
+function _waHtmlHilo(sel, ctx, conectado){
+  if(!sel) return '<div class="empty" style="padding:60px 20px">Elige una conversación.</div>';
+  var abierta = waVentanaAbierta(sel);
+  return '<div class="wa-hilo-top"><div class="quien"><b>' + _waEsc(sel.nombre || sel.telE164) + '</b><small>' + (sel.canal === 'instagram' ? 'Instagram' + (sel.usuario ? ' · @' + _waEsc(sel.usuario) : '') + ' · ventas' : _waEsc(String(sel.telE164 || '').replace('+58', '0')) + (sel.area === 'ventas' ? ' · ventas' + (sel.clienteNombre ? ' · ya es cliente' : '') : (sel.clienteNombre ? ' · cliente del sistema' : ' · no está en el sistema'))) + ' · ' + (sel.modo === 'humano' ? 'lo atiende ' + _waEsc(sel.atendidoPor || 'el equipo') : 'lo atiende el asistente') + '</small></div>'
           + '<div class="acc">' + (sel.atencion ? '<button class="btn btn-g btn-sm" onclick="waVisto(\'' + _waEsc(sel.id) + '\')">Visto</button>' : '') + (sel.modo === 'humano' ? '<button class="btn btn-g btn-sm" onclick="waDevolver(\'' + _waEsc(sel.id) + '\')">Devolver al asistente</button>' : '<button class="btn btn-p btn-sm" onclick="waAtender(\'' + _waEsc(sel.id) + '\')">Atender yo</button>') + '</div></div>'
           + '<div class="wa-burbujas" id="wa-burbujas"></div>'
           + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" placeholder="Escribir como ' + _waEsc((S.currentUser && S.currentUser.nombre) || 'equipo') + '… (al escribir, tomas la conversación)"></textarea><button class="btn btn-p" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div>'
             : (sel.canal === 'instagram' ? '<div class="wa-cerrada">Pasaron más de 7 días desde el último mensaje de la persona' + (sel.ultimoEntranteHora ? ' (' + _waHora(sel.ultimoEntranteHora) + ')' : '') + ': Instagram no deja escribirle hasta que vuelva a escribir.</div>'
               : '<div class="wa-cerrada">La ventana de 24 horas de WhatsApp está cerrada: el cliente escribió por última vez ' + (sel.ultimoEntranteHora ? 'el ' + _waHora(sel.ultimoEntranteHora) : 'hace más de un día') + '. Solo se le puede escribir con una plantilla aprobada, o esperar a que vuelva a escribir.</div>'))
-          + (conectado ? '' : '<div class="wa-demo-cliente"><small>Demostración · ' + (sel.area === 'ventas' ? 'la persona' : 'el cliente') + ' escribe:</small>' + (sel.area === 'ventas' ? ['precio de la BRZ 200?', 'qué piden para el crédito?', 'quiero una, cómo hago?', 'tienen en Maracay?', 'quiero hablar con una persona'] : ['cuánto debo?', 'ya pagué', 'pago el sábado', 'cómo pago?', 'quiero hablar con una persona', 'no puedo pagar']).map(function(t){ return '<button onclick="waDemoClienteEscribe(\'' + _waEsc(sel.id) + '\',\'' + _waEsc(t) + '\')">' + _waEsc(t) + '</button>'; }).join('') + '</div>')
-        : '<div class="empty" style="padding:60px 20px">Elige una conversación.</div>') + '</div>'
-      + '<div class="wa-ficha">'
-      + (sel && sel.area === 'ventas' ? '<div class="card"><div class="ct">Persona</div>'
+          + (conectado ? '' : '<div class="wa-demo-cliente"><small>Demostración · ' + (sel.area === 'ventas' ? 'la persona' : 'el cliente') + ' escribe:</small>' + (sel.area === 'ventas' ? ['precio de la BRZ 200?', 'qué piden para el crédito?', 'quiero una, cómo hago?', 'tienen en Maracay?', 'quiero hablar con una persona'] : ['cuánto debo?', 'ya pagué', 'pago el sábado', 'cómo pago?', 'quiero hablar con una persona', 'no puedo pagar']).map(function(t){ return '<button onclick="waDemoClienteEscribe(\'' + _waEsc(sel.id) + '\',\'' + _waEsc(t) + '\')">' + _waEsc(t) + '</button>'; }).join('') + '</div>');
+}
+function _waHtmlFicha(sel, ctx){
+  var cred = sel ? (S.creds || []).find(function(x){ return x.id === sel.cred || (sel.clienteId && String(x.clienteId) === String(sel.clienteId) && x.estado !== 'cancelado'); }) : null;
+  var est = null; if(cred){ try{ est = CreditoLedger.generarEstadoCredito(cred, S.pagos || [], { diasGracia: WA_GRACIA, today: hoyLocalISO() }); }catch(e){} }
+  var prox = est ? (est.cuotas || []).filter(function(x){ return x && x.saldo > 0.001; })[0] : null;
+  return (sel && sel.area === 'ventas' ? '<div class="card"><div class="ct">Persona</div>'
           + (sel.canal === 'instagram' ? '<div class="wa-kv"><span>Instagram</span><span>' + (sel.usuario ? '@' + _waEsc(sel.usuario) : '—') + '</span></div>' : '<div class="wa-kv"><span>WhatsApp</span><span>' + _waEsc(String(sel.telE164 || '').replace('+58', '0')) + '</span></div>')
           + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.nombre || '—') + '</span></div>'
           + '<div class="wa-kv"><span>Canal</span><span>' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' · ventas</span></div>'
@@ -113,9 +198,7 @@ function _waPanelConversaciones(ctx){
           + (sel.borrador && sel.borrador.tipo === 'promesa' ? '<div class="wa-kv"><span>Promesa de pago</span><span>' + _waFechaCorta(sel.borrador.fecha) + ' · ' + _waMoney(sel.borrador.monto) + '</span></div><button class="btn btn-p btn-sm" style="margin-top:10px" onclick="_waPasarAPedido(\'' + _waEsc(sel.id) + '\')">Anotar el compromiso en el crédito</button>' : '<div class="cs">Sin promesas ni solicitudes pendientes.</div>')
           + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '') + '</div>'
         + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
-        : '') + '</div></div>';
-    setTimeout(function(){ _waPintarLista(); if(sel){ if(conectado) waAbrirMensajes(sel.id); else _waPintarHilo(sel.id); } }, 0);
-  return h;
+    : '');
 }
 
 function _waPanelAsistente(ctx){
@@ -163,12 +246,12 @@ PG.whatsapp = function(){
   var convs = _waConvsDe(ctx), conAtencion = convs.filter(function(c){ return c.atencion; }).length;
   var promesas = cob.filter(function(c){ return c.borrador && c.borrador.tipo === 'promesa'; }).length;
 
-  var h = '<div class="page">'
-    + '<div class="ch" style="margin-bottom:12px"><div><div class="ct" style="font-size:20px">WhatsApp</div><div class="cs">' + (ctx.area === 'cobranza' ? 'Cobranza: el asistente recuerda las cuotas, responde al cliente y le pasa al equipo lo que necesita una persona.' : 'Ventas: el asistente atiende a quien escribe preguntando por una moto, con el catálogo de pagasi.io, y anota a quien quiere comprar.') + '</div></div>'
-    + '<div>' + (conectado ? '<span class="wa-pill verde">Conectado a Meta · ' + _waEsc((window._waCfg || {}).telefono || '') + '</span>' : '<span class="wa-pill ambar">Modo demostración</span>') + '</div></div>'
-    + '<div class="wa-areas"><button class="' + (ctx.area === 'cobranza' ? 'on' : '') + '" onclick="waArea(\'cobranza\')">Cobranza' + (esperanCob ? ' <span class="wa-pill">' + esperanCob + '</span>' : '') + '</button><button class="' + (ctx.area === 'ventas' ? 'on' : '') + '" onclick="waArea(\'ventas\')">Ventas' + (esperanVen ? ' <span class="wa-pill">' + esperanVen + '</span>' : '') + '</button></div>'
-    + (conectado ? '' : '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>Meta todavía no está conectado.</b> ' + (ctx.area === 'cobranza' ? 'La cola de hoy es real (sale de tu cartera y del ledger) pero no se manda nada; las conversaciones son de muestra, en memoria, para ver cómo trabaja el asistente.' : 'Las conversaciones son de muestra, en memoria, para ver cómo atiende el asistente de ventas.') + ' Cuando se conecte el número, esta misma pantalla pasa a ser la de verdad.</div></div>')
-    + '<div class="wa-tabs">' + (ctx.area === 'cobranza' ? '<button class="' + (tab === 'hoy' ? 'on' : '') + '" onclick="waTab(\'hoy\')">Hoy · ' + cola.total + '</button>' : '') + '<button class="' + (tab === 'conv' ? 'on' : '') + '" onclick="waTab(\'conv\')">Conversaciones' + (conAtencion ? ' · ' + conAtencion + ' esperan' : '') + '</button><button class="' + (tab === 'asistente' ? 'on' : '') + '" onclick="waTab(\'asistente\')">Asistente</button></div>';
+  var h = '<div class="page wa-page">'
+    + '<div class="wa-cab"><div class="wa-cab-izq"><div class="ct" style="font-size:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">WhatsApp ' + (conectado ? '<span class="wa-pill verde">Conectado · ' + _waEsc((window._waCfg || {}).telefono || '') + '</span>' : '<span class="wa-pill ambar">Modo demostración</span>') + '</div>'
+    + '<div class="cs">' + (ctx.area === 'cobranza' ? 'Cobranza: el asistente recuerda las cuotas, responde al cliente y le pasa al equipo lo que necesita una persona.' : 'Ventas: el asistente atiende a quien pregunta por una moto, con el catálogo de pagasi.io, y anota a quien quiere comprar.') + '</div></div>'
+    + '<div class="wa-cab-der"><div class="wa-areas"><button class="' + (ctx.area === 'cobranza' ? 'on' : '') + '" onclick="waArea(\'cobranza\')">Cobranza' + (esperanCob ? ' <span class="wa-pill">' + esperanCob + '</span>' : '') + '</button><button class="' + (ctx.area === 'ventas' ? 'on' : '') + '" onclick="waArea(\'ventas\')">Ventas' + (esperanVen ? ' <span class="wa-pill">' + esperanVen + '</span>' : '') + '</button></div>'
+    + '<div class="wa-tabs">' + (ctx.area === 'cobranza' ? '<button class="' + (tab === 'hoy' ? 'on' : '') + '" onclick="waTab(\'hoy\')">Hoy · ' + cola.total + '</button>' : '') + '<button class="' + (tab === 'conv' ? 'on' : '') + '" id="wa-tab-conv" onclick="waTab(\'conv\')">Conversaciones' + (conAtencion ? ' · ' + conAtencion + ' esperan' : '') + '</button><button class="' + (tab === 'asistente' ? 'on' : '') + '" onclick="waTab(\'asistente\')">Asistente</button></div></div></div>'
+    + (conectado ? '' : '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>Meta todavía no está conectado.</b> ' + (ctx.area === 'cobranza' ? 'La cola de hoy es real (sale de tu cartera y del ledger) pero no se manda nada; las conversaciones son de muestra.' : 'Las conversaciones son de muestra, en memoria, para ver cómo atiende el asistente de ventas.') + '</div></div>');
 
   if(tab === 'hoy' && ctx.area === 'cobranza'){
     h += '<div class="sg wa-stats">'

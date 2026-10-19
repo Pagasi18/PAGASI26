@@ -81,7 +81,7 @@ async function procesarMensaje(deps, m) {
   const ctx = await contexto(deps, u.empresa, u.clienteId, hoy);
   const area = areaDe(deps, m, u.clienteId);
   const base = { canal: 'whatsapp', area, telE164: tel, nombre: (conv && conv.nombre) || m.nombre || (ctx.cliente && ctx.cliente.nombre) || tel, clienteId: u.clienteId || (conv && conv.clienteId) || '', clienteNombre: (ctx.cliente && ctx.cliente.nombre) || (conv && conv.clienteNombre) || '',
-    cred: ctx.credActivo ? ctx.credActivo.id : ((conv && conv.cred) || ''), modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, actualizado: ahora, empresa: u.empresa };
+    cred: ctx.credActivo ? ctx.credActivo.id : ((conv && conv.cred) || ''), modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoAutor: 'cliente', actualizado: ahora, empresa: u.empresa };
   if (!conv) base.creado = ahora;
   await convRef.set(base, { merge: true });
   deps.log('entrante', { canal: 'whatsapp', area, empresa: u.empresa, tipo: m.tipo, cliente: !!u.clienteId });
@@ -148,7 +148,7 @@ async function procesarInstagram(deps, m) {
   let perfil = { nombre: (conv && conv.nombre) || '', usuario: (conv && conv.usuario) || '' };
   if (!conv || (!conv.usuario && !conv.nombre)) { try { const p = await deps.metaIG.perfil(igsid); perfil = { nombre: p.nombre || perfil.nombre, usuario: p.usuario || perfil.usuario }; } catch (e) { /* sin perfil, no pasa nada */ } }
   const base = { canal: 'instagram', area: 'ventas', igsid, usuario: perfil.usuario || '', nombre: perfil.nombre || (perfil.usuario ? '@' + perfil.usuario : 'Instagram'), telE164: '', clienteId: '', clienteNombre: '', cred: '',
-    modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, actualizado: ahora, empresa: '26' };
+    modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoAutor: 'cliente', actualizado: ahora, empresa: '26' };
   if (!conv) base.creado = ahora;
   await convRef.set(base, { merge: true });
   deps.log('entrante', { canal: 'instagram', tipo: m.tipo });
@@ -193,7 +193,7 @@ async function responder(deps, convRef, conv, texto, ahora, cambios) {
   try { metaId = await emisor(deps, canalDe(conv)).enviarTexto(destino(conv), texto); } catch (e) { estado = 'fallo'; error = String(e && e.message || e).slice(0, 160); deps.log('envio-fallo', { canal: canalDe(conv), error }); }
   const msg = { metaId, direccion: 'saliente', autor: 'asistente', tipo: 'texto', texto, estado, error, hora: ahora };
   if (metaId) await convRef.collection('mensajes').doc(metaId).set(msg); else await convRef.collection('mensajes').add(msg);
-  await convRef.set(Object.assign({ ultimoMensaje: texto, ultimoMensajeHora: ahora, actualizado: ahora }, cambios || {}), { merge: true });
+  await convRef.set(Object.assign({ ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'asistente', actualizado: ahora }, cambios || {}), { merge: true });
 }
 
 // Estados que manda Meta de nuestros mensajes (enviado, entregado, leido, fallo)
@@ -235,7 +235,7 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   const metaId = await em.enviarTexto(destino(conv), texto, { humano: canal === 'instagram' && desde >= 24 * 3600 * 1000 });
   const msg = { metaId, direccion: 'saliente', autor: 'equipo', tipo: 'texto', texto, estado: 'enviado', error: '', hora: ahora, por: por || 'Equipo' };
   await ref.collection('mensajes').doc(metaId || ('eq-' + Date.now())).set(msg);
-  await ref.set({ modo: 'humano', atendidoPor: por || 'Equipo', ultimoMensaje: texto, ultimoMensajeHora: ahora, actualizado: ahora }, { merge: true });
+  await ref.set({ modo: 'humano', atendidoPor: por || 'Equipo', ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, { merge: true });
   return { metaId };
 }
 

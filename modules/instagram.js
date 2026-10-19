@@ -10,16 +10,12 @@ PG.instagram = function(){
   var ctx = { modulo: 'instagram', canal: 'instagram', area: 'ventas' }, tab = _waTabActual(ctx);
   var convs = _waConvsDe(ctx), conAtencion = convs.filter(function(c){ return c.atencion; }).length, leads = convs.filter(function(c){ return c.borrador && c.borrador.tipo === 'lead'; }).length;
   var cfg = window._waCfg || {};
-  var h = '<div class="page">'
-    + '<div class="ch" style="margin-bottom:12px"><div><div class="ct" style="font-size:20px">Instagram</div><div class="cs">Los mensajes directos de la cuenta de Pagasi. El asistente de ventas responde con el catálogo y anota a quien quiere comprar; el equipo entra cuando hace falta.</div></div>'
-    + '<div>' + (conectado ? '<span class="wa-pill ig">' + (typeof cfg.instagram === 'string' && cfg.instagram ? '@' + _waEsc(cfg.instagram.replace(/^@/, '')) + ' conectado' : 'Instagram conectado') + '</span>' : '<span class="wa-pill ambar">Modo demostración</span>') + '</div></div>'
-    + (conectado ? '' : '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>Instagram todavía no está conectado.</b> Las conversaciones son de muestra, en memoria, para ver cómo atiende el asistente. Falta que la cuenta sea profesional, esté ligada a una página de Facebook y tenga el permiso de mensajes en la app de Meta.</div></div>')
-    + '<div class="sg wa-stats" style="margin-bottom:14px">'
-    + '<div class="stat"><div class="st-v">' + convs.length + '</div><div class="st-l">Conversaciones</div></div>'
-    + '<div class="stat"><div class="st-v" style="color:var(--amber)">' + conAtencion + '</div><div class="st-l">Esperan a una persona</div></div>'
-    + '<div class="stat"><div class="st-v" style="color:#0f7a3e">' + leads + '</div><div class="st-l">Quieren comprar (leads)</div></div>'
-    + '</div>'
-    + '<div class="wa-tabs"><button class="' + (tab === 'conv' ? 'on' : '') + '" onclick="waTab(\'conv\')">Conversaciones' + (conAtencion ? ' · ' + conAtencion + ' esperan' : '') + '</button><button class="' + (tab === 'asistente' ? 'on' : '') + '" onclick="waTab(\'asistente\')">Asistente</button></div>';
+  var h = '<div class="page wa-page">'
+    + '<div class="wa-cab"><div class="wa-cab-izq"><div class="ct" style="font-size:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">Instagram ' + (conectado ? '<span class="wa-pill ig">' + (typeof cfg.instagram === 'string' && cfg.instagram ? '@' + _waEsc(cfg.instagram.replace(/^@/, '')) + ' conectado' : 'Instagram conectado') + '</span>' : '<span class="wa-pill ambar">Modo demostración</span>') + '</div>'
+    + '<div class="cs">Mensajes directos de la cuenta de Pagasi: el asistente de ventas responde con el catálogo y anota a quien quiere comprar.</div></div>'
+    + '<div class="wa-cab-der"><div class="wa-minis"><span><b id="wa-st-conv">' + convs.length + '</b> conversaciones</span><span class="ambar"><b id="wa-st-esperan">' + conAtencion + '</b> esperan persona</span><span class="verde"><b id="wa-st-leads">' + leads + '</b> quieren comprar</span></div>'
+    + '<div class="wa-tabs"><button class="' + (tab === 'conv' ? 'on' : '') + '" id="wa-tab-conv" onclick="waTab(\'conv\')">Conversaciones' + (conAtencion ? ' · ' + conAtencion + ' esperan' : '') + '</button><button class="' + (tab === 'asistente' ? 'on' : '') + '" onclick="waTab(\'asistente\')">Asistente</button></div></div></div>'
+    + (conectado ? '' : '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>Instagram todavía no está conectado.</b> Las conversaciones son de muestra, en memoria, para ver cómo atiende el asistente.</div></div>');
   if(tab === 'asistente') h += _waPanelAsistente(ctx);
   else h += _waPanelConversaciones(ctx);
   h += '</div>';

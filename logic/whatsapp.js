@@ -187,7 +187,8 @@ function waAbrirConversaciones(canal, cb){
   _waRoot._waUnsubs[canal] = db.collection('conversaciones').where('canal', '==', canal).orderBy('actualizado', 'desc').limit(200).onSnapshot(function(snap){
     var otras = (_waRoot._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') !== canal; });
     _waRoot._waConvs = otras.concat(snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }));
-    if((S.page === 'whatsapp' || S.page === 'instagram') && typeof nav === 'function') nav(S.page);
+    // Si la pantalla esta puesta se refresca en el sitio (lista, contadores, hilo si cambio); si no, nav
+    if(S.page === 'whatsapp' || S.page === 'instagram'){ if(!(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio()) && typeof nav === 'function') nav(S.page); }
     if(cb){ cb(_waRoot._waConvs); cb = null; }
   }, function(e){ console.warn('conversaciones ' + canal + ':', e); if(cb) cb([]); });
 }
@@ -211,9 +212,11 @@ function _waActualizar(id, cambios, accion){
   if(!waConectadoCanal(c.canal) || typeof db === 'undefined' || !db) return Promise.resolve();
   return db.collection('conversaciones').doc(id).set(Object.assign({}, cambios, { actualizado: new Date().toISOString() }), { merge: true }).catch(function(e){ toast('No se pudo guardar: ' + (e && e.message || e), 'error'); });
 }
-function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){ toast('La conversación es tuya: el asistente se calla hasta que la devuelvas', 'success'); nav(_waModuloDe(id)); }); }
-function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa_devolver').then(function(){ toast('El asistente vuelve a atender', 'info'); nav(_waModuloDe(id)); }); }
-function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ nav(_waModuloDe(id)); }); }
+// Tras una accion sobre la conversacion: refrescar en el sitio si la pantalla esta puesta; si no, nav
+function _waTrasCambio(id){ if(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio(true)) return; if(typeof nav === 'function') nav(_waModuloDe(id)); }
+function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){ toast('La conversación es tuya: el asistente se calla hasta que la devuelvas', 'success'); _waTrasCambio(id); }); }
+function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa_devolver').then(function(){ toast('El asistente vuelve a atender', 'info'); _waTrasCambio(id); }); }
+function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ _waTrasCambio(id); }); }
 // Ventana de 24 h de Meta: solo se puede escribir libre si el cliente escribió en las últimas 24 h
 function waVentanaAbierta(conv, ahora){ if(!conv || !conv.ultimoEntranteHora) return false; var t = (ahora ? new Date(ahora) : new Date()).getTime() - new Date(conv.ultimoEntranteHora).getTime(); return t < (conv.canal === 'instagram' ? 7 * 24 : 24) * 3600 * 1000; }
 function waEnviarEquipo(id, texto){
