@@ -52,6 +52,7 @@ function clienteMatchesFiltro(c, filtro){
   filtro=filtro||'todos';
   if(filtro==='todos') return true;
   if(filtro==='web') return typeof _swEsLeadWeb==='function' && _swEsLeadWeb(c);   // solicitudes-web.js
+  if(filtro==='instagram'||filtro==='whatsapp') return !!c && c.origen===filtro;   // leads del chat de Paola
   var info=getClienteEstados(c).estados;
   return info.indexOf(filtro)>=0;
 }

@@ -5,6 +5,9 @@ PG.clientes = function(){
   const estado=S.clienteEstadoFiltro;
   const chips=[['todos','Todos'],['lead','Leads'],['activo','Activos'],['mora','En mora'],['completado','Completados']]
     .concat(typeof _swChip==='function' ? [_swChip()] : []);   // Solicitudes web (solicitudes-web.js)
+  // Leads que anotó Paola desde el chat (origen instagram / whatsapp), con su cuenta
+  var _nIg=(S.clientes||[]).filter(function(c){ return !c.eliminado && c.origen==='instagram'; }).length, _nWa=(S.clientes||[]).filter(function(c){ return !c.eliminado && c.origen==='whatsapp'; }).length;
+  chips.push(['instagram','Instagram'+(_nIg?' · '+_nIg:'')],['whatsapp','WhatsApp'+(_nWa?' · '+_nWa:'')]);
 
   // Métricas para el banner — filtradas por concesionario activo
   var _CLIS = _concFiltrarClientes(S.clientes||[]);
