@@ -195,7 +195,9 @@ function recortarEnlaces(texto, o) {
 // Si se pasa, el mensaje entrante se guarda, la conversacion queda en atencion 'revisar' y se calla.
 // 20-oct: con 3 y luego 8 en 10 min calló conversaciones reales que escribían rápido. Las ráfagas ya
 // se contestan una sola vez (llegoOtro), así que el freno queda solo para bots que responden en bucle.
-const FRENO = { porVentana: 15, ventanaMs: 10 * 60 * 1000, porDia: 60 };
+// 20-oct 11:10: una clienta real (Althea) llegó a 15 respuestas en 10 min conversando. Un bot en bucle
+// va mucho más rápido (la tienda de cestas: 14 en 2 min), así que el freno mide ritmo: 10 en 3 minutos.
+const FRENO = { porVentana: 10, ventanaMs: 3 * 60 * 1000, porDia: 80 };
 // Ráfagas: si mientras Paola pensaba entró otro mensaje de la misma persona, esta respuesta se
 // descarta; la del mensaje nuevo sale con todo el contexto. Así a 5 mensajes seguidos se contesta 1 vez.
 async function llegoOtro(convRef, entranteId) {
