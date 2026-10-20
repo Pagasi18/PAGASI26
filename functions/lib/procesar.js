@@ -124,7 +124,7 @@ async function procesarMensaje(deps, m) {
   if (base.modo === 'humano') return { empresa: u.empresa, callado: true };
 
   // El cerebro
-  const historial = await docs(convRef.collection('mensajes').orderBy('hora', 'asc').limit(40));
+  const historial = await ultimosMensajes(convRef);
   const freno = frenado(historial, ahora);
   if (freno) { deps.log('frenado', { canal: 'whatsapp', area: 'cobranza', motivo: freno }); await convRef.set({ atencion: 'revisar', actualizado: ahora }, { merge: true }); return { empresa: u.empresa, frenado: freno }; }
   const sistema = briefing.armar({ empresa: (deps.cfg.empresaNombre || {})[u.empresa] || 'Pagasi', cliente: ctx.cliente, creditos: ctx.creditos, instrucciones: deps.cfg.instrucciones, datosPago: deps.cfg.datosPago, hoy, nombrePerfil: m.nombre, promesa: conv && conv.borrador && conv.borrador.tipo === 'promesa' ? conv.borrador : null, comprobantesPendientes: ctx.comprobantesPendientes });
@@ -190,6 +190,22 @@ function recortarEnlaces(texto, o) {
   return sin.length >= 15 ? sin : t;
 }
 
+// ¿La respuesta repite uno de los 2 últimos mensajes de Paola? (misma pregunta final o >60% de las mismas palabras)
+const palabras = t => new Set(String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ ]/g, ' ').split(/\s+/).filter(w => w.length > 3));
+const preguntaFinal = t => { const m = String(t || '').match(/¿[^?¿]*\?\s*$/); return m ? m[0].toLowerCase().replace(/\s+/g, ' ').trim() : ''; };
+function repite(texto, historial) {
+  const previos = (historial || []).filter(m => m && m.autor === 'asistente').slice(-2).map(m => m.texto || '');
+  const a = palabras(texto), qa = preguntaFinal(texto);
+  return previos.some(p => { if (qa && qa === preguntaFinal(p)) return true; const b = palabras(p); if (!a.size || !b.size) return false; let comun = 0; a.forEach(w => { if (b.has(w)) comun++; }); return comun / Math.min(a.size, b.size) > 0.6; });
+}
+
+// Los ÚLTIMOS mensajes de la conversación, en orden cronológico. Firestore con orderBy asc + limit da
+// los PRIMEROS: con eso, pasados 40 mensajes Paola no veía lo nuevo (20-oct-2026, Liz Ospina).
+async function ultimosMensajes(convRef, n) {
+  const s = await docs(convRef.collection('mensajes').orderBy('hora', 'desc').limit(n || 60));
+  return s.sort((a, b) => String(a.hora || '').localeCompare(String(b.hora || '')));
+}
+
 // Freno: Paola no manda mas de 3 mensajes en 10 minutos ni 20 en 24 horas a la misma conversacion
 // (20-oct-2026: una tienda de cestas con bot mando 14 imagenes seguidas y Paola contesto las 14).
 // Si se pasa, el mensaje entrante se guarda, la conversacion queda en atencion 'revisar' y se calla.
@@ -212,7 +228,7 @@ function frenado(historial, ahora) {
 }
 async function responderVentas(deps, x) {
   const { db, convRef, conv, base, canal, hoy, ahora } = x;
-  const historial = await docs(convRef.collection('mensajes').orderBy('hora', 'asc').limit(40));
+  const historial = await ultimosMensajes(convRef);
   const freno = frenado(historial, ahora);
   if (freno) {
     deps.log('frenado', { canal, area: 'ventas', motivo: freno });
@@ -230,6 +246,12 @@ async function responderVentas(deps, x) {
     if (yaDisculpado(historial, ahora)) { await convRef.set({ atencion: 'error', actualizado: ahora }, { merge: true }); return { empresa: x.empresa, canal, area: 'ventas', cerebro: 'fallo', disculpa: 'omitida' }; }
     await responder(deps, convRef, base, CORTESIA, ahora, { atencion: 'error' });
     return { empresa: x.empresa, canal, area: 'ventas', cerebro: 'fallo' };
+  }
+  // Si repite lo que ya dijo, se le pide otra vez que atienda lo último que escribió la persona
+  if (r && r.reply && repite(r.reply, historial)) {
+    const ultimo = [...historial].reverse().find(m => m && m.autor === 'cliente');
+    deps.log('repeticion', { canal, area: 'ventas' });
+    try { const r2 = await deps.cerebro.pensar({ sistema: sistema + `\n\nATENCIÓN: tu borrador repetía tu mensaje anterior. Responde a lo último que escribió la persona («${String(ultimo && ultimo.texto || '').slice(0, 300)}») sin repetir tu pregunta anterior.`, mensajes: historial }); if (r2 && r2.reply && !repite(r2.reply, historial)) r = Object.assign(r2, { reply: recortarEnlaces(r2.reply, { yaEnlace, pedido: ultimo }) }); } catch (e) { /* se queda la primera */ }
   }
   if (await llegoOtro(convRef, x.entranteId)) { deps.log('rafaga', { canal, area: 'ventas' }); return { empresa: x.empresa, canal, area: 'ventas', rafaga: true }; }
   const cambios = {};
@@ -422,4 +444,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };

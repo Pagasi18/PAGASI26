@@ -198,8 +198,9 @@ function waAbrirMensajes(id, cb){
   var conv = _waConv(id), canal = (conv && conv.canal) || (String(id).indexOf('ig:') === 0 ? 'instagram' : 'whatsapp');
   if(!waConectadoCanal(canal)){ if(cb) cb(_waRoot._waMsgs[id] || []); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); return; }
   if(_waRoot._waMsgUnsub) { try{ _waRoot._waMsgUnsub(); }catch(e){} }
-  _waRoot._waMsgUnsub = db.collection('conversaciones').doc(id).collection('mensajes').orderBy('hora', 'asc').limit(200).onSnapshot(function(snap){
-    _waRoot._waMsgs[id] = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+  _waRoot._waMsgUnsub = db.collection('conversaciones').doc(id).collection('mensajes').orderBy('hora', 'desc').limit(200).onSnapshot(function(snap){
+    // Los 200 más recientes, mostrados en orden cronológico
+    _waRoot._waMsgs[id] = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }).sort(function(a, b){ return String(a.hora || '').localeCompare(String(b.hora || '')); });
     if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
     if(cb){ cb(_waRoot._waMsgs[id]); cb = null; }
   }, function(e){ console.warn('mensajes ' + id + ':', e); _waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []; if(typeof toast === 'function') toast('No se pudieron leer los mensajes: ' + (e && e.message || e), 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); if(cb){ cb([]); cb = null; } });

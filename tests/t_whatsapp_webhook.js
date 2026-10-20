@@ -17,8 +17,8 @@ function FakeDb(inicial) {
   const cumple = (d, w) => w.every(([f, op, v]) => op === '==' ? d[f] === v : op === 'in' ? v.includes(d[f]) : true);
   function coleccion(ruta) {
     const q = (where, orden, lim) => ({
-      where: (f, op, v) => q(where.concat([[f, op, v]]), orden, lim), orderBy: (f) => q(where, f, lim), limit: (n) => q(where, orden, n),
-      async get() { let docs = [...store.entries()].filter(([k]) => k.startsWith(ruta + '/') && !k.slice(ruta.length + 1).includes('/')).map(([k, d]) => ({ id: k.slice(ruta.length + 1), data: () => d, exists: true })).filter(x => cumple(x.data(), where)); if (orden) docs.sort((a, b) => String(a.data()[orden]).localeCompare(String(b.data()[orden]))); if (lim) docs = docs.slice(-lim); return { docs, empty: !docs.length }; },
+      where: (f, op, v) => q(where.concat([[f, op, v]]), orden, lim), orderBy: (f, dir) => q(where, dir === 'desc' ? '-' + f : f, lim), limit: (n) => q(where, orden, n),
+      async get() { let docs = [...store.entries()].filter(([k]) => k.startsWith(ruta + '/') && !k.slice(ruta.length + 1).includes('/')).map(([k, d]) => ({ id: k.slice(ruta.length + 1), data: () => d, exists: true })).filter(x => cumple(x.data(), where)); if (orden) { const desc = orden[0] === '-', campo = desc ? orden.slice(1) : orden; docs.sort((a, b) => String(a.data()[campo]).localeCompare(String(b.data()[campo])) * (desc ? -1 : 1)); } if (lim) docs = docs.slice(0, lim); return { docs, empty: !docs.length }; },
       doc: (id) => documento(ruta + '/' + (id || ('auto' + (++seq)))),
       async add(d) { const id = 'auto' + (++seq); store.set(ruta + '/' + id, Object.assign({}, d)); return { id }; }
     });
@@ -257,6 +257,25 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   await procesar.procesarMensaje(S2.deps, { canal: 'instagram', metaId: 'mid.sc1', de: '444001', nombre: '', tipo: 'texto', texto: 'mis referencias: Ana 0414-1112233 y Luis 0424-4445566', medio: null, hora: AHORA });
   const cliS = S2.db26._store.get('clientes/WEB-20333444');
   ok('la solicitud completa en el chat entra al cliente con dirección, ingreso, fiador y 2 referencias (campos de la solicitud web)', cliS && cliS.dir === 'Petare, calle 2' && cliS.ingreso === 500 && cliS.fiador === 'si' && cliS.fiador_nom === 'José Ruiz' && cliS.fiador_ci === 'V-11222333' && /5556677/.test(cliS.fiador_tel) && cliS.ref1 && cliS.ref1.nom === 'Ana Pérez' && /1112233/.test(cliS.ref1.tel) && cliS.ref2.nom === 'Luis Díaz' && cliS.solicitud_chat_completa === true);
+  // Historial: Paola ve los ÚLTIMOS mensajes (20-oct-2026: pasados 40, veía los primeros y repetía lo mismo)
+  let Hs = armar(); const refH = Hs.db26.collection('conversaciones').doc('ig:555999');
+  await refH.set({ canal: 'instagram', modo: 'bot', usuario: 'liz' });
+  for (let i = 0; i < 70; i++) await refH.collection('mensajes').doc('h' + i).set({ autor: i % 2 ? 'asistente' : 'cliente', direccion: i % 2 ? 'saliente' : 'entrante', texto: 'mensaje viejo ' + i, hora: new Date(Date.parse(AHORA) - (200 - i) * 60000).toISOString() });
+  Hs.cerebroFalso.respuesta = { reply: 'Claro, dime tu duda.', draft: null, summary: '', handoff: false };
+  await procesar.procesarMensaje(Hs.deps, { canal: 'instagram', metaId: 'mid.duda', de: '555999', nombre: '', tipo: 'texto', texto: 'Tengo otra duda', medio: null, hora: AHORA });
+  const vistos = Hs.cerebroFalso.ultimo.mensajes.map(m => m.texto);
+  ok('con más de 40 mensajes, Paola recibe los ÚLTIMOS (incluido el que acaba de llegar), no los primeros', vistos[vistos.length - 1] === 'Tengo otra duda' && vistos.includes('mensaje viejo 69') && !vistos.includes('mensaje viejo 0') && vistos.length === 60);
+  // Guardia de repetición: si la respuesta repite la anterior, se le pide otra que atienda lo último
+  ok('repite() detecta la misma pregunta final o un mensaje casi igual al anterior', procesar.repite('Sigo con las referencias: ¿nombre y teléfono de tu primera referencia?', [{ autor: 'asistente', texto: 'Lo anotamos después. Sigo con las referencias: ¿nombre y teléfono de tu primera referencia?' }]) && !procesar.repite('Claro, ¿cuál es tu duda?', [{ autor: 'asistente', texto: 'Sigo con las referencias: ¿nombre y teléfono de tu primera referencia?' }]));
+  let Rp = armar(); const refR = Rp.db26.collection('conversaciones').doc('ig:555888');
+  await refR.set({ canal: 'instagram', modo: 'bot', usuario: 'liz2' });
+  await refR.collection('mensajes').doc('p1').set({ autor: 'asistente', direccion: 'saliente', texto: 'Sigo con tus referencias: ¿nombre y teléfono de la primera?', hora: '2026-10-16T13:00:00.000Z' });
+  let llamadas = 0; const pensarR = Rp.cerebroFalso.pensar;
+  Rp.cerebroFalso.pensar = async function (x) { llamadas++; this.ultimo = x; return llamadas === 1 ? { reply: 'Ok. Sigo con tus referencias: ¿nombre y teléfono de la primera?', draft: null, summary: '', handoff: false } : { reply: 'Claro, ¿cuál es tu duda?', draft: null, summary: '', handoff: false }; };
+  await procesar.procesarMensaje(Rp.deps, { canal: 'instagram', metaId: 'mid.rp1', de: '555888', nombre: '', tipo: 'texto', texto: 'Tengo otra duda', medio: null, hora: AHORA });
+  ok('si Paola iba a repetir su pregunta anterior, se le pide otra respuesta y sale la que atiende la duda', llamadas === 2 && Rp.ig.length === 1 && Rp.ig[0].t === 'Claro, ¿cuál es tu duda?' && /tu borrador repetía/.test(Rp.cerebroFalso.ultimo.sistema));
+  Rp.cerebroFalso.pensar = pensarR;
+  ok('el briefing pone la PRIORIDAD: responder primero a lo último y no repetir', /PRIORIDAD \(manda sobre todo lo demás/.test(ventas.armarVentas({ instrucciones: '', motos: [], cond: null, sedes: [], hoy: '2026-10-20', nombrePerfil: '', usuario: 'x', canal: 'instagram', telefono: '', esCliente: false })));
   ok('el cerebro valida un lead y limpia el teléfono', JSON.stringify(cerebro.validar({ reply: 'ok', draft: { tipo: 'lead', nombre: 'Luis Pérez', ciudad: 'Maracay', modelo: 'BRZ 200', telefono: '0414-555.0000' }, summary: 's', handoff: true, handoffReason: 'lead' }).draft) === JSON.stringify({ tipo: 'lead', nombre: 'Luis Pérez', ciudad: 'Maracay', modelo: 'BRZ 200', telefono: '04145550000', cedula: '', inicial: 0, ocupacion: '', direccion: '', ingreso: 0, sede: '', fiador: '', ref1: '', ref2: '', nota: '' }) && cerebro.validar({ reply: 'x', draft: { tipo: 'lead' }, summary: '', handoff: false }).draft === null);
   let ri = await procesar.procesarMensaje(B.deps, pi.mensajes[0]);
   const convIg = B.db26._store.get('conversaciones/ig:555001');
