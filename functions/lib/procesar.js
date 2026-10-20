@@ -302,7 +302,17 @@ async function procesarAviso(deps, parsed) {
 // Un comentario en una publicacion de Instagram: Paola contesta en publico (corto, sin listas) y, si
 // es una pregunta o un reclamo, tambien por privado (abre el DM). Se guarda en comentarios_ig.
 const PREGUNTA = /\?|precio|cuota|inicial|cuánto|cuanto|requisit|cómo|como|dónde|donde|sede|quiero|info|financ|crédito|credito|disponib|tienen|hay /i;
-const RECLAMO = /nadie|no (me )?respond|no contestan|estafa|mentira|engaño|queja|reclamo|pésim|pesim|malo|mal servicio|llevo .* d[ií]as|esperando/i;
+const RECLAMO = /nadie|nunca (me )?(respond|contest)|no (me )?(respond|contest)|no obtengo|sin respuesta|estafa|mentira|engaño|queja|reclamo|pésim|pesim|malo|mal servicio|llevo .* (d[ií]as|semanas)|esperando/i;
+// Tope por persona en comentarios: 2 respuestas públicas y 1 privada cada 24 h (una misma persona
+// dejó 5 comentarios iguales en 3 publicaciones y Paola le habría contestado 10 veces).
+const TOPE_COMENTARIOS = { publicos: 2, privados: 1 };
+async function contarComentarios(db, usuario, ahora) {
+  if (!usuario) return { publicos: 0, privados: 0 };
+  const s = await db.collection('comentarios_ig').where('usuario', '==', usuario).get();
+  const t = Date.parse(ahora), dia = 24 * 3600 * 1000; let publicos = 0, privados = 0;
+  (s.docs || []).forEach(d => { const x = d.data() || {}; if (x.estado === 'respondido' && x.respondidoEn && t - Date.parse(x.respondidoEn) < dia) publicos++; if (x.privado && x.privado.enviado && x.respondidoEn && t - Date.parse(x.respondidoEn) < dia) privados++; });
+  return { publicos, privados };
+}
 async function procesarComentario(deps, c) {
   if (!deps.metaIG) return { saltado: 'instagram-no-configurado' };
   const db = deps.bases['26'], ahora = deps.ahora(), hoy = deps.hoy();
@@ -314,20 +324,22 @@ async function procesarComentario(deps, c) {
   const texto = String(c.texto || '').trim();
   if (!texto || /^[\s\p{Emoji}\p{P}]+$/u.test(texto)) { await ref.set({ estado: 'sin-respuesta', motivo: 'solo emoji o vacío' }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'vacio' }; }
   const esReclamo = RECLAMO.test(texto), esPregunta = PREGUNTA.test(texto);
+  const cuenta = await contarComentarios(db, c.usuario, ahora);
+  if (cuenta.publicos >= TOPE_COMENTARIOS.publicos) { await ref.set({ estado: 'sin-respuesta', motivo: 'tope: ya se le respondió ' + cuenta.publicos + ' veces hoy', reclamo: esReclamo }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'tope-usuario' }; }
   let cat = { motos: [], cond: null, sedes: [] };
   try { cat = await deps.ventas(); } catch (e) { /* sin catalogo, Paola invita al DM */ }
-  const instrucciones = `COMENTARIO PÚBLICO: la persona (@${c.usuario || 'alguien'}) comentó en una publicación de Instagram de Pagasi. Tu respuesta se publica debajo del comentario, la ve todo el mundo. Máximo 25 palabras, UNA frase o dos, sin listas, sin saludo largo, sin emojis. Si pregunta por un modelo concreto: precio y cuota en una línea. Si pregunta en general: una respuesta directa y "escríbeme por mensaje directo y te paso todo". Si es un reclamo o queja: disculpa en una línea y "te escribo por privado ahora mismo". Si es spam, otro negocio, una burla o no tiene nada que responder: reply exactamente "NO_RESPONDER". No pidas datos personales en público.`;
+  const instrucciones = `COMENTARIO PÚBLICO: la persona (@${c.usuario || 'alguien'}) comentó en una publicación de Instagram de Pagasi. Tu respuesta se publica debajo del comentario, la ve todo el mundo. Máximo 25 palabras, UNA frase o dos, sin listas, sin saludo largo, sin emojis. Si pregunta por un modelo concreto: precio y cuota en una línea. Si pregunta en general: una respuesta directa y "escríbeme por mensaje directo y te paso todo". Si es un reclamo o queja: disculpa en una línea y "te escribo por privado ahora mismo". Si es spam, otro negocio, una burla o no tiene nada que responder: reply exactamente "NO_RESPONDER". No pidas datos personales en público. NO saludes ni te presentes (en comentarios nunca va "Hola, soy Paola"): empieza directo por la respuesta, en UNA sola línea.`;
   const sistema = ventas.armarVentas({ instrucciones, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: '', usuario: c.usuario, canal: 'instagram', telefono: '', esCliente: false });
   let r;
   try { r = await deps.cerebro.pensar({ sistema, mensajes: [{ autor: 'cliente', direccion: 'entrante', texto, hora: c.hora }] }); }
   catch (e) { deps.log('cerebro-fallo', { canal: 'instagram', area: 'comentario', error: String(e && e.message || e).slice(0, 160) }); await ref.set({ estado: 'fallo', error: String(e && e.message || e).slice(0, 200) }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, error: 'cerebro' }; }
-  const respuesta = String(r.reply || '').trim();
+  const respuesta = String(r.reply || '').replace(/^\s*hola[^.!\n]*(soy paola[^.!\n]*)?[.!]\s*/i, '').replace(/\s*\n+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 240);
   if (!respuesta || /^NO_RESPONDER/i.test(respuesta)) { await ref.set({ estado: 'sin-respuesta', motivo: 'Paola decidió no responder', resumen: r.summary || '' }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'no-responder' }; }
   let respuestaId = '', error = '';
   try { respuestaId = await deps.metaIG.responderComentario(c.comentarioId, respuesta); } catch (e) { error = String(e && e.message || e).slice(0, 200); deps.log('comentario-envio-fallo', { error }); }
   const salida = { estado: error ? 'fallo' : 'respondido', respuesta, respuestaId, error, resumen: r.summary || '', reclamo: esReclamo, respondidoEn: ahora };
   // Privado: si pregunta o reclama, se le abre el DM; el hilo sigue como cualquier conversacion de Instagram
-  if ((esPregunta || esReclamo) && !error) {
+  if ((esPregunta || esReclamo) && !error && cuenta.privados < TOPE_COMENTARIOS.privados) {
     const privado = esReclamo
       ? 'Hola, soy Paola, de Pagasi. Vi tu comentario y quiero resolverlo: cuéntame por aquí qué pasó y con quién hablaste, y lo escalo hoy mismo al equipo.'
       : 'Hola 👋 Soy Paola, asesora comercial de Pagasi. Vi tu comentario en la publicación; por aquí te paso precios, cuotas y la solicitud. ¿Qué moto te interesa o en qué ciudad estás?';

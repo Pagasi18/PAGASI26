@@ -196,7 +196,7 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   const avisoCom = (id, texto, de, usuario, parent) => ({ object: 'instagram', entry: [{ id: '17841425348351958', time: 1760900000, changes: [{ field: 'comments', value: Object.assign({ id, text: texto, from: { id: de, username: usuario }, media: { id: 'media1', media_product_type: 'FEED' } }, parent ? { parent_id: parent } : {}) }] }] });
   const pc = meta.parsearWebhook(avisoCom('c1', '¿cuánto cuesta la BRZ 200?', '555777', 'pepe.moto'));
   ok('el aviso de un comentario se interpreta: id, texto, quién, publicación', pc.comentarios.length === 1 && pc.comentarios[0].comentarioId === 'c1' && pc.comentarios[0].usuario === 'pepe.moto' && pc.comentarios[0].de === '555777' && pc.comentarios[0].mediaId === 'media1' && pc.mensajes.length === 0);
-  let G = armar(); G.cerebroFalso.respuesta = { reply: 'La BRZ 200 está en .750,  por quincena a 12 meses. Escríbeme por mensaje directo y te paso todo.', draft: null, summary: 'Preguntó precio BRZ 200 en un comentario.', handoff: false };
+  let G = armar(); G.cerebroFalso.respuesta = { reply: 'La BRZ 200 está en $1.750, $148 por quincena a 12 meses. Escríbeme por mensaje directo y te paso todo.', draft: null, summary: 'Preguntó precio BRZ 200 en un comentario.', handoff: false };
   let rc = await procesar.procesarAviso(G.deps, pc);
   const comDoc = G.db26._store.get('comentarios_ig/c1');
   ok('a una pregunta en un comentario Paola contesta en público (corto) y abre el privado', rc.comentarios[0].respondido && rc.comentarios[0].privado && G.comentariosResp.length === 1 && G.comentariosResp[0].id === 'c1' && /1[.]750/.test(G.comentariosResp[0].t) && G.privados.length === 1 && G.privados[0].id === 'c1' && /Paola/.test(G.privados[0].t));
@@ -217,6 +217,14 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   G.cerebroFalso.respuesta = { reply: 'NO_RESPONDER', draft: null, summary: 'spam', handoff: false };
   rc = await procesar.procesarAviso(G.deps, meta.parsearWebhook(avisoCom('c6', 'SIGUEME Y TE SIGO 🔥🔥', '555781', 'spam.acc')));
   ok('si Paola decide NO_RESPONDER (spam, otro negocio) no se publica nada', !rc.comentarios[0].respondido && rc.comentarios[0].motivo === 'no-responder' && G.comentariosResp.length === 3 && G.db26._store.get('comentarios_ig/c6').estado === 'sin-respuesta');
+  // Tope por persona: 2 públicas y 1 privada al día; y la respuesta pública va en una línea sin saludo
+  G.cerebroFalso.respuesta = { reply: 'Hola 👋 Soy Paola, asesora comercial de Pagasi. Disculpa la demora.\nTe escribo por privado ahora mismo.', draft: null, summary: '', handoff: false };
+  const antesPub = G.comentariosResp.length, antesPriv = G.privados.length;
+  rc = await procesar.procesarAviso(G.deps, meta.parsearWebhook(avisoCom('c8', 'nadie me responde por whatsapp', '555780', 'regularito')));
+  ok('la segunda queja de la misma persona en el día sí se contesta en público (tope 2) pero ya no abre otro privado (tope 1)', rc.comentarios[0].respondido && !rc.comentarios[0].privado && G.comentariosResp.length === antesPub + 1 && G.privados.length === antesPriv);
+  ok('...y la respuesta pública sale en una sola línea, sin el saludo de Paola', !/\n/.test(G.comentariosResp[antesPub].t) && !/Soy Paola/.test(G.comentariosResp[antesPub].t) && /Disculpa la demora/.test(G.comentariosResp[antesPub].t));
+  rc = await procesar.procesarAviso(G.deps, meta.parsearWebhook(avisoCom('c9', 'sigo esperando respuesta', '555780', 'regularito')));
+  ok('la tercera queja del día de la misma persona ya no se contesta en público: queda guardada con el motivo', !rc.comentarios[0].respondido && rc.comentarios[0].motivo === 'tope-usuario' && G.comentariosResp.length === antesPub + 1 && /tope/.test(G.db26._store.get('comentarios_ig/c9').motivo));
   rc = await procesar.procesarAviso(G.deps, meta.parsearWebhook(avisoCom('c7', '😍😍', '555782', 'emoji')));
   ok('un comentario de solo emojis no pasa por el cerebro ni se contesta', !rc.comentarios[0].respondido && rc.comentarios[0].motivo === 'vacio');
   ok('el cerebro valida un lead y limpia el teléfono', JSON.stringify(cerebro.validar({ reply: 'ok', draft: { tipo: 'lead', nombre: 'Luis Pérez', ciudad: 'Maracay', modelo: 'BRZ 200', telefono: '0414-555.0000' }, summary: 's', handoff: true, handoffReason: 'lead' }).draft) === JSON.stringify({ tipo: 'lead', nombre: 'Luis Pérez', ciudad: 'Maracay', modelo: 'BRZ 200', telefono: '04145550000', cedula: '', inicial: 0, ocupacion: '', nota: '' }) && cerebro.validar({ reply: 'x', draft: { tipo: 'lead' }, summary: '', handoff: false }).draft === null);
