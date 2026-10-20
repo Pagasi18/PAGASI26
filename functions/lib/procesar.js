@@ -90,7 +90,7 @@ async function procesarMensaje(deps, m) {
   // Un cliente del sistema SIN creditos (un lead que Paola anoto, o uno creado a mano) se atiende como ventas
   const area = areaDe(deps, m, (ctx.creditos && ctx.creditos.length) ? u.clienteId : '');
   const base = { canal: 'whatsapp', area, telE164: tel, nombre: (conv && conv.nombre) || m.nombre || (ctx.cliente && ctx.cliente.nombre) || tel, clienteId: u.clienteId || (conv && conv.clienteId) || '', clienteNombre: (ctx.cliente && ctx.cliente.nombre) || (conv && conv.clienteNombre) || '',
-    cred: ctx.credActivo ? ctx.credActivo.id : ((conv && conv.cred) || ''), modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoAutor: 'cliente', actualizado: ahora, empresa: u.empresa };
+    cred: ctx.credActivo ? ctx.credActivo.id : ((conv && conv.cred) || ''), modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoEntranteId: m.metaId, ultimoAutor: 'cliente', actualizado: ahora, empresa: u.empresa };
   if (!conv) base.creado = ahora;
   await convRef.set(base, { merge: true });
   deps.log('entrante', { canal: 'whatsapp', area, empresa: u.empresa, tipo: m.tipo, cliente: !!u.clienteId });
@@ -99,7 +99,7 @@ async function procesarMensaje(deps, m) {
   // VENTAS por WhatsApp: el mismo asistente que en Instagram, ya con el telefono de la persona
   if (area === 'ventas') {
     if (base.modo === 'humano') return { empresa: u.empresa, area, callado: true };
-    return responderVentas(deps, { db, convRef, conv, base, canal: 'whatsapp', hoy, ahora, nombrePerfil: m.nombre, usuario: '', telefono: tel.replace('+', ''), leadId: 'wa:' + tel, empresa: u.empresa });
+    return responderVentas(deps, { db, convRef, conv, base, canal: 'whatsapp', hoy, ahora, nombrePerfil: m.nombre, usuario: '', telefono: tel.replace('+', ''), leadId: 'wa:' + tel, empresa: u.empresa, entranteId: m.metaId });
   }
 
   // Una imagen o un documento: posible comprobante. Se guarda y se le pasa al equipo.
@@ -136,6 +136,7 @@ async function procesarMensaje(deps, m) {
     await responder(deps, convRef, base, CORTESIA, ahora, { atencion: 'error' });
     return { empresa: u.empresa, cerebro: 'fallo' };
   }
+  if (await llegoOtro(convRef, m.metaId)) { deps.log('rafaga', { canal: 'whatsapp', area: 'cobranza' }); return { empresa: u.empresa, rafaga: true }; }
   const cambios = {};
   if (r.summary) cambios.resumen = r.summary;
   if (r.draft && r.draft.tipo === 'promesa') cambios.borrador = r.draft;
@@ -160,14 +161,14 @@ async function procesarInstagram(deps, m) {
   let perfil = { nombre: (conv && conv.nombre) || '', usuario: (conv && conv.usuario) || '' };
   if (!conv || (!conv.usuario && !conv.nombre)) { try { const p = await deps.metaIG.perfil(igsid); perfil = { nombre: p.nombre || perfil.nombre, usuario: p.usuario || perfil.usuario }; } catch (e) { /* sin perfil, no pasa nada */ } }
   const base = { canal: 'instagram', area: 'ventas', igsid, usuario: perfil.usuario || '', nombre: perfil.nombre || (perfil.usuario ? '@' + perfil.usuario : 'Instagram'), telE164: '', clienteId: '', clienteNombre: '', cred: '',
-    modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoAutor: 'cliente', actualizado: ahora, empresa: '26' };
+    modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoEntranteId: m.metaId, ultimoAutor: 'cliente', actualizado: ahora, empresa: '26' };
   if (!conv) base.creado = ahora;
   await convRef.set(base, { merge: true });
   deps.log('entrante', { canal: 'instagram', tipo: m.tipo });
   if (deps.metaIG.marcarLeido) deps.metaIG.marcarLeido(igsid).catch(() => {});
   if (base.modo === 'humano') return { empresa: '26', canal: 'instagram', callado: true };
 
-  return responderVentas(deps, { db, convRef, conv, base, canal: 'instagram', hoy, ahora, nombrePerfil: perfil.nombre, usuario: perfil.usuario, telefono: '', leadId: 'ig:' + igsid, empresa: '26' });
+  return responderVentas(deps, { db, convRef, conv, base, canal: 'instagram', hoy, ahora, nombrePerfil: perfil.nombre, usuario: perfil.usuario, telefono: '', leadId: 'ig:' + igsid, empresa: '26', entranteId: m.metaId });
 }
 
 // El asistente de ventas (WhatsApp o Instagram): briefing con el catalogo, respuesta, y el lead
@@ -192,8 +193,15 @@ function recortarEnlaces(texto, o) {
 // Freno: Paola no manda mas de 3 mensajes en 10 minutos ni 20 en 24 horas a la misma conversacion
 // (20-oct-2026: una tienda de cestas con bot mando 14 imagenes seguidas y Paola contesto las 14).
 // Si se pasa, el mensaje entrante se guarda, la conversacion queda en atencion 'revisar' y se calla.
-// 20-oct: con 3 en 10 min calló a un interesado en plena conversación; una persona real rara vez pasa de 8
-const FRENO = { porVentana: 8, ventanaMs: 10 * 60 * 1000, porDia: 40 };
+// 20-oct: con 3 y luego 8 en 10 min calló conversaciones reales que escribían rápido. Las ráfagas ya
+// se contestan una sola vez (llegoOtro), así que el freno queda solo para bots que responden en bucle.
+const FRENO = { porVentana: 15, ventanaMs: 10 * 60 * 1000, porDia: 60 };
+// Ráfagas: si mientras Paola pensaba entró otro mensaje de la misma persona, esta respuesta se
+// descarta; la del mensaje nuevo sale con todo el contexto. Así a 5 mensajes seguidos se contesta 1 vez.
+async function llegoOtro(convRef, entranteId) {
+  if (!entranteId) return false;
+  try { const d = await convRef.get(); const u = d.exists ? (d.data() || {}).ultimoEntranteId : ''; return !!u && u !== entranteId; } catch (e) { return false; }
+}
 function frenado(historial, ahora) {
   const t = Date.parse(ahora), salientes = (historial || []).filter(m => m && m.autor === 'asistente' && m.hora);
   const ventana = salientes.filter(m => t - Date.parse(m.hora) < FRENO.ventanaMs).length;
@@ -221,6 +229,7 @@ async function responderVentas(deps, x) {
     await responder(deps, convRef, base, CORTESIA, ahora, { atencion: 'error' });
     return { empresa: x.empresa, canal, area: 'ventas', cerebro: 'fallo' };
   }
+  if (await llegoOtro(convRef, x.entranteId)) { deps.log('rafaga', { canal, area: 'ventas' }); return { empresa: x.empresa, canal, area: 'ventas', rafaga: true }; }
   const cambios = {};
   if (r.summary) cambios.resumen = r.summary;
   if (r.draft && r.draft.tipo === 'lead') {
@@ -396,4 +405,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
