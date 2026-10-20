@@ -23,8 +23,16 @@ function verificacion(query, verifyToken) {
 // Instagram (mensajes directos): entry[].messaging[] con sender/recipient, message{mid,text,
 // attachments}, read{mid}. Los "echo" son nuestros propios mensajes devueltos: se ignoran.
 function parsearInstagram(cuerpo) {
-  const mensajes = [], estados = [];
+  const mensajes = [], estados = [], comentarios = [];
   (cuerpo.entry || []).forEach(entry => {
+    // Comentarios en las publicaciones (campo 'comments' del webhook de Instagram)
+    (entry.changes || []).forEach(ch => {
+      if (!ch || ch.field !== 'comments' || !ch.value || !ch.value.id) return;
+      const v = ch.value;
+      comentarios.push({ canal: 'instagram', comentarioId: String(v.id), texto: String(v.text || ''), de: v.from && v.from.id ? String(v.from.id) : '', usuario: (v.from && v.from.username) || '',
+        mediaId: v.media && v.media.id ? String(v.media.id) : '', tipoMedia: (v.media && v.media.media_product_type) || '', parentId: v.parent_id ? String(v.parent_id) : '',
+        hora: entry.time ? new Date(entry.time > 1e12 ? entry.time : entry.time * 1000).toISOString() : new Date().toISOString(), cuentaNegocio: entry.id ? String(entry.id) : '' });
+    });
     [].concat(entry.messaging || [], entry.standby || []).forEach(ev => {
       if (!ev || !ev.sender || !ev.sender.id) return;
       const hora = ev.timestamp ? new Date(ev.timestamp > 1e12 ? ev.timestamp : ev.timestamp * 1000).toISOString() : new Date().toISOString();
@@ -41,7 +49,7 @@ function parsearInstagram(cuerpo) {
       if (ev.read && ev.read.mid) estados.push({ canal: 'instagram', metaId: ev.read.mid, estado: 'leido', error: '', para: String(ev.sender.id), hora });
     });
   });
-  return { mensajes, estados, objeto: 'instagram' };
+  return { mensajes, estados, comentarios, objeto: 'instagram' };
 }
 
 // Del aviso crudo salen mensajes y estados, planos, sin perder de que numero vinieron
@@ -123,6 +131,20 @@ function clienteInstagram(cfg) {
   return {
     enviarTexto: (para, texto, op) => enviar(Object.assign({ recipient: { id: String(para) }, message: { text: String(texto).slice(0, 1000) } }, op && op.humano ? { messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' } : {})),
     marcarLeido: (para) => enviar({ recipient: { id: String(para) }, sender_action: 'mark_seen' }).catch(() => ''),
+    // Respuesta publica a un comentario de una publicacion (POST /{comment-id}/replies, token de pagina)
+    async responderComentario(comentarioId, texto) {
+      const r = await fetch(`${GRAPH}/${comentarioId}/replies`, { method: 'POST', headers: cab, body: JSON.stringify({ message: String(texto).slice(0, 1000) }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Meta HTTP ' + r.status)); e.code = j.error && j.error.code; throw e; }
+      return j.id || '';
+    },
+    // Respuesta privada a un comentario: abre un DM con quien comento (una sola vez por comentario, 7 dias)
+    async mensajePrivado(comentarioId, texto) {
+      const r = await fetch(base + '/messages', { method: 'POST', headers: cab, body: JSON.stringify({ recipient: { comment_id: String(comentarioId) }, message: { text: String(texto).slice(0, 1000) } }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Meta HTTP ' + r.status)); e.code = j.error && j.error.code; throw e; }
+      return { metaId: j.message_id || '', igsid: j.recipient_id ? String(j.recipient_id) : '' };
+    },
     async perfil(igsid) {
       const r = await fetch(`${GRAPH}/${igsid}?fields=name,username`, { headers: { authorization: 'Bearer ' + cfg.accessToken } });
       const j = await r.json().catch(() => ({}));

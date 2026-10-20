@@ -69,7 +69,7 @@ function configurado(v) { return !!v && v !== 'pendiente'; }
 function armarDeps(cfg) {
   const m = meta.cliente({ accessToken: sec(TOKEN), phoneNumberId: sec(PHONE_ID) });
   const ig = configurado(sec(IG_TOKEN)) && configurado(sec(IG_CUENTA)) ? meta.clienteInstagram({ accessToken: sec(IG_TOKEN), accountId: sec(IG_CUENTA) }) : null;
-  return { bases, storage: storageDe, meta: m, metaIG: ig, ventas: catalogoVentas, cfg, ahora: () => new Date().toISOString(), hoy: hoyCaracas, log: (q, d) => logger.info(q, d || {}),
+  return { bases, storage: storageDe, meta: m, metaIG: ig, instagramId: configurado(sec(IG_CUENTA)) ? sec(IG_CUENTA) : '', ventas: catalogoVentas, cfg, ahora: () => new Date().toISOString(), hoy: hoyCaracas, log: (q, d) => logger.info(q, d || {}),
     cerebro: { pensar: ({ sistema, mensajes }) => cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes }) } };
 }
 
@@ -118,8 +118,9 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
   const cuerpo = req.body || {};
   const parsed = meta.parsearWebhook(cuerpo);
   const avisoRef = bases['26'].collection('webhooks_meta').doc();
-  await avisoRef.set({ recibido: new Date().toISOString(), objeto: parsed.objeto || '', mensajes: parsed.mensajes.length, estados: parsed.estados.length, crudo: crudo.slice(0, 200000) }).catch(() => {});
-  if (!parsed.mensajes.length && !parsed.estados.length) return res.status(200).send('EVENT_RECEIVED');
+  const nComentarios = (parsed.comentarios || []).length;
+  await avisoRef.set({ recibido: new Date().toISOString(), objeto: parsed.objeto || '', mensajes: parsed.mensajes.length, estados: parsed.estados.length, comentarios: nComentarios, crudo: crudo.slice(0, 200000) }).catch(() => {});
+  if (!parsed.mensajes.length && !parsed.estados.length && !nComentarios) return res.status(200).send('EVENT_RECEIVED');
   // Se procesa ANTES de responder: Cloud Run le quita la CPU al contenedor en cuanto sale la
   // respuesta y lo que quedaba pendiente (pensar, mandar) se congelaba (19-oct-2026). Meta espera
   // la respuesta unos segundos, asi que hay un tope: si no termina en 20 s se responde igual y

@@ -292,10 +292,59 @@ async function procesarEstado(deps, s) {
 }
 
 async function procesarAviso(deps, parsed) {
-  const res = { mensajes: [], estados: [] };
+  const res = { mensajes: [], estados: [], comentarios: [] };
+  for (const c of parsed.comentarios || []) { try { res.comentarios.push(await procesarComentario(deps, c)); } catch (e) { deps.log('comentario-fallo', { error: String(e && e.message || e).slice(0, 160) }); res.comentarios.push({ error: true }); } }
   for (const m of parsed.mensajes || []) { try { res.mensajes.push(await procesarMensaje(deps, m)); } catch (e) { deps.log('mensaje-fallo', { error: String(e && e.message || e).slice(0, 160) }); res.mensajes.push({ error: true }); } }
   for (const s of parsed.estados || []) { try { res.estados.push(await procesarEstado(deps, s)); } catch (e) { res.estados.push({ error: true }); } }
   return res;
+}
+
+// Un comentario en una publicacion de Instagram: Paola contesta en publico (corto, sin listas) y, si
+// es una pregunta o un reclamo, tambien por privado (abre el DM). Se guarda en comentarios_ig.
+const PREGUNTA = /\?|precio|cuota|inicial|cuánto|cuanto|requisit|cómo|como|dónde|donde|sede|quiero|info|financ|crédito|credito|disponib|tienen|hay /i;
+const RECLAMO = /nadie|no (me )?respond|no contestan|estafa|mentira|engaño|queja|reclamo|pésim|pesim|malo|mal servicio|llevo .* d[ií]as|esperando/i;
+async function procesarComentario(deps, c) {
+  if (!deps.metaIG) return { saltado: 'instagram-no-configurado' };
+  const db = deps.bases['26'], ahora = deps.ahora(), hoy = deps.hoy();
+  const propio = (deps.instagramId && c.de === String(deps.instagramId)) || (deps.cfg && deps.cfg.instagram && c.usuario && c.usuario.toLowerCase() === String(deps.cfg.instagram).replace(/^@/, '').toLowerCase());
+  if (propio) return { saltado: 'propio', comentarioId: c.comentarioId };
+  if (c.parentId) return { saltado: 'respuesta-a-respuesta', comentarioId: c.comentarioId };
+  const ref = db.collection('comentarios_ig').doc(c.comentarioId);
+  try { await ref.create({ comentarioId: c.comentarioId, mediaId: c.mediaId, tipoMedia: c.tipoMedia, de: c.de, usuario: c.usuario, texto: c.texto, hora: c.hora, creado: ahora, estado: 'nuevo' }); } catch (e) { return { saltado: 'repetido', comentarioId: c.comentarioId }; }
+  const texto = String(c.texto || '').trim();
+  if (!texto || /^[\s\p{Emoji}\p{P}]+$/u.test(texto)) { await ref.set({ estado: 'sin-respuesta', motivo: 'solo emoji o vacío' }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'vacio' }; }
+  const esReclamo = RECLAMO.test(texto), esPregunta = PREGUNTA.test(texto);
+  let cat = { motos: [], cond: null, sedes: [] };
+  try { cat = await deps.ventas(); } catch (e) { /* sin catalogo, Paola invita al DM */ }
+  const instrucciones = `COMENTARIO PÚBLICO: la persona (@${c.usuario || 'alguien'}) comentó en una publicación de Instagram de Pagasi. Tu respuesta se publica debajo del comentario, la ve todo el mundo. Máximo 25 palabras, UNA frase o dos, sin listas, sin saludo largo, sin emojis. Si pregunta por un modelo concreto: precio y cuota en una línea. Si pregunta en general: una respuesta directa y "escríbeme por mensaje directo y te paso todo". Si es un reclamo o queja: disculpa en una línea y "te escribo por privado ahora mismo". Si es spam, otro negocio, una burla o no tiene nada que responder: reply exactamente "NO_RESPONDER". No pidas datos personales en público.`;
+  const sistema = ventas.armarVentas({ instrucciones, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: '', usuario: c.usuario, canal: 'instagram', telefono: '', esCliente: false });
+  let r;
+  try { r = await deps.cerebro.pensar({ sistema, mensajes: [{ autor: 'cliente', direccion: 'entrante', texto, hora: c.hora }] }); }
+  catch (e) { deps.log('cerebro-fallo', { canal: 'instagram', area: 'comentario', error: String(e && e.message || e).slice(0, 160) }); await ref.set({ estado: 'fallo', error: String(e && e.message || e).slice(0, 200) }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, error: 'cerebro' }; }
+  const respuesta = String(r.reply || '').trim();
+  if (!respuesta || /^NO_RESPONDER/i.test(respuesta)) { await ref.set({ estado: 'sin-respuesta', motivo: 'Paola decidió no responder', resumen: r.summary || '' }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'no-responder' }; }
+  let respuestaId = '', error = '';
+  try { respuestaId = await deps.metaIG.responderComentario(c.comentarioId, respuesta); } catch (e) { error = String(e && e.message || e).slice(0, 200); deps.log('comentario-envio-fallo', { error }); }
+  const salida = { estado: error ? 'fallo' : 'respondido', respuesta, respuestaId, error, resumen: r.summary || '', reclamo: esReclamo, respondidoEn: ahora };
+  // Privado: si pregunta o reclama, se le abre el DM; el hilo sigue como cualquier conversacion de Instagram
+  if ((esPregunta || esReclamo) && !error) {
+    const privado = esReclamo
+      ? 'Hola, soy Paola, de Pagasi. Vi tu comentario y quiero resolverlo: cuéntame por aquí qué pasó y con quién hablaste, y lo escalo hoy mismo al equipo.'
+      : 'Hola 👋 Soy Paola, asesora comercial de Pagasi. Vi tu comentario en la publicación; por aquí te paso precios, cuotas y la solicitud. ¿Qué moto te interesa o en qué ciudad estás?';
+    try {
+      const p = await deps.metaIG.mensajePrivado(c.comentarioId, privado);
+      salida.privado = { enviado: true, metaId: p.metaId, igsid: p.igsid };
+      if (p.igsid) {
+        const convRef = db.collection('conversaciones').doc('ig:' + p.igsid);
+        const conv = await convRef.get();
+        await convRef.set(Object.assign({ canal: 'instagram', area: 'ventas', igsid: p.igsid, usuario: c.usuario || '', nombre: (conv.exists && conv.data().nombre) || (c.usuario ? '@' + c.usuario : 'Instagram'), modo: (conv.exists && conv.data().modo) || 'bot', ultimoMensaje: privado, ultimoMensajeHora: ahora, ultimoAutor: 'asistente', actualizado: ahora, empresa: '26', origenComentario: c.comentarioId }, conv.exists ? {} : { creado: ahora, noLeidos: 0 }, esReclamo ? { atencion: 'queja' } : {}), { merge: true });
+        await convRef.collection('mensajes').doc(p.metaId || ('cm-' + c.comentarioId)).set({ metaId: p.metaId, direccion: 'saliente', autor: 'asistente', tipo: 'texto', texto: privado, estado: 'enviado', error: '', hora: ahora, desdeComentario: c.comentarioId });
+      }
+    } catch (e) { salida.privado = { enviado: false, error: String(e && e.message || e).slice(0, 200) }; }
+  }
+  await ref.set(salida, { merge: true });
+  deps.log('comentario', { usuario: c.usuario, respondido: !error, privado: !!(salida.privado && salida.privado.enviado), reclamo: esReclamo });
+  return { comentarioId: c.comentarioId, respondido: !error, privado: !!(salida.privado && salida.privado.enviado), reclamo: esReclamo };
 }
 
 // El equipo escribe desde el panel. WhatsApp: solo dentro de la ventana de 24 h de Meta.
@@ -317,4 +366,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, CORTESIA, ACK_COMPROBANTE, telDe };
