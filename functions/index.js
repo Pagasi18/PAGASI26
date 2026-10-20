@@ -48,11 +48,25 @@ async function cfgAsistente() {
   return { instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false };
 }
 // Lo que necesita el asistente de ventas (Instagram): el catalogo de pagasi.io y las sedes de la 26
+// Modelos que cada sede ha financiado (créditos de la 26), con el precio del crédito más reciente.
+// Sirve para las sedes que no tienen catálogo en la web (p. ej. EK Trujillo). Caché de 15 minutos.
+let _vendidas = { t: 0, datos: {} };
+async function vendidasPorSede() {
+  if (Date.now() - _vendidas.t < 15 * 60 * 1000) return _vendidas.datos;
+  const s = await bases['26'].collection('creditos').get();
+  const datos = {};
+  s.docs.map(d => d.data() || {}).filter(c => c.concesionarioId && c.modelo && +c.precio > 0 && !c.eliminado && !['cancelado', 'pendiente_revision'].includes(c.estado))
+    .sort((a, b) => String(b.creado || b.fecha || '').localeCompare(String(a.creado || a.fecha || '')))
+    .forEach(c => { const m = (datos[c.concesionarioId] = datos[c.concesionarioId] || {}); const k = String(c.modelo).trim().toUpperCase(); if (!m[k]) m[k] = { modelo: String(c.modelo).trim(), precio: +c.precio, n: 0 }; m[k].n++; });
+  _vendidas = { t: Date.now(), datos };
+  return datos;
+}
 async function catalogoVentas() {
   const [cat, conc] = await Promise.all([bases['26'].collection('catalogo').get(), bases['26'].collection('concesionarios').get()]);
   let cond = null; const motos = [];
   cat.docs.forEach(d => { const x = d.data() || {}; if (d.id === '_condiciones') cond = x; else motos.push(Object.assign({ id: d.id }, x)); });
-  const sedes = conc.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(c => c && c.activo !== false && !c.eliminado).map(c => ({ nombre: c.nombre || '', ciudad: c.ciudad || '', direccion: c.direccion || '' }));
+  let vendidas = {}; try { vendidas = await vendidasPorSede(); } catch (e) { logger.warn('vendidas', { error: String(e && e.message || e).slice(0, 120) }); }
+  const sedes = conc.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(c => c && c.activo !== false && !c.eliminado).map(c => ({ nombre: c.nombre || '', ciudad: c.ciudad || '', direccion: c.direccion || '', vendidas: Object.values(vendidas[c.id] || {}).sort((a, b) => b.n - a.n).slice(0, 12) }));
   return { motos, cond, sedes };
 }
 function storageDe(empresa) {

@@ -260,7 +260,19 @@ async function clienteDesdeLead(deps, db, o) {
   if (!nombre || (!telLocal && !ced)) return (o.conv && o.conv.clienteLead) || '';
   const usuario = (base && base.usuario) || '';
   const moto = (o.motos || []).find(m => m && lead.modelo && String(m.name || m.modelo || '').toLowerCase().includes(String(lead.modelo).toLowerCase().slice(0, 12)));
-  const chat = { canal, convId, usuario, modelo: lead.modelo || '', ciudad: lead.ciudad || '', inicial: lead.inicial || 0, ocupacion: lead.ocupacion || '', cedula: ced, telefono: telLocal, resumen: o.resumen || '', actualizado: ahora };
+  const chat = { canal, convId, usuario, modelo: lead.modelo || '', sede: lead.sede || '', ciudad: lead.ciudad || '', inicial: lead.inicial || 0, ocupacion: lead.ocupacion || '', cedula: ced, telefono: telLocal, resumen: o.resumen || '', actualizado: ahora };
+  // Lo de la solicitud que Paola recoge en el chat, con los nombres de la solicitud web
+  const partes = v => String(v || '').split(/\s*[·|,;]\s*/).map(x => x.trim()).filter(Boolean);
+  const telDe = arr => arr.find(x => String(x).replace(/\D/g, '').length >= 10) || '';
+  const ciDe = arr => arr.find(x => cedulaLimpia(x)) ? cedulaLimpia(arr.find(x => cedulaLimpia(x)) ) : '';
+  const fz = partes(lead.fiador), r1 = partes(lead.ref1), r2 = partes(lead.ref2);
+  const solicitud = {};
+  if (lead.direccion) solicitud.dir = lead.direccion;
+  if (lead.ingreso) solicitud.ingreso = lead.ingreso;
+  if (lead.fiador) Object.assign(solicitud, { fiador: 'si', fiador_nom: fz[0] || '', fiador_ci: ciDe(fz), fiador_tel: telDe(fz) });
+  if (lead.ref1) solicitud.ref1 = { nom: r1[0] || '', ci: '', tel: telDe(r1), rel: '', obs: 'por chat' };
+  if (lead.ref2) solicitud.ref2 = { nom: r2[0] || '', ci: '', tel: telDe(r2), rel: '', obs: 'por chat' };
+  const completa = !!(nombre && ced && telLocal && lead.modelo && (lead.ciudad || lead.direccion) && lead.ocupacion && lead.ingreso && lead.fiador && lead.ref1 && lead.ref2);
   const buscar = async (campo, valores) => { for (const v of valores.filter(Boolean)) { const s = await db.collection('clientes').where(campo, '==', v).limit(1).get(); if (s.docs && s.docs.length) return Object.assign({ id: s.docs[0].id }, s.docs[0].data()); } return null; };
   let ex = null;
   if (o.conv && o.conv.clienteLead) { const d = await db.collection('clientes').doc(o.conv.clienteLead).get(); if (d.exists) ex = Object.assign({ id: d.id }, d.data()); }
@@ -276,6 +288,8 @@ async function clienteDesdeLead(deps, db, o) {
     if (!ex.ciudad && lead.ciudad) cambios.ciudad = lead.ciudad;
     if (!ex.trabajo && lead.ocupacion) cambios.trabajo = lead.ocupacion;
     if (!ex.inicial_disponible && lead.inicial) cambios.inicial_disponible = lead.inicial;
+    Object.entries(solicitud).forEach(([k, v]) => { const cur = ex[k]; if (cur === undefined || cur === '' || cur === 0 || cur === 'no' || (cur && typeof cur === 'object' && !cur.nom)) cambios[k] = v; });
+    if (completa) cambios.solicitud_chat_completa = true;
     if (!ex.moto_interes_modelo && lead.modelo) { cambios.moto_interes_modelo = lead.modelo; if (moto) { cambios.moto_interes_precio = +moto.precio || 0; cambios.moto_interes_sede = moto.sedeName || moto.sede || ''; } }
     await db.collection('clientes').doc(ex.id).set(cambios, { merge: true });
     return ex.id;
@@ -285,7 +299,8 @@ async function clienteDesdeLead(deps, db, o) {
   await db.collection('clientes').doc(id).set({
     nombre, cedula: ced, tel: telLocal, telE164, ciudad: lead.ciudad || '', email: '', direccion: '', trabajo: lead.ocupacion || '', notas,
     moto_interes_modelo: lead.modelo || '', moto_interes_precio: moto ? (+moto.precio || 0) : 0, moto_interes_sede: moto ? (moto.sedeName || moto.sede || '') : '', inicial_disponible: lead.inicial || 0,
-    estado: 'lead', origen: canal, origen_detalle: canal === 'instagram' ? (usuario ? '@' + usuario : 'Instagram') : telLocal, conversacion: convId, lead_chat: chat,
+    estado: 'lead', origen: canal, origen_detalle: canal === 'instagram' ? (usuario ? '@' + usuario : 'Instagram') : telLocal, conversacion: convId, lead_chat: chat, solicitud_chat_completa: completa,
+    ...solicitud,
     creado: ahora, editadoEn: ahora, editadoPor: 'Paola (asistente)'
   });
   deps.log('lead-cliente', { canal, id });
