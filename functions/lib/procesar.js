@@ -125,6 +125,8 @@ async function procesarMensaje(deps, m) {
 
   // El cerebro
   const historial = await docs(convRef.collection('mensajes').orderBy('hora', 'asc').limit(40));
+  const freno = frenado(historial, ahora);
+  if (freno) { deps.log('frenado', { canal: 'whatsapp', area: 'cobranza', motivo: freno }); await convRef.set({ atencion: 'revisar', actualizado: ahora }, { merge: true }); return { empresa: u.empresa, frenado: freno }; }
   const sistema = briefing.armar({ empresa: (deps.cfg.empresaNombre || {})[u.empresa] || 'Pagasi', cliente: ctx.cliente, creditos: ctx.creditos, instrucciones: deps.cfg.instrucciones, datosPago: deps.cfg.datosPago, hoy, nombrePerfil: m.nombre, promesa: conv && conv.borrador && conv.borrador.tipo === 'promesa' ? conv.borrador : null, comprobantesPendientes: ctx.comprobantesPendientes });
   let r;
   try { r = await deps.cerebro.pensar({ sistema, mensajes: historial }); }
@@ -170,9 +172,25 @@ async function procesarInstagram(deps, m) {
 
 // El asistente de ventas (WhatsApp o Instagram): briefing con el catalogo, respuesta, y el lead
 // si la persona quiere comprar. Por WhatsApp el telefono ya se sabe y queda en el lead.
+// Freno: Paola no manda mas de 3 mensajes en 10 minutos ni 20 en 24 horas a la misma conversacion
+// (20-oct-2026: una tienda de cestas con bot mando 14 imagenes seguidas y Paola contesto las 14).
+// Si se pasa, el mensaje entrante se guarda, la conversacion queda en atencion 'revisar' y se calla.
+const FRENO = { porVentana: 3, ventanaMs: 10 * 60 * 1000, porDia: 20 };
+function frenado(historial, ahora) {
+  const t = Date.parse(ahora), salientes = (historial || []).filter(m => m && m.autor === 'asistente' && m.hora);
+  const ventana = salientes.filter(m => t - Date.parse(m.hora) < FRENO.ventanaMs).length;
+  const dia = salientes.filter(m => t - Date.parse(m.hora) < 24 * 3600 * 1000).length;
+  return ventana >= FRENO.porVentana ? 'ventana' : (dia >= FRENO.porDia ? 'dia' : '');
+}
 async function responderVentas(deps, x) {
   const { db, convRef, conv, base, canal, hoy, ahora } = x;
   const historial = await docs(convRef.collection('mensajes').orderBy('hora', 'asc').limit(40));
+  const freno = frenado(historial, ahora);
+  if (freno) {
+    deps.log('frenado', { canal, area: 'ventas', motivo: freno });
+    await convRef.set({ atencion: 'revisar', actualizado: ahora }, { merge: true });
+    return { empresa: x.empresa, canal, area: 'ventas', frenado: freno };
+  }
   let cat = { motos: [], cond: null, sedes: [] };
   try { cat = await deps.ventas(); } catch (e) { deps.log('catalogo-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
   const sistema = ventas.armarVentas({ instrucciones: deps.cfg.instruccionesVentas, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: x.nombrePerfil, usuario: x.usuario, canal, telefono: x.telefono, esCliente: !!base.clienteId });
@@ -298,4 +316,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, CORTESIA, ACK_COMPROBANTE, telDe };
