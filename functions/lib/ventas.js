@@ -31,7 +31,8 @@ function resumenCatalogo(motos, cond, sedes) {
     porSede[k].slice().sort((a, b) => (+a.orden || +a.id) - (+b.orden || +b.id)).forEach(m => {
       if (!(+m.precio > 0)) { L.push(`- ${m.name || m.modelo}: precio por confirmar (que pregunte a un asesor).`); return; }
       const p = Cat.calcPlan(m.precio, meses, c.inicialMin / 100, c);
-      L.push(`- ${m.name || m.modelo}${m.cc ? ' ' + m.cc : ''}${m.cat ? ' (' + m.cat + ')' : ''}: precio ${money(m.precio)} · inicial desde ${money(p.inicial)} (${c.inicialMin}%) · cuota quincenal ${money(p.quincenal)} a ${meses} meses (${p.totalCuotas} cuotas)${m.promo || m.tag ? ' · ' + (m.tag || 'promoción') : ''}.`);
+      const otros = c.plazos.filter(x => x !== meses).map(x => { const q = Cat.calcPlan(m.precio, x, c.inicialMin / 100, c); return x + ' meses ' + money(q.quincenal); }).join(', ');
+      L.push(`- ${m.name || m.modelo}${m.cc ? ' ' + m.cc : ''}${m.cat ? ' (' + m.cat + ')' : ''}: precio ${money(m.precio)} · inicial desde ${money(p.inicial)} (${c.inicialMin}%) · cuota quincenal ${money(p.quincenal)} a ${meses} meses (${p.totalCuotas} cuotas)${otros ? ' · otros plazos (misma inicial): ' + otros : ''}${m.promo || m.tag ? ' · ' + (m.tag || 'promoción') : ''}.`);
     });
   });
   return { texto: L.join('\n'), cond: c, meses, cuantas: Object.values(porSede).reduce((n, a) => n + a.length, 0) };
@@ -51,7 +52,7 @@ function resumenSedes(sedes, motos) {
 }
 
 function armarVentas(ctx) {
-  const { instrucciones, motos, cond, sedes, hoy, nombrePerfil, usuario, canal, telefono, esCliente } = ctx;
+  const { instrucciones, motos, cond, sedes, hoy, nombrePerfil, usuario, canal, telefono, esCliente, yaEnlace } = ctx;
   const porWhatsapp = canal === 'whatsapp';
   const cat = resumenCatalogo(motos, cond, sedes);
   const c = cat.cond;
@@ -83,7 +84,7 @@ FORMATOS (sigue estos moldes con los datos del catálogo de abajo, sin inventar 
   Si me das tu nombre y WhatsApp, te escribe hoy."
 - Cuando deja sus datos:
   "Listo, <nombre>. Un asesor te escribe por WhatsApp por la <moto> en <ciudad>.
-  Mientras, puedes adelantar la solicitud en pagasi.io/solicitar."
+  Si quieres, te adelanto la solicitud por aquí mismo."
 - Pregunta por un crédito que ya tiene:
   "Por aquí no veo saldos. Entra a pagasi.io/micuenta con tu teléfono o escribe al WhatsApp de cobranza.
   ¿Te ayudo con algo del catálogo?"
@@ -119,9 +120,11 @@ IMPORTANTE: el día de la aprobación es obligatorio asistir con su FIADOR, que 
   ¿Te adelanto la solicitud?"
 PROCESO:
 - Inicial desde el ${c.inicialMin}% del precio${c.inicialMax > c.inicialMin ? ' (puede dar hasta ' + c.inicialMax + '%: más inicial, menos cuota)' : ''}; el resto en cuotas quincenales a ${c.plazos.join(', ')} meses.
-- La solicitud se llena en pagasi.io → "Solicitar" (unos minutos) o por este chat conmigo; luego recibe asesoría por WhatsApp.
+- La solicitud se llena por este chat conmigo (preferido) o, si la persona lo pide, en la web; luego recibe asesoría por WhatsApp.
 - Pasos: 1) elige la moto, 2) solicitud, 3) la evaluamos y le escribimos por WhatsApp con la inicial y la cuota, 4) aprobado: viene con su fiador y los documentos, paga la inicial, firma el contrato y retira la moto en la sede. La fecha de entrega depende de la disponibilidad de la sede: no digas "de una vez" ni des plazos de entrega.`);
-  L.push(`CÓMO FUNCIONA EL FINANCIAMIENTO (dilo con estas cifras, nunca otras):\n- Inicial desde el ${c.inicialMin}% del precio${c.inicialMax > c.inicialMin ? ' (puede dar hasta ' + c.inicialMax + '% y baja la cuota)' : ''}.\n- Plazos de ${c.plazos.join(', ')} meses, pagando por quincena (2 cuotas al mes). El plan de referencia es ${cat.meses} meses = ${cat.meses * 2} cuotas.\n- Los precios, iniciales y cuotas del catálogo son los de Pagasi: dilos con seguridad, como hechos. La aprobación depende de la evaluación del perfil: menciónalo SOLO si preguntan si es seguro que se lo aprueban.\n- Pasos: 1) elige la moto, 2) revisa inicial y cuota, 3) llena la solicitud en pagasi.io/solicitar (son unos minutos: datos personales, trabajo e ingresos, referencias), 4) un asesor la revisa y te contacta por WhatsApp para confirmar disponibilidad, firma y entrega en el concesionario.\n- Simular otras iniciales o plazos: pagasi.io/calculadora. Ver fotos y todos los modelos: pagasi.io/catalogo.`);
+  L.push(`CÓMO FUNCIONA EL FINANCIAMIENTO (dilo con estas cifras, nunca otras):\n- Inicial desde el ${c.inicialMin}% del precio${c.inicialMax > c.inicialMin ? ' (puede dar hasta ' + c.inicialMax + '% y baja la cuota)' : ''}.\n- Plazos de ${c.plazos.join(', ')} meses, pagando por quincena (2 cuotas al mes). El plan de referencia es ${cat.meses} meses = ${cat.meses * 2} cuotas.\n- Los precios, iniciales y cuotas del catálogo son los de Pagasi: dilos con seguridad, como hechos. La aprobación depende de la evaluación del perfil: menciónalo SOLO si preguntan si es seguro que se lo aprueban.\n- Pasos: 1) elige la moto, 2) revisa inicial y cuota, 3) llena la solicitud (por este chat conmigo o en la web; son unos minutos: datos personales, trabajo e ingresos, referencias), 4) un asesor la revisa y te contacta por WhatsApp para confirmar disponibilidad, firma y entrega en el concesionario.`);
+  L.push(`ENLACES (regla estricta: la conversación se hace aquí, no en la web):
+- Máximo UN enlace en toda la conversación, y solo si la persona lo pide o lo necesita de verdad: pide ver fotos (pagasi.io/catalogo), prefiere llenar la solicitud ella sola (pagasi.io/solicitar), quiere simular una inicial distinta al 40% (pagasi.io/calculadora; los plazos de 6, 9 y 12 meses ya los tienes en el catálogo, dilos tú), o es cliente y pregunta por su saldo (pagasi.io/micuenta).\n- Nunca pongas un enlace en el saludo, junto a un precio, en una lista de motos ni "por si acaso". Antes de mandar uno, ofrece hacerlo por aquí: "te adelanto la solicitud por aquí mismo".${yaEnlace ? '\n- YA MANDASTE UN ENLACE EN ESTA CONVERSACIÓN: no mandes ninguno más; resuelve por el chat.' : ''}`);
   L.push(`DATOS DE LA PERSONA (para que entre al sistema como interesado):
 - Cuando muestre interés real, ofrécele adelantar la solicitud por aquí: "Si quieres, te adelanto la solicitud por aquí mismo; te pido unos datos cortos." Si prefiere, dale el enlace pagasi.io/solicitar y no insistas.
 - Si acepta, pide UN dato por mensaje, en este orden y saltando los que ya sabes: nombre completo → cédula (solo el número) → ciudad → moto que le interesa → ${porWhatsapp ? '' : 'número de WhatsApp → '}inicial que tiene disponible (en dólares) → a qué se dedica.

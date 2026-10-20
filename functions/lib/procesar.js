@@ -172,6 +172,23 @@ async function procesarInstagram(deps, m) {
 
 // El asistente de ventas (WhatsApp o Instagram): briefing con el catalogo, respuesta, y el lead
 // si la persona quiere comprar. Por WhatsApp el telefono ya se sabe y queda en el lead.
+// Enlaces (20-oct-2026): uno por conversacion y solo si lo piden. Si el modelo mete uno de mas, se
+// quita la frase que lo lleva (si queda algo que decir). Lo pedido: link, página, web, fotos, formulario.
+const TIENE_ENLACE = /(https?:\/\/|www\.|pagasi\.io)/i;
+const PIDE_ENLACE = /link|enlace|p[aá]gina|web|foto|imagen|formulario|d[oó]nde (lo )?(lleno|relleno|aplico|solicito)|cat[aá]logo|calculadora|simular|mi cuenta|saldo/i;
+function recortarEnlaces(texto, o) {
+  const t = String(texto || ''); if (!TIENE_ENLACE.test(t)) return t;
+  const pidio = o && o.pedido && PIDE_ENLACE.test(String(o.pedido.texto || ''));
+  if (pidio && !(o && o.yaEnlace)) {
+    // Lo pidio y es el primero: se deja solo el primer enlace
+    let visto = false;
+    return t.split(/(?<=[.!?])\s+|\n+/).filter(f => { if (!TIENE_ENLACE.test(f)) return true; if (visto) return false; visto = true; return true; }).join(' ').replace(/\s{2,}/g, ' ').trim() || t;
+  }
+  if (pidio) return t;   // ya hubo uno, pero lo pide otra vez: se respeta
+  const sin = t.split(/(?<=[.!?])\s+|\n+/).filter(f => !TIENE_ENLACE.test(f)).join('\n').trim();
+  return sin.length >= 15 ? sin : t;
+}
+
 // Freno: Paola no manda mas de 3 mensajes en 10 minutos ni 20 en 24 horas a la misma conversacion
 // (20-oct-2026: una tienda de cestas con bot mando 14 imagenes seguidas y Paola contesto las 14).
 // Si se pasa, el mensaje entrante se guarda, la conversacion queda en atencion 'revisar' y se calla.
@@ -194,9 +211,10 @@ async function responderVentas(deps, x) {
   }
   let cat = { motos: [], cond: null, sedes: [] };
   try { cat = await deps.ventas(); } catch (e) { deps.log('catalogo-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
-  const sistema = ventas.armarVentas({ instrucciones: deps.cfg.instruccionesVentas, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: x.nombrePerfil, usuario: x.usuario, canal, telefono: x.telefono, esCliente: !!base.clienteId });
+  const yaEnlace = historial.some(m => m && m.autor !== 'cliente' && TIENE_ENLACE.test(String(m.texto || '')));
+  const sistema = ventas.armarVentas({ instrucciones: deps.cfg.instruccionesVentas, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: x.nombrePerfil, usuario: x.usuario, canal, telefono: x.telefono, esCliente: !!base.clienteId, yaEnlace });
   let r;
-  try { r = await deps.cerebro.pensar({ sistema, mensajes: historial }); }
+  try { r = await deps.cerebro.pensar({ sistema, mensajes: historial }); if (r && r.reply) r.reply = recortarEnlaces(r.reply, { yaEnlace, pedido: [...historial].reverse().find(m => m && m.autor === 'cliente') }); }
   catch (e) {
     deps.log('cerebro-fallo', { canal, area: 'ventas', error: String(e && e.message || e).slice(0, 160) });
     if (yaDisculpado(historial, ahora)) { await convRef.set({ atencion: 'error', actualizado: ahora }, { merge: true }); return { empresa: x.empresa, canal, area: 'ventas', cerebro: 'fallo', disculpa: 'omitida' }; }
@@ -378,4 +396,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
