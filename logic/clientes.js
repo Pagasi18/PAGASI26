@@ -63,6 +63,10 @@ function clienteBadgesHTML(c){
   // Badge especial para leads que llegan desde la web pública
   if(c && c.origen === 'web'){
     html += ' <span class="bdg" style="background:rgba(37,99,235,.14);color:#2563EB;border:1px solid rgba(37,99,235,.30);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:9.5px;">◆ Lead web</span>';
+  } else if(c && c.origen === 'instagram'){
+    html += ' <span class="bdg" style="background:linear-gradient(90deg,rgba(245,133,41,.18),rgba(221,42,123,.18),rgba(129,52,175,.18));color:#b3246c;border:1px solid rgba(221,42,123,.35);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:9.5px;" title="Lo anotó Paola desde el chat de Instagram">◆ Lead Instagram</span>';
+  } else if(c && c.origen === 'whatsapp'){
+    html += ' <span class="bdg" style="background:rgba(37,211,102,.16);color:#0f7a3e;border:1px solid rgba(37,211,102,.4);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:9.5px;" title="Lo anotó Paola desde el chat de WhatsApp">◆ Lead WhatsApp</span>';
   }
   return html;
 }
@@ -155,12 +159,12 @@ function renderClienteList(q=''){
     // Estilo fila: azul claro para TODOS los leads (sin crédito activo ni historial)
     var estadosCli = getClienteEstados(c).estados || [];
     var esLead = estadosCli.indexOf('lead') >= 0;
-    var esLeadWeb = c.origen === 'web';
+    var esLeadWeb = c.origen === 'web' || c.origen === 'instagram' || c.origen === 'whatsapp';
     var rowStyle = 'cursor:pointer;' + (esLead
       ? 'background:linear-gradient(90deg,rgba(37,99,235,.07) 0%,rgba(37,99,235,.03) 100%);border-left:3px solid var(--p1);'
       : '');
     var leadDot = esLeadWeb
-      ? ' <span title="Lead web — vino desde el formulario público" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--p1);box-shadow:0 0 0 3px rgba(37,99,235,.15);margin-left:6px;vertical-align:middle"></span>'
+      ? ' <span title="' + (c.origen === 'instagram' ? 'Lead Instagram — lo anotó Paola desde el chat' : c.origen === 'whatsapp' ? 'Lead WhatsApp — lo anotó Paola desde el chat' : 'Lead web — vino desde el formulario público') + '" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--p1);box-shadow:0 0 0 3px rgba(37,99,235,.15);margin-left:6px;vertical-align:middle"></span>'
       : (esLead ? ' <span title="Lead — sin crédito activo aún" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:rgba(37,99,235,.5);margin-left:6px;vertical-align:middle"></span>' : '');
 
     return `<tr onclick="verCliente('${c.id}')" style="${rowStyle}">

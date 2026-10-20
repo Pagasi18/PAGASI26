@@ -14,7 +14,7 @@ const HERRAMIENTA = {
       reply: { type: 'string', description: 'Lo que se le manda al cliente por WhatsApp, en español de Venezuela, corto.' },
       draft: { type: ['object', 'null'], description: 'Lo que hay que anotar: una promesa de pago (cobranza) si el cliente dijo cuándo paga, o un lead (ventas) si la persona quiere que la contacten o dio sus datos; si no hay nada, null.',
         properties: { tipo: { type: 'string', enum: ['promesa', 'lead'] }, fecha: { type: 'string', description: 'promesa: AAAA-MM-DD' }, monto: { type: 'number' }, nota: { type: 'string' },
-          nombre: { type: 'string', description: 'lead: nombre de la persona' }, ciudad: { type: 'string' }, modelo: { type: 'string', description: 'lead: la moto que le interesa' }, telefono: { type: 'string', description: 'lead: su WhatsApp' } }, required: ['tipo'] },
+          nombre: { type: 'string', description: 'lead: nombre de la persona' }, ciudad: { type: 'string' }, modelo: { type: 'string', description: 'lead: la moto que le interesa' }, telefono: { type: 'string', description: 'lead: su WhatsApp' }, cedula: { type: 'string', description: 'lead: su cédula (V-12345678)' }, inicial: { type: 'number', description: 'lead: la inicial que tiene disponible, en dólares' }, ocupacion: { type: 'string', description: 'lead: a qué se dedica / dónde trabaja' } }, required: ['tipo'] },
       summary: { type: 'string', description: 'Una línea para el equipo: qué quiere el cliente y en qué quedó.' },
       handoff: { type: 'boolean', description: 'true si una persona debe tomar la conversación.' },
       handoffReason: { type: 'string', enum: ['', 'pide_persona', 'queja', 'comprobante', 'no_puede_pagar', 'descuento', 'no_cliente', 'lead', 'otro'] }
@@ -23,6 +23,12 @@ const HERRAMIENTA = {
   }
 };
 
+// Cedula venezolana como la guarda el sistema: V-12345678 (o E-). Lo que no cuadre, vacio.
+function cedulaLimpia(v) {
+  const s = String(v || '').trim().toUpperCase(); const d = s.replace(/\D/g, '').replace(/^0+/, '');
+  if (d.length < 6 || d.length > 9) return '';
+  return (s.startsWith('E') ? 'E-' : 'V-') + d;
+}
 // Se revisa a mano (sin librerias): lo que no cuadra se descarta
 function validar(x) {
   if (!x || typeof x !== 'object') return null;
@@ -35,8 +41,8 @@ function validar(x) {
     draft = { tipo: 'promesa', fecha: String(d.fecha), monto: typeof d.monto === 'number' && d.monto > 0 ? Math.round(d.monto * 100) / 100 : null, nota: txt(d.nota, 200) };
   } else if (d && d.tipo === 'lead') {
     const tel = String(d.telefono || '').replace(/\D/g, '');
-    const lead = { tipo: 'lead', nombre: txt(d.nombre, 80), ciudad: txt(d.ciudad, 60), modelo: txt(d.modelo, 80), telefono: tel.length >= 10 ? tel : '', nota: txt(d.nota, 200) };
-    if (lead.nombre || lead.modelo || lead.telefono || lead.ciudad) draft = lead;
+    const lead = { tipo: 'lead', nombre: txt(d.nombre, 80), ciudad: txt(d.ciudad, 60), modelo: txt(d.modelo, 80), telefono: tel.length >= 10 ? tel : '', cedula: cedulaLimpia(d.cedula), inicial: typeof d.inicial === 'number' && d.inicial > 0 ? Math.round(d.inicial) : 0, ocupacion: txt(d.ocupacion, 80), nota: txt(d.nota, 200) };
+    if (lead.nombre || lead.modelo || lead.telefono || lead.ciudad || lead.cedula || lead.inicial || lead.ocupacion) draft = lead;
   }
   const razones = ['', 'pide_persona', 'queja', 'comprobante', 'no_puede_pagar', 'descuento', 'no_cliente', 'lead', 'otro'];
   return { reply, draft, summary: typeof x.summary === 'string' ? x.summary.slice(0, 300) : '', handoff: !!x.handoff, handoffReason: razones.includes(x.handoffReason) ? x.handoffReason : (x.handoff ? 'otro' : '') };
@@ -91,4 +97,4 @@ async function pensar({ apiKey, sistema, mensajes, fetchImpl }) {
   throw new Error('El modelo no devolvió respuesta');
 }
 
-module.exports = { pensar, validar, turnos, HERRAMIENTA, MODELO };
+module.exports = { pensar, validar, turnos, cedulaLimpia, HERRAMIENTA, MODELO };

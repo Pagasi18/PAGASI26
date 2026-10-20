@@ -10,6 +10,7 @@
    El id de cada mensaje es el id de Meta, asi un reenvio del webhook no se procesa dos veces.   */
 'use strict';
 const briefing = require('./briefing');
+const { cedulaLimpia } = require('./cerebro');
 const ventas = require('./ventas');
 
 const EMPRESAS = ['26', '18'];
@@ -86,7 +87,8 @@ async function procesarMensaje(deps, m) {
   const convSnap = await convRef.get();
   const conv = convSnap.exists ? convSnap.data() : null;
   const ctx = await contexto(deps, u.empresa, u.clienteId, hoy);
-  const area = areaDe(deps, m, u.clienteId);
+  // Un cliente del sistema SIN creditos (un lead que Paola anoto, o uno creado a mano) se atiende como ventas
+  const area = areaDe(deps, m, (ctx.creditos && ctx.creditos.length) ? u.clienteId : '');
   const base = { canal: 'whatsapp', area, telE164: tel, nombre: (conv && conv.nombre) || m.nombre || (ctx.cliente && ctx.cliente.nombre) || tel, clienteId: u.clienteId || (conv && conv.clienteId) || '', clienteNombre: (ctx.cliente && ctx.cliente.nombre) || (conv && conv.clienteNombre) || '',
     cred: ctx.credActivo ? ctx.credActivo.id : ((conv && conv.cred) || ''), modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoAutor: 'cliente', actualizado: ahora, empresa: u.empresa };
   if (!conv) base.creado = ahora;
@@ -188,12 +190,60 @@ async function responderVentas(deps, x) {
     const previo = (conv && conv.borrador && conv.borrador.tipo === 'lead') ? conv.borrador : {};
     const lead = Object.assign({}, previo, Object.fromEntries(Object.entries(r.draft).filter(([, v]) => v)));   // lo nuevo completa lo que ya habia
     if (!lead.telefono && x.telefono) lead.telefono = x.telefono;
+    if (lead.cedula) lead.cedula = cedulaLimpia(lead.cedula);   // V-12345678, aunque el modelo la mande con puntos
     cambios.borrador = lead;
     cambios.atencion = 'lead';
+    const clienteLead = await clienteDesdeLead(deps, db, { canal, convId: x.leadId, base, conv, lead, resumen: r.summary, ahora, motos: cat.motos });
+    if (clienteLead) { cambios.clienteLead = clienteLead; lead.clienteLead = clienteLead; }
     await db.collection('leads').doc(x.leadId).set(Object.assign({ canal, convId: x.leadId, usuario: base.usuario || '', nombrePerfil: base.nombre || '', telE164: base.telE164 || '', clienteId: base.clienteId || '', estado: 'nuevo', creado: ahora }, lead, { actualizado: ahora, resumen: r.summary || '' }), { merge: true });
   } else if (r.handoff) cambios.atencion = RAZON_A_ATENCION[r.handoffReason] || 'pide_persona';
   await responder(deps, convRef, base, r.reply, ahora, cambios);
   return { empresa: x.empresa, canal, area: 'ventas', respondido: true, handoff: !!r.handoff || !!(r.draft && r.draft.tipo === 'lead'), draft: r.draft || null };
+}
+
+// El lead del chat entra a Clientes como "Lead Instagram" / "Lead WhatsApp" (estado lead, igual que
+// el Lead web de la solicitud publica) en cuanto hay nombre y telefono o cedula. Si ya existe un
+// cliente con esa cedula o ese telefono, no se duplica: se le anota lo del chat. Devuelve el id.
+const telNacional = v => String(v || '').replace(/\D/g, '').replace(/^58/, '').replace(/^0/, '');
+async function clienteDesdeLead(deps, db, o) {
+  const { canal, convId, base, lead, ahora } = o;
+  const nombre = String(lead.nombre || '').trim();
+  const nac = telNacional(lead.telefono || (base && base.telE164) || '');
+  const telLocal = nac.length >= 10 ? '0' + nac : '', telE164 = nac.length >= 10 ? '+58' + nac : '';
+  const ced = String(lead.cedula || '');
+  if (!nombre || (!telLocal && !ced)) return (o.conv && o.conv.clienteLead) || '';
+  const usuario = (base && base.usuario) || '';
+  const moto = (o.motos || []).find(m => m && lead.modelo && String(m.name || m.modelo || '').toLowerCase().includes(String(lead.modelo).toLowerCase().slice(0, 12)));
+  const chat = { canal, convId, usuario, modelo: lead.modelo || '', ciudad: lead.ciudad || '', inicial: lead.inicial || 0, ocupacion: lead.ocupacion || '', cedula: ced, telefono: telLocal, resumen: o.resumen || '', actualizado: ahora };
+  const buscar = async (campo, valores) => { for (const v of valores.filter(Boolean)) { const s = await db.collection('clientes').where(campo, '==', v).limit(1).get(); if (s.docs && s.docs.length) return Object.assign({ id: s.docs[0].id }, s.docs[0].data()); } return null; };
+  let ex = null;
+  if (o.conv && o.conv.clienteLead) { const d = await db.collection('clientes').doc(o.conv.clienteLead).get(); if (d.exists) ex = Object.assign({ id: d.id }, d.data()); }
+  if (!ex && base && base.clienteId) { const d = await db.collection('clientes').doc(base.clienteId).get(); if (d.exists) ex = Object.assign({ id: d.id }, d.data()); }
+  if (!ex && ced) ex = await buscar('cedula', [ced, ced.replace('-', ''), ced.split('-')[1]]);
+  if (!ex && telLocal) ex = await buscar('tel', [telLocal, telE164, '+58 ' + nac.slice(0, 3) + '-' + nac.slice(3)]);
+  const origenNombre = canal === 'instagram' ? 'Lead Instagram' : 'Lead WhatsApp';
+  if (ex) {
+    const cambios = { lead_chat: chat, editadoEn: ahora, editadoPor: 'Paola (asistente)' };
+    if (!ex.origen) cambios.origen = canal;
+    if (!ex.cedula && ced) cambios.cedula = ced;
+    if (!ex.tel && telLocal) cambios.tel = telLocal;
+    if (!ex.ciudad && lead.ciudad) cambios.ciudad = lead.ciudad;
+    if (!ex.trabajo && lead.ocupacion) cambios.trabajo = lead.ocupacion;
+    if (!ex.inicial_disponible && lead.inicial) cambios.inicial_disponible = lead.inicial;
+    if (!ex.moto_interes_modelo && lead.modelo) { cambios.moto_interes_modelo = lead.modelo; if (moto) { cambios.moto_interes_precio = +moto.precio || 0; cambios.moto_interes_sede = moto.sedeName || moto.sede || ''; } }
+    await db.collection('clientes').doc(ex.id).set(cambios, { merge: true });
+    return ex.id;
+  }
+  const id = ced ? 'WEB-' + ced.replace(/\D/g, '').replace(/^0+/, '') : (canal === 'instagram' ? 'IG-' + String(convId).replace(/^ig:/, '') : 'WA-' + telLocal);
+  const notas = origenNombre + (usuario ? ' (@' + usuario + ')' : '') + ' · ' + (lead.modelo ? 'Interesado en ' + lead.modelo : 'sin moto específica') + (lead.inicial ? ' · inicial disponible $' + lead.inicial : '') + (o.resumen ? ' · ' + o.resumen : '');
+  await db.collection('clientes').doc(id).set({
+    nombre, cedula: ced, tel: telLocal, telE164, ciudad: lead.ciudad || '', email: '', direccion: '', trabajo: lead.ocupacion || '', notas,
+    moto_interes_modelo: lead.modelo || '', moto_interes_precio: moto ? (+moto.precio || 0) : 0, moto_interes_sede: moto ? (moto.sedeName || moto.sede || '') : '', inicial_disponible: lead.inicial || 0,
+    estado: 'lead', origen: canal, origen_detalle: canal === 'instagram' ? (usuario ? '@' + usuario : 'Instagram') : telLocal, conversacion: convId, lead_chat: chat,
+    creado: ahora, editadoEn: ahora, editadoPor: 'Paola (asistente)'
+  });
+  deps.log('lead-cliente', { canal, id });
+  return id;
 }
 
 // Manda el texto por el canal que toque, lo guarda como mensaje del asistente y actualiza la conversacion
@@ -248,4 +298,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, CORTESIA, ACK_COMPROBANTE, telDe };
