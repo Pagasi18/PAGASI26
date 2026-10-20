@@ -175,7 +175,8 @@ async function procesarInstagram(deps, m) {
 // Freno: Paola no manda mas de 3 mensajes en 10 minutos ni 20 en 24 horas a la misma conversacion
 // (20-oct-2026: una tienda de cestas con bot mando 14 imagenes seguidas y Paola contesto las 14).
 // Si se pasa, el mensaje entrante se guarda, la conversacion queda en atencion 'revisar' y se calla.
-const FRENO = { porVentana: 3, ventanaMs: 10 * 60 * 1000, porDia: 20 };
+// 20-oct: con 3 en 10 min calló a un interesado en plena conversación; una persona real rara vez pasa de 8
+const FRENO = { porVentana: 8, ventanaMs: 10 * 60 * 1000, porDia: 40 };
 function frenado(historial, ahora) {
   const t = Date.parse(ahora), salientes = (historial || []).filter(m => m && m.autor === 'asistente' && m.hora);
   const ventana = salientes.filter(m => t - Date.parse(m.hora) < FRENO.ventanaMs).length;
