@@ -91,7 +91,7 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   r = await procesar.procesarMensaje(A.deps, msgTexto('584241112233', 'hola', 'wamid.b1'));
   ok('cliente de la 18 → la conversación va a la 18', r.empresa === '18' && A.db18._store.get('conversaciones/wa:+584241112233').clienteId === 'C18' && !A.db26._store.get('conversaciones/wa:+584241112233'));
   r = await procesar.procesarMensaje(A.deps, msgTexto('584160000000', 'quiero una moto', 'wamid.c1'));
-  ok('un número que no es cliente → VENTAS por WhatsApp: en la 26, área ventas, briefing del catálogo y sin cifras de crédito', r.empresa === '26' && r.area === 'ventas' && r.respondido && A.db26._store.get('conversaciones/wa:+584160000000').area === 'ventas' && /CATÁLOGO VIGENTE/.test(A.cerebroFalso.ultimo.sistema) && /asistente de ventas de Pagasi en WhatsApp/.test(A.cerebroFalso.ultimo.sistema) && /\+584160000000/.test(A.cerebroFalso.ultimo.sistema) && /NO se lo pidas/.test(A.cerebroFalso.ultimo.sistema) && !/CRÉDITO/.test(A.cerebroFalso.ultimo.sistema));
+  ok('un número que no es cliente → VENTAS por WhatsApp: en la 26, área ventas, briefing del catálogo y sin cifras de crédito', r.empresa === '26' && r.area === 'ventas' && r.respondido && A.db26._store.get('conversaciones/wa:+584160000000').area === 'ventas' && /CATÁLOGO VIGENTE/.test(A.cerebroFalso.ultimo.sistema) && /Paola, la asesora comercial online de Pagasi, y atiendes por WhatsApp/.test(A.cerebroFalso.ultimo.sistema) && /\+584160000000/.test(A.cerebroFalso.ultimo.sistema) && /NO se lo pidas/.test(A.cerebroFalso.ultimo.sistema) && !/CRÉDITO/.test(A.cerebroFalso.ultimo.sistema));
   A.cerebroFalso.respuesta = { reply: 'Listo, Ana. Un asesor te escribe por aquí.', draft: { tipo: 'lead', nombre: 'Ana Torres', ciudad: 'Valencia', modelo: 'Kavak 250' }, summary: 'Quiere la Kavak 250, Valencia.', handoff: true, handoffReason: 'lead' };
   r = await procesar.procesarMensaje(A.deps, msgTexto('584160000000', 'soy Ana Torres, de Valencia', 'wamid.c2'));
   const leadWa = A.db26._store.get('leads/wa:+584160000000');
@@ -120,6 +120,11 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   A = armar(); A.cerebroFalso.falla = true;
   r = await procesar.procesarMensaje(A.deps, msgTexto('584141234567', 'hola', 'wamid.f1'));
   ok('si el cerebro falla, se manda una frase de cortesía y se marca error', r.cerebro === 'fallo' && A.enviados[0].t === procesar.CORTESIA && A.db26._store.get('conversaciones/wa:+584141234567').atencion === 'error');
+  r = await procesar.procesarMensaje(A.deps, msgTexto('584141234567', 'sigues ahí?', 'wamid.f2'));
+  ok('si sigue caído, la disculpa NO se repite: el mensaje se guarda y la conversación sigue en error', r.cerebro === 'fallo' && r.disculpa === 'omitida' && A.enviados.length === 1 && A.db26._store.get('conversaciones/wa:+584141234567/mensajes/wamid.f2').texto === 'sigues ahí?' && A.db26._store.get('conversaciones/wa:+584141234567').atencion === 'error');
+  A.cerebroFalso.falla = false; A.cerebroFalso.respuesta = { reply: 'Ya volví, ¿en qué te ayudo?', draft: null, summary: '', handoff: false };
+  r = await procesar.procesarMensaje(A.deps, msgTexto('584141234567', 'hola de nuevo', 'wamid.f3'));
+  ok('cuando el cerebro vuelve, responde normal', !r.cerebro && A.enviados.length === 2 && /Ya volví/.test(A.enviados[1].t));
   // estados
   A = armar();
   await procesar.procesarMensaje(A.deps, msgTexto('584141234567', 'hola', 'wamid.s1'));

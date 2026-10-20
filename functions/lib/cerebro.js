@@ -58,17 +58,36 @@ function turnos(mensajes) {
   return t;
 }
 
-async function pensar({ apiKey, sistema, mensajes, fetchImpl }) {
-  const f = fetchImpl || fetch;
-  const r = await f(URL, { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODELO, max_tokens: 700, system: sistema, tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: turnos(mensajes) }) });
+// Una llamada a la API. Sonnet 5.5 razona antes de responder por defecto y ese razonamiento se
+// comia el tope de salida (19-oct-2026: tope 700, stop_reason max_tokens y herramienta vacia):
+// aqui el razonamiento va apagado (respuestas mas rapidas y baratas) y el tope es holgado.
+async function llamar(f, apiKey, cuerpo) {
+  const r = await f(URL, { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
+  return { ok: r.ok, status: r.status, j };
+}
+function leer(j) {
   const uso = (j.content || []).find(b => b.type === 'tool_use' && b.name === 'responder');
   if (uso) { const v = validar(uso.input); if (v) return Object.assign(v, { uso: j.usage || null }); }
   // Si contesto en texto plano, se usa como respuesta sin anotaciones
   const texto = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
   if (texto) return { reply: texto.slice(0, 1500), draft: null, summary: '', handoff: false, handoffReason: '', uso: j.usage || null };
+  return null;
+}
+async function pensar({ apiKey, sistema, mensajes, fetchImpl }) {
+  const f = fetchImpl || fetch;
+  const base = { model: MODELO, max_tokens: 1500, thinking: { type: 'disabled' }, system: sistema, tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: turnos(mensajes) };
+  let r = await llamar(f, apiKey, base);
+  // Si esta version de la API no acepta apagar el razonamiento, se va sin ese parametro
+  if (!r.ok && r.status === 400 && /thinking/i.test(String(r.j.error && r.j.error.message || ''))) { const sin = Object.assign({}, base); delete sin.thinking; r = await llamar(f, apiKey, sin); }
+  if (!r.ok) { const e = new Error((r.j.error && r.j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
+  let v = leer(r.j);
+  if (v) return v;
+  // Sin respuesta util (p. ej. se corto por el tope): un reintento obligando la herramienta
+  r = await llamar(f, apiKey, Object.assign({}, base, { max_tokens: 2500, tool_choice: { type: 'tool', name: 'responder' } }));
+  if (!r.ok) { const e = new Error((r.j.error && r.j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
+  v = leer(r.j);
+  if (v) return v;
   throw new Error('El modelo no devolvió respuesta');
 }
 

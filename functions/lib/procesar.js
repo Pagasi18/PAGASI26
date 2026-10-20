@@ -14,6 +14,13 @@ const ventas = require('./ventas');
 
 const EMPRESAS = ['26', '18'];
 const CORTESIA = 'Disculpa, en este momento no puedo responderte bien. Un asesor de Pagasi te escribe en breve por aquí mismo.';
+// Si el cerebro sigue caido (p. ej. sin saldo en Anthropic), la disculpa se manda UNA vez por
+// conversacion: si el ultimo mensaje del asistente ya fue la disculpa hace menos de 12 h, no se
+// repite (19-oct-2026: una persona recibio cuatro seguidas). La conversacion queda en atencion 'error'.
+function yaDisculpado(historial, ahora) {
+  const ult = [...(historial || [])].reverse().find(m => m && m.autor !== 'cliente' && m.direccion === 'saliente');
+  return !!(ult && ult.autor === 'asistente' && ult.texto === CORTESIA && Date.parse(ahora) - Date.parse(ult.hora || 0) < 12 * 3600 * 1000);
+}
 const ACK_COMPROBANTE = '¡Gracias! Recibí tu comprobante y lo pasé al equipo de Pagasi para confirmarlo. En cuanto lo registren te aviso por aquí.';
 const RAZON_A_ATENCION = { pide_persona: 'pide_persona', queja: 'queja', comprobante: 'comprobante', no_puede_pagar: 'pide_persona', descuento: 'pide_persona', no_cliente: 'pide_persona', lead: 'lead', otro: 'pide_persona' };
 
@@ -121,6 +128,7 @@ async function procesarMensaje(deps, m) {
   try { r = await deps.cerebro.pensar({ sistema, mensajes: historial }); }
   catch (e) {
     deps.log('cerebro-fallo', { error: String(e && e.message || e).slice(0, 160) });
+    if (yaDisculpado(historial, ahora)) { await convRef.set({ atencion: 'error', actualizado: ahora }, { merge: true }); return { empresa: u.empresa, cerebro: 'fallo', disculpa: 'omitida' }; }
     await responder(deps, convRef, base, CORTESIA, ahora, { atencion: 'error' });
     return { empresa: u.empresa, cerebro: 'fallo' };
   }
@@ -170,6 +178,7 @@ async function responderVentas(deps, x) {
   try { r = await deps.cerebro.pensar({ sistema, mensajes: historial }); }
   catch (e) {
     deps.log('cerebro-fallo', { canal, area: 'ventas', error: String(e && e.message || e).slice(0, 160) });
+    if (yaDisculpado(historial, ahora)) { await convRef.set({ atencion: 'error', actualizado: ahora }, { merge: true }); return { empresa: x.empresa, canal, area: 'ventas', cerebro: 'fallo', disculpa: 'omitida' }; }
     await responder(deps, convRef, base, CORTESIA, ahora, { atencion: 'error' });
     return { empresa: x.empresa, canal, area: 'ventas', cerebro: 'fallo' };
   }

@@ -45,7 +45,7 @@ function hoyCaracas() { return new Date(Date.now() - 4 * 3600 * 1000).toISOStrin
 async function cfgAsistente() {
   const d = await bases['26'].collection('config').doc('asistente').get();
   const c = d.exists ? d.data() : {};
-  return { instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado };
+  return { instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false };
 }
 // Lo que necesita el asistente de ventas (Instagram): el catalogo de pagasi.io y las sedes de la 26
 async function catalogoVentas() {
@@ -139,6 +139,10 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
 exports.recordatoriosWhatsApp = onSchedule({ schedule: '30 8 * * *', timeZone: 'America/Caracas', region: 'us-east1', secrets: [TOKEN, PHONE_ID], memory: '1GiB', timeoutSeconds: 540 }, async () => {
   const cfg = await cfgAsistente();
   if (!cfg.conectado) { logger.info('recordatorios: Meta no está conectado, no se manda nada'); return; }
+  // Interruptor aparte (config/asistente.recordatorios === false): el numero puede estar conectado
+  // para conversar sin que salgan todavia las plantillas de cuotas (hace falta metodo de pago en la
+  // cuenta de WhatsApp y el OK de Adam para escribirle a toda la cartera).
+  if (!cfg.recordatorios) { logger.info('recordatorios: apagados en config/asistente (recordatorios=false)'); return; }
   const r = await recordatorios.correr(armarDeps(cfg), { plantillas: cfg.plantillas });
   logger.info('recordatorios', { resultado: r });
   await bases['26'].collection('recordatorios_corridas').add({ hoy: hoyCaracas(), corrido: new Date().toISOString(), resultado: r }).catch(() => {});
