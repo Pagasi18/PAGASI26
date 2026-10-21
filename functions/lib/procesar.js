@@ -310,8 +310,9 @@ const mayus = v => String(v == null ? '' : v).replace(/[ñÑ]/g, '\u0001').norma
 
 async function clienteDesdeLead(deps, db, o) {
   const { canal, convId, base, ahora } = o;
-  // Los datos de la persona que anotó Paola, en mayúsculas y sin tildes (el modelo y la sede se quedan como en el catálogo)
-  const lead = Object.assign({}, o.lead); ['nombre', 'ciudad', 'ocupacion', 'direccion', 'fiador', 'ref1', 'ref2'].forEach(k => { if (typeof lead[k] === 'string') lead[k] = mayus(lead[k]); });
+  // Los datos de la persona que anotó Paola, en mayúsculas y sin tildes. El modelo y la sede se quedan como en el catálogo,
+  // y la ocupación también: va a clientes.trabajo, que en las pantallas es una opción (formal, comerciante…), no texto
+  const lead = Object.assign({}, o.lead); ['nombre', 'ciudad', 'direccion', 'fiador', 'ref1', 'ref2'].forEach(k => { if (typeof lead[k] === 'string') lead[k] = mayus(lead[k]); });
   const nombre = String(lead.nombre || '').trim();
   const nac = telNacional(lead.telefono || (base && base.telE164) || '');
   const telLocal = nac.length >= 10 ? '0' + nac : '', telE164 = nac.length >= 10 ? '+58' + nac : '';
