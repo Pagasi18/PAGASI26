@@ -22,11 +22,12 @@ var _waRoot = (typeof window !== 'undefined') ? window : globalThis;   // en Nod
 var WA_PREFIJOS = ['412','414','416','422','424','426'];
 var WA_GRACIA = 5;            // igual que PLAN.diasGracia
 var WA_GRUPOS = [
-  { id:'proximas',  titulo:'Vencen en 2 días',        sub:'Recordatorio amable, con el monto y dónde pagar',           tono:'azul' },
+  { id:'proximas',  titulo:'Vencen en 1 a 3 días',    sub:'Se le escribe 3 días antes, con el monto y la fecha',      tono:'azul' },
   { id:'hoy',       titulo:'Vencen hoy',               sub:'"Hoy es tu día de pago"',                                  tono:'azul' },
   { id:'gracia',    titulo:'Vencidas (1 a 5 días)',    sub:'Todavía en gracia: recordar sin mora',                     tono:'ambar' },
   { id:'atrasadas', titulo:'Atrasadas (6 a 10 días)',  sub:'Ya genera mora: recordatorio firme y pedir fecha de pago', tono:'rojo' },
-  { id:'cobrador',  titulo:'Más de 10 días',           sub:'El asistente ya no insiste: pasa a un cobrador',           tono:'gris' }
+  { id:'cobrador',  titulo:'Más de 10 días',           sub:'El asistente ya no insiste: pasa a un cobrador',           tono:'gris' },
+  { id:'acuerdo',   titulo:'Con acuerdo de pago',      sub:'No se le cobra antes de su fecha: se le recuerda 1 día antes y el mismo día', tono:'verde' }
 ];
 
 function waTelE164(v){
@@ -73,7 +74,21 @@ function waColaHoy(creds, pagos, clientes, hoy){
     var q = (est.cuotas || []).filter(function(x){ return x && x.saldo > 0.001; })[0];
     if(!q || !q.fechaVence) return;
     var dias = _waDias(q.fechaVence, hoy);   // >0 = vencida hace N días; <0 = vence en N días
-    var grupo = dias >= -2 && dias <= -1 ? 'proximas' : dias === 0 ? 'hoy' : dias >= 1 && dias <= WA_GRACIA ? 'gracia' : dias > WA_GRACIA && dias <= 10 ? 'atrasadas' : dias > 10 ? 'cobrador' : null;
+    // Acuerdo de pago vigente (Cobranza → Acordar: fechaCompromiso): antes de esa fecha no se le cobra.
+    // Se le recuerda 1 día antes y el mismo día, por lo que debe hasta esa fecha. Si la fecha pasa sin
+    // pago, el crédito vuelve a los recordatorios normales de atraso.
+    var fc = /^\d{4}-\d{2}-\d{2}$/.test(String(c.fechaCompromiso || '')) ? c.fechaCompromiso : '';
+    if(fc && fc >= hoy){
+      var clA = porCliente[String(c.clienteId)] || {}, telA = waTelE164(clA.telE164 || clA.tel);
+      if(!telA) sinTel++;
+      var hasta = (est.cuotas || []).filter(function(x){ return x && x.saldo > 0.001 && x.fechaVence && x.fechaVence <= fc; });
+      var montoA = Math.round(hasta.reduce(function(s, x){ return s + x.saldo; }, 0) * 100) / 100 || Math.round(q.saldo * 100) / 100;
+      grupos.acuerdo.push({ cred: c.id, clienteId: String(c.clienteId || ''), nombre: c.cli || clA.nombre || 'Cliente', tel: telA, telRaw: clA.tel || '', modelo: c.modelo || '',
+        cuota: q.numero, monto: montoA, fechaVence: fc, fechaCuota: q.fechaVence, dias: _waDias(fc, hoy), totalCuotas: est.totalCuotas, pagadas: est.cuotasPagadas, acuerdo: true,
+        vencidas: hasta.filter(function(x){ return x.fechaVence < hoy; }).length, montoVencido: montoA });
+      return;
+    }
+    var grupo = dias >= -3 && dias <= -1 ? 'proximas' : dias === 0 ? 'hoy' : dias >= 1 && dias <= WA_GRACIA ? 'gracia' : dias > WA_GRACIA && dias <= 10 ? 'atrasadas' : dias > 10 ? 'cobrador' : null;
     if(!grupo) return;
     var cl = porCliente[String(c.clienteId)] || {};
     var tel = waTelE164(cl.telE164 || cl.tel);
@@ -94,6 +109,7 @@ function waPlantilla(grupo, it){
   var pagar = 'Puedes pagar por Pago Móvil, transferencia o Binance; si me escribes "cómo pago" te paso los datos. Si ya pagaste, mándame la foto del comprobante y listo.';
   if(grupo === 'proximas') return 'Hola ' + nom + ', soy el asistente de Pagasi. Tu cuota ' + it.cuota + ' de ' + it.totalCuotas + ' (' + monto + ') vence el ' + fecha + '. ' + pagar;
   if(grupo === 'hoy') return 'Hola ' + nom + ', hoy ' + fecha + ' es tu día de pago: cuota ' + it.cuota + ' de ' + it.totalCuotas + ', ' + monto + '. ' + pagar;
+  if(grupo === 'acuerdo') return 'Hola ' + nom + ', te recordamos tu acuerdo de pago: ' + monto + ' para el ' + fecha + '. ' + pagar;
   if(grupo === 'gracia') return 'Hola ' + nom + ', tu cuota ' + it.cuota + ' (' + monto + ') venció el ' + fecha + '. Todavía estás a tiempo de pagarla sin recargo. ' + pagar;
   if(grupo === 'atrasadas') return 'Hola ' + nom + ', tu cuota ' + it.cuota + ' (' + monto + ') venció el ' + fecha + ' y ya está generando mora. ¿Qué día puedes pagarla? Dime la fecha y te la anoto. ' + pagar;
   return 'Hola ' + nom + ', tienes ' + it.vencidas + ' cuota' + (it.vencidas === 1 ? '' : 's') + ' vencida' + (it.vencidas === 1 ? '' : 's') + ' por ' + _waMoney(it.montoVencido) + '. Un asesor de Pagasi se va a comunicar contigo hoy para buscar una solución.';

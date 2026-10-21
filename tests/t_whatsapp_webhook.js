@@ -146,19 +146,19 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
 
   // ── 5. Recordatorios ──
   A = armar();
-  A.db26._store.set('creditos/M-2', cred('M-2', 'C26', 13, { cli: 'ANA LÓPEZ' }));            // la cuota 1 vence en 2 días
+  A.db26._store.set('creditos/M-2', cred('M-2', 'C26', 12, { cli: 'ANA LÓPEZ' }));            // la cuota 1 vence en 3 días
   A.db26._store.set('clientes/C26b', { id: 'C26b', nombre: 'ANA LÓPEZ', tel: '04149998877' }); A.db26._store.get('creditos/M-2').clienteId = 'C26b';
   let rr = await recordatorios.correr(A.deps, { hoy: HOY, plantillas: { proximas: 'cuota_proxima', hoy: 'cuota_hoy', gracia: 'cuota_gracia', atrasadas: 'cuota_atrasada' } });
   const r26 = rr.find(x => x.empresa === '26');
-  ok('manda la plantilla a quien le toca hoy (cuota a 2 días) y la anota', r26.enviados >= 1 && A.plantillas.some(x => x.a === '+584149998877' && x.n === 'cuota_proxima') && A.db26._lista('recordatorios/').some(x => x.cred === 'M-2' && x.estado === 'enviado'));
+  ok('manda la plantilla a quien le toca hoy (cuota a 3 días) y la anota', r26.enviados >= 1 && A.plantillas.some(x => x.a === '+584149998877' && x.n === 'cuota_proxima') && A.db26._lista('recordatorios/').some(x => x.cred === 'M-2' && x.estado === 'enviado'));
   ok('...y queda como mensaje del asistente en una conversación nueva', A.db26._store.get('conversaciones/wa:+584149998877') && A.db26._lista('conversaciones/wa:+584149998877/mensajes/').some(m => m.tipo === 'plantilla'));
   const antesTpl = A.plantillas.length;
   rr = await recordatorios.correr(A.deps, { hoy: HOY, plantillas: { proximas: 'cuota_proxima' } });
   ok('la segunda corrida del mismo día no repite el envío', A.plantillas.length === antesTpl && rr.find(x => x.empresa === '26').repetidos >= 1);
-  const D = armar(); D.db26._store.set('creditos/M-2', cred('M-2', 'C26', 13, { cli: 'ANA LÓPEZ' })); D.db26._store.set('clientes/C26b', { id: 'C26b', nombre: 'ANA LÓPEZ', tel: '04149998877' }); D.db26._store.get('creditos/M-2').clienteId = 'C26b';
+  const D = armar(); D.db26._store.set('creditos/M-2', cred('M-2', 'C26', 12, { cli: 'ANA LÓPEZ' })); D.db26._store.set('clientes/C26b', { id: 'C26b', nombre: 'ANA LÓPEZ', tel: '04149998877' }); D.db26._store.get('creditos/M-2').clienteId = 'C26b';
   rr = await recordatorios.correr(D.deps, { hoy: HOY, plantillas: {} });
   const tpl = D.plantillas.find(x => x.a === '+584149998877');
-  ok('sin configurar nada usa las plantillas que Pagasi ya tiene aprobadas en Meta (recordatorio_cuota a 2 días) con sus 3 variables', tpl && tpl.n === 'recordatorio_cuota' && tpl.p.length === 3 && tpl.p[0] === 'Ana' && /^\d+,\d{2}$/.test(tpl.p[1]) && /^\d+ de [a-z]+$/.test(tpl.p[2]));
+  ok('sin configurar nada usa las plantillas que Pagasi ya tiene aprobadas en Meta (recordatorio_cuota a 3 días) con sus 3 variables', tpl && tpl.n === 'recordatorio_cuota' && tpl.p.length === 3 && tpl.p[0] === 'Ana' && /^\d+,\d{2}$/.test(tpl.p[1]) && /^\d+ de [a-z]+$/.test(tpl.p[2]));
   const msgTpl = D.db26._lista('conversaciones/wa:+584149998877/mensajes/').find(m => m.tipo === 'plantilla');
   ok('...y guarda en la conversación el texto real de la plantilla, ya con los datos', msgTpl && /^Hola Ana, te recordamos que la cuota de tu crédito por \$\d+,\d{2} vence el \d+ de [a-z]+\./.test(msgTpl.texto));
   const ap = recordatorios.armarPlantilla('vence_hoy', { nombre: 'JOSÉ ROJAS', cuota: 3, totalCuotas: 24, monto: 88.14, fechaVence: '2026-10-18' });
@@ -201,6 +201,21 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   const svS = ventas.armarVentas({ instrucciones: '', motos: [{ id: 1, name: 'BRZ 200', precio: 1750, sedeName: 'EK Bello Monte' }], cond: null, sedes: [{ nombre: 'EK Bello Monte', ciudad: 'Caracas', direccion: '' }, { nombre: 'EK Trujillo', ciudad: 'Valera', direccion: '' }], hoy: '2026-10-20', nombrePerfil: '', usuario: 'x', canal: 'instagram', telefono: '', esCliente: false });
   ok('el briefing lista TODAS las sedes aliadas, con el estado, aunque no tengan motos en el catálogo', /EK Trujillo — Valera \(estado Trujillo\)/.test(svS) && /sede sin catálogo en línea/.test(svS) && /nunca digas que no hay sede sin revisar esta lista/.test(svS));
   ok('...y trae la lista oficial de requisitos (nov 2026): RIF, licencia y certificado médico, constancia de residencia, 2 de 3 comprobantes de ingreso y fiador obligatorio el día de la aprobación', /REQUISITOS \(lista oficial de Pagasi, versión noviembre 2026/.test(svS) && /RIF actualizado/.test(svS) && /Licencia y certificado médico de 2do grado/.test(svS) && /Constancia de residencia/.test(svS) && /al menos 2 de estos 3/.test(svS) && /obligatorio asistir con su FIADOR/.test(svS) && /no digas "de una vez"/.test(svS) && /Si la cuenta parece un negocio o un bot/.test(svS));
+  // Calendario (Adam, 20-oct-2026): 3 días antes, el día, 1 y 3 días después, a los 7; acuerdos de pago respetados
+  const W = require(path.join(__dirname, '..', 'logic', 'whatsapp.js'));
+  const enDias = d => { const x = cred('X', 'CX', 15 + d); return W.waColaHoy([x], [], [{ id: 'CX', nombre: 'X', tel: '04140000000' }], HOY); };
+  const grupoDe = d => { const c = enDias(d); return Object.keys(c.grupos).find(k => c.grupos[k].length); };
+  ok('la cola pone la cuota en el grupo correcto: -3 y -1 próximas, 0 hoy, +1 y +3 gracia, +7 atrasadas, +12 cobrador', grupoDe(-3) === 'proximas' && grupoDe(-1) === 'proximas' && grupoDe(0) === 'hoy' && grupoDe(1) === 'gracia' && grupoDe(3) === 'gracia' && grupoDe(7) === 'atrasadas' && grupoDe(12) === 'cobrador' && !grupoDe(-4));
+  ok('se escribe solo los días del calendario: 3 antes, el día, 1 y 3 después, a los 7', recordatorios.CUANDO.proximas({ dias: -3 }) && !recordatorios.CUANDO.proximas({ dias: -2 }) && recordatorios.CUANDO.hoy({ dias: 0 }) && recordatorios.CUANDO.gracia({ dias: 1 }) && recordatorios.CUANDO.gracia({ dias: 3 }) && !recordatorios.CUANDO.gracia({ dias: 2 }) && recordatorios.CUANDO.atrasadas({ dias: 7 }) && !recordatorios.CUANDO.atrasadas({ dias: 6 }));
+  const conAcuerdo = (fc) => { const x = cred('Y', 'CY', 20, { fechaCompromiso: fc }); return W.waColaHoy([x], [], [{ id: 'CY', nombre: 'Y', tel: '04140000001' }], HOY); };
+  const ca = conAcuerdo(iso(1));
+  ok('con acuerdo de pago vigente no se le cobra el atraso: va al grupo "acuerdo" con la fecha del compromiso', ca.grupos.acuerdo.length === 1 && !ca.grupos.gracia.length && !ca.grupos.atrasadas.length && ca.grupos.acuerdo[0].fechaVence === iso(1) && ca.grupos.acuerdo[0].dias === -1 && recordatorios.CUANDO.acuerdo(ca.grupos.acuerdo[0]));
+  ok('...el día del compromiso también se le recuerda; 3 días antes no', recordatorios.CUANDO.acuerdo(conAcuerdo(HOY).grupos.acuerdo[0]) && !recordatorios.CUANDO.acuerdo(conAcuerdo(iso(3)).grupos.acuerdo[0]));
+  ok('si la fecha del compromiso pasó sin pago, vuelve a los recordatorios de atraso', !conAcuerdo(iso(-2)).grupos.acuerdo.length && conAcuerdo(iso(-2)).total === 1);
+  let Ac = armar(); Ac.db26._store.set('creditos/M-9', cred('M-9', 'C26c', 20, { cli: 'LUIS ROJAS', fechaCompromiso: iso(1) })); Ac.db26._store.set('clientes/C26c', { id: 'C26c', nombre: 'LUIS ROJAS', tel: '04147776655' });
+  await recordatorios.correr(Ac.deps, { hoy: HOY, plantillas: {} });
+  const tplA = Ac.plantillas.find(x => x.a === '+584147776655');
+  ok('un día antes del compromiso sale el recordatorio con la fecha del compromiso', tplA && tplA.n === 'recordatorio_cuota' && /de octubre/.test(tplA.p[2]));
   // ── Comentarios de Instagram (20-oct-2026) ──
   const avisoCom = (id, texto, de, usuario, parent) => ({ object: 'instagram', entry: [{ id: '17841425348351958', time: 1760900000, changes: [{ field: 'comments', value: Object.assign({ id, text: texto, from: { id: de, username: usuario }, media: { id: 'media1', media_product_type: 'FEED' } }, parent ? { parent_id: parent } : {}) }] }] });
   const pc = meta.parsearWebhook(avisoCom('c1', '¿cuánto cuesta la BRZ 200?', '555777', 'pepe.moto'));

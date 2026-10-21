@@ -6,7 +6,7 @@ const path = require('path');
 // El ledger del sistema: al desplegar se copia a functions/logic (firebase.json, predeploy); en el
 // repo se usa el original de logic/. La misma matemática que la pantalla.
 const _fs = require('fs');
-function _compartido(nombre) { const copia = path.join(__dirname, '..', 'logic', nombre); return require(_fs.existsSync(copia) ? copia : path.join(__dirname, '..', '..', 'logic', nombre)); }
+function _compartido(nombre) { const copia = path.join(__dirname, '..', 'logic', nombre), original = path.join(__dirname, '..', '..', 'logic', nombre); return require(_fs.existsSync(original) ? original : copia); }   // en el repo manda la original
 const Ledger = _compartido('credito-ledger.js');
 const DIAS_GRACIA = 5;
 const MES3 = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];

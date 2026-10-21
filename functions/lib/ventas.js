@@ -7,7 +7,8 @@ const path = require('path'), fs = require('fs');
 // La formula de la web (assets/public/catalog.js): al desplegar se copia a functions/logic
 function _catalogo() {
   const copia = path.join(__dirname, '..', 'logic', 'catalog.js');
-  return require(fs.existsSync(copia) ? copia : path.join(__dirname, '..', '..', 'assets', 'public', 'catalog.js'));
+  const original = path.join(__dirname, '..', '..', 'assets', 'public', 'catalog.js');
+  return require(fs.existsSync(original) ? original : copia);   // en el repo manda la original
 }
 const Cat = _catalogo();
 const money = n => '$' + Cat.arriba(n).toLocaleString('en-US');

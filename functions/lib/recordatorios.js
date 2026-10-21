@@ -8,14 +8,16 @@
 const path = require('path'), fs = require('fs');
 // La logica compartida con el panel: al desplegar se copia a functions/logic (firebase.json,
 // predeploy); en el repo se usa la original de logic/.
-function compartido(nombre) { const copia = path.join(__dirname, '..', 'logic', nombre); return require(fs.existsSync(copia) ? copia : path.join(__dirname, '..', '..', 'logic', nombre)); }
+function compartido(nombre) { const copia = path.join(__dirname, '..', 'logic', nombre); const original = path.join(__dirname, '..', '..', 'logic', nombre); return require(fs.existsSync(original) ? original : copia); }   // en el repo manda la original (la copia puede estar vieja); al desplegar solo existe la copia
 global.S = global.S || { creds: [], pagos: [], clientes: [] };
 global.CreditoLedger = global.CreditoLedger || compartido('credito-ledger.js');
 const W = compartido('whatsapp.js');
 const briefing = require('./briefing');
 
-// Que grupo manda hoy y con que dia exacto (para no escribir todos los dias)
-const CUANDO = { proximas: it => it.dias === -2, hoy: it => it.dias === 0, gracia: it => it.dias === 3, atrasadas: it => it.dias === 6 };
+// Que grupo manda hoy y con que dia exacto (Adam, 20-oct-2026): 3 dias antes, el dia del vencimiento,
+// 1 dia despues, y luego a los 3 y a los 7 dias (despues de 10 dias pasa a un cobrador). Con acuerdo
+// de pago: 1 dia antes de la fecha del compromiso y ese mismo dia (dias contados hasta el compromiso).
+const CUANDO = { proximas: it => it.dias === -3, hoy: it => it.dias === 0, gracia: it => it.dias === 1 || it.dias === 3, atrasadas: it => it.dias === 7, acuerdo: it => it.dias === -1 || it.dias === 0 };
 
 // Las plantillas que Pagasi ya tiene aprobadas en Meta (cuenta "Pagasi Cobranza", 15-sep-2026),
 // con sus variables en orden y su texto, para guardar en la conversacion lo que de verdad se mando.
@@ -26,7 +28,9 @@ const PLANTILLAS = {
   cuota_vencida: { vars: ['nombre', 'monto', 'fecha'], texto: 'Hola {{1}}, la cuota de tu crédito por ${{2}} venció el {{3}} y sigue pendiente de pago. Si ya realizaste el pago, ignora este aviso. Si no, responde a este mensaje para coordinar tu pago.' }
 };
 // Por defecto, el grupo → plantilla que ya existe en Meta
-const PLANTILLAS_POR_GRUPO = { proximas: 'recordatorio_cuota', hoy: 'vence_hoy', gracia: 'cuota_vencida', atrasadas: 'cuota_vencida' };
+const PLANTILLAS_POR_GRUPO = { proximas: 'recordatorio_cuota', hoy: 'vence_hoy', gracia: 'cuota_vencida', atrasadas: 'cuota_vencida', acuerdo: 'recordatorio_cuota' };
+// El dia del compromiso va como "hoy vence"; el dia antes, como recordatorio con la fecha del compromiso
+function plantillaDe(grupo, it, plantillas) { if (grupo === 'acuerdo' && it.dias === 0) return (plantillas && plantillas.acuerdoHoy) || 'vence_hoy'; return (plantillas && plantillas[grupo]) || PLANTILLAS_POR_GRUPO[grupo]; }
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const fechaLarga = iso => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? parseInt(p[2], 10) + ' de ' + MESES[parseInt(p[1], 10) - 1] : String(iso || ''); };
 const montoVE = n => (Math.round((parseFloat(n) || 0) * 100) / 100).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // 88,14 como en la plantilla aprobada
@@ -53,9 +57,9 @@ async function correrEmpresa(deps, empresa, plantillas, hoy) {
     for (const it of items) {
       r.candidatos++;
       if (!it.tel) { r.sinTelefono++; continue; }
-      const plantilla = (plantillas && plantillas[grupo]) || PLANTILLAS_POR_GRUPO[grupo];
+      const plantilla = plantillaDe(grupo, it, plantillas);
       if (!plantilla) { r.sinPlantilla++; continue; }
-      const clave = `${empresa}_${it.cred}_${it.cuota}_${grupo}`;
+      const clave = `${empresa}_${it.cred}_${it.cuota}_${grupo}_${it.acuerdo ? it.fechaVence + '_' : ''}${it.dias}`;   // un envio por dia del calendario
       const regRef = db.collection('recordatorios').doc(clave);
       try { await regRef.create({ empresa, cred: it.cred, cuota: it.cuota, grupo, tel: it.tel, hoy, creado: deps.ahora(), estado: 'enviando' }); } catch (e) { r.repetidos++; continue; }
       const { params, texto } = armarPlantilla(plantilla, Object.assign({ grupo }, it));
