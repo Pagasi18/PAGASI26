@@ -1416,15 +1416,91 @@ function _wzDineroHtml(){
     + '<div class="wz-card-h"><span>El dinero de esta venta</span></div>'
     + '<div class="fgr">'
     +   '<div class="fg"><label id="wz_ini_lbl">¿Dónde pagó el cliente la inicial? *</label>'
-    +   '<select class="fs" id="wz_ini_metodo" onchange="WZ.iniMetodo=this.value;_wzMpagoSync()">'+_wzIniMetodoOpts()+'</select></div>'
+    +   '<select class="fs" id="wz_ini_metodo" onchange="WZ.iniMetodo=this.value;var _r=document.getElementById(\'wz-ini-extras-resumen\');if(_r)_r.innerHTML=_wzIniExtrasResumen();_wzMpagoSync()">'+_wzIniMetodoOpts()+'</select></div>'
     +   '<div class="fg"><label>Referencia / comprobante</label>'
     +   '<input class="fi" id="wz_ini_ref" placeholder="N° de referencia (opcional)" value="'+_wzEsc(WZ.iniRef||'')+'" oninput="WZ.iniRef=this.value"></div>'
     + '</div>'
+    + (esVendConc ? '' : '<div id="wz-ini-extras">'+_wzIniExtrasHtml()+'</div>')
     + '<div style="font-size:11px;color:var(--ink3);margin-top:4px">'
     +   (esVendConc ? 'La inicial queda registrada cuando se apruebe la solicitud.' : 'La inicial entra a esa cuenta al guardar el crédito.')
     + '</div>'
     + '<div id="wz-mpago-wrap" style="display:none;margin-top:12px"></div>'
     + '</div>';
+}
+
+// ── La inicial pagada en varias formas (Adam, 21-oct-2026: "no puedo pagar con 2 formas de pago") ──
+// La cuenta de arriba (wz_ini_metodo) se queda con lo que falta; cada forma extra lleva su cuenta y su monto.
+function _wzIniExtras(){
+  return (Array.isArray(WZ.iniExtras) ? WZ.iniExtras : []).map(function(x){
+    return { cuenta: String((x && x.cuenta) || ''), monto: Math.round((parseFloat(x && x.monto) || 0) * 100) / 100, ref: String((x && x.ref) || '') };
+  });
+}
+// Las partes de la inicial (la principal + las extras), o null si se pagó en una sola forma
+function _wzIniPartes(ini){
+  var extras = _wzIniExtras();
+  if(!extras.length) return null;
+  ini = Math.round((parseFloat(ini) || 0) * 100) / 100;
+  var sumaExtras = Math.round(extras.reduce(function(a, x){ return a + x.monto; }, 0) * 100) / 100;
+  return [{ cuenta: WZ.iniMetodo || '', monto: Math.round((ini - sumaExtras) * 100) / 100, ref: WZ.iniRef || '' }].concat(extras);
+}
+// Qué falta para que el reparto de la inicial cierre ('' si está bien)
+function _wzIniPartesError(ini){
+  var partes = _wzIniPartes(ini);
+  if(!partes) return '';
+  if(partes.slice(1).some(function(p){ return !p.cuenta; })) return 'Elige la cuenta de cada forma de pago de la inicial';
+  if(partes.slice(1).some(function(p){ return !(p.monto > 0.005); })) return 'Pon el monto de cada forma de pago de la inicial';
+  if(!(partes[0].monto > 0.005)) return 'Las otras formas de pago suman la inicial completa o más: la primera cuenta tiene que quedar con algo';
+  return '';
+}
+function _wzIniExtrasHtml(){
+  var extras = _wzIniExtras();
+  var opts = function(sel){
+    var cuentas = (_cuentasBanc && _cuentasBanc.length) ? _cuentasBanc : [];
+    if(!cuentas.length) return '<option value="" selected>— No hay cuentas cargadas —</option>';
+    return '<option value=""'+(sel ? '' : ' selected')+'>— Elegir cuenta —</option>'
+      + cuentas.map(function(c){ return '<option value="'+_wzEsc(c.nombre)+'"'+(sel === c.nombre ? ' selected' : '')+'>'+_wzEsc(c.nombre)+'</option>'; }).join('');
+  };
+  var filas = extras.map(function(x, i){
+    return '<div style="display:grid;grid-template-columns:1.2fr .8fr 1fr auto;gap:8px;align-items:end;margin-top:8px">'
+      + '<div class="fg" style="margin:0"><label style="font-size:11px">Otra forma de pago</label><select class="fs" onchange="_wzIniExtraSet('+i+',\'cuenta\',this.value)">'+opts(x.cuenta)+'</select></div>'
+      + '<div class="fg" style="margin:0"><label style="font-size:11px">Monto ($)</label><input class="fi" type="number" step="0.01" min="0" value="'+(x.monto > 0 ? x.monto : '')+'" placeholder="0.00" oninput="_wzIniExtraSet('+i+',\'monto\',this.value)"></div>'
+      + '<div class="fg" style="margin:0"><label style="font-size:11px">Referencia</label><input class="fi" value="'+_wzEsc(x.ref)+'" placeholder="N° de referencia (opcional)" oninput="_wzIniExtraSet('+i+',\'ref\',this.value)"></div>'
+      + '<button type="button" class="btn btn-g btn-sm" style="height:38px;padding:0 10px" onclick="_wzIniExtraQuitar('+i+')" title="Quitar">x</button>'
+      + '</div>';
+  }).join('');
+  return filas
+    + '<div id="wz-ini-extras-resumen" style="font-size:11.5px;margin-top:6px">'+_wzIniExtrasResumen()+'</div>'
+    + '<div style="margin-top:6px"><a href="javascript:void(0)" onclick="_wzIniExtraAgregar()" style="font-size:12px;font-weight:700;color:var(--p1)">+ El cliente pagó con otra forma de pago</a></div>';
+}
+function _wzIniExtrasResumen(){
+  var ini = _wzInicialPlan();
+  var partes = _wzIniPartes(ini);
+  if(!partes) return '';
+  var err = _wzIniPartesError(ini);
+  var txt = partes.map(function(p){ return '<b>'+_wzMoney(p.monto)+'</b> en '+(p.cuenta ? _wzEsc(p.cuenta) : '<i>(sin cuenta)</i>'); }).join(' + ');
+  return '<span style="color:var(--ink3)">La inicial de '+_wzMoney(ini)+' queda así: </span>'+txt
+    + (err ? '<div style="color:var(--red);font-weight:700;margin-top:3px">'+_wzEsc(err)+'</div>' : '');
+}
+function _wzIniExtrasPintar(){
+  var box = document.getElementById('wz-ini-extras');
+  if(box) box.innerHTML = _wzIniExtrasHtml();
+  if(typeof _wzMpagoSync === 'function') _wzMpagoSync();
+}
+function _wzIniExtraAgregar(){
+  WZ.iniExtras = _wzIniExtras().concat([{ cuenta:'', monto:0, ref:'' }]);
+  _wzIniExtrasPintar();
+}
+function _wzIniExtraQuitar(i){
+  var x = _wzIniExtras(); x.splice(i, 1); WZ.iniExtras = x;
+  _wzIniExtrasPintar();
+}
+// Al escribir no se vuelve a pintar la fila (se perdería el cursor): solo el resumen y el pago de la moto
+function _wzIniExtraSet(i, campo, valor){
+  var x = _wzIniExtras(); if(!x[i]) return;
+  x[i][campo] = campo === 'monto' ? (parseFloat(valor) || 0) : String(valor || '');
+  WZ.iniExtras = x;
+  var r = document.getElementById('wz-ini-extras-resumen'); if(r) r.innerHTML = _wzIniExtrasResumen();
+  if(typeof _wzMpagoSync === 'function') _wzMpagoSync();
 }
 
 // Lo que cuesta la moto (precio base real) y la inicial del plan, como estan en pantalla
@@ -1445,6 +1521,7 @@ function _wzPlanPagoMoto(costo, ini){
   return _mpagoPlanAuto({
     costo: costo, inicial: ini,
     cuentaInicial: WZ.iniMetodo || '',
+    partesInicial: _wzIniPartes(ini),
     concesionarioId: cid,
     saldoAnticipo: (cid && typeof saldoAnticipoDe==='function') ? saldoAnticipoDe(cid) : 0,
     cuentaResto: WZ._mpagoCuentaResto || ''
@@ -1570,7 +1647,8 @@ function _wzResumenDineroHTML(r){
     var ini = parseFloat(r && r.ini) || 0;
     if(ini > 0.005){
       filas.push(['Inicial '+_wzMoney(ini), esVendConc ? 'se registra al aprobar la solicitud'
-        : (WZ.iniMetodo ? 'entra a <b>'+_wzEsc(WZ.iniMetodo)+'</b>'+(WZ.iniRef ? ' · ref. '+_wzEsc(WZ.iniRef) : '')
+        : (_wzIniPartes(ini) ? _wzIniPartes(ini).map(function(p){ return _wzMoney(p.monto)+' en <b>'+_wzEsc(p.cuenta)+'</b>'+(p.ref ? ' · ref. '+_wzEsc(p.ref) : ''); }).join(' + ')
+        : WZ.iniMetodo ? 'entra a <b>'+_wzEsc(WZ.iniMetodo)+'</b>'+(WZ.iniRef ? ' · ref. '+_wzEsc(WZ.iniRef) : '')
                         : '<span style="color:var(--red)">falta la cuenta — vuelve al paso 3</span>')]);
     }
     if(Array.isArray(WZ._pagosMoto) && WZ._pagosMoto.length){
@@ -2341,6 +2419,10 @@ function _wzValidar(){
       toast('Elige dónde pagó el cliente la inicial','error');
       if(_selIniM && _selIniM.focus) _selIniM.focus();
       return false;
+    }
+    if(!_modoEdicion && !_esVendConcM && _iniPlan > 0.005){
+      var _errPartes = _wzIniPartesError(_iniPlan);
+      if(_errPartes){ toast(_errPartes,'error'); return false; }
     }
     if(_mpagoVisible && !_modoEdicion){
       var _precioBase = parseFloat((document.getElementById('wz_precio_base_real')||{}).value)||precio;
@@ -3245,6 +3327,7 @@ function _wzGuardar(){
     // Lo que el vendedor contesto en el paso 3: la cuenta donde entro la inicial. Si la
     // solicitud pasa por Aprobaciones, ahi sale precargada y quien aprueba solo confirma.
     inicialCuenta: WZ.iniMetodo||'', inicialRef: WZ.iniRef||'',
+    ...(_wzIniPartes(_finNew.ini) ? { inicialPartes: _wzIniPartes(_finNew.ini).map(function(p){ return { cuenta:p.cuenta, monto:p.monto, ref:p.ref }; }) } : {}),
     impresionVendedor: WZ.impresion||'',
     pagado: 0,
     mora: 0,
@@ -3455,20 +3538,25 @@ function _wzGuardar(){
   // Se eligio en el paso 3: al guardar ya no esta en pantalla (23-sep-2026)
   var iniMetodo = ($('wz_ini_metodo')&&$('wz_ini_metodo').value) || WZ.iniMetodo || '';
   var iniRef = ($('wz_ini_ref')&&$('wz_ini_ref').value) || WZ.iniRef || '';
-  var pagoIniId = 'PAG-'+Date.now()+'-'+Math.floor(Math.random()*10000);
+  // Una parte por cada forma de pago (21-oct-2026); sin partes, toda la inicial en la cuenta de arriba
+  var _partesIni = _wzIniPartes(r.ini) || [{ cuenta: iniMetodo, monto: r.ini, ref: iniRef }];
+  _partesIni[0].cuenta = _partesIni[0].cuenta || iniMetodo; _partesIni[0].ref = _partesIni[0].ref || iniRef;
+  _partesIni.forEach(function(parte, _ip){
+  var pagoIniId = 'PAG-'+Date.now()+'-'+Math.floor(Math.random()*10000)+(_ip ? '-'+_ip : '');
   var pagoIni = {
     id:pagoIniId,
     cli:newCred.cli,
     cred:credId,
     fecha:newCred.fecha,
-    monto:r.ini,
-    metodo:iniMetodo,
-    cuenta:iniMetodo,
+    monto:parte.monto,
+    metodo:parte.cuenta,
+    cuenta:parte.cuenta,
     cobrador:(S.currentUser&&S.currentUser.nombre)||'Admin',
-    referencia:iniRef,
+    referencia:parte.ref||'',
     estado:'confirmado',
     tipoOperacion:'inicial_credito',
     esInicial:true,
+    ...(_partesIni.length > 1 ? { parteInicial: (_ip+1)+' de '+_partesIni.length } : {}),
     realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin',
     tasaBs:window._tasaBsGlobal||1,
     concesionarioId: newCred.concesionarioId || _concDefaultId()
@@ -3478,26 +3566,27 @@ function _wzGuardar(){
 
   // Movimiento de inicial
   var movIni = {
-    id:'MOV-'+Date.now()+'-'+Math.floor(Math.random()*10000),
+    id:'MOV-'+Date.now()+'-'+Math.floor(Math.random()*10000)+(_ip ? '-'+_ip : ''),
     tipo:'deposito',
     tipoOperacion:'inicial_credito',
     conceptoPago:pagoIniId,
     creditoId:credId,
     conceptoCredito:credId,
-    concepto:'Inicial · '+newCred.cli+' · '+credId+' ('+newCred.modelo+')',
-    monto:r.ini,
-    cuentaDestino:iniMetodo,
+    concepto:'Inicial · '+newCred.cli+' · '+credId+' ('+newCred.modelo+')'+(_partesIni.length > 1 ? ' · parte '+(_ip+1)+' de '+_partesIni.length : ''),
+    monto:parte.monto,
+    cuentaDestino:parte.cuenta,
     fecha:newCred.fecha,
-    referencia:iniRef,
+    referencia:parte.ref||'',
     realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin',
     hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false})
   };
   S.movimientos.push(movIni);
   DB.saveMovimiento(movIni);
+  });
 
   _wzClose();
   nav('creditos');
-  toast(' Solicitud creada · '+credId+' · Inicial '+fmt(r.ini)+' → '+iniMetodo,'success');
+  toast(' Solicitud creada · '+credId+' · Inicial '+fmt(r.ini)+' → '+_partesIni.map(function(p){ return _partesIni.length > 1 ? fmt(p.monto)+' '+p.cuenta : p.cuenta; }).join(' + '),'success');
   }   // ← fin de _altaCreditoContinuar (solo corre si crearCred tuvo exito)
   }).catch(function(e){   // no se pudo reservar el numero: NO creamos nada
     console.error('reservar numero de credito:', e);

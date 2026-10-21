@@ -123,7 +123,16 @@ function _mpagoPlanAuto(o){
   // Puede venir en negativo: la sede ya estaba debiendose
   var saldo = cid ? r2(o.saldoAnticipo) : 0;
   var filas = [];
-  if(ini > 0.005) filas.push({ que:'inicial', etiqueta:'Inicial del cliente', monto:ini, cuenta:o.cuentaInicial||'', fija:true });
+  // La inicial puede venir en varias partes, cada una en su cuenta (21-oct-2026): una fila por parte
+  var partes = Array.isArray(o.partesInicial) ? o.partesInicial.filter(function(p){ return p && r2(p.monto) > 0.005; }) : [];
+  if(ini > 0.005 && partes.length > 1){
+    var acum = 0;
+    partes.forEach(function(p, i){
+      var m = (i === partes.length - 1) ? r2(ini - acum) : Math.min(r2(p.monto), r2(ini - acum));
+      acum = r2(acum + m);
+      if(m > 0.005) filas.push({ que:'inicial', etiqueta:'Inicial del cliente ('+(i+1)+' de '+partes.length+')', monto:m, cuenta:p.cuenta||'', fija:true });
+    });
+  } else if(ini > 0.005) filas.push({ que:'inicial', etiqueta:'Inicial del cliente', monto:ini, cuenta:o.cuentaInicial||'', fija:true });
   var deAnt = 0;
   if(fin > 0.005 && cid){
     deAnt = fin;
@@ -134,7 +143,7 @@ function _mpagoPlanAuto(o){
     filas.push({ que:'resto', etiqueta:'Lo que financia Pagasi', monto:resto, cuenta:o.cuentaResto||'', fija:false });
   }
   var faltan = [];
-  if(ini > 0.005 && !o.cuentaInicial) faltan.push('inicial');
+  if(ini > 0.005 && filas.some(function(f){ return f.que === 'inicial' && !f.cuenta; })) faltan.push('inicial');
   if(resto > 0.005 && !o.cuentaResto) faltan.push('resto');
   var queda = r2(saldo - deAnt);
   return {

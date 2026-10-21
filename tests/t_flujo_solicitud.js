@@ -151,6 +151,7 @@ function pantalla(v){
   vm.runInContext("WZ = { step:3, vendedorNombre:'María Fernanda', vendedorUid:'u-mf', motoModelo:'NEW HORSE 150', precio:"+v.costo+" };", ctx);
   if(v.inventario) ctx.WZ.motoInvId = '77';
   if(v.resto) ctx.WZ._mpagoCuentaResto = v.resto;
+  if(v.extras) ctx.WZ.iniExtras = v.extras;
   avisos.length = 0;
   return ctx._wzValidar();
 }
@@ -173,6 +174,27 @@ r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C1', inv
 ok('moto del inventario: no se vuelve a pagar', r!==false && ctx.WZ._pagosMoto===null);
 r = pantalla({ costo:1350, ini:750, iniMetodo:'', sedeSelect:'C1', inventario:true });
 ok('...pero la inicial sí se pregunta', r===false && avisos.some(a=>/inicial/.test(a)));
+
+// ════════ 5b. La inicial pagada en dos formas (Adam, 21-oct-2026: "no puedo pagar con 2 formas de pago") ════════
+S.currentUser = admin;
+r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C1', extras:[{ cuenta:'100% Banco 26', monto:250, ref:'ZL-1' }] });
+ok('inicial de 750 en dos formas (500 Binance + 250 100% Banco): pasa', r!==false && avisos.length===0);
+ok('...las partes quedan claras: la primera cuenta se queda con lo que falta',
+  JSON.stringify(ctx._wzIniPartes(750))===JSON.stringify([{cuenta:'Binance 26',monto:500,ref:''},{cuenta:'100% Banco 26',monto:250,ref:'ZL-1'}]));
+ok('...y la moto se paga de cada cuenta por lo que entró en ella, más el anticipo',
+  JSON.stringify(ctx.WZ._pagosMoto)===JSON.stringify([{cuenta:'Binance 26',monto:500},{cuenta:'100% Banco 26',monto:250},{cuenta:'ANT:C1',monto:600}]));
+r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C1', extras:[{ cuenta:'', monto:250 }] });
+ok('otra forma de pago sin cuenta: no deja seguir', r===false && avisos.some(a=>/cuenta de cada forma de pago/.test(a)));
+r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C1', extras:[{ cuenta:'100% Banco 26', monto:0 }] });
+ok('otra forma de pago sin monto: no deja seguir', r===false && avisos.some(a=>/monto de cada forma de pago/.test(a)));
+r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C1', extras:[{ cuenta:'100% Banco 26', monto:750 }] });
+ok('si las otras formas ya suman toda la inicial, lo dice (la primera tiene que quedar con algo)', r===false && avisos.some(a=>/primera cuenta tiene que quedar con algo/.test(a)));
+r = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', sedeSelect:'C1', extras:[{ cuenta:'100% Banco 26', monto:250 }, { cuenta:'Binance 26', monto:100 }] });
+ok('tres formas: 400 + 250 + 100 = 750', r!==false && ctx.WZ._pagosMoto.filter(x=>x.cuenta!=='ANT:C1').map(x=>x.monto).join('+')==='400+250+100');
+ok('sin otras formas todo sigue igual que antes (una sola cuenta)', (vm.runInContext("WZ.iniExtras=[]",ctx), ctx._wzIniPartes(750)===null));
+const pl2 = ctx._mpagoPlanAuto({ costo:1350, inicial:750, cuentaInicial:'Binance 26', partesInicial:[{cuenta:'Binance 26',monto:500},{cuenta:'',monto:250}], concesionarioId:'C1', saldoAnticipo:3000 });
+ok('en el plan, una parte sin cuenta se marca como que falta la inicial', pl2.faltan.indexOf('inicial') > -1 && pl2.pagos.length===0);
+S.currentUser = vendedora;
 
 // ════════ 6. Al guardar: la inicial se lee de lo que se eligió en el paso 3 ════════
 Object.keys(form).forEach(k => delete form[k]);
@@ -216,5 +238,33 @@ S.concesionarios[1].anticipos = [{ id:'ANT-2', monto:2000, fecha:'2026-09-28' }]
 ok('con el anticipo grande queda a favor: 2.000 − 600 = 1.400',
   ctx.saldoAnticipoDe('C2') === 1400 && ctx._concFinanzasDe('C2').saldo === 1400);
 
-console.log('\n' + pass + ' OK · ' + fail + ' fallas');
-process.exit(fail ? 1 : 0);
+// ════════ 9. Guardar con la inicial en dos formas: un pago y un movimiento por parte (21-oct-2026) ════════
+const gPagos = [], gMovs = [], gCreds = [];
+ctx.DB.savePago = o => { gPagos.push(JSON.parse(JSON.stringify(o))); return Promise.resolve(); };
+ctx.DB.saveMovimiento = o => { gMovs.push(JSON.parse(JSON.stringify(o))); return Promise.resolve(); };
+ctx.DB.crearCred = o => { gCreds.push(JSON.parse(JSON.stringify(o))); return Promise.resolve(); };
+['saveCliente','saveCred','saveMoto','saveEgreso'].forEach(k => { ctx.DB[k] = () => Promise.resolve(); });
+ctx.setTimeout = f => { try { f(); } catch(e){} return 0; };
+function guardar(extras){
+  gPagos.length = 0; gMovs.length = 0; gCreds.length = 0;
+  S.currentUser = admin; S.clientes = []; S.creds = []; S.pagos = []; S.motos = [];
+  const v = pantalla({ costo:1350, ini:750, iniMetodo:'Binance 26', ref:'BN-1', sedeSelect:'C1', extras });
+  vm.runInContext("WZ.step=4; WZ.nom='ANA PRUEBA'; WZ.ci='V-11111111'; WZ.tel='0414-0000000'; WZ.concesionarioId='C1';", ctx);
+  ctx._wzGuardar();
+  return v;
+}
+guardar([{ cuenta:'100% Banco 26', monto:250, ref:'ZL-1' }]);
+setTimeout(function(){
+  const pi = gPagos.filter(p => p.esInicial), mi = gMovs.filter(m => m.tipoOperacion === 'inicial_credito');
+  ok('dos formas: dos pagos de inicial, 500 en Binance (BN-1) y 250 en 100% Banco (ZL-1)',
+    pi.length === 2 && pi[0].monto === 500 && pi[0].cuenta === 'Binance 26' && pi[0].referencia === 'BN-1' && pi[1].monto === 250 && pi[1].cuenta === '100% Banco 26' && pi[1].referencia === 'ZL-1');
+  ok('...cada uno con su movimiento en su cuenta', mi.length === 2 && mi[0].cuentaDestino === 'Binance 26' && mi[0].monto === 500 && mi[1].cuentaDestino === '100% Banco 26' && mi[1].monto === 250 && mi.every((m, i) => m.conceptoPago === pi[i].id));
+  ok('...y el crédito guarda cómo se pagó la inicial', gCreds.length === 1 && gCreds[0].ini === 750 && JSON.stringify(gCreds[0].inicialPartes) === JSON.stringify([{cuenta:'Binance 26',monto:500,ref:'BN-1'},{cuenta:'100% Banco 26',monto:250,ref:'ZL-1'}]));
+  guardar(null);
+  setTimeout(function(){
+    const pi1 = gPagos.filter(p => p.esInicial);
+    ok('una sola forma: igual que antes, un pago de 750 en Binance y sin partes', pi1.length === 1 && pi1[0].monto === 750 && pi1[0].cuenta === 'Binance 26' && !pi1[0].parteInicial && gCreds.length === 1 && !('inicialPartes' in gCreds[0]));
+    console.log('\n' + pass + ' OK · ' + fail + ' fallas');
+    process.exit(fail ? 1 : 0);
+  }, 50);
+}, 50);
