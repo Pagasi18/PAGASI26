@@ -23,9 +23,9 @@ const CUANDO = { proximas: it => it.dias === -3, hoy: it => it.dias === 0, graci
 // con sus variables en orden y su texto, para guardar en la conversacion lo que de verdad se mando.
 // Una plantilla que no este aqui recibe las 5 variables de siempre (nombre, cuota, total, monto, fecha).
 const PLANTILLAS = {
-  recordatorio_cuota: { vars: ['nombre', 'monto', 'fecha'], texto: 'Hola {{1}}, te recordamos que la cuota de tu crédito por ${{2}} vence el {{3}}. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' },
-  vence_hoy: { vars: ['nombre', 'monto'], texto: 'Hola {{1}}, hoy vence la cuota de tu crédito por ${{2}}. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' },
-  cuota_vencida: { vars: ['nombre', 'monto', 'fecha'], texto: 'Hola {{1}}, la cuota de tu crédito por ${{2}} venció el {{3}} y sigue pendiente de pago. Si ya realizaste el pago, ignora este aviso. Si no, responde a este mensaje para coordinar tu pago.' }
+  recordatorio_cuota: { vars: ['nombre', 'monto', 'fecha'], texto: 'Hola {{1}}, te recordamos que la cuota de tu crédito por {{2}} vence el {{3}}. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' },
+  vence_hoy: { vars: ['nombre', 'monto'], texto: 'Hola {{1}}, hoy vence la cuota de tu crédito por {{2}}. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' },
+  cuota_vencida: { vars: ['nombre', 'monto', 'fecha'], texto: 'Hola {{1}}, la cuota de tu crédito por {{2}} venció el {{3}} y sigue pendiente de pago. Si ya realizaste el pago, ignora este aviso. Si no, responde a este mensaje para coordinar tu pago.' }
 };
 // Por defecto, el grupo → plantilla que ya existe en Meta
 const PLANTILLAS_POR_GRUPO = { proximas: 'recordatorio_cuota', hoy: 'vence_hoy', gracia: 'cuota_vencida', atrasadas: 'cuota_vencida', acuerdo: 'recordatorio_cuota' };
@@ -33,11 +33,12 @@ const PLANTILLAS_POR_GRUPO = { proximas: 'recordatorio_cuota', hoy: 'vence_hoy',
 function plantillaDe(grupo, it, plantillas) { if (grupo === 'acuerdo' && it.dias === 0) return (plantillas && plantillas.acuerdoHoy) || 'vence_hoy'; return (plantillas && plantillas[grupo]) || PLANTILLAS_POR_GRUPO[grupo]; }
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const fechaLarga = iso => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? parseInt(p[2], 10) + ' de ' + MESES[parseInt(p[1], 10) - 1] : String(iso || ''); };
+// La plantilla aprobada en Meta dice "por {{2}}" (ejemplo "$88,14"): el $ va dentro de la variable (21-oct-2026: salía "por 25,00")
 const montoVE = n => (Math.round((parseFloat(n) || 0) * 100) / 100).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // 88,14 como en la plantilla aprobada
 // Los parametros y el texto final de una plantilla para una cuota
 function armarPlantilla(nombre, it) {
   const pila = String(it.nombre || '').trim().split(/\s+/)[0] || 'cliente';
-  const valores = { nombre: pila.charAt(0) + pila.slice(1).toLowerCase(), cuota: String(it.cuota), total: String(it.totalCuotas), monto: montoVE(it.monto), fecha: fechaLarga(it.fechaVence) };
+  const valores = { nombre: pila.charAt(0) + pila.slice(1).toLowerCase(), cuota: String(it.cuota), total: String(it.totalCuotas), monto: '$' + montoVE(it.monto), fecha: fechaLarga(it.fechaVence) };
   const def = PLANTILLAS[nombre];
   const vars = def ? def.vars : ['nombre', 'cuota', 'total', 'monto', 'fecha'];
   const params = vars.map(v => valores[v]);

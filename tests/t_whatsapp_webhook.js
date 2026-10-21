@@ -176,11 +176,11 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   const D = armar(); D.db26._store.set('creditos/M-2', cred('M-2', 'C26', 12, { cli: 'ANA LÓPEZ' })); D.db26._store.set('clientes/C26b', { id: 'C26b', nombre: 'ANA LÓPEZ', tel: '04149998877' }); D.db26._store.get('creditos/M-2').clienteId = 'C26b';
   rr = await recordatorios.correr(D.deps, { hoy: HOY, plantillas: {} });
   const tpl = D.plantillas.find(x => x.a === '+584149998877');
-  ok('sin configurar nada usa las plantillas que Pagasi ya tiene aprobadas en Meta (recordatorio_cuota a 3 días) con sus 3 variables', tpl && tpl.n === 'recordatorio_cuota' && tpl.p.length === 3 && tpl.p[0] === 'Ana' && /^\d+,\d{2}$/.test(tpl.p[1]) && /^\d+ de [a-z]+$/.test(tpl.p[2]));
+  ok('sin configurar nada usa las plantillas que Pagasi ya tiene aprobadas en Meta (recordatorio_cuota a 3 días) con sus 3 variables', tpl && tpl.n === 'recordatorio_cuota' && tpl.p.length === 3 && tpl.p[0] === 'Ana' && /^\$\d+,\d{2}$/.test(tpl.p[1]) && /^\d+ de [a-z]+$/.test(tpl.p[2]));
   const msgTpl = D.db26._lista('conversaciones/wa:+584149998877/mensajes/').find(m => m.tipo === 'plantilla');
   ok('...y guarda en la conversación el texto real de la plantilla, ya con los datos', msgTpl && /^Hola Ana, te recordamos que la cuota de tu crédito por \$\d+,\d{2} vence el \d+ de [a-z]+\./.test(msgTpl.texto));
   const ap = recordatorios.armarPlantilla('vence_hoy', { nombre: 'JOSÉ ROJAS', cuota: 3, totalCuotas: 24, monto: 88.14, fechaVence: '2026-10-18' });
-  ok('vence_hoy lleva solo nombre y monto; cuota_vencida lleva nombre, monto y fecha', ap.params.join('|') === 'José|88,14' && ap.texto === 'Hola José, hoy vence la cuota de tu crédito por $88,14. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' && recordatorios.armarPlantilla('cuota_vencida', { nombre: 'ANA', monto: 50, fechaVence: '2026-09-12' }).params.join('|') === 'Ana|50,00|12 de septiembre');
+  ok('vence_hoy lleva solo nombre y monto (con el $ dentro, como el ejemplo aprobado "$88,14"); cuota_vencida lleva nombre, monto y fecha', ap.params.join('|') === 'José|$88,14' && ap.texto === 'Hola José, hoy vence la cuota de tu crédito por $88,14. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' && recordatorios.armarPlantilla('cuota_vencida', { nombre: 'ANA', monto: 50, fechaVence: '2026-09-12' }).params.join('|') === 'Ana|$50,00|12 de septiembre');
   ok('una plantilla desconocida recibe las 5 variables de siempre', recordatorios.armarPlantilla('otra_cosa', { nombre: 'ANA', cuota: 2, totalCuotas: 24, monto: 50, fechaVence: '2026-10-20' }).params.length === 5);
 
   // ── 6. Instagram: ventas ──
