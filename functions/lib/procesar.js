@@ -305,8 +305,13 @@ async function responderVentas(deps, x) {
 // el Lead web de la solicitud publica) en cuanto hay nombre y telefono o cedula. Si ya existe un
 // cliente con esa cedula o ese telefono, no se duplica: se le anota lo del chat. Devuelve el id.
 const telNacional = v => String(v || '').replace(/\D/g, '').replace(/^58/, '').replace(/^0/, '');
+// Mayúsculas y sin tildes, igual que en las pantallas (assets/public/mayusculas.js; Adam, 21-oct-2026). La Ñ se queda.
+const mayus = v => String(v == null ? '' : v).replace(/[ñÑ]/g, '\u0001').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0001/g, 'Ñ').toUpperCase();
+
 async function clienteDesdeLead(deps, db, o) {
-  const { canal, convId, base, lead, ahora } = o;
+  const { canal, convId, base, ahora } = o;
+  // Los datos de la persona que anotó Paola, en mayúsculas y sin tildes (el modelo y la sede se quedan como en el catálogo)
+  const lead = Object.assign({}, o.lead); ['nombre', 'ciudad', 'ocupacion', 'direccion', 'fiador', 'ref1', 'ref2'].forEach(k => { if (typeof lead[k] === 'string') lead[k] = mayus(lead[k]); });
   const nombre = String(lead.nombre || '').trim();
   const nac = telNacional(lead.telefono || (base && base.telE164) || '');
   const telLocal = nac.length >= 10 ? '0' + nac : '', telE164 = nac.length >= 10 ? '+58' + nac : '';
@@ -474,4 +479,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
