@@ -239,6 +239,8 @@ function _abrirVentanaImpresion(titulo, htmlContenido, opts){
     +".rp-foot{padding:15px 34px;background:#f8fafc;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#9ca3af;font-weight:700;flex-wrap:wrap;gap:6px}"
     +".rp-actions{max-width:820px;margin:14px auto 0;text-align:center}"
     +"@media print{body{background:#fff;padding:0}.rp{box-shadow:none;border-radius:0;max-width:none}.rp-actions{display:none!important}}";
+  // Horizontal (libros del IVA y tablas anchas): hoja apaisada y el reporte a todo el ancho (21-oct-2026)
+  if(opts.horizontal) css += '@page{size:A4 landscape;margin:8mm 7mm}.rp{max-width:1320px}.rp-body{padding:16px 20px 22px}@media print{.rp-body{padding:6px 4px}}';
   var html = '<!DOCTYPE html><html lang="es-VE"><head><meta charset="UTF-8"><title>'+titulo+' · Pagasi</title>'+fonts+'<style>'+css+'</style></head><body>'
     +'<div class="rp">'
       +'<div class="rp-bar"></div>'
@@ -1052,10 +1054,11 @@ function descargarContratoPDFById(credId){
 }
 // EXPORTAR CSV
 // ══════════════════════════════════════════════════════════════
-function exportarCSV(tipo){
-  var rows=[], filename='';
+// formato 'excel' (21-oct-2026): los mismos datos en un .xlsx de verdad (xlsxEscribir, logic/exportar.js)
+function exportarCSV(tipo, formato){
+  var rows=[], filename='', crudas=[];
   function esc(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
-  function row(arr){ return arr.map(esc).join(','); }
+  function row(arr){ crudas.push(arr); return arr.map(esc).join(','); }
 
   if(tipo==='clientes'){
     filename='clientes-'+hoyLocalISO()+'.csv';
@@ -1121,6 +1124,12 @@ function exportarCSV(tipo){
   }
 
   if(rows.length<=1){toast('No hay datos para exportar','info');return;}
+  if(formato==='excel' && typeof xlsxEscribir==='function'){
+    xlsxEscribir(String(filename||('export-'+tipo)).replace(/\.csv$/,'')+'.xlsx', [{ name: tipo, cols: (crudas[0]||[]).map(function(){ return 18; }), rows: crudas.map(function(r, i){
+      return r.map(function(v){ if(i===0) return { v: String(v), s: 'encabezado' }; return (typeof v==='number' && isFinite(v)) ? (Number.isInteger(v) ? v : { v: v, s: 'montoSimple' }) : (v==null ? '' : v); });
+    }) }]);
+    return;
+  }
   var blob=new Blob(['\uFEFF'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');a.href=url;a.download=filename;a.click();

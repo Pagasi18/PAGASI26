@@ -821,7 +821,8 @@ function _renderCoromoto(){
     t==='cat' ? _coroHtmlCatalogo(ctx,M) :
     t==='notas' ? _coroHtmlNotas(ctx,M) :
     _coroHtmlDash(ctx,M);
-  var botones='<button class="btn btn-p btn-sm" onclick="coroImprimirAbrir()">🖨 Imprimir</button>';
+  var botones='<button class="btn btn-p btn-sm" onclick="coroImprimirAbrir()">🖨 Imprimir</button>'
+    +' <button class="btn btn-g btn-sm" style="background:#fff" onclick="pgExportarTablas(\'coro-cuerpo\',\'Coromoto\',\'excel\')">⬇ Excel</button>';
   if(_coroPuedeEditar()){
     botones+=' <button class="btn btn-g btn-sm" onclick="coroAjusteAbrir()">＋ Asiento manual</button>'
       +' <button class="btn btn-g btn-sm" onclick="coroMapeoAbrir()">⚙ Mapeo</button>';
@@ -834,7 +835,7 @@ function _renderCoromoto(){
     +'<label style="font-size:11px;font-weight:700">Hasta</label><input type="date" class="fi" id="coro-hasta" value="'+(S.coroHasta||hoyLocalISO())+'" onchange="coroPeriodo()" style="width:135px;padding:6px 8px">'
     +botones+'</div></div>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'+barra+'</div>'
-    +cuerpo;
+    +'<div id="coro-cuerpo" data-titulo-base="'+({dash:'Resumen',diario:'Libro diario',mayor:'Libro mayor',balcomp:'Balance de comprobación',esf:'Situación financiera',er:'Estado de resultados',flujo:'Flujo de efectivo',ind:'Indicadores',cat:'Catálogo de cuentas',notas:'Notas'}[t]||'Coromoto')+'">'+cuerpo+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════════

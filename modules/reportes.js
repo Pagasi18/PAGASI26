@@ -1,6 +1,8 @@
 // Pagasi module: reportes
 PG.reportes = function(){
   // Tab interno: 'resumen' (default), 'proyecciones', 'egresos', 'exportar'
+  // "Libro SENIAT" pasó a ser "Libro de Ventas" (desde las facturas) el 21-oct-2026
+  if(S.reportesTab === 'libroseniat') S.reportesTab = 'libroventas';
   var tab = S.reportesTab || 'dashfin';
 
   // Variables filtradas por concesionario activo
@@ -184,7 +186,8 @@ PG.reportes = function(){
     {k:'egresos', lbl:'Egresos', sub:'Gastos · categorías'},
     {k:'inventario', lbl:'Inventario de oficina', sub:'Activos · equipos · mobiliario'},
     {k:'exportar', lbl:'Exportar', sub:'Reportes · CSV · Backup'},
-    {k:'libroseniat', lbl:'Libro SENIAT', sub:'Ventas · IVA · IGTF'},
+    {k:'libroventas', lbl:'Libro de Ventas', sub:'IVA · facturas emitidas'},
+    {k:'librocompras', lbl:'Libro de Compras', sub:'IVA · facturas de proveedores'},
     {k:'contador', lbl:'📋 Contador', sub:'Reporte semanal · Tributario'},
     {k:'coromoto', lbl:'Coromoto', sub:'Libro contable · estados financieros'}
   ];
@@ -304,7 +307,7 @@ PG.reportes = function(){
 
   ${tab==='dashfin' ? _renderDashFin() : ''}
 
-  ${tab==='resumen' ? `
+  ${tab==='resumen' ? `<div id="fin-resumen">${pgBotonesExportar('fin-resumen','Finanzas · Resumen')}
   <!-- ════════ TAB: RESUMEN ════════ -->
 
   <!-- Banner salud operativa -->
@@ -697,7 +700,7 @@ PG.reportes = function(){
       </table></div>
     </div>
   </div>
-  ` : tab==='proyecciones' ? `
+  </div>` : tab==='proyecciones' ? `<div id="fin-proyecciones">${pgBotonesExportar('fin-proyecciones','Finanzas · Proyecciones')}
   <!-- ════════ TAB: PROYECCIONES ════════ -->
 
   <!-- Resumen proyección -->
@@ -814,7 +817,7 @@ PG.reportes = function(){
     </div>
   </div>
 
-  ` : tab==='egresos' ? `
+  </div>` : tab==='egresos' ? `<div class="no-export" style="display:flex;gap:6px;justify-content:flex-end;margin:0 0 10px"><button class="btn btn-g btn-sm" onclick="finExportarEgresos('excel')">⬇ Excel</button><button class="btn btn-g btn-sm" onclick="finExportarEgresos('pdf')">📄 PDF</button></div>
   <!-- ════════ TAB: EGRESOS ════════ -->
 
   <!-- Totales -->
@@ -914,9 +917,13 @@ PG.reportes = function(){
       <div class="ch"><div><div class="ct">Exportar datos</div><div class="cs">CSV para Excel · Backup JSON</div></div></div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
       ${[
+        ['Cartera completa (Excel)', "exportarCSV('creditos','excel')", 'btn-g'],
         ['Cartera completa (CSV)', "exportarCSV('creditos')", 'btn-g'],
+        ['Clientes (Excel)', "exportarCSV('clientes','excel')", 'btn-g'],
         ['Clientes (CSV)', "exportarCSV('clientes')", 'btn-g'],
+        ['Pagos confirmados (Excel)', "exportarCSV('pagos','excel')", 'btn-g'],
         ['Pagos confirmados (CSV)', "exportarCSV('pagos')", 'btn-g'],
+        ['Egresos (Excel)', "exportarCSV('egresos','excel')", 'btn-g'],
         ['Egresos (CSV)', "exportarCSV('egresos')", 'btn-g'],
         ['Backup completo (JSON)', 'exportarBackupJSON()', 'btn-p'],
       ].map(row=>{var l=row[0],fn=row[1],cls=row[2];return `<button class="btn ${cls} btn-sm" style="justify-content:flex-start" onclick="${fn}">
@@ -944,11 +951,13 @@ PG.reportes = function(){
 
   ${tab==='periodicos' ? _renderTabReportesPeriodicos() : ''}
 
-  ${tab==='inventario' ? _renderTabInventario() : ''}
+  ${tab==='inventario' ? '<div id="fin-inventario">'+pgBotonesExportar('fin-inventario','Inventario de oficina')+_renderTabInventario()+'</div>' : ''}
 
-  ${tab==='metodologia' ? (typeof _renderNuevaMetodologia==='function' ? _renderNuevaMetodologia() : '') : ''}
+  ${tab==='metodologia' ? '<div id="fin-metodologia">'+pgBotonesExportar('fin-metodologia','Nueva metodología')+(typeof _renderNuevaMetodologia==='function' ? _renderNuevaMetodologia() : '')+'</div>' : ''}
 
-  ${tab==='libroseniat' ? _renderLibroSeniat() : ''}
+  ${tab==='libroventas' ? _renderLibroVentas() : ''}
+
+  ${tab==='librocompras' ? _renderLibroCompras() : ''}
 
   ${tab==='contador' ? _renderTabContador({
     pagosConf, credsActivos, credsMora, credsComp,
@@ -1244,13 +1253,15 @@ function _renderTabContador(ctx){
     + '<input type="date" id="cont_fecha_fin" value="'+_contFechaFin+'" onchange="_contCambiarFechas()" style="border:1px solid var(--rim2);border-radius:6px;padding:6px 10px;font-size:12px;font-family:var(--fd);color:var(--ink);background:var(--bg)">'
     + '<span style="font-size:11px;color:var(--ink3);margin-left:4px">'+semLabel+'</span>'
     + '<div style="margin-left:auto;display:flex;gap:8px">'
+    + '<button class="btn btn-g btn-sm" onclick="pgExportarTablas(\'cont_tab_body\',\'Reporte Contador\',\'excel\')">⬇ Excel</button>'
     + '<button class="btn btn-g btn-sm" onclick="_contadorExportarCSV()">⬇ CSV</button>'
     + '<button class="btn btn-p btn-sm" onclick="_contadorImprimir()">🖨 PDF</button>'
     + '</div>'
     + '</div>';
 
   // ── Header empresa ──
-  html += '<div style="background:var(--ink);border-radius:10px;padding:14px 20px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'
+  // data-cont-header: _contadorImprimir lo busca para poner el membrete en el PDF (no existía y salía sin él)
+  html += '<div data-cont-header style="background:var(--ink);border-radius:10px;padding:14px 20px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'
     + '<div>'
     + '<div style="font-size:16px;font-weight:900;color:#fff">Reporte Semanal · Contador</div>'
     + '<div style="font-size:11px;color:#aab;margin-top:3px">'+semLabel+'</div>'
@@ -1292,7 +1303,8 @@ function _contGenerarCuerpo(){
     return '<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:'+(bg||'var(--'+col+'s)')+';color:var(--'+col+')">'+txt+'</span>';
   };
   var secHdr = function(n,t,s){
-    return '<div style="display:flex;align-items:center;gap:10px;margin:18px 0 10px">'
+    // data-titulo: nombre de la hoja al exportar a Excel (pgExportarTablas)
+    return '<div data-titulo="'+String(n+' '+t).replace(/"/g,'')+'" style="display:flex;align-items:center;gap:10px;margin:18px 0 10px">'
       +'<span style="background:#e8ecff;color:var(--p1);font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;font-family:var(--fd)">'+n+'</span>'
       +'<div><div style="font-size:13px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px">'+t+'</div>'
       +(s?'<div style="font-size:10.5px;color:var(--ink3)">'+s+'</div>':'')+'</div></div>';

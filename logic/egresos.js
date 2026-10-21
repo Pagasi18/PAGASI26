@@ -22,6 +22,11 @@ function openAddEgreso(){
     +'<div class="fg"><label>Fecha</label><input class="fi" id="eg_fecha" type="date" value="'+hoyLocalISO()+'"></div>'
     +'<div class="fg"><label>Referencia</label><input class="fi" id="eg_notas" placeholder="Opcional"></div>'
     +'</div>'
+    // Datos de la factura del proveedor para el Libro de Compras (Adam, 21-oct-2026)
+    +(typeof lbCamposFiscalesHtml==='function'
+      ? '<details id="eg_fiscal_box" style="margin-top:4px;border:1px solid var(--rim);border-radius:9px;padding:9px 11px"><summary style="cursor:pointer;font-size:12.5px;font-weight:800">Factura del proveedor (para el Libro de Compras)</summary>'
+        +'<div class="fgr c1" style="gap:9px;margin-top:9px">'+lbCamposFiscalesHtml('egf', {}, 0)+'</div></details>'
+      : '')
     +'</div>';
     S.saveFn=function(){
     var conc=(($('eg_conc')&&$('eg_conc').value)||'').trim();
@@ -31,6 +36,10 @@ function openAddEgreso(){
     // personas guardando a la vez, el segundo gasto borraba al primero (punto 30).
     return nextEgresoIdAsync().then(function(newId){
     var newEg={id:newId,concepto:conc,monto:monto,fecha:($('eg_fecha')&&$('eg_fecha').value)||hoyLocalISO(),categoria:($('eg_cat')&&$('eg_cat').value)||'otros',forma:($('eg_forma')&&$('eg_forma').value)||'',notas:($('eg_notas')&&$('eg_notas').value)||'',eliminado:false};
+    // "Referencia" se guardaba solo en notas y los reportes leen e.referencia (salía vacío)
+    newEg.referencia = newEg.notas || '';
+    var _fis = (typeof lbLeerCamposFiscales==='function') ? lbLeerCamposFiscales('egf') : null;
+    if(_fis){ if(!_fis.noAplica && !_fis.fecha) _fis.fecha = newEg.fecha; newEg.fiscal = _fis; }
     S.egresos.push(newEg);
     DB.saveEgreso(newEg);
     if(typeof logActividad==='function') logActividad('egreso_registrado','egresos',String(newId),{concepto:conc, monto:monto, categoria:newEg.categoria});
