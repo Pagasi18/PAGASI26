@@ -90,20 +90,38 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   ok('el mismo id de Meta otra vez (reenvío) no se procesa ni se responde dos veces', r.saltado === 'repetido' && A.enviados.length === 1);
   r = await procesar.procesarMensaje(A.deps, msgTexto('584241112233', 'hola', 'wamid.b1'));
   ok('cliente de la 18 → la conversación va a la 18', r.empresa === '18' && A.db18._store.get('conversaciones/wa:+584241112233').clienteId === 'C18' && !A.db26._store.get('conversaciones/wa:+584241112233'));
-  r = await procesar.procesarMensaje(A.deps, msgTexto('584160000000', 'quiero una moto', 'wamid.c1'));
-  ok('un número que no es cliente → VENTAS por WhatsApp: en la 26, área ventas, briefing del catálogo y sin cifras de crédito', r.empresa === '26' && r.area === 'ventas' && r.respondido && A.db26._store.get('conversaciones/wa:+584160000000').area === 'ventas' && /CATÁLOGO VIGENTE/.test(A.cerebroFalso.ultimo.sistema) && /Paola, la asesora comercial online de Pagasi, y atiendes por WhatsApp/.test(A.cerebroFalso.ultimo.sistema) && /\+584160000000/.test(A.cerebroFalso.ultimo.sistema) && /NO se lo pidas/.test(A.cerebroFalso.ultimo.sistema) && !/CRÉDITO/.test(A.cerebroFalso.ultimo.sistema));
+  r = await procesar.procesarMensaje(A.deps, msgTexto('584160000009', 'hola, quiero una moto', 'wamid.n1'));
+  ok('un número que no es cliente → lo atiende PATRICIA (el WhatsApp es solo de cobranza): sin cifras, pide nombre y cédula y manda a comprar por Instagram', r.empresa === '26' && A.db26._store.get('conversaciones/wa:+584160000009').area === 'cobranza' && /Patricia/.test(A.cerebroFalso.ultimo.sistema) && /no está registrado como cliente/.test(A.cerebroFalso.ultimo.sistema) && /@pagasi\.io/.test(A.cerebroFalso.ultimo.sistema) && /cédula/.test(A.cerebroFalso.ultimo.sistema) && !/CATÁLOGO VIGENTE/.test(A.cerebroFalso.ultimo.sistema) && !/CRÉDITO /.test(A.cerebroFalso.ultimo.sistema));
+  // Cliente con crédito que NO está en indice_clientes (la ficha tiene el teléfono con otro formato)
+  await A.db26.collection('clientes').doc('C26B').set({ id: 'C26B', nombre: 'ROSA DÍAZ', tel: '0414-765.43.21' });
+  await A.db26.collection('creditos').doc('M-7').set(cred('M-7', 'C26B', 10, { cli: 'ROSA DÍAZ' }));
+  r = await procesar.procesarMensaje(A.deps, msgTexto('584147654321', 'cuánto debo?', 'wamid.n2'));
+  ok('cliente con crédito que no está en el índice → lo encuentra por la ficha y Patricia le da sus cifras', r.empresa === '26' && A.db26._store.get('conversaciones/wa:+584147654321').area === 'cobranza' && A.db26._store.get('conversaciones/wa:+584147654321').clienteId === 'C26B' && /CRÉDITO M-7/.test(A.cerebroFalso.ultimo.sistema));
+  // El índice apunta a una ficha sin crédito (un lead) y en la 18 está el cliente con crédito: gana el del crédito
+  await A.db26.collection('indice_clientes').doc('+584148889999').set({ clienteId: 'L1' });
+  await A.db26.collection('clientes').doc('L1').set({ id: 'L1', nombre: 'Lead viejo', tel: '04148889999', estado: 'lead' });
+  await A.db18.collection('clientes').doc('C18B').set({ id: 'C18B', nombre: 'LUIS MORA', tel: '04148889999' });
+  await A.db18.collection('creditos').doc('CRED-11').set(cred('CRED-11', 'C18B', 30, { cli: 'LUIS MORA' }));
+  r = await procesar.procesarMensaje(A.deps, msgTexto('584148889999', 'hola', 'wamid.n3'));
+  ok('si el índice apunta a una ficha sin crédito y otra ficha con ese teléfono tiene crédito, gana la del crédito', r.empresa === '18' && A.db18._store.get('conversaciones/wa:+584148889999').clienteId === 'C18B' && /CRÉDITO CRED-11/.test(A.cerebroFalso.ultimo.sistema));
+  ok('el teléfono se compara sin importar el formato', procesar.telClave('0414-765.43.21') === '+584147654321' && procesar.telClave('+58-414-765-4321') === '+584147654321' && procesar.telClave('584147654321') === '+584147654321' && procesar.telClave('123') === '');
+  // Ventas por WhatsApp solo si algún día hay un número de ventas configurado (config/asistente.numeros.ventas)
+  A.deps.cfg.numeros = { ventas: '0412-5550000' };
+  const msgVentas = (de, texto, id) => Object.assign(msgTexto(de, texto, id), { telefonoNegocio: '584125550000' });
+  r = await procesar.procesarMensaje(A.deps, msgVentas('584160000000', 'quiero una moto', 'wamid.c1'));
+  ok('al número de VENTAS (si se configura) quien no es cliente → Paola: en la 26, área ventas, briefing del catálogo y sin cifras de crédito', r.empresa === '26' && r.area === 'ventas' && r.respondido && A.db26._store.get('conversaciones/wa:+584160000000').area === 'ventas' && /CATÁLOGO VIGENTE/.test(A.cerebroFalso.ultimo.sistema) && /Paola, la asesora comercial online de Pagasi, y atiendes por WhatsApp/.test(A.cerebroFalso.ultimo.sistema) && /\+584160000000/.test(A.cerebroFalso.ultimo.sistema) && /NO se lo pidas/.test(A.cerebroFalso.ultimo.sistema) && !/CRÉDITO/.test(A.cerebroFalso.ultimo.sistema));
   A.cerebroFalso.respuesta = { reply: 'Listo, Ana. Un asesor te escribe por aquí.', draft: { tipo: 'lead', nombre: 'Ana Torres', ciudad: 'Valencia', modelo: 'Kavak 250' }, summary: 'Quiere la Kavak 250, Valencia.', handoff: true, handoffReason: 'lead' };
-  r = await procesar.procesarMensaje(A.deps, msgTexto('584160000000', 'soy Ana Torres, de Valencia', 'wamid.c2'));
+  r = await procesar.procesarMensaje(A.deps, msgVentas('584160000000', 'soy Ana Torres, de Valencia', 'wamid.c2'));
   const cliWa = A.db26._store.get('clientes/WA-04160000000');
   ok('el lead de WhatsApp entra a Clientes como Lead WhatsApp con su teléfono, moto y conversación', cliWa && cliWa.origen === 'whatsapp' && cliWa.estado === 'lead' && cliWa.nombre === 'Ana Torres' && cliWa.tel === '04160000000' && cliWa.conversacion === 'wa:+584160000000' && A.db26._store.get('conversaciones/wa:+584160000000').clienteLead === 'WA-04160000000');
   await A.db26.collection('clientes').doc('77').set({ nombre: 'Pedro Gómez', tel: '04170000000', cedula: 'V-5555555', estado: 'activo' });
   A.cerebroFalso.respuesta = { reply: 'Listo, Pedro.', draft: { tipo: 'lead', nombre: 'Pedro Gómez', modelo: 'GTL 150' }, summary: 'Quiere otra moto.', handoff: true, handoffReason: 'lead' };
-  r = await procesar.procesarMensaje(A.deps, msgTexto('584170000000', 'soy Pedro Gómez, quiero la GTL', 'wamid.c3'));
+  r = await procesar.procesarMensaje(A.deps, msgVentas('584170000000', 'soy Pedro Gómez, quiero la GTL', 'wamid.c3'));
   ok('si ya existe un cliente con ese teléfono no se duplica: se le anota lo del chat', !A.db26._store.get('clientes/WA-04170000000') && A.db26._store.get('clientes/77').lead_chat && A.db26._store.get('clientes/77').lead_chat.modelo === 'GTL 150' && A.db26._store.get('conversaciones/wa:+584170000000').clienteLead === '77');
   const leadWa = A.db26._store.get('leads/wa:+584160000000');
   ok('...cuando quiere comprar queda el lead de WhatsApp con el teléfono ya puesto y la conversación "Quiere comprar"', leadWa && leadWa.canal === 'whatsapp' && leadWa.telefono === '584160000000' && leadWa.modelo === 'Kavak 250' && A.db26._store.get('conversaciones/wa:+584160000000').atencion === 'lead');
-  A.cerebroFalso.respuesta = null;
-  ok('el área se decide por el número de negocio cuando hay uno de ventas configurado', procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000', cobranza: '0422-0000000' } } }, { telefonoNegocio: '584125550000' }, 'C26') === 'ventas' && procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000' } } }, { telefonoNegocio: '584220000000' }, 'C26') === 'cobranza' && procesar.areaDe({ cfg: {} }, { telefonoNegocio: '584220000000' }, '') === 'ventas');
+  A.cerebroFalso.respuesta = null; delete A.deps.cfg.numeros;
+  ok('el área se decide por el número de negocio cuando hay uno de ventas configurado', procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000', cobranza: '0422-0000000' } } }, { telefonoNegocio: '584125550000' }, 'C26') === 'ventas' && procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000' } } }, { telefonoNegocio: '584220000000' }, 'C26') === 'cobranza' && procesar.areaDe({ cfg: {} }, { telefonoNegocio: '584220000000' }, '') === 'cobranza');
   // promesa y handoff del cerebro
   A.cerebroFalso.respuesta = { reply: 'Anotado para el sábado.', draft: { tipo: 'promesa', fecha: '2026-10-24', monto: 50 }, summary: 'Promete pagar el sábado.', handoff: false, handoffReason: '' };
   await procesar.procesarMensaje(A.deps, msgTexto('584141234567', 'pago el sábado', 'wamid.a2'));

@@ -44,12 +44,12 @@ function armar(ctx) {
   if (instrucciones && String(instrucciones).trim()) L.push('INSTRUCCIONES DEL EQUIPO DE PAGASI (mandan sobre el resto):\n' + String(instrucciones).trim());
   L.push('CÓMO SE PAGA (dáselo tal cual cuando pregunte):\n' + (datosPago && String(datosPago).trim() ? String(datosPago).trim() : 'Pide los datos de pago a tu asesor de Pagasi por este mismo chat; una persona te los confirma.'));
   if (!cliente) {
-    L.push(`EL CONTACTO: el número no está registrado como cliente de Pagasi${nombrePerfil ? ' (en WhatsApp se llama ' + nombrePerfil + ')' : ''}. No des ninguna cifra. Pregunta amablemente su nombre y si tiene un crédito con Pagasi, y marca handoff para que una persona lo atienda.`);
+    L.push(`EL CONTACTO: el número no está registrado como cliente de Pagasi${nombrePerfil ? ' (en WhatsApp se llama ' + nombrePerfil + ')' : ''}. No des ninguna cifra. Este WhatsApp es solo de cobranza. Si dice que tiene un crédito, pídele su nombre completo y su cédula y marca handoff para que una persona lo ubique (puede haber registrado otro teléfono). Si quiere comprar una moto o pregunta precios, dile que escriba a Pagasi por Instagram, @pagasi.io, o que vea pagasi.io; eso no necesita handoff.`);
     return L.join('\n\n');
   }
   L.push(`EL CLIENTE: ${cliente.nombre || 'cliente'}${pila(cliente.nombre) ? ' (llámalo ' + pila(cliente.nombre) + ')' : ''}.`);
   const vivos = (creditos || []).filter(Boolean);
-  if (!vivos.length) L.push('No tiene créditos activos en el sistema. No des cifras; ofrece una persona.');
+  if (!vivos.length) L.push('No tiene créditos activos en el sistema. No des cifras; ofrece una persona. Si quiere comprar una moto, dile que escriba a Pagasi por Instagram, @pagasi.io, o que vea pagasi.io.');
   vivos.forEach(c => {
     const e = c;
     let t = `CRÉDITO ${e.id} · ${e.moto}${e.placa ? ' · placa ' + e.placa : ''}: cuota quincenal de ${money(e.cuotaQ)}, ${e.pagadas} de ${e.totalCuotas} cuotas pagadas, ha pagado ${money(e.totalPagado)} y le faltan ${money(e.saldoPendiente)}.`;

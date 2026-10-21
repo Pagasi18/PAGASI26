@@ -31,14 +31,43 @@ function textoLista(m) { return m.texto || (m.tipo === 'imagen' ? '📷 Imagen' 
 
 async function docs(q) { const s = await q.get(); return (s.docs || []).map(d => Object.assign({ id: d.id }, d.data())); }
 
-// En que compania esta este telefono (y que cliente es)
+// En que compania esta este telefono (y que cliente es). Primero indice_clientes; como ese indice se llena a
+// mano (portal "normalizar"), tambien se busca en las fichas por telefono (21-oct-2026: 75 clientes con credito
+// no estaban). Entre todas las fichas con ese telefono gana la que tiene un credito vivo.
+const telClave = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 10 ? '+58' + d.slice(-10) : ''; };
+const _fichas = new WeakMap();   // base -> { t, mapa: telefono -> [clienteId] }, 10 minutos
+async function fichasPorTelefono(db, forzar) {
+  const c = _fichas.get(db); if (!forzar && c && Date.now() - c.t < 10 * 60 * 1000) return c.mapa;
+  const mapa = new Map();
+  for (const x of await docs(db.collection('clientes'))) {
+    if (x.eliminado) continue;
+    new Set([x.telE164, x.tel, x.wa].map(telClave).filter(Boolean)).forEach(k => { if (!mapa.has(k)) mapa.set(k, []); mapa.get(k).push(String(x.id)); });
+  }
+  _fichas.set(db, { t: Date.now(), mapa });
+  return mapa;
+}
+async function tieneCreditoVivo(db, clienteId) {
+  return (await docs(db.collection('creditos').where('clienteId', '==', clienteId))).some(c => !c.eliminado && ['activo', 'mora'].includes(c.estado));
+}
 async function ubicar(deps, tel) {
+  const cands = [], k = telClave(tel);
+  const sumar = (empresa, clienteId) => { if (clienteId && !cands.some(x => x.empresa === empresa && x.clienteId === clienteId)) cands.push({ empresa, clienteId }); };
   for (const emp of EMPRESAS) {
     const db = deps.bases[emp]; if (!db) continue;
     const d = await db.collection('indice_clientes').doc(tel).get();
-    if (d.exists && d.data() && d.data().clienteId) return { empresa: emp, clienteId: String(d.data().clienteId) };
+    if (d.exists && d.data() && d.data().clienteId) sumar(emp, String(d.data().clienteId));
   }
-  return { empresa: '26', clienteId: '' };
+  // Con la copia en memoria (10 min); si no aparece, se vuelve a leer al momento (cliente recien creado)
+  for (const forzar of [false, true]) {
+    let hallados = 0;
+    for (const emp of EMPRESAS) {
+      const db = deps.bases[emp]; if (!db || !k) continue;
+      try { const ids = (await fichasPorTelefono(db, forzar)).get(k) || []; hallados += ids.length; ids.forEach(id => sumar(emp, id)); } catch (e) { /* sin fichas: queda el indice */ }
+    }
+    if (hallados || !k) break;
+  }
+  for (const c of cands) { try { if (await tieneCreditoVivo(deps.bases[c.empresa], c.clienteId)) return c; } catch (e) { /* sigue */ } }
+  return cands[0] || { empresa: '26', clienteId: '' };
 }
 
 // Ficha y creditos del cliente, ya convertidos a cifras para el briefing
@@ -66,7 +95,8 @@ function areaDe(deps, m, clienteId) {
   const nums = (deps.cfg && deps.cfg.numeros) || {};
   const neg = d(m.telefonoNegocio);
   if (neg && d(nums.ventas) && neg === d(nums.ventas)) return 'ventas';
-  return clienteId ? 'cobranza' : 'ventas';
+  // El WhatsApp es solo de cobranza (Adam, 21-oct-2026): quien no es cliente tambien lo atiende Patricia
+  return 'cobranza';
 }
 // El canal decide por donde se manda y a quien
 function canalDe(conv) { return (conv && conv.canal) || 'whatsapp'; }
@@ -444,4 +474,4 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   return { metaId };
 }
 
-module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
