@@ -90,6 +90,17 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     const b1 = cerebro.sistemaEnBloques(briefing.armar({ empresa: 'PAGASI 26', cliente: { nombre: 'ANA PÉREZ' }, creditos: [], hoy: '2026-10-21' })), b2 = cerebro.sistemaEnBloques(briefing.armar({ empresa: 'PAGASI 26', cliente: null, creditos: [], hoy: '2026-10-21', nombrePerfil: 'X' }));
     ok('ahorro: en cobranza lo fijo es igual para todos los clientes y la ficha del cliente va aparte', b1[0].text === b2[0].text && /EL CLIENTE/.test(b1[1].text) && /EL CONTACTO/.test(b2[1].text));
   }
+  // Bolívares a tasa euro (Adam, 21-oct-2026)
+  {
+    const e = briefing.estadoCredito(cred('M-9', 'C9', 15, { cuotaQ: 50, cuota: 100 }), [], HOY);
+    const sb = briefing.armar({ empresa: 'PAGASI 26', cliente: { nombre: 'ANA PÉREZ' }, creditos: [e], hoy: HOY, tasaEuro: 993.18, fechaEuro: HOY });
+    ok('bolívares: Patricia sabe que se puede pagar en bolívares a la tasa del euro BCV y la tasa de hoy', /PAGO EN BOLÍVARES: sí se puede/.test(sb) && /tasa oficial del euro del BCV/.test(sb) && /Bs\. 993,18 por euro/.test(sb));
+    ok('bolívares: la cuota del cliente viene calculada en bolívares (dólares × tasa euro)', /\(en bolívares: Bs\. [\d.]+,\d{2}\)/.test(sb));
+    const sv = ventas.armarVentas({ motos: [], cond: null, sedes: [], hoy: HOY, canal: 'instagram', tasaEuro: 993.18, fechaEuro: HOY });
+    ok('bolívares: Paola lo dice con seguridad y ya no lo deja "por confirmar"', /PAGO EN BOLÍVARES: sí se puede pagar la inicial y las cuotas en bolívares/.test(sv) && !/te lo confirmo hoy por aquí": bolívares/.test(sv));
+    const sinTasa = briefing.armar({ empresa: 'PAGASI 26', cliente: { nombre: 'ANA' }, creditos: [e], hoy: HOY });
+    ok('bolívares: sin tasa guardada no inventa montos (se calcula con la tasa del día del pago)', /no tienes la tasa/.test(sinTasa) && !/en bolívares: Bs/.test(sinTasa));
+  }
   const t = cerebro.turnos([{ autor: 'asistente', texto: 'Hola' }, { autor: 'cliente', texto: 'cuánto debo' }, { autor: 'cliente', tipo: 'imagen' }, { autor: 'equipo', texto: 'Te ayudo yo' }]);
   ok('el historial se vuelve turnos user/assistant, empieza en user y termina en user', t[0].role === 'user' && t[t.length - 1].role === 'user' && t.some(x => /mandó una imagen/.test(x.content)) && t.some(x => /respuesta del equipo/.test(x.content)));
 

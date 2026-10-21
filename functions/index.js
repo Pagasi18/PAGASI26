@@ -43,9 +43,10 @@ const bases = { '26': getFirestore(app26), '18': getFirestore(app18) };
 
 function hoyCaracas() { return new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10); }
 async function cfgAsistente() {
-  const d = await bases['26'].collection('config').doc('asistente').get();
-  const c = d.exists ? d.data() : {};
-  return { instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false };
+  // config/tasa: la tasa del euro BCV que guarda el panel cada día (bolívares a tasa euro, Adam 21-oct-2026)
+  const [d, t] = await Promise.all([bases['26'].collection('config').doc('asistente').get(), bases['26'].collection('config').doc('tasa').get().catch(() => null)]);
+  const c = d.exists ? d.data() : {}, tasa = t && t.exists ? t.data() : {};
+  return { tasaEuro: parseFloat(tasa.tasaEuro) || 0, fechaEuro: String(tasa.fechaEuro || tasa.fechaActualizacion || '').slice(0, 10), instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false };
 }
 // Lo que necesita el asistente de ventas (Instagram): el catalogo de pagasi.io y las sedes de la 26
 // Modelos que cada sede ha financiado (créditos de la 26), con el precio del crédito más reciente.

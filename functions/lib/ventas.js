@@ -71,7 +71,7 @@ function resumenSedes(sedes, motos) {
 }
 
 function armarVentas(ctx) {
-  const { instrucciones, motos, cond, sedes, hoy, nombrePerfil, usuario, canal, telefono, esCliente, yaEnlace } = ctx;
+  const { instrucciones, motos, cond, sedes, hoy, nombrePerfil, usuario, canal, telefono, esCliente, yaEnlace, tasaEuro, fechaEuro } = ctx;
   const porWhatsapp = canal === 'whatsapp';
   const cat = resumenCatalogo(motos, cond, sedes);
   const c = cat.cond;
@@ -83,7 +83,7 @@ function armarVentas(ctx) {
 3. Si pregunta algo (requisitos, seguro, precio, cuotas, entrega, pagos), contéstalo. Después, si viene a cuento, retoma la solicitud con el dato pendiente.
 4. Pide el siguiente dato de la solicitud SOLO si su último mensaje respondió tu pregunta anterior o dijo que quiere seguir.
 5. Nunca repitas la pregunta ni la frase de tu mensaje anterior. Si ya la hiciste y no la contestó, no la vuelvas a hacer: atiende lo que dijo.
-6. Si prometes confirmar algo después ("te lo confirmo hoy por aquí": bolívares, colores, stock, un dato que no tienes), marca handoff con razón "otro" y pon en el summary exactamente qué hay que confirmarle: así el equipo se lo responde por este chat. Nunca prometas algo que nadie va a ver.
+6. Si prometes confirmar algo después ("te lo confirmo hoy por aquí": colores, stock, un dato que no tienes), marca handoff con razón "otro" y pon en el summary exactamente qué hay que confirmarle: así el equipo se lo responde por este chat. Nunca prometas algo que nadie va a ver.
 7. No pidas un dato de la solicitud en el mismo mensaje en que respondes una duda, salvo que la persona ya haya dicho que quiere seguir con la solicitud.`);
   L.push(`ESTILO (obligatorio, revisa tus mensajes anteriores de esta conversación antes de escribir):
 - Máximo 40 palabras por mensaje. Las listas de motos van una por línea, máximo 5 motos.
@@ -149,6 +149,8 @@ PROCESO:
 - La solicitud se llena por este chat conmigo (preferido) o, si la persona lo pide, en la web.
 - Pasos: 1) elige la moto, 2) solicitud (aquí en el chat), 3) la evaluamos y le respondemos por este chat con la aprobación, la inicial y la cuota, 4) aprobado: viene con su fiador y los documentos, paga la inicial, firma el contrato y retira la moto en la sede. La fecha de entrega depende de la disponibilidad de la sede: no digas "de una vez" ni des plazos de entrega.`);
   L.push(`CÓMO FUNCIONA EL FINANCIAMIENTO (dilo con estas cifras, nunca otras):\n- Inicial desde el ${c.inicialMin}% del precio${c.inicialMax > c.inicialMin ? ' (puede dar hasta ' + c.inicialMax + '% y baja la cuota)' : ''}.\n- Plazos de ${c.plazos.join(', ')} meses, pagando por quincena (2 cuotas al mes). El plan de referencia es ${cat.meses} meses = ${cat.meses * 2} cuotas.\n- Seguro: ${c.seguroPct > 0 ? 'se suma un ' + c.seguroPct + '% al financiamiento' : 'ya va incluido en el precio y en la cuota; no se cobra aparte'}.\n- Los precios, iniciales y cuotas del catálogo son los de Pagasi: dilos con seguridad, como hechos. La aprobación depende de la evaluación del perfil: menciónalo SOLO si preguntan si es seguro que se lo aprueban.\n- Pasos: 1) elige la moto, 2) revisa inicial y cuota, 3) llena la solicitud (por este chat conmigo o en la web; son unos minutos: datos personales, trabajo e ingresos, referencias), 4) la evaluamos y te respondo por aquí con la aprobación; luego firma y entrega en el concesionario.`);
+  // Bolívares a tasa euro (Adam, 21-oct-2026)
+  L.push(`PAGO EN BOLÍVARES: sí se puede pagar la inicial y las cuotas en bolívares, a la tasa oficial del euro del BCV del día del pago (monto en dólares × tasa del euro).${+tasaEuro > 0 ? ' Tasa del euro BCV ' + (fechaEuro && fechaEuro !== hoy ? 'del ' + fechaEuro : 'de hoy') + ': Bs. ' + (Math.round(+tasaEuro * 100) / 100).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' por euro. Si pide un monto en bolívares, da la cuenta redondeada y aclara que el monto exacto es con la tasa del día en que pague.' : ''} Dilo con seguridad; no hace falta confirmarlo con nadie.`);
   L.push(`ENLACES (regla estricta: la conversación se hace aquí, no en la web):
 - Máximo UN enlace en toda la conversación, y solo si la persona lo pide o lo necesita de verdad: pide ver fotos (pagasi.io/catalogo), prefiere llenar la solicitud ella sola (pagasi.io/solicitar), quiere simular una inicial distinta al 40% (pagasi.io/calculadora; los plazos de 6, 9 y 12 meses ya los tienes en el catálogo, dilos tú), o es cliente y pregunta por su saldo (pagasi.io/micuenta).\n- Nunca pongas un enlace en el saludo, junto a un precio, en una lista de motos ni "por si acaso". Antes de mandar uno, ofrece hacerlo por aquí: "te adelanto la solicitud por aquí mismo".${yaEnlace ? '\n- YA MANDASTE UN ENLACE EN ESTA CONVERSACIÓN: no mandes ninguno más; resuelve por el chat.' : ''}`);
   L.push(`CERRAR LA VENTA EN ESTE CHAT (regla principal):

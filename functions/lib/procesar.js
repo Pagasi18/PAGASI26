@@ -157,7 +157,7 @@ async function procesarMensaje(deps, m) {
   const historial = await ultimosMensajes(convRef);
   const freno = frenado(historial, ahora);
   if (freno) { deps.log('frenado', { canal: 'whatsapp', area: 'cobranza', motivo: freno }); await convRef.set({ atencion: 'revisar', actualizado: ahora }, { merge: true }); return { empresa: u.empresa, frenado: freno }; }
-  const sistema = briefing.armar({ empresa: (deps.cfg.empresaNombre || {})[u.empresa] || 'Pagasi', cliente: ctx.cliente, creditos: ctx.creditos, instrucciones: deps.cfg.instrucciones, datosPago: deps.cfg.datosPago, hoy, nombrePerfil: m.nombre, promesa: conv && conv.borrador && conv.borrador.tipo === 'promesa' ? conv.borrador : null, comprobantesPendientes: ctx.comprobantesPendientes });
+  const sistema = briefing.armar({ tasaEuro: deps.cfg.tasaEuro, fechaEuro: deps.cfg.fechaEuro, empresa: (deps.cfg.empresaNombre || {})[u.empresa] || 'Pagasi', cliente: ctx.cliente, creditos: ctx.creditos, instrucciones: deps.cfg.instrucciones, datosPago: deps.cfg.datosPago, hoy, nombrePerfil: m.nombre, promesa: conv && conv.borrador && conv.borrador.tipo === 'promesa' ? conv.borrador : null, comprobantesPendientes: ctx.comprobantesPendientes });
   let r;
   try { r = await deps.cerebro.pensar({ sistema, mensajes: historial }); }
   catch (e) {
@@ -268,7 +268,7 @@ async function responderVentas(deps, x) {
   let cat = { motos: [], cond: null, sedes: [] };
   try { cat = await deps.ventas(); } catch (e) { deps.log('catalogo-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
   const yaEnlace = historial.some(m => m && m.autor !== 'cliente' && TIENE_ENLACE.test(String(m.texto || '')));
-  const sistema = ventas.armarVentas({ instrucciones: deps.cfg.instruccionesVentas, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: x.nombrePerfil, usuario: x.usuario, canal, telefono: x.telefono, esCliente: !!base.clienteId, yaEnlace });
+  const sistema = ventas.armarVentas({ tasaEuro: deps.cfg.tasaEuro, fechaEuro: deps.cfg.fechaEuro, instrucciones: deps.cfg.instruccionesVentas, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: x.nombrePerfil, usuario: x.usuario, canal, telefono: x.telefono, esCliente: !!base.clienteId, yaEnlace });
   let r;
   try { r = await deps.cerebro.pensar({ sistema, mensajes: historial }); if (r && r.reply) r.reply = recortarEnlaces(r.reply, { yaEnlace, pedido: [...historial].reverse().find(m => m && m.autor === 'cliente') }); }
   catch (e) {
@@ -431,7 +431,7 @@ async function procesarComentario(deps, c) {
   let cat = { motos: [], cond: null, sedes: [] };
   try { cat = await deps.ventas(); } catch (e) { /* sin catalogo, Paola invita al DM */ }
   const instrucciones = `COMENTARIO PÚBLICO: la persona (@${c.usuario || 'alguien'}) comentó en una publicación de Instagram de Pagasi. Tu respuesta se publica debajo del comentario, la ve todo el mundo. Máximo 25 palabras, UNA frase o dos, sin listas, sin saludo largo, sin emojis. Si pregunta por un modelo concreto: precio y cuota en una línea. Si pregunta en general: una respuesta directa y "escríbeme por mensaje directo y te paso todo". Si es un reclamo o queja: disculpa en una línea y "te escribo por privado ahora mismo". Si es spam, otro negocio, una burla o no tiene nada que responder: reply exactamente "NO_RESPONDER". No pidas datos personales en público. NO saludes ni te presentes (en comentarios nunca va "Hola, soy Paola"): empieza directo por la respuesta, en UNA sola línea.`;
-  const sistema = ventas.armarVentas({ instrucciones, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: '', usuario: c.usuario, canal: 'instagram', telefono: '', esCliente: false });
+  const sistema = ventas.armarVentas({ tasaEuro: deps.cfg && deps.cfg.tasaEuro, fechaEuro: deps.cfg && deps.cfg.fechaEuro, instrucciones, motos: cat.motos, cond: cat.cond, sedes: cat.sedes, hoy, nombrePerfil: '', usuario: c.usuario, canal: 'instagram', telefono: '', esCliente: false });
   let r;
   try { r = await deps.cerebro.pensar({ sistema, mensajes: [{ autor: 'cliente', direccion: 'entrante', texto, hora: c.hora }] }); }
   catch (e) { deps.log('cerebro-fallo', { canal: 'instagram', area: 'comentario', error: String(e && e.message || e).slice(0, 160) }); await ref.set({ estado: 'fallo', error: String(e && e.message || e).slice(0, 200) }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, error: 'cerebro' }; }
