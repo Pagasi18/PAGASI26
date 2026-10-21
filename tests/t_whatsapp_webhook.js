@@ -77,6 +77,19 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   // ── 3. El cerebro: validación y turnos ──
   ok('una respuesta bien formada pasa y la promesa queda limpia', JSON.stringify(cerebro.validar({ reply: 'ok', draft: { tipo: 'promesa', fecha: '2026-10-24', monto: 50, nota: 'sábado' }, summary: 's', handoff: true, handoffReason: 'queja' })) === JSON.stringify({ reply: 'ok', draft: { tipo: 'promesa', fecha: '2026-10-24', monto: 50, nota: 'sábado' }, summary: 's', handoff: true, handoffReason: 'queja' }));
   ok('sin reply o con razón inventada se corrige o se descarta', cerebro.validar({ summary: 'x' }) === null && cerebro.validar({ reply: 'x', summary: '', handoff: true, handoffReason: 'zzz' }).handoffReason === 'otro' && cerebro.validar({ reply: 'x', draft: { tipo: 'promesa', fecha: 'mañana' }, summary: '', handoff: false }).draft === null);
+  // Ahorro (21-oct-2026): la parte fija del manual va guardada en Anthropic (cache_control) y lo de la conversación aparte
+  {
+    let cuerpo = null;
+    const fakeFetch = async (u, o) => { cuerpo = JSON.parse(o.body); return { ok: true, status: 200, json: async () => ({ content: [{ type: 'tool_use', name: 'responder', input: { reply: 'Hola', summary: '', handoff: false } }], usage: {} }) }; };
+    const sis = ventas.armarVentas({ motos: [], cond: null, sedes: [{ nombre: 'EK Trujillo', ciudad: 'VALERA', vendidas: [] }], hoy: '2026-10-21', usuario: 'ana', canal: 'instagram' });
+    await cerebro.pensar({ apiKey: 'x', sistema: sis + '\n\nATENCIÓN: prueba', mensajes: [{ autor: 'cliente', texto: 'hola' }], fetchImpl: fakeFetch });
+    ok('ahorro: el manual va en 2 bloques, el fijo guardado (cache_control) y la persona y los avisos en el segundo, sin la marca', Array.isArray(cuerpo.system) && cuerpo.system.length === 2 && cuerpo.system[0].cache_control && cuerpo.system[0].cache_control.type === 'ephemeral' && !cuerpo.system[1].cache_control && /LA PERSONA/.test(cuerpo.system[1].text) && /ATENCIÓN: prueba/.test(cuerpo.system[1].text) && /CATÁLOGO|SEDES ALIADAS/.test(cuerpo.system[0].text) && !JSON.stringify(cuerpo.system).includes(cerebro.MARCA));
+    ok('ahorro: el último mensaje de la conversación también queda guardado', cuerpo.messages[cuerpo.messages.length - 1].content[0].cache_control.type === 'ephemeral');
+    const otra = ventas.armarVentas({ motos: [], cond: null, sedes: [{ nombre: 'EK Trujillo', ciudad: 'VALERA', vendidas: [] }], hoy: '2026-10-21', usuario: 'luis', nombrePerfil: 'Luis', canal: 'instagram' });
+    ok('ahorro: la parte fija es idéntica para dos personas distintas (así se reutiliza entre conversaciones)', cerebro.sistemaEnBloques(sis)[0].text === cerebro.sistemaEnBloques(otra)[0].text);
+    const b1 = cerebro.sistemaEnBloques(briefing.armar({ empresa: 'PAGASI 26', cliente: { nombre: 'ANA PÉREZ' }, creditos: [], hoy: '2026-10-21' })), b2 = cerebro.sistemaEnBloques(briefing.armar({ empresa: 'PAGASI 26', cliente: null, creditos: [], hoy: '2026-10-21', nombrePerfil: 'X' }));
+    ok('ahorro: en cobranza lo fijo es igual para todos los clientes y la ficha del cliente va aparte', b1[0].text === b2[0].text && /EL CLIENTE/.test(b1[1].text) && /EL CONTACTO/.test(b2[1].text));
+  }
   const t = cerebro.turnos([{ autor: 'asistente', texto: 'Hola' }, { autor: 'cliente', texto: 'cuánto debo' }, { autor: 'cliente', tipo: 'imagen' }, { autor: 'equipo', texto: 'Te ayudo yo' }]);
   ok('el historial se vuelve turnos user/assistant, empieza en user y termina en user', t[0].role === 'user' && t[t.length - 1].role === 'user' && t.some(x => /mandó una imagen/.test(x.content)) && t.some(x => /respuesta del equipo/.test(x.content)));
 

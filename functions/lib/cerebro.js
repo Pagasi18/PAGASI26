@@ -4,6 +4,19 @@
 'use strict';
 const MODELO = 'claude-sonnet-5-5';
 const URL = 'https://api.anthropic.com/v1/messages';
+// Ahorro (Adam, 21-oct-2026): "prompt caching". El manual de Paola/Patricia trae primero la parte FIJA (reglas,
+// catálogo, sedes, requisitos) y después MARCA + lo de esa conversación. La parte fija se manda marcada para que
+// Anthropic la guarde ~5 minutos y la cobre al 10% en las llamadas siguientes (de cualquier conversación).
+const MARCA = '⟦fin de la parte fija⟧', CORTE = '\n\n' + MARCA + '\n\n';
+function sistemaEnBloques(sistema) {
+  const s = String(sistema || ''), i = s.indexOf(CORTE);
+  const fijo = i >= 0 ? s.slice(0, i) : s, resto = i >= 0 ? s.slice(i + CORTE.length) : '';
+  const b = [{ type: 'text', text: fijo, cache_control: { type: 'ephemeral' } }];
+  if (resto.trim()) b.push({ type: 'text', text: resto });
+  return b;
+}
+// El historial también queda guardado: la próxima respuesta de la misma conversación lo relee al 10%
+function conCache(t) { const c = t.map(x => Object.assign({}, x)), u = c[c.length - 1]; if (u) u.content = [{ type: 'text', text: String(u.content), cache_control: { type: 'ephemeral' } }]; return c; }
 
 const HERRAMIENTA = {
   name: 'responder',
@@ -82,7 +95,7 @@ function leer(j) {
 }
 async function pensar({ apiKey, sistema, mensajes, fetchImpl }) {
   const f = fetchImpl || fetch;
-  const base = { model: MODELO, max_tokens: 1500, thinking: { type: 'disabled' }, system: sistema, tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: turnos(mensajes) };
+  const base = { model: MODELO, max_tokens: 1500, thinking: { type: 'disabled' }, system: sistemaEnBloques(sistema), tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: conCache(turnos(mensajes)) };
   let r = await llamar(f, apiKey, base);
   // Si esta version de la API no acepta apagar el razonamiento, se va sin ese parametro
   if (!r.ok && r.status === 400 && /thinking/i.test(String(r.j.error && r.j.error.message || ''))) { const sin = Object.assign({}, base); delete sin.thinking; r = await llamar(f, apiKey, sin); }
@@ -97,4 +110,4 @@ async function pensar({ apiKey, sistema, mensajes, fetchImpl }) {
   throw new Error('El modelo no devolvió respuesta');
 }
 
-module.exports = { pensar, validar, turnos, cedulaLimpia, HERRAMIENTA, MODELO };
+module.exports = { pensar, validar, turnos, cedulaLimpia, HERRAMIENTA, MODELO, MARCA, CORTE, sistemaEnBloques };
