@@ -178,7 +178,7 @@ PG.reportes = function(){
 
   // ══════════ HTML ══════════
   var tabs = [
-    {k:'dashfin', lbl:'Dashboard Finanzas', sub:'Cartera · principal e interés · mora'},
+    {k:'dashfin', lbl:'Dashboard Finanzas', sub:'Cartera · motos, interés, Protect · mora'},
     {k:'resumen', lbl:'Resumen', sub:'Estado general · KPIs'},
     {k:'metodologia', lbl:'Nueva metodología', sub:'12 % interés · Protect · IVA'},
     {k:'periodicos', lbl:'Reportes', sub:'Diario · Semanal · Quincenal · Mensual'},

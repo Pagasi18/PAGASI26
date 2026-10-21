@@ -274,6 +274,32 @@ function _abrirVentanaImpresion(titulo, htmlContenido, opts){
 // El filtro de fechas define el COHORTE: créditos originados en el
 // rango + cuotas cobradas en el rango. Los saldos son al día de hoy.
 // ══════════════════════════════════════════════════════════════
+
+// ── Lo que el cliente paga por encima de la moto, según su contrato ──
+// 21-oct-2026: "hasta el crédito C-498 todos los ingresos eran servicios / a
+// partir, empieza Pagasi Protect". En la PAGASI 18, hasta el CRED-498 lo que se
+// cobra por encima del principal es "otros servicios" (ese contrato no tenía
+// interés ni Protect). Desde el CRED-499 (7-sep-2026) rige el contrato con Pagasi
+// Protect, igual que en toda la PAGASI 26 (sus créditos son M-###, nunca entran
+// aquí). Solo se muestra y se imprime: no se guarda nada ni cambia ningún cálculo.
+var _DF_SERVICIOS_HASTA = 498;
+var _DF_IVA_PROTECT = 0.16;
+function _dfEsServicios(c){
+  var m = /^CRED-(\d+)$/.exec(String((c && c.id) || ''));
+  return !!m && parseInt(m[1],10) <= _DF_SERVICIOS_HASTA;
+}
+// motos y total son los que ya usa el dashboard (precio − inicial, total del plan).
+// El Protect y el interés salen de _protectFinanzas, la misma cuenta del contrato
+// v3: interés al 12 % anual y Protect = monto financiado − principal de la moto.
+// El IVA es el 16 % del Precio Protect, aparte, como dice la cláusula 3.18.
+function _dfDesglose(c, motos, total){
+  var r2 = function(x){ return Math.round(x*100)/100; };
+  if(_dfEsServicios(c)) return { tipo:'servicios', motos:motos, protect:0, interes:0, servicios:Math.max(0, total-motos), total:total, iva:0 };
+  var F = (typeof _protectFinanzas==='function') ? _protectFinanzas(c) : null;
+  if(!F || !(F.MTA > 0)) return { tipo:'protect', motos:motos, protect:0, interes:Math.max(0, total-motos), servicios:0, total:total, iva:0 };
+  return { tipo:'protect', motos:motos, protect:F.protect, interes:F.intereses, servicios:0, total:F.MTA, iva:r2(F.protect*_DF_IVA_PROTECT) };
+}
+
 function _dfDatos(){
   var desde = S.dfDesde||'', hasta = S.dfHasta||'';
   var enR = function(f){ f = String(f||'').slice(0,10); if(desde && f < desde) return false; if(hasta && f > hasta) return false; return true; };
@@ -289,12 +315,25 @@ function _dfDatos(){
   // proporcionalmente al plan de cada crédito (principal/total)
   var pagos = _concFiltrar(S.pagos||[]).filter(function(p){ return p && !p.eliminado && p.estado==='confirmado' && !p.esInicial && p.tipoOperacion!=='inicial_credito' && enR(p.fecha); });
   var credIdx = {}; (S.creds||[]).forEach(function(c){ if(c) credIdx[c.id]=c; });
-  var cuotasTot=0, cuotasPrin=0, cuotasInt=0;
+  var _desg = {};
+  var desglose = function(c){ return _desg[c.id] || (_desg[c.id] = _dfDesglose(c, principal(c), totalPI(c))); };
+  // Lo que no es principal se reparte según el contrato del crédito: interés y
+  // Protect en su misma proporción, o todo a otros servicios (hasta el CRED-498).
+  var partirResto = function(c, resto){
+    var D = c ? desglose(c) : null;
+    if(!D || D.tipo!=='protect') return { interes:0, protect:0, servicios:resto };
+    var w = D.interes + D.protect;
+    var ci = w>0 ? resto*D.interes/w : resto;
+    return { interes:ci, protect:resto-ci, servicios:0 };
+  };
+  var cuotasTot=0, cuotasPrin=0, cuotasInt=0, cuotasInteres=0, cuotasProtect=0, cuotasServicios=0;
   pagos.forEach(function(p){
     var m = parseFloat(p.monto)||0; cuotasTot += m;
     var c = credIdx[p.cred]; var ratio = 0;
     if(c){ var pr=principal(c), tt=totalPI(c); ratio = tt>0 ? pr/tt : 0; }
     cuotasPrin += m*ratio; cuotasInt += m*(1-ratio);
+    var pt = partirResto(c, m*(1-ratio));
+    cuotasInteres += pt.interes; cuotasProtect += pt.protect; cuotasServicios += pt.servicios;
   });
   // Iniciales cobradas en el rango
   var iniciales = _concFiltrar(S.pagos||[]).filter(function(p){ return p && !p.eliminado && p.estado==='confirmado' && (p.esInicial||p.tipoOperacion==='inicial_credito') && enR(p.fecha); });
@@ -314,14 +353,31 @@ function _dfDatos(){
   var cxcTot = sum(creds,saldo);
   var completados = creds.filter(function(c){ return c.estado==='completado'; }).length;
   var recuperados = creds.filter(function(c){ return c.estado==='recuperado'||c.estado==='recuperada'; }).length;
+  var finProtect = sum(creds,function(c){ return desglose(c).protect; });
+  var intReal = sum(creds,function(c){ return desglose(c).interes; });
+  var servPactado = sum(creds,function(c){ return desglose(c).servicios; });
   return {
     desde:desde, hasta:hasta, enR:enR, credIdx:credIdx,
     creds:creds, activos:activos, enMora:enMora, pagos:pagos,
     principal:principal, totalPI:totalPI, interes:interes, saldo:saldo,
+    desglose:desglose, partirResto:partirResto,
+    nProtect:creds.filter(function(c){ return desglose(c).tipo==='protect'; }).length,
+    nServicios:creds.filter(function(c){ return desglose(c).tipo==='servicios'; }).length,
+    hayServicios:(S.creds||[]).some(_dfEsServicios),
+    finProtect:finProtect, finMF:sum(creds,principal)+finProtect,
+    intReal:intReal, protectPactado:finProtect, servPactado:servPactado,
+    ingresosTot:intReal+finProtect+servPactado,
+    ivaProtect:sum(creds,function(c){ return desglose(c).iva; }),
+    cuotasInteres:cuotasInteres, cuotasProtect:cuotasProtect, cuotasServicios:cuotasServicios,
+    ivaCobrado:cuotasProtect*_DF_IVA_PROTECT,
     finTotal:sum(creds,principal), finActivos:sum(activos,principal),
     cxcTotal:cxcTot, cxcActivos:sum(activos,saldo),
     cxcPrin:sum(creds,saldoPrin), cxcInt:sum(creds,saldoInt),
     cxcActPrin:sum(activos,saldoPrin), cxcActInt:sum(activos,saldoInt),
+    cxcResto:(function(){ var r={interes:0,protect:0,servicios:0,actInteres:0,actProtect:0,actServicios:0};
+      creds.forEach(function(c){ var pt=partirResto(c, saldoInt(c)); r.interes+=pt.interes; r.protect+=pt.protect; r.servicios+=pt.servicios;
+        if(c.estado==='activo'||c.estado==='mora'){ r.actInteres+=pt.interes; r.actProtect+=pt.protect; r.actServicios+=pt.servicios; } });
+      return r; })(),
     intTotal:sum(creds,interes), totPI:totPI,
     pctRecuperado: totPI>0 ? ((totPI-cxcTot)/totPI*100) : 0,
     ticketProm: creds.length ? (sum(creds,principal)/creds.length) : 0,
@@ -340,6 +396,13 @@ function _dfDatos(){
 function _dfRangoPreset(key){
   var hoy = hoyLocalISO();
   if(key==='hoy') return { desde:hoy, hasta:hoy };
+  if(key==='semana'){
+    // De lunes a domingo de la semana de hoy
+    var lun = new Date(hoy+'T12:00:00');
+    lun.setDate(lun.getDate() - ((lun.getDay()+6)%7));
+    var dom = new Date(lun); dom.setDate(lun.getDate()+6);
+    return { desde:fechaLocalISO(lun), hasta:fechaLocalISO(dom) };
+  }
   if(key==='quincena'){ var r=_concRangoDe('quincena', hoy); return { desde:r.desde, hasta:r.hasta }; }
   if(key==='mes'){ var m=_concRangoDe('mes', hoy); return { desde:m.desde, hasta:m.hasta }; }
   if(key==='mes_pasado'){
@@ -360,7 +423,7 @@ function _renderDashFin(){
   var d = _dfDatos();
   var perLbl = (d.desde||d.hasta) ? ((d.desde||'inicio')+' → '+(d.hasta||'hoy')) : 'Todo el histórico';
   // Chips de preset (se marca el activo comparando el rango actual)
-  var presetChips = [['hoy','Hoy'],['quincena','Esta quincena'],['mes','Este mes'],['mes_pasado','Mes pasado'],['ano','Este año'],['todo','Todo']].map(function(p){
+  var presetChips = [['hoy','Hoy'],['semana','Esta semana'],['quincena','Esta quincena'],['mes','Este mes'],['mes_pasado','Mes pasado'],['ano','Este año'],['todo','Todo']].map(function(p){
     var r = _dfRangoPreset(p[0]);
     var on = (d.desde===r.desde && d.hasta===r.hasta);
     return '<button class="btn btn-sm '+(on?'btn-p':'btn-g')+'" onclick="dfPreset(\''+p[0]+'\')" style="font-size:11px;padding:5px 12px">'+p[1]+'</button>';
@@ -389,6 +452,11 @@ function _renderDashFin(){
       + '</div>';
   };
   var pct = function(v){ return (Math.round(v*10)/10).toFixed(1).replace('.0','')+'%'; };
+  var pendChips = function(prin, inte, prot, serv){
+    var ch = [['Principal pend.',fmt(prin),'var(--p1)'],['Interés pend.',fmt(inte),'var(--amber)'],['Protect pend.',fmt(prot),'var(--p1)']];
+    if(d.hayServicios) ch.push(['Otros servicios pend.',fmt(serv),'var(--amber)']);
+    return ch;
+  };
   var maxAging = Math.max(1, Math.max.apply(null, d.aging.map(function(b){ return b.saldo; })));
   return ''
     // ══ Barra de filtro global ══
@@ -417,25 +485,50 @@ function _renderDashFin(){
     + card({lbl:'Créditos originados', valor:String(d.nOrig), color:'var(--ink)', rep:'orig',
         chips:[['Activos',String(d.nOrigAct),'var(--green)'],['Completados',String(d.nCompletados)],['Recuperados',String(d.nRecuperados),'var(--red)']],
         desc:'Cantidad de créditos otorgados en el período (los cancelados no cuentan: esa venta se anuló). Es tu volumen de colocación.'})
-    + card({lbl:'Total financiado — principal', valor:fmt(d.finTotal), color:'var(--p1)', rep:'fin_total',
+    + card({lbl:'Total financiado principal (motos)', valor:fmt(d.finTotal), color:'var(--p1)', rep:'fin_total',
         chips:[['Ticket promedio',fmt(d.ticketProm)]],
-        desc:'Capital que pusiste en la calle: precio de venta menos la inicial de cada crédito. Es el dinero tuyo que está trabajando.'})
-    + card({lbl:'Interés pactado', valor:fmt(d.intTotal), color:'var(--amber)', rep:'orig',
-        chips:[['Total a cobrar (P+I)',fmt(d.totPI)]],
-        desc:'La ganancia acordada en los planes: lo que el cliente pagará por encima del principal. Principal + interés = todo lo que entra si pagan completo.'})
+        desc:'Capital que pusiste en la calle por las motos: precio de venta menos la inicial de cada crédito. Es el dinero tuyo que está trabajando.'})
+    + card({lbl:'Total financiado principal (Pagasi Protect solo)', valor:fmt(d.finProtect), color:'var(--p1)', rep:'fin_protect',
+        chips:[['Créditos con Protect',String(d.nProtect)]],
+        desc:'El Precio Pagasi Protect que se financia junto con la moto, según el contrato de cada crédito.'+(d.hayServicios?' Los créditos hasta el CRED-498 no tienen Protect.':'')})
+    + card({lbl:'Total financiado principal (Pagasi Protect + motos)', valor:fmt(d.finMF), color:'var(--p1)', rep:'fin_mf',
+        chips:[['Motos',fmt(d.finTotal)],['Protect',fmt(d.finProtect)]],
+        desc:'Las dos cosas juntas: el principal de las motos más el Pagasi Protect. Es el Monto Financiado de los contratos.'})
     + card({lbl:'Financiado — solo activos', valor:fmt(d.finActivos), color:'var(--p1)', rep:'fin_act',
         chips:[['Créditos activos',String(d.nOrigAct),'var(--green)'],['Cuota prom.',fmt(d.cuotaProm)]],
         desc:'El principal de los créditos que siguen vigentes (activos + en mora). Es tu exposición actual de capital.'})
     + '</div>'
 
+    // ══ SECCIÓN 1b: INGRESOS PACTADOS (según el contrato de cada crédito) ══
+    + secTitle('Ingresos pactados','Lo que ganas si los créditos del período se pagan completos — según el contrato de cada uno')
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">'
+    + card({lbl:'Interés pactado — monto real del contrato', valor:fmt(d.intReal), color:'var(--amber)', rep:'ingresos',
+        chips:[['Créditos con Protect',String(d.nProtect)]],
+        desc:'Los Intereses Financieros del contrato: 12% anual sobre el monto financiado (moto + Protect).'+(d.hayServicios?' Los créditos hasta el CRED-498 no tienen interés: lo suyo es otros servicios.':'')})
+    + card({lbl:'Pagasi Protect pactado', valor:fmt(d.protectPactado), color:'var(--p1)', rep:'ingresos',
+        chips:[['IVA aparte (16%)',fmt(d.ivaProtect)]],
+        desc:'El Precio Pagasi Protect de los contratos: lo que la cuota cobra por encima de la moto y del interés.'})
+    + card({lbl:'Ingreso por otros servicios', valor:fmt(d.servPactado), color:'var(--amber)', rep:'ingresos',
+        chips:[['Créditos',String(d.nServicios)]],
+        desc:d.hayServicios
+          ? 'Créditos hasta el CRED-498: todo lo que el cliente paga por encima del principal de la moto es servicio (ese contrato no tenía interés ni Pagasi Protect).'
+          : 'En esta compañía todos los créditos son con Pagasi Protect, así que no hay otros servicios.'})
+    + card({lbl:'Ingresos totales — Pagasi Protect + intereses + otros servicios', valor:fmt(d.ingresosTot), color:'var(--green)', rep:'ingresos',
+        chips:[['Protect',fmt(d.protectPactado)],['Intereses',fmt(d.intReal)],['Otros servicios',fmt(d.servPactado)]],
+        desc:'Todo lo que ganas por encima del principal de las motos. No incluye el IVA, que es del SENIAT.'})
+    + card({lbl:'IVA — 16% de Pagasi Protect', valor:fmt(d.ivaProtect), color:'var(--red)', rep:'ingresos',
+        chips:[['Del Protect cobrado en el período',fmt(d.ivaCobrado),'var(--red)']],
+        desc:'El 16% del Precio Pagasi Protect. Según la cláusula 3.18 del contrato el IVA va aparte de las cuotas, y no es ingreso de Pagasi: se le debe al SENIAT.'})
+    + '</div>'
+
     // ══ SECCIÓN 2: CUENTAS POR COBRAR ══
     + secTitle('Cuentas por cobrar','Lo que te deben hoy — saldo pendiente al día')
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">'
-    + card({lbl:'CxC total — principal + interés', valor:fmt(d.cxcTotal), color:'var(--amber)', rep:'cxc_total',
-        chips:[['Principal pend.',fmt(d.cxcPrin),'var(--p1)'],['Interés pend.',fmt(d.cxcInt),'var(--amber)']],
-        desc:'Todo lo que falta por cobrar del cohorte (cuotas restantes de cada crédito, según el motor de amortización). Dividido en capital e interés pendiente.'})
-    + card({lbl:'CxC solo activos — P+I', valor:fmt(d.cxcActivos), color:'var(--amber)', rep:'cxc_act',
-        chips:[['Principal pend.',fmt(d.cxcActPrin),'var(--p1)'],['Interés pend.',fmt(d.cxcActInt),'var(--amber)']],
+    + card({lbl:'CxC total — todo lo pendiente', valor:fmt(d.cxcTotal), color:'var(--amber)', rep:'cxc_total',
+        chips:pendChips(d.cxcPrin, d.cxcResto.interes, d.cxcResto.protect, d.cxcResto.servicios),
+        desc:'Todo lo que falta por cobrar del cohorte (cuotas restantes de cada crédito, según el motor de amortización). Dividido en principal de la moto, interés, Pagasi Protect'+(d.hayServicios?' y otros servicios':'')+' pendientes.'})
+    + card({lbl:'CxC solo activos — todo lo pendiente', valor:fmt(d.cxcActivos), color:'var(--amber)', rep:'cxc_act',
+        chips:pendChips(d.cxcActPrin, d.cxcResto.actInteres, d.cxcResto.actProtect, d.cxcResto.actServicios),
         desc:'Lo pendiente solo de créditos vigentes (activos + mora). Es tu cartera cobrable real — la que gestiona cobranza cada quincena.'})
     + card({lbl:'Recuperación del cohorte', valor:pct(d.pctRecuperado), color:'var(--green)', rep:'orig',
         chips:[['Cobrado (P+I)',fmt(d.totPI-d.cxcTotal),'var(--green)'],['Falta',fmt(d.cxcTotal),'var(--amber)']],
@@ -448,12 +541,20 @@ function _renderDashFin(){
     + card({lbl:'Cuotas cobradas — total', valor:fmt(d.cuotasTot), color:'var(--green)', rep:'cuotas',
         chips:[['Pagos',String(d.pagos.length)]],
         desc:'Suma de todas las cuotas confirmadas en el rango (no incluye iniciales). Es tu flujo de cobranza del período.'})
-    + card({lbl:'Cuotas — porción principal', valor:fmt(d.cuotasPrin), color:'var(--p1)', rep:'cuotas',
+    + card({lbl:'Cuotas cobradas — porción principal (motos)', valor:fmt(d.cuotasPrin), color:'var(--p1)', rep:'cuotas',
         chips:[['% del cobro',pct(d.cuotasTot>0?d.cuotasPrin/d.cuotasTot*100:0)]],
-        desc:'La parte de cada cuota que devuelve tu capital. Se calcula proporcional al plan de cada crédito (principal ÷ total).'})
-    + card({lbl:'Cuotas — porción interés', valor:fmt(d.cuotasInt), color:'var(--amber)', rep:'cuotas',
-        chips:[['% del cobro',pct(d.cuotasTot>0?d.cuotasInt/d.cuotasTot*100:0)]],
-        desc:'La parte de cada cuota que es ganancia (interés). Este es el ingreso financiero real del período.'})
+        desc:'La parte de cada cuota que devuelve tu capital de la moto. Se calcula proporcional al plan de cada crédito (principal ÷ total).'})
+    + card({lbl:'Cuotas cobradas — porción solo interés', valor:fmt(d.cuotasInteres), color:'var(--amber)', rep:'cuotas',
+        chips:[['% del cobro',pct(d.cuotasTot>0?d.cuotasInteres/d.cuotasTot*100:0)]],
+        desc:'El monto real de interés que entró: la parte de cada cuota que corresponde a los Intereses Financieros de su contrato.'})
+    + card({lbl:'Cuotas cobradas — porción Pagasi Protect', valor:fmt(d.cuotasProtect), color:'var(--p1)', rep:'cuotas',
+        chips:[['% del cobro',pct(d.cuotasTot>0?d.cuotasProtect/d.cuotasTot*100:0)],['IVA 16%',fmt(d.ivaCobrado),'var(--red)']],
+        desc:'La parte de cada cuota que paga el Pagasi Protect de su contrato. El IVA (16%) va aparte.'})
+    + card({lbl:'Cuotas cobradas — porción otros servicios', valor:fmt(d.cuotasServicios), color:'var(--amber)', rep:'cuotas',
+        chips:[['% del cobro',pct(d.cuotasTot>0?d.cuotasServicios/d.cuotasTot*100:0)]],
+        desc:d.hayServicios
+          ? 'Lo que entró por encima del principal en los créditos hasta el CRED-498, que eran solo servicios.'
+          : 'En esta compañía todos los créditos son con Pagasi Protect, así que aquí no entra nada.'})
     + card({lbl:'Iniciales cobradas', valor:fmt(d.inicialesTot), color:'var(--green)', rep:'orig',
         chips:[['Iniciales',String(d.nIniciales)]],
         desc:'Cuotas iniciales recibidas en el rango. No son financiamiento: son el pago de entrada de cada moto.'})
@@ -489,7 +590,7 @@ function _renderDashFin(){
     + '</div>'
 
     // ══ Nota metodológica ══
-    + '<div style="font-size:11px;color:var(--ink3);background:var(--gs);border:1px solid var(--rim2);border-radius:10px;padding:11px 14px;line-height:1.6;margin-top:16px"><b style="color:var(--ink2)">Cómo se calcula:</b> Principal = precio de venta − inicial · Interés = total a pagar − principal · CxC = cuotas restantes según el motor de amortización (respeta pagos parciales y días de gracia) · La división principal/interés de cada cuota cobrada es proporcional al plan de su crédito · Los créditos cancelados quedan fuera del cohorte.</div>';
+    + '<div style="font-size:11px;color:var(--ink3);background:var(--gs);border:1px solid var(--rim2);border-radius:10px;padding:11px 14px;line-height:1.6;margin-top:16px"><b style="color:var(--ink2)">Cómo se calcula:</b> Principal (motos) = precio de venta − inicial · Pagasi Protect e interés salen del contrato de cada crédito: interés al 12% anual sobre el monto financiado, y Protect = monto financiado − principal de la moto · IVA = 16% del Pagasi Protect, aparte (cláusula 3.18)'+(d.hayServicios?' · Hasta el CRED-498 todo lo que se paga por encima del principal es otros servicios':'')+' · CxC = cuotas restantes según el motor de amortización (respeta pagos parciales y días de gracia) · La división de cada cuota cobrada es proporcional al plan de su crédito · Los créditos cancelados quedan fuera del cohorte.</div>';
 }
 
 // ── Reporte detallado por indicador (PDF con membrete Pagasi) ──
@@ -551,11 +652,14 @@ function dfReporte(key, formato){
   var d = _dfDatos();
   var perLbl = (d.desde||d.hasta) ? ((d.desde||'inicio')+' → '+(d.hasta||'hoy')) : 'Todo el histórico';
   var titulos = {
-    fin_total:'Total financiado (principal)', cxc_total:'Cuentas por cobrar (principal + interés)',
-    fin_act:'Total financiado — solo créditos activos', cxc_act:'Cuentas por cobrar — solo activos (P+I)',
+    fin_total:'Total financiado principal (motos)', cxc_total:'Cuentas por cobrar — todo lo pendiente',
+    fin_protect:'Total financiado principal (Pagasi Protect solo)', fin_mf:'Total financiado principal (Pagasi Protect + motos)',
+    fin_act:'Total financiado — solo créditos activos', cxc_act:'Cuentas por cobrar — solo activos',
     orig:'Créditos originados', orig_act:'Créditos originados activos',
-    cuotas:'Cuotas cobradas (total, principal, interés)', mora:'Mora — créditos, balance e intereses'
+    ingresos:'Ingresos pactados — interés, Pagasi Protect, otros servicios e IVA',
+    cuotas:'Cuotas cobradas (total, principal, interés, Pagasi Protect y otros servicios)', mora:'Mora — créditos, balance e intereses'
   };
+  var horizontal = false;
   var titulo = titulos[key]||'Reporte';
   var cobradoDe = function(credId){
     return (S.pagos||[]).filter(function(p){ return p && !p.eliminado && p.estado==='confirmado' && !p.esInicial && p.tipoOperacion!=='inicial_credito' && p.cred===credId; })
@@ -565,20 +669,22 @@ function dfReporte(key, formato){
   // sección = { titulo, headers:[...], rows:[[...]], total:[...], nums:[índices de columnas numéricas] }
   var secciones = [];
   if(key==='cuotas'){
-    var tot=0, tp=0, ti=0, rows=[];
+    var tot=0, tp=0, ti=0, tpr=0, tsv=0, tiva=0, rows=[];
     d.pagos.slice().sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); }).forEach(function(p){
       var m=parseFloat(p.monto)||0; var c=d.credIdx[p.cred]; var ratio=0;
       if(c){ var pr=d.principal(c), tt=d.totalPI(c); ratio=tt>0?pr/tt:0; }
-      var mp=m*ratio, mi=m*(1-ratio); tot+=m; tp+=mp; ti+=mi;
+      var mp=m*ratio, pt=d.partirResto(c, m*(1-ratio)), iva=pt.protect*_DF_IVA_PROTECT;
+      tot+=m; tp+=mp; ti+=pt.interes; tpr+=pt.protect; tsv+=pt.servicios; tiva+=iva;
       // "Recibido en": como se cobro la cuota (Adam, 11-sep-2026). "N° Referencia":
       // el numero de la transferencia o comprobante (Adam, 14-sep-2026). Mismos datos
       // y mismos nombres que el formulario de pago. La referencia va como TEXTO para
       // que no se pierdan los ceros a la izquierda.
-      rows.push([p.fecha||'', p.id, p.cred||'', p.cli||'', p.metodo||p.cuenta||'—', String(p.referencia||'').trim()||'—', m, mp, mi]);
+      rows.push([p.fecha||'', p.id, p.cred||'', p.cli||'', p.metodo||p.cuenta||'—', String(p.referencia||'').trim()||'—', m, mp, pt.interes, pt.protect, pt.servicios, iva]);
     });
     secciones.push({ titulo:'Detalle de cuotas cobradas ('+d.pagos.length+')',
-      headers:['Fecha','Pago','Crédito','Cliente','Recibido en','N° Referencia','Monto','Principal','Interés'],
-      rows:rows, nums:[6,7,8], total:['TOTAL','','','','','',tot,tp,ti] });
+      headers:['Fecha','Pago','Crédito','Cliente','Recibido en','N° Referencia','Monto','Principal (moto)','Interés','Pagasi Protect','Otros servicios','IVA 16% Protect (aparte)'],
+      rows:rows, nums:[6,7,8,9,10,11], total:['TOTAL','','','','','',tot,tp,ti,tpr,tsv,tiva] });
+    horizontal = true;
   } else if(key==='mora'){
     secciones.push({ titulo:'Resumen', headers:['Créditos en mora','Balance en mora (P+I)','Intereses por mora'],
       rows:[[d.nMora, d.moraBalance, d.moraInt]], nums:[1,2] });
@@ -635,15 +741,30 @@ function dfReporte(key, formato){
     }
   } else {
     var lista = (key==='fin_act'||key==='cxc_act'||key==='orig_act') ? d.activos : d.creds;
-    var tf=0, tint=0, tpi=0, tcob=0, tsal=0, rowsC=[];
+    if(key==='fin_protect') lista = lista.filter(function(c){ return d.desglose(c).tipo==='protect'; });
+    var conIva = (key==='ingresos'||key==='fin_protect');
+    if(key==='ingresos'){
+      secciones.push({ titulo:'Resumen',
+        headers:['Interés pactado (monto real del contrato)','Pagasi Protect pactado','Ingreso por otros servicios','Ingresos totales (Protect + intereses + otros servicios)','IVA 16% de Pagasi Protect (aparte)'],
+        rows:[[d.intReal, d.protectPactado, d.servPactado, d.ingresosTot, d.ivaProtect]], nums:[0,1,2,3,4] });
+    }
+    // Cada crédito con las partes de su contrato (Servicios hasta el CRED-498 en
+    // la PAGASI 18; Pagasi Protect desde el CRED-499 y en toda la PAGASI 26).
+    var cols = ['f','pr','mf','it','sv'].concat(conIva?['iva']:[]).concat(['tt','cob','sal']);
+    var T = {}; cols.forEach(function(k){ T[k]=0; });
+    var rowsC=[];
     lista.slice().sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); }).forEach(function(c){
-      var f=d.principal(c), inte=d.interes(c), tt=d.totalPI(c), cob=cobradoDe(c.id), sal=d.saldo(c);
-      tf+=f; tint+=inte; tpi+=tt; tcob+=cob; tsal+=sal;
-      rowsC.push([c.id, c.fecha||'', c.cli||'', c.estado||'', f, inte, tt, cob, sal]);
+      var D=d.desglose(c), f=d.principal(c);
+      var v = { f:f, pr:D.protect, mf:f+D.protect, it:D.interes, sv:D.servicios, iva:D.iva, tt:d.totalPI(c), cob:cobradoDe(c.id), sal:d.saldo(c) };
+      cols.forEach(function(k){ T[k]+=v[k]; });
+      rowsC.push([c.id, c.fecha||'', c.cli||'', c.estado||'', D.tipo==='protect'?'Pagasi Protect':'Servicios'].concat(cols.map(function(k){ return v[k]; })));
     });
+    var hdr = { f:'Principal (moto)', pr:'Pagasi Protect', mf:'Moto + Protect', it:'Interés', sv:'Otros servicios', iva:'IVA 16% Protect', tt:'Total a pagar', cob:'Cobrado', sal:'Saldo' };
     secciones.push({ titulo:'Detalle de créditos ('+lista.length+')',
-      headers:['Crédito','Fecha','Cliente','Estado','Principal','Interés','Total (P+I)','Cobrado','Saldo'],
-      rows:rowsC, nums:[4,5,6,7,8], total:['TOTAL','','','',tf,tint,tpi,tcob,tsal] });
+      headers:['Crédito','Fecha','Cliente','Estado','Contrato'].concat(cols.map(function(k){ return hdr[k]; })),
+      rows:rowsC, nums:cols.map(function(k,i){ return 5+i; }),
+      total:['TOTAL','','','',''].concat(cols.map(function(k){ return T[k]; })) });
+    horizontal = true;
   }
 
   // ── Excel (.xlsx real) ──
@@ -684,7 +805,7 @@ function dfReporte(key, formato){
     }
     html += '</table>';
   });
-  _abrirVentanaImpresion(titulo, html);
+  _abrirVentanaImpresion(titulo, html, {horizontal:horizontal});
 }
 
 function descargarAmortPDF(){
