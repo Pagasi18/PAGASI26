@@ -77,6 +77,16 @@ var _RS_CSS = '<style id="rs-css">'
   + '.rs-qs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}@media(max-width:560px){.rs-qs{grid-template-columns:1fr}}.rs-q{border:1px solid var(--rim2);border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:3px}.rs-q input{display:none}.rs-q b{font-size:13.5px}.rs-q span{font-size:12.5px}.rs-q small{font-size:11px;color:var(--ink3);line-height:1.4}.rs-q.on{border:2px solid var(--ink);padding:9px 11px}'
   + '.rs-v textarea{width:100%;min-height:110px}.rs-cx{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12.5px}@media(max-width:560px){.rs-cx{grid-template-columns:1fr}}.rs-cx span{display:flex;gap:6px;align-items:center;color:#c81e1e}.rs-cx span.ok{color:#0f7a3e}.rs-cx svg{width:14px;height:14px;flex:none}'
   + '.rs-v .aviso{font-size:12px;background:#fff4e0;color:#7a4d00;border:1px solid #f3d9a4;border-radius:8px;padding:8px 10px;margin-top:6px;line-height:1.5}'
+  // Métricas: colores de los canales validados (dataviz, 22-oct): Instagram #c13584 / #d4479a (oscuro), WhatsApp #1baf7a
+  + '.rs-met{--s-ig:#c13584;--s-wa:#1baf7a}[data-theme="dark"] .rs-met{--s-ig:#d4479a}'
+  + '.rs-met .per{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}.rs-met .per button{border:0;background:var(--lift);border-radius:6px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer}.rs-met .per button.on{background:rgba(8,102,255,.09);color:#0866ff}'
+  + '.rs-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}.rs-kpi{background:var(--surf);border:1px solid var(--rim2);border-radius:10px;padding:14px 16px}.rs-kpi .l{font-size:12px;color:var(--ink2);font-weight:600}.rs-kpi .v{font-size:28px;font-weight:800;letter-spacing:-.5px;margin:4px 0 2px;font-variant-numeric:tabular-nums}.rs-kpi .d{font-size:12px;color:var(--ink3);line-height:1.45}'
+  + '.rs-met .bloque{background:var(--surf);border:1px solid var(--rim2);border-radius:10px;padding:16px 18px;margin-bottom:14px}.rs-met .bloque h3{font-size:15px;font-weight:800;margin:0 0 2px}.rs-met .bloque .sv{font-size:12px;color:var(--ink3);margin-bottom:10px}'
+  + '.rs-ley{display:flex;gap:14px;font-size:12px;color:var(--ink2);margin-bottom:6px}.rs-ley i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}'
+  + '.rs-graf{position:relative}.rs-graf svg{width:100%;height:auto;display:block}.rs-graf .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surf);font-size:12px;border-radius:6px;padding:6px 9px;white-space:nowrap;transform:translate(-50%,-100%);display:none;line-height:1.5;z-index:2}'
+  + '.rs-met table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}.rs-met td,.rs-met th{padding:5px 8px;border-bottom:1px solid var(--rim2);text-align:right}.rs-met td:first-child,.rs-met th:first-child{text-align:left}.rs-met details summary{cursor:pointer;font-size:12.5px;color:#0866ff;font-weight:600;margin-top:8px}'
+  + '.rs-posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}.rs-post{border:1px solid var(--rim2);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:var(--surf)}.rs-post .img{aspect-ratio:1/1;background:var(--lift) center/cover no-repeat}.rs-post .c{padding:9px 10px;display:flex;flex-direction:column;gap:4px;flex:1}.rs-post .n{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}.rs-post .t{font-size:11.5px;color:var(--ink2);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.rs-post .f{font-size:11px;color:var(--ink3)}.rs-post a{font-size:12px;color:#0866ff;font-weight:600;text-decoration:none;margin-top:auto}'
+  + '.rs-falta li{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0;line-height:1.45}.rs-falta svg{width:15px;height:15px;color:#c81e1e;flex:none;margin-top:2px}.rs-falta ul{list-style:none;padding:0;margin:6px 0 0}'
   + '.rs-com .estado{margin-top:4px}'
   + '</style>';
 
@@ -261,6 +271,93 @@ function rsGuardarAsistente(area){
   }).catch(function(e){ if(typeof toast === 'function') toast('No se pudo guardar: ' + (e && e.message || e), 'error'); return false; });
 }
 
+// ── Métricas (Adam, 22-oct-2026: "¿puedes poner las métricas de los post, ads, etc.?") ──
+// Lo que se puede hoy: Instagram (seguidores, publicaciones con sus "me gusta" y comentarios, que
+// guarda cada 2 horas el servidor en config/redesMetricas) y lo que hace Paola (personas que
+// escriben, quién quiere comprar, comentarios contestados), que sale de las conversaciones. El
+// alcance, las vistas y los anuncios necesitan permisos de Meta que la app todavía no tiene.
+window._rsMetDias = window._rsMetDias || 7;
+function rsMetDias(n){ window._rsMetDias = n; var e = document.getElementById('rs-met'); if(e) e.innerHTML = _rsMetricasHtml(); }
+function rsCargarMetricas(){
+  var listo = function(){ var e = document.getElementById('rs-met'); if(e && S.page === 'redes' && window._rsVista === 'metricas') e.innerHTML = _rsMetricasHtml(); };
+  if(typeof db === 'undefined' || !db){ listo(); return; }
+  db.collection('config').doc('redesMetricas').get().then(function(d){ window._rsMet = d.exists ? d.data() : null; listo(); }).catch(function(){ listo(); });
+  // Las conversaciones de los últimos días de cada canal que este usuario ve (la bandeja trae solo las 200 más recientes)
+  var canales = [];
+  if(_rsVe('instagram') && waConectadoCanal('instagram')) canales.push('instagram');
+  if(_rsVe('whatsapp') && waConectado()) canales.push('whatsapp');
+  if(!canales.length) return;
+  Promise.all(canales.map(function(c){ return db.collection('conversaciones').where('canal', '==', c).orderBy('actualizado', 'desc').limit(1000).get().then(function(s){ return s.docs.map(function(x){ return Object.assign({ id: x.id }, x.data()); }); }).catch(function(){ return []; }); }))
+    .then(function(r){ window._rsMetConvs = [].concat.apply([], r); listo(); });
+}
+function _rsDiaLocal(iso){ var d = new Date(iso); return isNaN(d) ? '' : _waFechaLocal(d); }
+function _rsMetricasHtml(){
+  var dias = window._rsMetDias || 7, hoy = new Date(), desdeD = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - (dias - 1));
+  var desde = _waFechaLocal(desdeD), lista = [];
+  for(var i = 0; i < dias; i++){ var x = new Date(desdeD); x.setDate(desdeD.getDate() + i); lista.push(_waFechaLocal(x)); }
+  var convs = (window._rsMetConvs && window._rsMetConvs.length ? window._rsMetConvs : (window._waConvs || []));
+  var nuevas = convs.filter(function(c){ return _rsDiaLocal(c.creado || c.ultimoMensajeHora) >= desde; });
+  var esIg = function(c){ return c.canal === 'instagram'; };
+  var nIg = nuevas.filter(esIg).length, nWaV = nuevas.filter(function(c){ return !esIg(c) && !_waEsCobranza(c); }).length, nWaC = nuevas.filter(_waEsCobranza).length;
+  var leads = nuevas.filter(function(c){ return c.borrador && c.borrador.tipo === 'lead'; }).length;
+  var ventasN = nIg + nWaV;
+  var coms = (window._waComs || []).filter(function(c){ return _rsDiaLocal(c.hora) >= desde; });
+  var cAd = coms.filter(function(c){ return c.tipoMedia === 'AD'; }).length, cResp = coms.filter(function(c){ return c.estado === 'respondido'; }).length;
+  var met = window._rsMet || {}, ig = met.instagram || null, sd = met.seguidoresDias || {};
+  var fechasSeg = Object.keys(sd).sort(), base = fechasSeg.filter(function(f){ return f <= desde; }).pop() || fechasSeg[0];
+  var crec = ig && base && sd[base] != null ? ig.seguidores - sd[base] : null;
+  var pct = function(a, b){ return b ? Math.round(a / b * 100) + '%' : '—'; };
+  var kpi = function(l, v, d){ return '<div class="rs-kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="d">' + d + '</div></div>'; };
+  var h = '<div class="per">' + [[7, 'Últimos 7 días'], [30, 'Últimos 30 días']].map(function(p){ return '<button class="' + (dias === p[0] ? 'on' : '') + '" onclick="rsMetDias(' + p[0] + ')">' + p[1] + '</button>'; }).join('') + '</div>'
+    + '<div class="rs-kpis">'
+    + kpi('Seguidores en Instagram', ig ? ig.seguidores.toLocaleString('es-VE') : '—', ig ? (crec != null && base < _waFechaLocal(hoy) ? (crec >= 0 ? '+' : '') + crec + ' desde el ' + _waFechaCorta(base) : 'Se empezó a guardar el ' + _waFechaCorta(fechasSeg[0] || _waFechaLocal(hoy)) + ': desde ahí se ve cuánto crece') + ' · ' + ig.publicaciones + ' publicaciones' : 'Todavía no hay datos de Instagram')
+    + kpi('Personas que escribieron', String(ventasN + nWaC), 'Instagram ' + nIg + ' · WhatsApp ventas ' + nWaV + ' · cobranza ' + nWaC)
+    + kpi('Quieren comprar', String(leads), pct(leads, ventasN) + ' de las ' + ventasN + ' conversaciones de ventas')
+    + kpi('Comentarios en Instagram', String(coms.length), 'En anuncios ' + cAd + ' · en publicaciones ' + (coms.length - cAd) + ' · Paola contestó ' + pct(cResp, coms.length))
+    + '</div>';
+  // Gráfico: personas que escribieron por día, Instagram y WhatsApp apilados
+  var porDia = lista.map(function(f){ var d = nuevas.filter(function(c){ return _rsDiaLocal(c.creado || c.ultimoMensajeHora) === f; }); return { f: f, ig: d.filter(esIg).length, wa: d.filter(function(c){ return !esIg(c); }).length }; });
+  h += '<div class="bloque"><h3>Personas que escribieron por día</h3><div class="sv">Conversaciones nuevas en Instagram y WhatsApp (ventas y cobranza).</div>'
+    + '<div class="rs-ley"><span><i style="background:var(--s-ig)"></i>Instagram</span><span><i style="background:var(--s-wa)"></i>WhatsApp</span></div>'
+    + _rsGrafico(porDia)
+    + '<details><summary>Ver como tabla</summary><table><tr><th>Día</th><th>Instagram</th><th>WhatsApp</th><th>Total</th></tr>' + porDia.slice().reverse().map(function(d){ return '<tr><td>' + _waFechaCorta(d.f) + '</td><td>' + d.ig + '</td><td>' + d.wa + '</td><td>' + (d.ig + d.wa) + '</td></tr>'; }).join('') + '</table></details></div>';
+  // Las publicaciones de Instagram
+  h += '<div class="bloque"><h3>Publicaciones de Instagram</h3><div class="sv">' + (ig ? 'Las últimas ' + ig.posts.length + ', con sus "me gusta" y comentarios' + (met.actualizado ? ' · actualizado ' + _waHora(met.actualizado) : '') : 'El servidor las trae cada 2 horas.') + '</div>'
+    + (ig && ig.posts.length ? '<div class="rs-posts">' + ig.posts.map(function(p){ return '<div class="rs-post"><div class="img"' + (p.imagen ? ' style="background-image:url(\'' + _waEsc(p.imagen) + '\')"' : '') + '></div><div class="c"><div class="n">♥ ' + p.meGusta + ' &nbsp; 💬 ' + p.comentarios + '</div><div class="t">' + _waEsc(p.texto || '(sin texto)') + '</div><div class="f">' + _waFechaCorta(_rsDiaLocal(p.fecha)) + (p.producto === 'REELS' ? ' · reel' : p.tipo === 'CAROUSEL_ALBUM' ? ' · carrusel' : '') + '</div>' + (p.enlace ? '<a href="' + _waEsc(p.enlace) + '" target="_blank" rel="noopener">Ver en Instagram</a>' : '') + '</div></div>'; }).join('') + '</div>' : '<div class="cs">Sin publicaciones para mostrar todavía.</div>')
+    + '</div>';
+  // Lo que falta
+  h += '<div class="bloque rs-falta"><h3>Para ver también el alcance y los anuncios</h3><div class="sv">Meta no deja leer estas cifras con los permisos que tiene hoy la app de Pagasi. Se activan cuando se genere de nuevo el token del usuario del sistema con estos permisos (en el Business Manager de Meta).</div><ul>'
+    + '<li>' + _RS_NO + '<span><b>Alcance, vistas y guardados</b> de cada publicación y de la cuenta · permiso <code>instagram_manage_insights</code></span></li>'
+    + '<li>' + _RS_NO + '<span><b>Anuncios:</b> cuánto se gastó, a cuánta gente llegó, cuántos mensajes trajo y el costo por mensaje · permiso <code>ads_read</code> y acceso a la cuenta de anuncios</span></li>'
+    + '<li>' + _RS_NO + '<span><b>Página de Facebook:</b> alcance y publicaciones · permiso <code>read_insights</code></span></li></ul></div>';
+  return h;
+}
+// Barras apiladas por día (Instagram abajo, WhatsApp arriba), con su número al pasar el ratón
+function _rsGrafico(porDia){
+  var W = 720, H = 200, iz = 30, ab = 22, ar = 8, n = porDia.length, max = Math.max(1, Math.max.apply(null, porDia.map(function(d){ return d.ig + d.wa; })));
+  var paso = max <= 5 ? 1 : max <= 10 ? 2 : max <= 25 ? 5 : max <= 50 ? 10 : Math.ceil(max / 5 / 10) * 10, tope = Math.ceil(max / paso) * paso;
+  var y = function(v){ return ar + (H - ar - ab) * (1 - v / tope); }, ancho = (W - iz) / n, bw = Math.max(4, Math.min(28, ancho * 0.62));
+  var g = '';
+  for(var t = 0; t <= tope; t += paso) g += '<line x1="' + iz + '" x2="' + W + '" y1="' + y(t) + '" y2="' + y(t) + '" stroke="var(--rim2)" stroke-width="1"/><text x="' + (iz - 6) + '" y="' + (y(t) + 4) + '" text-anchor="end" font-size="11" fill="var(--ink3)">' + t + '</text>';
+  var cada = n <= 7 ? 1 : Math.ceil(n / 8);
+  porDia.forEach(function(d, i){
+    var cx = iz + ancho * i + ancho / 2, x = cx - bw / 2, yIg = y(d.ig), yTot = y(d.ig + d.wa), r = 4;
+    // Instagram abajo; si hay WhatsApp encima, 2 px de separación
+    if(d.ig) g += '<rect x="' + x + '" y="' + yIg + '" width="' + bw + '" height="' + (y(0) - yIg) + '" rx="' + (d.wa ? 0 : r) + '" fill="var(--s-ig)"/>' + (d.wa ? '' : '<rect x="' + x + '" y="' + (yIg + r) + '" width="' + bw + '" height="' + Math.max(0, y(0) - yIg - r) + '" fill="var(--s-ig)"/>');
+    if(d.wa) g += '<rect x="' + x + '" y="' + yTot + '" width="' + bw + '" height="' + Math.max(0, yIg - yTot - (d.ig ? 2 : 0)) + '" rx="' + r + '" fill="var(--s-wa)"/><rect x="' + x + '" y="' + (yTot + r) + '" width="' + bw + '" height="' + Math.max(0, yIg - yTot - r - (d.ig ? 2 : 0)) + '" fill="var(--s-wa)"/>';
+    if(i % cada === 0 || i === n - 1) g += '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="11" fill="var(--ink3)">' + _waFechaCorta(d.f) + '</text>';
+    g += '<rect x="' + (iz + ancho * i) + '" y="0" width="' + ancho + '" height="' + (H - ab) + '" fill="transparent" onmousemove="_rsTip(event, this)" onmouseleave="_rsTip(null)" data-tip="' + _waFechaCorta(d.f) + ' · Instagram ' + d.ig + ' · WhatsApp ' + d.wa + '"/>';
+  });
+  return '<div class="rs-graf"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Personas que escribieron por día">' + g + '</svg><div class="tip" id="rs-tip"></div></div>';
+}
+function _rsTip(e, el){
+  var t = document.getElementById('rs-tip'); if(!t) return;
+  if(!e){ t.style.display = 'none'; return; }
+  var caja = t.parentNode.getBoundingClientRect();
+  t.textContent = el.getAttribute('data-tip'); t.style.display = 'block';
+  t.style.left = (e.clientX - caja.left) + 'px'; t.style.top = (e.clientY - caja.top - 8) + 'px';
+}
+
 PG.redes = function(){
   if(!document.getElementById('wa-css')) document.head.insertAdjacentHTML('beforeend', _WA_CSS);
   if(!document.getElementById('rs-css')) document.head.insertAdjacentHTML('beforeend', _RS_CSS);
@@ -283,6 +380,7 @@ PG.redes = function(){
     + '</div><div class="cs">' + (veWa ? 'Patricia atiende la cobranza por WhatsApp. ' : '') + 'Paola atiende las ventas' + (veIg && veWa ? ' por WhatsApp e Instagram' : veIg ? ' por Instagram' : ' por WhatsApp') + '.</div></div>'
       + '<div class="wa-tabs"><button class="' + (vista === 'bandeja' ? 'on' : '') + '" onclick="rsVista(\'bandeja\')">Bandeja</button>'
       + (veWa ? '<button class="' + (vista === 'hoy' ? 'on' : '') + '" onclick="rsVista(\'hoy\')">Cobranza de hoy · ' + cola.total + '</button>' : '')
+      + '<button class="' + (vista === 'metricas' ? 'on' : '') + '" onclick="rsVista(\'metricas\')">Métricas</button>'
       + (veIg || veWa ? '<button class="rs-asis-btn" onclick="rsAsistente(\'ventas\')">' + _RS_CHISPA + 'Paola</button>' : '')
       + (veWa ? '<button class="rs-asis-btn" onclick="rsAsistente(\'cobranza\')">' + _RS_CHISPA + 'Patricia</button>' : '') + '</div>'
     + '</div>'
@@ -290,6 +388,9 @@ PG.redes = function(){
 
   if(vista === 'hoy'){
     h += _waPanelHoy(cola);
+  } else if(vista === 'metricas'){
+    h += '<div class="rs-met" id="rs-met">' + _rsMetricasHtml() + '</div>';
+    rsCargarMetricas();
   } else {
     h += '<div class="rs-caja"><div class="rs-tabs">' + tabs.map(function(t){
       return '<button class="' + (t.id === tab ? 'on' : '') + '" onclick="rsTab(\'' + t.id + '\')">' + t.nombre

@@ -22,6 +22,7 @@ const meta = require('./lib/meta');
 const cerebro = require('./lib/cerebro');
 const procesar = require('./lib/procesar');
 const recordatorios = require('./lib/recordatorios');
+const metricas = require('./lib/metricas');
 
 const VERIFY = defineSecret('WHATSAPP_VERIFY_TOKEN');
 const TOKEN = defineSecret('WHATSAPP_ACCESS_TOKEN');
@@ -166,4 +167,15 @@ exports.recordatoriosWhatsApp = onSchedule({ schedule: '30 8 * * *', timeZone: '
   const r = await recordatorios.correr(armarDeps(cfg), { plantillas: cfg.plantillas });
   logger.info('recordatorios', { resultado: r });
   await bases['26'].collection('recordatorios_corridas').add({ hoy: hoyCaracas(), corrido: new Date().toISOString(), resultado: r }).catch(() => {});
+});
+
+// Métricas de Instagram para Redes sociales (22-oct-2026): seguidores, publicaciones y los "me gusta"
+// y comentarios de cada una, cada 2 horas, en config/redesMetricas de la 26 (lo lee el personal; son
+// datos públicos de la cuenta). seguidoresDias guarda un número por día para ver cómo crece.
+exports.metricasRedes = onSchedule({ schedule: '15 */2 * * *', timeZone: 'America/Caracas', region: 'us-east1', secrets: [IG_TOKEN, IG_CUENTA], memory: '256MiB', timeoutSeconds: 120 }, async () => {
+  const tok = sec(IG_TOKEN), cuenta = sec(IG_CUENTA);
+  if (!configurado(tok) || !configurado(cuenta)) { logger.info('metricas: Instagram no está configurado'); return; }
+  const ig = await metricas.instagram(fetch, { token: tok, cuenta });
+  await bases['26'].collection('config').doc('redesMetricas').set({ instagram: ig, seguidoresDias: { [hoyCaracas()]: ig.seguidores }, actualizado: new Date().toISOString() }, { merge: true });
+  logger.info('metricas', { seguidores: ig.seguidores, posts: ig.posts.length });
 });

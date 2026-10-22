@@ -18,7 +18,7 @@ const ctx = { console: { log() {}, warn() {}, error() {} }, document: doc, setTi
   fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({}) }); } };
 ctx.window = ctx;
 // Base falsa: anota qué colecciones se escuchan
-function consulta(col) { const q = { where() { return q; }, orderBy() { return q; }, limit() { return q; }, onSnapshot() { escuchas.push(col); return () => {}; }, doc() { return { set() { return Promise.resolve(); }, collection() { return consulta(col + '/sub'); } }; } }; return q; }
+function consulta(col) { const q = { where() { return q; }, orderBy() { return q; }, limit() { return q; }, get() { return Promise.resolve({ docs: [] }); }, onSnapshot() { escuchas.push(col); return () => {}; }, doc() { return { get() { return new Promise(() => {}); }, set() { return Promise.resolve(); }, collection() { return consulta(col + '/sub'); } }; } }; return q; }
 ctx.db = { collection: consulta };
 vm.createContext(ctx);
 for (const f of ['logic/whatsapp.js', 'modules/whatsapp.js', 'modules/redes.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
@@ -167,5 +167,36 @@ ok('...y trae comentarios de muestra', (els['rs-com-items'].innerHTML.match(/cla
 
 // ── 9. La fecha de un mensaje de noche es la de Caracas, no la de UTC ──
 ok('un mensaje del 21-oct a las 11:21 pm sale "21 oct 23:21" (no "22 oct")', ctx._waHora('2026-10-22T03:21:00.000Z') === '21 oct 23:21');
+
+// ── 10. Métricas (Adam: "¿puedes poner las métricas de los post, ads, etc.?") ──
+{
+  delete ctx.hasModuleAccess;
+  const hace = (d) => new Date(Date.now() - d * 86400000).toISOString();
+  ctx._waCfg = { conectado: false };   // sin Meta: las conversaciones salen de las que ya están cargadas
+  ctx._waConvs = [
+    { id: 'ig:1', canal: 'instagram', area: 'ventas', nombre: 'A', creado: hace(0), borrador: { tipo: 'lead' } },
+    { id: 'ig:2', canal: 'instagram', area: 'ventas', nombre: 'B', creado: hace(2) },
+    { id: 'wa:1', canal: 'whatsapp', area: 'ventas', nombre: 'C', creado: hace(1) },
+    { id: 'wa:2', canal: 'whatsapp', area: 'cobranza', nombre: 'D', creado: hace(3) },
+    { id: 'ig:3', canal: 'instagram', area: 'ventas', nombre: 'E', creado: hace(20) }
+  ];
+  ctx._waComs = [{ id: 'c1', hora: hace(1), tipoMedia: 'AD', estado: 'respondido' }, { id: 'c2', hora: hace(2), tipoMedia: 'FEED', estado: 'sin-respuesta' }];
+  const hoyL = ctx._waFechaLocal(new Date()), antes = ctx._waFechaLocal(new Date(Date.now() - 9 * 86400000));
+  ctx._rsMet = { instagram: { usuario: 'pagasi.io', seguidores: 662, publicaciones: 12, posts: [{ id: '1', texto: 'Veloz en cuotas', fecha: hace(5), meGusta: 5, comentarios: 2, enlace: 'https://instagram.com/p/x', imagen: 'https://cdn/x.jpg' }] }, seguidoresDias: { [antes]: 640, [hoyL]: 662 }, actualizado: hace(0) };
+  ctx._rsMetDias = 7; ctx._rsVista = 'metricas'; ctx._rsMetConvs = null;
+  let html = montar();
+  ok('arriba está el botón Métricas', /onclick="rsVista\('metricas'\)">Métricas<\/button>/.test(html));
+  const m = ctx._rsMetricasHtml();
+  ok('seguidores de Instagram y cuánto crecieron', /662/.test(m) && /\+22 desde el/.test(m) && /12 publicaciones/.test(m));
+  ok('personas que escribieron en 7 días: 4 (Instagram 2, WhatsApp ventas 1, cobranza 1); la de hace 20 días no cuenta', /Personas que escribieron<\/div><div class="v">4</.test(m) && /Instagram 2 · WhatsApp ventas 1 · cobranza 1/.test(m));
+  ok('quieren comprar: 1 de las 3 de ventas', /Quieren comprar<\/div><div class="v">1</.test(m) && /33% de las 3 conversaciones de ventas/.test(m));
+  ok('comentarios: 1 en anuncios, 1 en publicaciones, Paola contestó 50%', /En anuncios 1 · en publicaciones 1 · Paola contestó 50%/.test(m));
+  ok('el gráfico tiene un día por barra, con su número al pasar el ratón, y la tabla', (m.match(/data-tip="/g) || []).length === 7 && /Ver como tabla/.test(m) && /Instagram<\/span><span><i style="background:var\(--s-wa\)">/.test(m));
+  ok('las publicaciones con "me gusta", comentarios y el enlace a Instagram', /♥ 5 &nbsp; 💬 2/.test(m) && /Ver en Instagram/.test(m));
+  ok('dice qué falta para ver alcance y anuncios', /instagram_manage_insights/.test(m) && /ads_read/.test(m));
+  ctx.rsMetDias(30); const m30 = ctx._rsMetricasHtml();
+  ok('en 30 días entra también la de hace 20 días (5) y hay 30 barras', /Personas que escribieron<\/div><div class="v">5</.test(m30) && (m30.match(/data-tip="/g) || []).length === 30);
+  ctx._rsVista = 'bandeja';
+}
 
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

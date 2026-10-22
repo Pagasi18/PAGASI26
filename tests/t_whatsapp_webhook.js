@@ -398,5 +398,18 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     ok('Paola usa la calidad de ventas que se escogió', Q.cerebroFalso.ultimo && Q.cerebroFalso.ultimo.calidad === 'economica');
   }
 
+  // ── Métricas de Instagram (22-oct-2026): cuenta y publicaciones con "me gusta" y comentarios ──
+  {
+    const metricas = require(path.join(__dirname, '..', 'functions', 'lib', 'metricas.js'));
+    const pedidos = [];
+    const fM = async (u) => { pedidos.push(u); const j = u.includes('/media?') ? { data: [{ id: 1, caption: 'Veloz en cuotas', like_count: 5, comments_count: 2, timestamp: '2026-09-28T14:00:00+0000', media_type: 'IMAGE', permalink: 'https://instagram.com/p/x', media_url: 'https://cdn/x.jpg' }, { id: 2, media_type: 'VIDEO', media_product_type: 'REELS', thumbnail_url: 'https://cdn/t.jpg', media_url: 'https://cdn/v.mp4' }] } : { username: 'pagasi.io', followers_count: 662, follows_count: 10, media_count: 12 }; return { ok: true, status: 200, json: async () => j }; };
+    const m = await metricas.instagram(fM, { token: 'T', cuenta: '178' });
+    ok('métricas: la cuenta (usuario, seguidores, publicaciones)', m.usuario === 'pagasi.io' && m.seguidores === 662 && m.publicaciones === 12);
+    ok('métricas: cada publicación con "me gusta", comentarios, enlace y foto (del reel, su miniatura)', m.posts.length === 2 && m.posts[0].meGusta === 5 && m.posts[0].comentarios === 2 && m.posts[0].enlace && m.posts[0].imagen === 'https://cdn/x.jpg' && m.posts[1].imagen === 'https://cdn/t.jpg' && m.posts[1].meGusta === 0);
+    ok('métricas: solo pide campos que deja el permiso de hoy (sin insights)', pedidos.every(u => !/insights/.test(u)));
+    let err = null; try { await metricas.instagram(async () => ({ ok: false, status: 400, json: async () => ({ error: { message: '(#10) sin permiso' } }) }), { token: 'T', cuenta: '178' }); } catch (e) { err = e; }
+    ok('métricas: si Meta niega algo, avisa con su mensaje', err && /sin permiso/.test(err.message));
+  }
+
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });
