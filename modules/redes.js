@@ -65,7 +65,8 @@ var _RS_CSS = '<style id="rs-css">'
   + '.rs-perfil{display:flex;gap:12px;align-items:center}.rs-perfil .av{width:52px;height:52px;font-size:15px}.rs-perfil b{font-size:16px;display:block}.rs-perfil a,.rs-perfil .lnk{color:#0866ff;font-size:13px;font-weight:600;background:none;border:0;padding:0;cursor:pointer;text-decoration:none}'
   + '.rs-caja .wa-kv{border:0;padding:4px 0;font-size:13px}.rs-caja .wa-kv span:first-child{color:var(--ink2)}.rs-caja .wa-kv span:last-child{font-weight:600}.rs-caja .rs-pend{border:0;border-radius:0}'
   + '.rs-caja .wa-hilo-top{flex-wrap:nowrap}.rs-caja .wa-hilo-top .quien{min-width:0;flex:1}.rs-caja .wa-hilo-top .quien>div:last-child{min-width:0}.rs-caja .wa-hilo-top .quien small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rs-caja .wa-hilo-top .acc{flex:none;flex-wrap:nowrap}'
-  + '.rs-caja .wa-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.rs-caja .wa-filtros::-webkit-scrollbar{display:none}.rs-caja .wa-filtros button{flex:none}'
+  + '.rs-caja .wa-filtros{flex-wrap:wrap}.rs-caja .wa-filtros button{flex:none}'
+  + '.rs-caja .wa-mas{appearance:none;-webkit-appearance:none;border:0;background:var(--mt-gris) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2365676b%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E") no-repeat right 9px center;border-radius:6px;padding:6px 28px 6px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;max-width:100%}.rs-caja .wa-mas.on{background-color:var(--mt-sel);color:var(--mt-azul)}'
   // En pantalla grande la bandeja cabe entera: sin el relleno de abajo de #cnt no queda nada para bajar
   + '@media(min-width:1201px){#cnt:has(.rs-page.rs-lleno){padding-bottom:0}}.rs-page.rs-lleno{margin-bottom:0}'
   // La ventana de cada asistente (como "Sandra" de DARKSIDE)
@@ -134,7 +135,7 @@ function _rsPintarComentarios(){
   var todos = window._waComs || [], q = String((document.getElementById('rs-com-q') || {}).value || '').toLowerCase();
   var filtro = RS_COM_FILTROS.find(function(f){ return f.id === window._rsComFiltro; }) || RS_COM_FILTROS[0];
   var chips = document.getElementById('rs-com-filtros');
-  if(chips) chips.innerHTML = RS_COM_FILTROS.map(function(f){ var n = todos.filter(f.f).length; return '<button class="' + (f.id === filtro.id ? 'on' : '') + '" onclick="rsComFiltro(\'' + f.id + '\')"' + (!n && f.id !== 'todos' && f.id !== filtro.id ? ' disabled' : '') + '>' + f.nombre + '<i>' + n + '</i></button>'; }).join('');
+  if(chips) chips.innerHTML = _waFiltrosHtml(RS_COM_FILTROS, filtro.id, function(f){ return todos.filter(f.f).length; }, 'rsComFiltro', ['todos', 'sin']);
   var lista = todos.filter(filtro.f).filter(function(c){ return !q || (String(c.usuario || '') + ' ' + String(c.texto || '')).toLowerCase().indexOf(q) > -1; });
   var sel = lista.find(function(c){ return c.id === window._rsComSel; }) || lista[0] || null;
   window._rsComSel = sel ? sel.id : '';

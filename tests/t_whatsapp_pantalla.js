@@ -36,7 +36,8 @@ ctx._rsTab = 'instagram';
 const html = ctx.PG.redes();
 ok('la pantalla trae lista, filtros, hilo y ficha', /id="wa-filtros"/.test(html) && /id="wa-hilo"/.test(html) && /id="wa-ficha"/.test(html));
 flush();
-ok('los filtros se pintan con sus cantidades', /Todas<i>3<\/i>/.test(els['wa-filtros'].innerHTML) && /Sin responder<i>1<\/i>/.test(els['wa-filtros'].innerHTML) && /Esperan persona<i>1<\/i>/.test(els['wa-filtros'].innerHTML) && /Quieren comprar<i>1<\/i>/.test(els['wa-filtros'].innerHTML));
+ok('los filtros se pintan con sus cantidades: Todas y No leídas a la vista, el resto en el menú', /Todas<i>3<\/i>/.test(els['wa-filtros'].innerHTML) && /No leídas<i>1<\/i>/.test(els['wa-filtros'].innerHTML) && /<select class="wa-mas"/.test(els['wa-filtros'].innerHTML) && />Sin responder \(1\)</.test(els['wa-filtros'].innerHTML) && />Esperan persona \(1\)</.test(els['wa-filtros'].innerHTML) && />Quieren comprar \(1\)</.test(els['wa-filtros'].innerHTML));
+ok('en el menú, el primer renglón es "Más filtros" y vuelve a Todas', /<option value="todas" selected>Más filtros<\/option>/.test(els['wa-filtros'].innerHTML) && (els['wa-filtros'].innerHTML.match(/<button/g) || []).length === 2);
 ok('el filtro "Con promesa" (de cobranza) no sale en ventas', !/Con promesa/.test(els['wa-filtros'].innerHTML));
 ok('la lista muestra las 3 y marca la que está sin responder', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 3 && /class="sr"/.test(els['wa-items'].innerHTML));
 ok('se abre la primera (Mootoro) en el hilo y la ficha', ctx._waSel === 'ig:1' && /Mootoro/.test(els['wa-hilo'].innerHTML) && /@mootoroebikes/.test(els['wa-ficha'].innerHTML));
@@ -45,6 +46,7 @@ ok('la lista ya no marca a Mootoro como no leída', !/waAbrir\('ig:1'\)" data-nl
 
 // Filtros
 ctx.waFiltro('sin');
+ok('un filtro escogido en el menú lo deja marcado (en azul) y seleccionado', /<select class="wa-mas on"/.test(els['wa-filtros'].innerHTML) && /<option value="sin" selected>/.test(els['wa-filtros'].innerHTML));
 ok('filtro Sin responder deja solo a Ana', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /Ana/.test(els['wa-items'].innerHTML));
 ctx.waFiltro('humano');
 ok('filtro Atiende una persona deja solo a Luis', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /Luis/.test(els['wa-items'].innerHTML));
@@ -63,7 +65,7 @@ ok('Ana quedó leída al abrirla', ctx._waConvs[1].noLeidos === 0);
 // Llega un cambio de la base: se refresca en el sitio y los contadores
 ctx._waConvs[2].atencion = 'lead';
 ok('_waRefrescarEnSitio devuelve true con la pantalla puesta', ctx._waRefrescarEnSitio() === true && navs.length === 0);
-ok('los contadores de los filtros se actualizan en el sitio', /Esperan persona<i>2<\/i>/.test(els['wa-filtros'].innerHTML) && /Todas<i>3<\/i>/.test(els['wa-filtros'].innerHTML));
+ok('los contadores de los filtros se actualizan en el sitio', />Esperan persona \(2\)</.test(els['wa-filtros'].innerHTML) && /Todas<i>3<\/i>/.test(els['wa-filtros'].innerHTML));
 // Si cambia la conversacion abierta (p. ej. la toma una persona) se repinta hilo y ficha
 ctx._waConvs[1].modo = 'humano'; ctx._waConvs[1].atendidoPor = 'Adam';
 ctx._waRefrescarEnSitio();

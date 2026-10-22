@@ -54,7 +54,7 @@ ok('escucha las conversaciones de los dos canales y los comentarios', escuchas.i
 // ── 2. "Todos los mensajes" mezcla los canales ──
 ok('en Todos salen las 3 conversaciones (WhatsApp cobranza, WhatsApp ventas e Instagram)', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 3);
 ok('cada fila lleva la marca de su canal', /class="cn wa"/.test(els['wa-items'].innerHTML) && /class="cn ig"/.test(els['wa-items'].innerHTML));
-ok('en Todos hay filtros de Cobranza y Ventas', /Cobranza<i>1<\/i>/.test(els['wa-filtros'].innerHTML) && /Ventas<i>2<\/i>/.test(els['wa-filtros'].innerHTML));
+ok('en Todos hay filtros de Cobranza y Ventas (en el menú)', />Cobranza \(1\)</.test(els['wa-filtros'].innerHTML) && />Ventas \(2\)</.test(els['wa-filtros'].innerHTML));
 ctx.waFiltro('cobranza');
 ok('el filtro Cobranza deja solo a María', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /María/.test(els['wa-items'].innerHTML));
 ctx.waFiltro('todas');
@@ -97,7 +97,7 @@ ok('la pestaña de comentarios trae su lista, el detalle y la ficha', /id="rs-co
 ok('salen los 3 comentarios', (els['rs-com-items'].innerHTML.match(/class="wa-item/g) || []).length === 3);
 ok('el primero se abre con la respuesta pública de Paola', /Precio de la BRZ\?/.test(els['rs-com-hilo'].innerHTML) && /Respuesta pública/.test(els['rs-com-hilo'].innerHTML) && /Está en \$1,750/.test(els['rs-com-hilo'].innerHTML));
 ok('...y el botón para ver la conversación privada que abrió Paola', /Ver la conversación privada/.test(els['rs-com-hilo'].innerHTML) && /waAbrir\(\\?'ig:1/.test(els['rs-com-hilo'].innerHTML));
-ok('los filtros cuentan: respondió 1, sin respuesta 1, reclamos 1, no se pudo enviar 1', /Paola respondió<i>1</.test(els['rs-com-filtros'].innerHTML) && /Sin respuesta<i>1</.test(els['rs-com-filtros'].innerHTML) && /Reclamos<i>1</.test(els['rs-com-filtros'].innerHTML) && /No se pudo enviar<i>1</.test(els['rs-com-filtros'].innerHTML));
+ok('los filtros cuentan: Todos y Sin respuesta a la vista; respondió, reclamos y no se pudo enviar en el menú', /Todos<i>3</.test(els['rs-com-filtros'].innerHTML) && /Sin respuesta<i>1</.test(els['rs-com-filtros'].innerHTML) && />Paola respondió \(1\)</.test(els['rs-com-filtros'].innerHTML) && />Reclamos \(1\)</.test(els['rs-com-filtros'].innerHTML) && />No se pudo enviar \(1\)</.test(els['rs-com-filtros'].innerHTML));
 ctx.rsComFiltro('reclamos');
 ok('el filtro Reclamos deja solo el de José, con su error', (els['rs-com-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /jose/.test(els['rs-com-items'].innerHTML) && /Meta HTTP 400/.test(els['rs-com-ficha'].innerHTML));
 ctx.rsComFiltro('todos'); ctx.rsComAbrir('c2');

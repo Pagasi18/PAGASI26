@@ -93,13 +93,26 @@ function _waNombreAsis(c){ return c && _waEsCobranza(c) ? 'Patricia' : 'Paola'; 
 function _waAtencion(a){ return a === 'lead' ? '<span class="wa-pill verde">Quiere comprar</span>' : a === 'pide_persona' ? '<span class="wa-pill rojo">Pide una persona</span>' : a === 'queja' ? '<span class="wa-pill rojo">Queja</span>' : a === 'comprobante' ? '<span class="wa-pill ambar">Comprobante por revisar</span>' : a === 'promesa_vencida' ? '<span class="wa-pill ambar">Promesa vencida</span>' : a === 'error' ? '<span class="wa-pill rojo">El asistente falló</span>' : a === 'revisar' ? '<span class="wa-pill ambar" title="Paola se frenó: demasiados mensajes seguidos en esta conversación">Revisar · Paola se frenó</span>' : ''; }
 function _waEstadoIcono(e){ return e === 'leido' ? '✓✓' : e === 'entregado' ? '✓✓' : e === 'enviado' ? '✓' : e === 'pendiente' ? '…' : e === 'fallo' ? '✕ no se envió' : ''; }
 
+// A la vista van los filtros más usados; el resto, en un menú desplegable con su cantidad (Adam,
+// 22-oct-2026: "no puedo ver todos los botones"). Escoger "Más filtros" vuelve al primero (Todas).
+function _waFiltrosHtml(filtros, activo, contar, fn, visibles){
+  var chip = function(f){ var n = contar(f); return '<button class="' + (f.id === activo ? 'on' : '') + '" onclick="' + fn + '(\'' + f.id + '\')"' + (!n && f.id !== filtros[0].id && f.id !== activo ? ' disabled' : '') + '>' + f.nombre + '<i>' + n + '</i></button>'; };
+  var resto = filtros.filter(function(f){ return visibles.indexOf(f.id) < 0; }), enMenu = resto.some(function(f){ return f.id === activo; });
+  // Un menú nativo toma el ancho de su opción más larga y bajaba de línea: va del ancho de lo escogido
+  var sel = enMenu ? resto.filter(function(f){ return f.id === activo; })[0] : null, texto = sel ? sel.nombre + ' (' + contar(sel) + ')' : 'Más filtros';
+  return filtros.filter(function(f){ return visibles.indexOf(f.id) > -1; }).map(chip).join('')
+    + (resto.length ? '<select class="wa-mas' + (enMenu ? ' on' : '') + '" style="width:' + Math.round(texto.length * 7.3 + 40) + 'px" onchange="' + fn + '(this.value)" aria-label="Más filtros">'
+      + '<option value="' + filtros[0].id + '"' + (enMenu ? '' : ' selected') + '>Más filtros</option>'
+      + resto.map(function(f){ var n = contar(f); return '<option value="' + f.id + '"' + (f.id === activo ? ' selected' : '') + (!n && f.id !== activo ? ' disabled' : '') + '>' + f.nombre + ' (' + n + ')</option>'; }).join('')
+      + '</select>' : '');
+}
 function _waPintarLista(){
   var cont = document.getElementById('wa-items'); if(!cont) return;
   var ctx = _waCtxActual(), q = String((document.getElementById('wa-q') || {}).value || '').toLowerCase();
   var todas = _waConvsDe(ctx), filtros = _waFiltrosDe(ctx), fid = _waFiltroActual(ctx);
   var filtro = filtros.find(function(f){ return f.id === fid; }) || filtros[0];
   var chips = document.getElementById('wa-filtros');
-  if(chips) chips.innerHTML = filtros.map(function(f){ var n = f.id === 'todas' ? todas.length : todas.filter(f.f).length; return '<button class="' + (f.id === filtro.id ? 'on' : '') + '" onclick="waFiltro(\'' + f.id + '\')"' + (!n && f.id !== 'todas' && f.id !== filtro.id ? ' disabled' : '') + '>' + f.nombre + '<i>' + n + '</i></button>'; }).join('');
+  if(chips) chips.innerHTML = _waFiltrosHtml(filtros, filtro.id, function(f){ return f.id === 'todas' ? todas.length : todas.filter(f.f).length; }, 'waFiltro', ['todas', 'noleidas']);
   var convs = todas
     .filter(filtro.f)
     .filter(function(c){ return !q || (String(c.nombre || '') + ' ' + String(c.telE164 || '') + ' ' + String(c.clienteNombre || '') + ' ' + String(c.usuario || '')).toLowerCase().indexOf(q) > -1; })
