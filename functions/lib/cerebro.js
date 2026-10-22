@@ -93,21 +93,33 @@ function leer(j) {
   if (texto) return { reply: texto.slice(0, 1500), draft: null, summary: '', handoff: false, handoffReason: '', uso: j.usage || null };
   return null;
 }
-async function pensar({ apiKey, sistema, mensajes, fetchImpl }) {
+// La calidad de cada asistente se escoge en Redes sociales (22-oct-2026, como Sandra de DARKSIDE).
+// Cada modelo pide el razonamiento a su manera: Haiku 5.5 lo apaga con 'disabled'; Sonnet 5.5
+// rechaza 'disabled' (400) y va sin el parametro, que es como venia trabajando desde el 19-oct;
+// Opus 5.5 tampoco deja apagarlo. Sonnet 5.5 y Opus 5.5 no aceptan obligar la herramienta
+// (tool_choice 'tool' da 400), asi que su reintento solo sube el tope.
+const CALIDADES = {
+  economica: { modelo: 'claude-haiku-5-5', tope: 1500, extra: { thinking: { type: 'disabled' } }, forzar: true },
+  normal: { modelo: MODELO, tope: 1500, extra: {}, forzar: false },
+  maxima: { modelo: 'claude-opus-5-5', tope: 4000, extra: {}, forzar: false }
+};
+async function pensar({ apiKey, sistema, mensajes, fetchImpl, calidad }) {
   const f = fetchImpl || fetch;
-  const base = { model: MODELO, max_tokens: 1500, thinking: { type: 'disabled' }, system: sistemaEnBloques(sistema), tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: conCache(turnos(mensajes)) };
+  const q = CALIDADES[calidad] || CALIDADES.normal;
+  const base = Object.assign({ model: q.modelo, max_tokens: q.tope, system: sistemaEnBloques(sistema), tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: conCache(turnos(mensajes)) }, q.extra);
   let r = await llamar(f, apiKey, base);
-  // Si esta version de la API no acepta apagar el razonamiento, se va sin ese parametro
-  if (!r.ok && r.status === 400 && /thinking/i.test(String(r.j.error && r.j.error.message || ''))) { const sin = Object.assign({}, base); delete sin.thinking; r = await llamar(f, apiKey, sin); }
+  // Si esta version de la API no acepta como se pidio el razonamiento, se va sin ese parametro
+  if (!r.ok && r.status === 400 && base.thinking && /thinking/i.test(String(r.j.error && r.j.error.message || ''))) { delete base.thinking; r = await llamar(f, apiKey, base); }
   if (!r.ok) { const e = new Error((r.j.error && r.j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
   let v = leer(r.j);
   if (v) return v;
-  // Sin respuesta util (p. ej. se corto por el tope): un reintento obligando la herramienta
-  r = await llamar(f, apiKey, Object.assign({}, base, { max_tokens: 2500, tool_choice: { type: 'tool', name: 'responder' } }));
+  // Sin respuesta util (p. ej. se corto por el tope): un reintento con mas tope, y obligando la
+  // herramienta donde el modelo lo acepta
+  r = await llamar(f, apiKey, Object.assign({}, base, { max_tokens: q.tope + 1500 }, q.forzar ? { tool_choice: { type: 'tool', name: 'responder' } } : {}));
   if (!r.ok) { const e = new Error((r.j.error && r.j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
   v = leer(r.j);
   if (v) return v;
   throw new Error('El modelo no devolvió respuesta');
 }
 
-module.exports = { pensar, validar, turnos, cedulaLimpia, HERRAMIENTA, MODELO, MARCA, CORTE, sistemaEnBloques };
+module.exports = { pensar, validar, turnos, cedulaLimpia, HERRAMIENTA, MODELO, CALIDADES, MARCA, CORTE, sistemaEnBloques };

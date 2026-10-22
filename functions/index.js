@@ -46,7 +46,11 @@ async function cfgAsistente() {
   // config/tasa: la tasa del euro BCV que guarda el panel cada día (bolívares a tasa euro, Adam 21-oct-2026)
   const [d, t] = await Promise.all([bases['26'].collection('config').doc('asistente').get(), bases['26'].collection('config').doc('tasa').get().catch(() => null)]);
   const c = d.exists ? d.data() : {}, tasa = t && t.exists ? t.data() : {};
-  return { tasaEuro: parseFloat(tasa.tasaEuro) || 0, fechaEuro: String(tasa.fechaEuro || tasa.fechaActualizacion || '').slice(0, 10), instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false };
+  return { tasaEuro: parseFloat(tasa.tasaEuro) || 0, fechaEuro: String(tasa.fechaEuro || tasa.fechaActualizacion || '').slice(0, 10), instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false,
+    // Redes sociales (22-oct-2026): donde contesta cada asistente (apagada, el mensaje llega y lo
+    // atiende el equipo) y la calidad de Claude de cada una. Sin escoger, todo encendido y "normal".
+    responde: Object.assign({ whatsappCobranza: true, whatsappVentas: true, instagram: true, comentariosIg: true, messenger: true, comentariosFb: true }, c.responde || {}),
+    calidad: Object.assign({ cobranza: 'normal', ventas: 'normal' }, c.calidad || {}) };
 }
 // Lo que necesita el asistente de ventas (Instagram): el catalogo de pagasi.io y las sedes de la 26
 // Modelos que cada sede ha financiado (créditos de la 26), con el precio del crédito más reciente.
@@ -85,7 +89,7 @@ function armarDeps(cfg) {
   const m = meta.cliente({ accessToken: sec(TOKEN), phoneNumberId: sec(PHONE_ID) });
   const ig = configurado(sec(IG_TOKEN)) && configurado(sec(IG_CUENTA)) ? meta.clienteInstagram({ accessToken: sec(IG_TOKEN), accountId: sec(IG_CUENTA) }) : null;
   return { bases, storage: storageDe, meta: m, metaIG: ig, instagramId: configurado(sec(IG_CUENTA)) ? sec(IG_CUENTA) : '', ventas: catalogoVentas, cfg, ahora: () => new Date().toISOString(), hoy: hoyCaracas, log: (q, d) => logger.info(q, d || {}),
-    cerebro: { pensar: ({ sistema, mensajes }) => cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes }) } };
+    cerebro: { pensar: ({ sistema, mensajes, calidad }) => cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes, calidad }) } };
 }
 
 // Quien escribe desde el panel: su token de Firebase (de la 26 o de la 18) y su ficha en /usuarios

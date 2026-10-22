@@ -3,12 +3,11 @@
 // Facebook, comentarios de Instagram, igual que la foto" (la bandeja de Meta Business Suite).
 // Arriba, una pestaña por canal; debajo, la misma pantalla de siempre (lista + hilo + ficha, el
 // motor de modules/whatsapp.js). La cola de cobranza de hoy y las instrucciones de las asistentes
-// quedan como botones arriba a la derecha. Cada canal lo ve quien tiene su permiso ('whatsapp' o
+// quedan como botones arriba a la derecha (Paola y Patricia abren su ventana, como Sandra de DARKSIDE). Cada canal lo ve quien tiene su permiso ('whatsapp' o
 // 'instagram', los mismos de las Reglas). Messenger y los comentarios de Facebook todavía no
 // llegan al servidor (Adam, 22-oct: "por ahora no" a conectarlos): sus pestañas lo dicen.
 window._rsTab = window._rsTab || 'todos';
-window._rsVista = window._rsVista || 'bandeja';   // bandeja · hoy · asistente
-window._rsAsis = window._rsAsis || 'cobranza';     // en Asistentes: cobranza (Patricia) · ventas (Paola)
+window._rsVista = window._rsVista || 'bandeja';   // bandeja · hoy
 window._rsComSel = window._rsComSel || '';
 window._rsComFiltro = window._rsComFiltro || 'todos';
 
@@ -69,12 +68,19 @@ var _RS_CSS = '<style id="rs-css">'
   + '.rs-caja .wa-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.rs-caja .wa-filtros::-webkit-scrollbar{display:none}.rs-caja .wa-filtros button{flex:none}'
   // En pantalla grande la bandeja cabe entera: sin el relleno de abajo de #cnt no queda nada para bajar
   + '@media(min-width:1201px){#cnt:has(.rs-page.rs-lleno){padding-bottom:0}}.rs-page.rs-lleno{margin-bottom:0}'
-  + '.rs-com .estado{margin-top:4px}.rs-asis{display:flex;gap:0;margin:0 0 14px;border:1px solid var(--rim);border-radius:14px;overflow:hidden;width:max-content;max-width:100%}.rs-asis button{border:0;background:var(--surf);font:inherit;font-size:13px;font-weight:800;color:var(--ink2);padding:10px 18px;cursor:pointer}.rs-asis button+button{border-left:1px solid var(--rim)}.rs-asis button.on{background:var(--p1);color:#fff}'
+  // La ventana de cada asistente (como "Sandra" de DARKSIDE)
+  + '.rs-asis-btn{display:inline-flex;align-items:center;gap:7px}.rs-asis-btn svg{width:16px;height:16px}'
+  + '.rs-v h4{font-size:14px;font-weight:800;margin:18px 0 3px}.rs-v h4:first-child{margin-top:0}.rs-v .sv{font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5}'
+  + '.rs-sws{display:flex;flex-direction:column;gap:4px}.rs-swf{display:flex;align-items:center;gap:10px;padding:7px 2px;font-size:13.5px;font-weight:600}.rs-swf .ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;flex:none}.rs-swf .ic svg{width:12px;height:12px}.rs-swf .ic.wa{background:#25D366}.rs-swf .ic.ig{background:linear-gradient(135deg,#f58529,#dd2a7b,#8134af)}.rs-swf .ic.ms{background:linear-gradient(135deg,#00b2ff,#a334fa)}.rs-swf .ic.fb{background:#0866ff}.rs-swf .ic.rl{background:var(--ink2)}.rs-swf .t{flex:1}.rs-swf small{display:block;font-weight:500;color:var(--ink3);font-size:11.5px}'
+  + '.rs-sw{appearance:none;-webkit-appearance:none;width:46px;height:26px;border-radius:999px;background:var(--rim2);position:relative;cursor:pointer;transition:background .15s;flex:none;margin:0}.rs-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}.rs-sw:checked{background:#2f7a4f}.rs-sw:checked::after{left:23px}.rs-sw:disabled{opacity:.45;cursor:default}'
+  + '.rs-qs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}@media(max-width:560px){.rs-qs{grid-template-columns:1fr}}.rs-q{border:1px solid var(--rim2);border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:3px}.rs-q input{display:none}.rs-q b{font-size:13.5px}.rs-q span{font-size:12.5px}.rs-q small{font-size:11px;color:var(--ink3);line-height:1.4}.rs-q.on{border:2px solid var(--ink);padding:9px 11px}'
+  + '.rs-v textarea{width:100%;min-height:110px}.rs-cx{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12.5px}@media(max-width:560px){.rs-cx{grid-template-columns:1fr}}.rs-cx span{display:flex;gap:6px;align-items:center;color:#c81e1e}.rs-cx span.ok{color:#0f7a3e}.rs-cx svg{width:14px;height:14px;flex:none}'
+  + '.rs-v .aviso{font-size:12px;background:#fff4e0;color:#7a4d00;border:1px solid #f3d9a4;border-radius:8px;padding:8px 10px;margin-top:6px;line-height:1.5}'
+  + '.rs-com .estado{margin-top:4px}'
   + '</style>';
 
 function rsTab(t){ window._rsTab = t; window._rsVista = 'bandeja'; window._waSel = null; nav('redes'); }
 function rsVista(v){ window._rsVista = v; nav('redes'); }
-function rsAsis(a){ window._rsAsis = a; nav('redes'); }
 
 // Globos de las pestañas y contadores de arriba, en el sitio (al llegar mensajes o comentarios)
 function _rsPintarContadores(){
@@ -167,6 +173,93 @@ function _rsPintarComentarios(){
 }
 function _rsRefrescarComentarios(){ _rsPintarContadores(); _rsPintarComentarios(); }
 
+// ── La ventana de cada asistente (Adam, 22-oct-2026: "ponme así un botón como el de Darkside") ──
+// Como "Sandra" de DARKSIDE: dónde responde, la calidad de Claude (y lo que cuesta), lo que debe
+// saber y cómo está conectada. Lo lee el servidor de config/asistente de la 26 (pagasi.io):
+// responde {canal: false} la apaga en ese canal, calidad {ventas|cobranza} escoge el modelo.
+// Costos: con lo que contestan hoy (21-oct: ~300 respuestas de Paola al día, ~30 de Patricia), su
+// manual guardado en caché (~18 mil tokens), lo que escribe cada modelo (prueba real del 22-oct:
+// 900 a 1.500 tokens por respuesta) y los precios de Claude por millón de tokens.
+var RS_ASIS = {
+  ventas: { nombre: 'Paola', area: 'ventas', volumen: 'unos 300 mensajes al día, lo que contesta hoy',
+    canales: [['instagram', 'Instagram (mensajes)', 'ig'], ['whatsappVentas', 'WhatsApp (ventas)', 'wa'], ['comentariosIg', 'Comentarios de Instagram', 'ig'], ['messenger', 'Messenger', 'ms', true], ['comentariosFb', 'Comentarios de Facebook', 'fb', true]],
+    costos: { economica: '≈ $5–15 al mes', normal: '≈ $150–300 al mes', maxima: '≈ $300–550 al mes' } },
+  cobranza: { nombre: 'Patricia', area: 'cobranza', volumen: 'unos 30 mensajes al día',
+    canales: [['whatsappCobranza', 'WhatsApp (respuestas a los clientes)', 'wa']],
+    costos: { economica: '≈ menos de $1 al mes', normal: '≈ $10–20 al mes', maxima: '≈ $20–40 al mes' } }
+};
+var RS_CALIDADES = [
+  { id: 'economica', nombre: 'Económica', modelo: 'Claude Haiku', nota: 'Respuestas más simples' },
+  { id: 'normal', nombre: 'Normal', modelo: 'Claude Sonnet', nota: 'La recomendada · la de hoy' },
+  { id: 'maxima', nombre: 'Máxima', modelo: 'Claude Opus', nota: 'La más lista' }
+];
+var _RS_CHISPA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
+// Messenger (el rayo) y Facebook (la f), para los interruptores
+var _RS_ICONOS = {
+  ms: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m6.5 14.5 4-4.3 2.2 2.3 4.8-2.6-4 4.3-2.2-2.3z"/></svg>',
+  fb: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-7.5H16l.4-3h-2.9V8.6c0-.9.3-1.5 1.5-1.5h1.5V4.4c-.3 0-1.2-.1-2.2-.1-2.2 0-3.7 1.3-3.7 3.8v2.4H8.1v3h2.5V21z"/></svg>'
+};
+var _RS_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+var _RS_NO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+// Las conversaciones de esa asistente en las que contestó hoy (y la última vez que contestó)
+function _rsUsoHoy(area){
+  var suyas = (window._waConvs || []).filter(function(c){ return area === 'cobranza' ? _waEsCobranza(c) : !_waEsCobranza(c); });
+  var hoy = suyas.filter(function(c){ return c.ultimoAutor === 'asistente' && _waEsHoy(c.ultimoMensajeHora); }).length;
+  var ult = suyas.filter(function(c){ return c.ultimoAutor === 'asistente'; }).map(function(c){ return String(c.ultimoMensajeHora || ''); }).sort().pop() || '';
+  return { hoy: hoy, ultima: ult };
+}
+function rsAsistente(area){
+  var A = RS_ASIS[area] || RS_ASIS.ventas, cfg = window._waCfg || {}, resp = cfg.responde || {}, calidad = (cfg.calidad || {})[A.area] || 'normal';
+  var puede = typeof isAdminUser === 'function' && isAdminUser(), aqui = waConectado() || waConectadoCanal('instagram');
+  var editable = puede && aqui && !!(typeof db !== 'undefined' && db), uso = _rsUsoHoy(A.area);
+  var claudeOk = !!uso.ultima && (Date.now() - new Date(uso.ultima).getTime()) < 48 * 3600 * 1000;
+  // Los recordatorios tienen su propio campo (config/asistente.recordatorios): el servidor los manda salvo que diga false
+  var fila = function(id, txt, ic, pend, sub){ var on = pend ? false : id === 'recordatorios' ? cfg.recordatorios !== false : resp[id] !== false;
+    return '<label class="rs-swf"><span class="ic ' + ic + '">' + (_RS_ICONOS[ic] || _waIcono(ic === 'wa' ? 'wa' : ic === 'rl' ? 'bot' : 'ig')) + '</span><span class="t">' + txt + (pend ? ' <span class="wa-pill gris">sin conectar</span>' : '') + (sub ? '<small>' + sub + '</small>' : '') + '</span>'
+      + '<input type="checkbox" role="switch" class="rs-sw" data-canal="' + id + '"' + (on ? ' checked' : '') + (pend || !editable ? ' disabled' : '') + '></label>'; };
+  var h = '<div class="rs-v">'
+    + (!aqui ? '<div class="aviso" style="margin:0 0 12px">En esta compañía ' + A.nombre + ' no está conectada a Meta: lo que ves es de muestra. Las asistentes se configuran en <b>pagasi.io</b>.</div>' : '')
+    + '<h4>Dónde responde ' + A.nombre + '</h4><div class="sv">Apagada en un canal, los mensajes igual llegan aquí; los responde el equipo.</div><div class="rs-sws">'
+    + A.canales.map(function(c){ return fila(c[0], c[1], c[2], c[3]); }).join('')
+    + (A.area === 'cobranza' ? fila('recordatorios', 'Recordatorios de cuotas', 'rl', false, 'Todos los días a las 8:30 am, por plantilla de WhatsApp') : '')
+    + '</div>' + (A.area === 'cobranza' ? '<div class="aviso">Con los recordatorios encendidos, Patricia les escribe a los clientes de verdad todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento y cuando se atrasan.</div>' : '')
+    + '<h4>Calidad de ' + A.nombre + '</h4><div class="sv">Lo que paga Pagasi en Claude. Aproximado, con ' + A.volumen + '.</div><div class="rs-qs" role="radiogroup">'
+    + RS_CALIDADES.map(function(q){ return '<label class="rs-q' + (q.id === calidad ? ' on' : '') + '"><input type="radio" name="rs-calidad" value="' + q.id + '"' + (q.id === calidad ? ' checked' : '') + (editable ? '' : ' disabled') + ' onchange="document.querySelectorAll(\'.rs-q\').forEach(function(e){ e.classList.toggle(\'on\', e.contains(this)); }, this)"><b>' + q.nombre + '</b><span>' + A.costos[q.id] + '</span><small>' + q.modelo + ' · ' + q.nota + '</small></label>'; }).join('')
+    + '</div>'
+    + '<h4>Lo que ' + A.nombre + ' debe saber</h4><div class="sv">' + (A.area === 'ventas' ? 'Promociones, horarios, qué decir de una sede, a quién pasar los interesados. Ya conoce precios, inicial, cuotas y cómo se solicita. Lo que escribas aquí manda sobre todo lo demás.' : 'Lo que debe tener en cuenta esta semana. Ejemplos: "esta semana no se reciben pagos en efectivo", "si preguntan por refinanciar, pásalos a Samantha". Lo que escribas aquí manda sobre todo lo demás.') + '</div>'
+    + '<textarea class="fta" id="rs-instr"' + (editable ? '' : ' disabled') + ' placeholder="' + (A.area === 'ventas' ? 'Ej.:\nEsta semana: casco gratis con la Veloz\nSábados la sede de Valencia abre hasta la 1 pm' : 'Ej.:\nEsta semana no se reciben pagos en efectivo') + '">' + _waEsc(A.area === 'ventas' ? (cfg.instruccionesVentas || '') : (cfg.instrucciones || '')) + '</textarea>'
+    + (A.area === 'cobranza' ? '<h4>Cómo pagar</h4><div class="sv">Lo único que Patricia le da al cliente cuando pregunta dónde pagar: Pago Móvil, cuenta, RIF, Zelle. Si está vacío, lo manda con el equipo.</div><textarea class="fta" id="rs-pago" style="min-height:80px"' + (editable ? '' : ' disabled') + '>' + _waEsc(cfg.datosPago || '') + '</textarea>' : '')
+    + (cfg.actualizadoEn ? '<div class="sv" style="margin-top:6px">Última vez: ' + _waEsc(cfg.actualizadoPor || 'alguien') + ', ' + _waHora(cfg.actualizadoEn) + '</div>' : '')
+    + '<h4>Conexión</h4><div class="rs-cx">'
+    + [['Meta (la app de Pagasi)', aqui], [A.area === 'ventas' ? 'Instagram' + (cfg.instagram ? ' @' + _waEsc(String(cfg.instagram).replace(/^@/, '')) : '') : 'WhatsApp ' + _waEsc(cfg.telefono || ''), A.area === 'ventas' ? !!cfg.instagram : waConectado()], [A.area === 'ventas' ? 'WhatsApp ' + _waEsc(cfg.telefono || '') : 'Plantillas de recordatorio', A.area === 'ventas' ? waConectado() : !!(cfg.plantillas && Object.keys(cfg.plantillas).length)], [A.area === 'ventas' ? 'Messenger' : '', false], ['Claude (la inteligencia de ' + A.nombre + ')', claudeOk]]
+        .filter(function(x){ return x[0]; }).map(function(x){ return '<span class="' + (x[1] ? 'ok' : '') + '">' + (x[1] ? _RS_OK : _RS_NO) + x[0] + '</span>'; }).join('')
+    + '</div></div>';
+  if(typeof setMicon === 'function') setMicon('whatsapp');
+  var mic = document.getElementById('mic'); if(mic){ mic.innerHTML = _RS_CHISPA; mic.style.color = '#fff'; mic.style.background = 'var(--ink)'; }
+  document.getElementById('mtt').textContent = A.nombre + ' de Pagasi';
+  document.getElementById('msb').textContent = 'Hoy contestó en ' + uso.hoy + ' ' + (uso.hoy === 1 ? 'conversación' : 'conversaciones') + ' · ' + (A.area === 'ventas' ? 'ventas' : 'cobranza');
+  document.getElementById('modal-box').className = 'modal modal-lg';
+  document.getElementById('mbd').innerHTML = h;
+  S.saveFn = editable ? function(){ return rsGuardarAsistente(A.area); } : null;
+  document.getElementById('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>' + (editable ? '<button class="btn btn-p" onclick="saveM()">Guardar</button>' : '');
+  document.getElementById('ov').style.display = 'flex';
+}
+function rsGuardarAsistente(area){
+  var cfg = window._waCfg || {}, resp = Object.assign({}, cfg.responde || {}), cal = Object.assign({}, cfg.calidad || {}), datos = {};
+  document.querySelectorAll('#mbd .rs-sw').forEach(function(e){ if(e.disabled) return; if(e.getAttribute('data-canal') === 'recordatorios') datos.recordatorios = !!e.checked; else resp[e.getAttribute('data-canal')] = !!e.checked; });
+  var q = document.querySelector('#mbd input[name="rs-calidad"]:checked'); if(q) cal[area] = q.value;
+  datos.responde = resp; datos.calidad = cal;
+  var t = document.getElementById('rs-instr'); if(t){ if(area === 'ventas') datos.instruccionesVentas = t.value; else datos.instrucciones = t.value; }
+  var pago = document.getElementById('rs-pago'); if(pago) datos.datosPago = pago.value;
+  datos.actualizadoPor = (S.currentUser && S.currentUser.nombre) || ''; datos.actualizadoEn = new Date().toISOString();
+  return db.collection('config').doc('asistente').set(datos, { merge: true }).then(function(){
+    window._waCfg = Object.assign(window._waCfg || {}, datos);
+    if(typeof logActividad === 'function') logActividad('asistente_config', 'redes', 'config/asistente', Object.assign({ area: area, calidad: cal[area], responde: JSON.stringify(resp) }, 'recordatorios' in datos ? { recordatorios: datos.recordatorios } : {}));
+    if(typeof toast === 'function') toast('Listo: ' + RS_ASIS[area].nombre + ' lo aplica desde su próxima respuesta', 'success');
+    closeM();
+  }).catch(function(e){ if(typeof toast === 'function') toast('No se pudo guardar: ' + (e && e.message || e), 'error'); return false; });
+}
+
 PG.redes = function(){
   if(!document.getElementById('wa-css')) document.head.insertAdjacentHTML('beforeend', _WA_CSS);
   if(!document.getElementById('rs-css')) document.head.insertAdjacentHTML('beforeend', _RS_CSS);
@@ -178,7 +271,7 @@ PG.redes = function(){
   // Cada canal se abre solo si este usuario lo ve (las Reglas tampoco dejan leer el otro)
   if(veWa){ if(waConectado()) waAbrirConversaciones('whatsapp'); else waDemoConversaciones(cola); }
   if(veIg){ if(waConectadoCanal('instagram')) waAbrirConversaciones('instagram'); else waDemoInstagram(); waAbrirComentarios(); }
-  if(window._rsVista === 'hoy' && !veWa) window._rsVista = 'bandeja';
+  if((window._rsVista === 'hoy' && !veWa) || window._rsVista === 'asistente') window._rsVista = 'bandeja';
   var vista = window._rsVista, tab = window._rsTab, ctx = _waCtxActual();
   var waOk = waConectado(), igOk = waConectadoCanal('instagram');
 
@@ -189,17 +282,13 @@ PG.redes = function(){
     + '</div><div class="cs">' + (veWa ? 'Patricia atiende la cobranza por WhatsApp. ' : '') + 'Paola atiende las ventas' + (veIg && veWa ? ' por WhatsApp e Instagram' : veIg ? ' por Instagram' : ' por WhatsApp') + '.</div></div>'
       + '<div class="wa-tabs"><button class="' + (vista === 'bandeja' ? 'on' : '') + '" onclick="rsVista(\'bandeja\')">Bandeja</button>'
       + (veWa ? '<button class="' + (vista === 'hoy' ? 'on' : '') + '" onclick="rsVista(\'hoy\')">Cobranza de hoy · ' + cola.total + '</button>' : '')
-      + '<button class="' + (vista === 'asistente' ? 'on' : '') + '" onclick="rsVista(\'asistente\')">Asistentes</button></div>'
+      + (veIg || veWa ? '<button class="rs-asis-btn" onclick="rsAsistente(\'ventas\')">' + _RS_CHISPA + 'Paola</button>' : '')
+      + (veWa ? '<button class="rs-asis-btn" onclick="rsAsistente(\'cobranza\')">' + _RS_CHISPA + 'Patricia</button>' : '') + '</div>'
     + '</div>'
     + ((veWa && !waOk) || (veIg && !igOk) ? '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>' + (veWa && !waOk && veIg && !igOk ? 'WhatsApp e Instagram todavía no están conectados' : veWa && !waOk ? 'WhatsApp todavía no está conectado' : 'Instagram todavía no está conectado') + ' en esta compañía.</b> Lo que ves de ' + (veWa && !waOk && veIg && !igOk ? 'esos canales' : 'ese canal') + ' es de muestra, en memoria, para ver cómo atienden las asistentes.</div></div>' : '');
 
   if(vista === 'hoy'){
     h += _waPanelHoy(cola);
-  } else if(vista === 'asistente'){
-    var area = window._rsAsis;
-    if(area === 'cobranza' && !veWa) area = 'ventas';
-    h += '<div class="rs-asis">' + (veWa ? '<button class="' + (area === 'cobranza' ? 'on' : '') + '" onclick="rsAsis(\'cobranza\')">Patricia · cobranza</button>' : '') + '<button class="' + (area === 'ventas' ? 'on' : '') + '" onclick="rsAsis(\'ventas\')">Paola · ventas</button></div>'
-      + _waPanelAsistente({ modulo: 'redes', canal: area === 'cobranza' ? 'whatsapp' : (veIg ? 'instagram' : 'whatsapp'), area: area });
   } else {
     h += '<div class="rs-caja"><div class="rs-tabs">' + tabs.map(function(t){
       return '<button class="' + (t.id === tab ? 'on' : '') + '" onclick="rsTab(\'' + t.id + '\')">' + t.nombre

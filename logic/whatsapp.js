@@ -320,15 +320,4 @@ function waDemoClienteEscribe(id, texto){
     if(typeof _waPintarLista === 'function') _waPintarLista();
   }, 900);
 }
-function waGuardarInstrucciones(texto, datosPago, ventas){
-  if(typeof isAdminUser === 'function' && !isAdminUser()){ toast('Solo un administrador cambia las instrucciones del asistente', 'error'); return; }
-  var datos = { actualizadoPor: (S.currentUser && S.currentUser.nombre) || '', actualizadoEn: new Date().toISOString() };
-  if(typeof texto === 'string') datos.instrucciones = texto;        // cobranza
-  if(typeof datosPago === 'string') datos.datosPago = datosPago;   // cómo pagar: lo que el asistente le dice al cliente
-  if(typeof ventas === 'string') datos.instruccionesVentas = ventas;   // lo que sabe el de ventas (Instagram)
-  _waRoot._waCfg = Object.assign(_waRoot._waCfg || {}, datos);
-  var fin = function(){ if(typeof logActividad === 'function') logActividad('asistente_instrucciones', 'whatsapp', 'config/asistente', { campos: Object.keys(datos).join(',') }); toast('Instrucciones guardadas: el asistente las lee en su próxima respuesta', 'success'); };
-  if(typeof db === 'undefined' || !db){ fin(); return; }
-  db.collection('config').doc('asistente').set(datos, { merge: true }).then(fin).catch(function(e){ toast('No se pudo guardar: ' + (e && e.message || e), 'error'); });
-}
 if(typeof module !== 'undefined' && module.exports) module.exports = { waTelE164: waTelE164, waColaHoy: waColaHoy, waPlantilla: waPlantilla, waDemoResponder: waDemoResponder, waVentanaAbierta: waVentanaAbierta, waEmpresa: waEmpresa, waDemoResponderVentas: waDemoResponderVentas, waConectadoCanal: waConectadoCanal, _waModuloDe: _waModuloDe, WA_GRUPOS: WA_GRUPOS, WA_URL_EQUIPO: WA_URL_EQUIPO };

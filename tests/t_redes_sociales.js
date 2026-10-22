@@ -48,7 +48,7 @@ ok('tiene las seis pestañas en el orden de Adam: todos, Instagram, WhatsApp, Me
 ok('Messenger y Comentarios de Facebook dicen "sin conectar"', (html.match(/class="pend">sin conectar/g) || []).length === 2);
 ok('los globos cuentan lo que no se ha leído: Todos 2, WhatsApp 1, Instagram 1', /id="rs-b-todos"><span class="b">2</.test(html) && /id="rs-b-whatsapp"><span class="b">1</.test(html) && /id="rs-b-instagram"><span class="b">1</.test(html));
 ok('Comentarios de Instagram cuenta los de hoy (2)', /id="rs-b-igcom"><span class="b">2</.test(html));
-ok('arriba a la derecha: Bandeja, Cobranza de hoy y Asistentes', /Bandeja<\/button>/.test(html) && /Cobranza de hoy · /.test(html) && /Asistentes<\/button>/.test(html));
+ok('arriba a la derecha: Bandeja, Cobranza de hoy y los botones de Paola y Patricia', /Bandeja<\/button>/.test(html) && /Cobranza de hoy · /.test(html) && /rsAsistente\('ventas'\)/.test(html) && /rsAsistente\('cobranza'\)/.test(html));
 ok('escucha las conversaciones de los dos canales y los comentarios', escuchas.includes('conversaciones') && escuchas.includes('comentarios_ig'));
 
 // ── 2. "Todos los mensajes" mezcla los canales ──
@@ -103,14 +103,47 @@ ok('el filtro Reclamos deja solo el de José, con su error', (els['rs-com-items'
 ctx.rsComFiltro('todos'); ctx.rsComAbrir('c2');
 ok('el de Pedro dice por qué Paola no respondió y que fue en un anuncio', /solo emoji o vacío/.test(els['rs-com-ficha'].innerHTML) && /Anuncio/.test(els['rs-com-ficha'].innerHTML));
 
-// ── 6. La cola de hoy y los asistentes ──
+// ── 6. La cola de hoy y la ventana de cada asistente (como "Sandra" de DARKSIDE) ──
 ctx._rsVista = 'hoy'; html = montar();
 ok('Cobranza de hoy muestra la cola de recordatorios', /Recordatorios antes de vencer/.test(html) && !/class="rs-tabs"/.test(html));
-ctx._rsVista = 'asistente'; ctx._rsAsis = 'cobranza'; html = montar();
-ok('Asistentes: Patricia (cobranza) con sus instrucciones', /Patricia · cobranza/.test(html) && /Instrucciones del asistente de cobranza/.test(html));
-ctx._rsAsis = 'ventas'; html = montar();
-ok('Asistentes: Paola (ventas), con WhatsApp e Instagram conectados', /Instrucciones del asistente de ventas/.test(html) && /WhatsApp: número/.test(html) && /Instagram: @pagasi.io/.test(html));
+ok('arriba están los botones de Paola y de Patricia', /onclick="rsAsistente\('ventas'\)">[\s\S]*Paola<\/button>/.test(html) && /onclick="rsAsistente\('cobranza'\)">[\s\S]*Patricia<\/button>/.test(html) && !/>Asistentes</.test(html));
 ctx._rsVista = 'bandeja';
+['mtt', 'msb', 'modal-box', 'mbd', 'mft', 'ov', 'mic'].forEach(el); els['ov'].style = {}; els['mic'].style = {};
+ctx.isAdminUser = () => true;
+ctx._waCfg = Object.assign({}, ctx._waCfg, { responde: { comentariosIg: false }, calidad: { ventas: 'economica' }, instruccionesVentas: 'Casco gratis esta semana' });
+ctx.rsAsistente('ventas');
+let v = els['mbd'].innerHTML;
+ok('la ventana de Paola se abre con su nombre', els['mtt'].textContent === 'Paola de Pagasi' && els['ov'].style.display === 'flex' && /Hoy contestó en/.test(els['msb'].textContent));
+ok('Dónde responde Paola: Instagram, WhatsApp ventas, comentarios de Instagram, y Messenger y comentarios de Facebook sin conectar', /Dónde responde Paola/.test(v) && (v.match(/class="rs-sw"/g) || []).length === 5 && (v.match(/sin conectar/g) || []).length === 2);
+ok('...con los comentarios de Instagram apagados como estaban guardados', /data-canal="comentariosIg">/.test(v) && /data-canal="instagram" checked>/.test(v));
+ok('la calidad: Económica, Normal y Máxima con lo que cuesta, y marcada la que se escogió', /Económica[\s\S]*Normal[\s\S]*Máxima/.test(v) && /\$150–300 al mes/.test(v) && /class="rs-q on"><input type="radio" name="rs-calidad" value="economica" checked/.test(v));
+ok('lo que Paola debe saber trae lo que ya estaba escrito', /Lo que Paola debe saber/.test(v) && /Casco gratis esta semana/.test(v));
+ok('la conexión: Meta, Instagram, WhatsApp, Messenger y Claude', /Meta \(la app de Pagasi\)/.test(v) && /Instagram @pagasi.io/.test(v) && /Claude \(la inteligencia de Paola\)/.test(v) && /Messenger<\/span>/.test(v));
+ok('el administrador ve Guardar', /saveM\(\)">Guardar/.test(els['mft'].innerHTML));
+ctx.rsAsistente('cobranza'); v = els['mbd'].innerHTML;
+ok('la de Patricia: WhatsApp y los recordatorios de las 8:30, con el aviso de que salen a clientes de verdad', els['mtt'].textContent === 'Patricia de Pagasi' && /data-canal="recordatorios"/.test(v) && /clientes de verdad/.test(v) && /Cómo pagar/.test(v));
+ok('los recordatorios salen apagados si config/asistente dice recordatorios: false (como hoy en la 26)', (ctx._waCfg.recordatorios = false, ctx.rsAsistente('cobranza'), /data-canal="recordatorios">/.test(els['mbd'].innerHTML)));
+ok('...y encendidos si no dice nada (el servidor los manda)', (delete ctx._waCfg.recordatorios, ctx.rsAsistente('cobranza'), /data-canal="recordatorios" checked>/.test(els['mbd'].innerHTML)));
+// Guardar: lo que se escoge queda en config/asistente (lo lee el servidor)
+const escrito = [];
+const sw = (canal, on) => ({ disabled: false, checked: on, getAttribute: () => canal });
+const qs0 = doc.querySelectorAll, q0 = doc.querySelector, db0 = ctx.db;
+doc.querySelectorAll = (sel) => sel === '#mbd .rs-sw' ? [sw('whatsappCobranza', false), sw('recordatorios', true)] : [];
+doc.querySelector = (sel) => sel === '#mbd input[name="rs-calidad"]:checked' ? { value: 'maxima' } : null;
+el('rs-instr').value = 'Sin efectivo esta semana'; el('rs-pago').value = 'Pago Móvil 0414';
+ctx.db = { collection: () => ({ doc: (id) => ({ set: (d, o) => { escrito.push({ id, d, o }); return Promise.resolve(); } }) }) };
+vm.runInContext('closeM = function(){}', ctx);
+{
+  ctx.rsGuardarAsistente('cobranza');   // la escritura sale en el acto; el cierre llega después
+  doc.querySelectorAll = qs0; doc.querySelector = q0; ctx.db = db0;
+  const g = escrito[0] || { d: {} };
+  ok('al guardar a Patricia: apagada en WhatsApp, recordatorios encendidos, Máxima, instrucciones y cómo pagar', g.id === 'asistente' && g.o && g.o.merge && g.d.responde.whatsappCobranza === false && g.d.responde.comentariosIg === false && g.d.recordatorios === true && g.d.calidad.cobranza === 'maxima' && g.d.calidad.ventas === 'economica' && g.d.instrucciones === 'Sin efectivo esta semana' && g.d.datosPago === 'Pago Móvil 0414');
+  // En una compañía sin Meta conectado (la 18): se ve, avisa que se configura en pagasi.io, y no se guarda
+  const cfg0 = ctx._waCfg; ctx._waCfg = { conectado: false };
+  ctx.rsAsistente('ventas');
+  ok('sin Meta conectado avisa que las asistentes se configuran en pagasi.io y no deja guardar', /se configuran en <b>pagasi.io<\/b>/.test(els['mbd'].innerHTML) && !/Guardar/.test(els['mft'].innerHTML));
+  ctx._waCfg = cfg0;
+}
 
 // ── 7. Cada canal lo ve quien tiene su permiso ──
 ctx.hasModuleAccess = (k) => k === 'instagram';   // un vendedor: solo Instagram

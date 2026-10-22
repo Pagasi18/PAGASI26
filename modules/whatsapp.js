@@ -1,7 +1,7 @@
 // Pagasi module: whatsapp (18-oct-2026) — el MOTOR de la bandeja de Redes sociales.
 // Desde el 22-oct-2026 WhatsApp e Instagram son un solo modulo, Redes sociales
 // (modules/redes.js), con una pestana por canal. Aqui queda la pantalla compartida: lista +
-// hilo + ficha, la cola de cobranza de hoy y las instrucciones de las asistentes. Patricia
+// hilo + ficha y la cola de cobranza de hoy (la ventana de cada asistente vive en modules/redes.js). Patricia
 // atiende la COBRANZA por WhatsApp; Paola las VENTAS por WhatsApp e Instagram. Ver logic/whatsapp.js.
 // El contexto es la pestana abierta de Redes sociales: 'todos', 'whatsapp', 'instagram'...
 function _waCtxActual(){ return { modulo: 'redes', canal: window._rsTab || 'todos', area: '' }; }
@@ -257,41 +257,6 @@ function _waHtmlFicha(sel, ctx){
     : '');
 }
 
-function _waPanelAsistente(ctx){
-  var cfg = window._waCfg || {}, h = '';
-  var veWa = ctx.canal === 'whatsapp' || ctx.modulo === 'redes', veIg = ctx.canal === 'instagram' || (ctx.modulo === 'redes' && ctx.area === 'ventas');
-  var conectado = waConectado();
-  var puede = typeof isAdminUser === 'function' && isAdminUser();
-  var pie = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap"><div class="cs">' + (cfg.actualizadoEn ? 'Última edición: ' + _waEsc(cfg.actualizadoPor || '') + ' · ' + _waHora(cfg.actualizadoEn) : 'Nadie las ha editado todavía') + (puede ? '' : ' · solo administración las edita') + '</div>';
-  var conexionWa = conectado && veWa ? '<div class="cs">WhatsApp: número ' + _waEsc(cfg.telefono || '') + ' conectado por la API oficial.</div>' : (veWa ? '<div class="cs" style="line-height:1.6">WhatsApp pendiente: verificación del negocio en Meta, el número, plantillas aprobadas y las claves en el servidor. Mientras tanto el módulo funciona en demostración.</div>' : '');
-  var conexionIg = veIg ? (cfg.instagram ? '<div class="cs">Instagram: ' + (typeof cfg.instagram === 'string' ? '@' + _waEsc(cfg.instagram.replace(/^@/, '')) + ' ' : '') + 'conectado (mensajes directos).</div>' : '<div class="cs" style="line-height:1.6">Instagram pendiente: cuenta profesional ligada a una página de Facebook y permiso de mensajes en la misma app de Meta. Mientras tanto el módulo funciona en demostración.</div>') : '';
-  if(ctx.area === 'cobranza'){
-    h += '<div class="sg" style="grid-template-columns:1.4fr 1fr;align-items:start">'
-      + '<div class="card"><div class="ch"><div><div class="ct">Instrucciones del asistente de cobranza</div><div class="cs">Texto libre. El asistente lo lee antes de cada respuesta y manda sobre todo lo demás. Ejemplos: "esta semana no se reciben pagos en efectivo", "si preguntan por refinanciar, pásalos a Samantha".</div></div></div>'
-      + '<textarea class="fta" id="wa-instr" style="width:100%;min-height:160px" ' + (puede ? '' : 'disabled') + '>' + _waEsc(cfg.instrucciones || '') + '</textarea>'
-      + '<div class="ct" style="margin-top:14px">Cómo pagar</div><div class="cs" style="margin-bottom:6px">Lo único que el asistente le da al cliente cuando pregunta dónde pagar: Pago Móvil, cuenta, RIF, Zelle. Si está vacío, lo manda con el equipo.</div>'
-      + '<textarea class="fta" id="wa-pago" style="width:100%;min-height:80px" ' + (puede ? '' : 'disabled') + '>' + _waEsc(cfg.datosPago || '') + '</textarea>'
-      + pie + (puede ? '<button class="btn btn-p btn-sm" onclick="waGuardarInstrucciones(document.getElementById(\'wa-instr\').value, document.getElementById(\'wa-pago\').value)">Guardar</button>' : '') + '</div></div>'
-      + '<div style="display:grid;gap:12px">'
-      + '<div class="card"><div class="ct">Reglas fijas (no se cambian desde aquí)</div><ul style="margin:8px 0 0 18px;padding:0;font-size:12.5px;line-height:1.7;color:var(--ink2)">'
-      + '<li>Solo habla del crédito del cliente: cuánto debe, cuándo vence, cómo pagar y su comprobante.</li><li>Nunca aprueba, descuenta, refinancia ni promete nada: eso lo consulta con el equipo.</li><li>No inventa montos: todo sale del ledger del sistema.</li><li>No pide cédula ni documentos por el chat.</li><li>Si el cliente se queja, pide una persona o manda una imagen, se calla y avisa.</li><li>Tono: cercano, breve, en el español de Venezuela; recuerda, nunca amenaza.</li></ul></div>'
-      + '<div class="card"><div class="ct">Conexión con Meta</div>' + conexionWa + '</div>'
-      + '<div class="card"><div class="ct">Horario de los recordatorios</div><div class="cs" style="line-height:1.6">Todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento, al tercer día de vencida y al sexto; de 10 días en adelante no insiste y lo pasa a un cobrador.</div></div>'
-      + '</div></div>';
-  } else {
-    h += '<div class="sg" style="grid-template-columns:1.4fr 1fr;align-items:start">'
-      + '<div class="card"><div class="ch"><div><div class="ct">Instrucciones del asistente de ventas</div><div class="cs">Lo que debe saber además del catálogo: promociones, horarios, qué decir de una sede, a quién pasar los interesados. Él ya conoce precios, inicial, cuotas y cómo se solicita. Son las mismas instrucciones para WhatsApp e Instagram.</div></div></div>'
-      + '<textarea class="fta" id="wa-ventas" style="width:100%;min-height:200px" ' + (puede ? '' : 'disabled') + '>' + _waEsc(cfg.instruccionesVentas || '') + '</textarea>'
-      + pie + (puede ? '<button class="btn btn-p btn-sm" onclick="waGuardarInstrucciones(null, null, document.getElementById(\'wa-ventas\').value)">Guardar</button>' : '') + '</div></div>'
-      + '<div style="display:grid;gap:12px">'
-      + '<div class="card"><div class="ct">Reglas fijas (no se cambian desde aquí)</div><ul style="margin:8px 0 0 18px;padding:0;font-size:12.5px;line-height:1.7;color:var(--ink2)">'
-      + '<li>Solo habla de las motos, los planes y cómo solicitar; los precios y cuotas salen del catálogo de pagasi.io.</li><li>Nunca aprueba ni promete aprobación, entrega ni descuentos: "eso lo confirma tu asesor".</li><li>No pide cédula ni documentos: para que un asesor llame basta nombre, ciudad, modelo y WhatsApp.</li><li>Quien quiere comprar queda anotado como "Quiere comprar" con sus datos, para que el equipo lo llame.</li><li>Si pregunta por un crédito que ya tiene, lo manda a Mi cuenta o a cobranza.</li><li>Tono: cercano, entusiasta y breve, en el español de Venezuela.</li></ul></div>'
-      + '<div class="card"><div class="ct">Conexión con Meta</div>' + conexionWa + conexionIg + '</div>'
-      + '<div class="card"><div class="ct">Ventana para responder</div><div class="cs" style="line-height:1.6">' + (veWa ? '<b>WhatsApp:</b> el equipo puede escribirle libremente durante las 24 horas siguientes a su último mensaje; después solo con una plantilla aprobada.' : '') + (veWa && veIg ? '<br>' : '') + (veIg ? '<b>Instagram:</b> el equipo puede escribirle a la persona hasta 7 días después de su último mensaje; pasado eso, hay que esperar a que vuelva a escribir.' : '') + '</div></div>'
-      + '</div></div>';
-  }
-  return h;
-}
 // La cola de cobranza de hoy (antes la pestana "Hoy" del modulo WhatsApp): sale de la cartera
 // y del ledger; los recordatorios los manda Patricia sola a las 8:30 am.
 function _waPanelHoy(cola){

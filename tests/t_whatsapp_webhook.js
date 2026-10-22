@@ -362,5 +362,41 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   const C = armar(); C.deps.metaIG = null;
   ok('sin Instagram configurado el mensaje se salta sin romper nada', (await procesar.procesarMensaje(C.deps, pi.mensajes[0])).saltado === 'instagram-no-configurado');
 
+  // ── Redes sociales (22-oct-2026): la calidad escoge el modelo y cada asistente se apaga por canal ──
+  {
+    const cuerpos = []; let primera = true;
+    const responde = (ok, j) => ({ ok, status: ok ? 200 : 400, json: async () => j });
+    const util = { content: [{ type: 'tool_use', name: 'responder', input: { reply: 'Hola', summary: '', handoff: false } }], usage: {} };
+    const fetchQ = async (u, o) => { cuerpos.push(JSON.parse(o.body)); return responde(true, util); };
+    for (const q of ['economica', 'normal', 'maxima', undefined]) await cerebro.pensar({ apiKey: 'x', sistema: 'S', mensajes: [{ autor: 'cliente', texto: 'hola' }], fetchImpl: fetchQ, calidad: q });
+    ok('calidad Económica: Claude Haiku 5.5, con el razonamiento apagado', cuerpos[0].model === 'claude-haiku-5-5' && cuerpos[0].thinking && cuerpos[0].thinking.type === 'disabled');
+    ok('calidad Normal: Claude Sonnet 5.5, sin el parámetro de razonamiento (como venía trabajando)', cuerpos[1].model === 'claude-sonnet-5-5' && !('thinking' in cuerpos[1]));
+    ok('calidad Máxima: Claude Opus 5.5, sin intentar apagar el razonamiento (no lo deja)', cuerpos[2].model === 'claude-opus-5-5' && !('thinking' in cuerpos[2]) && cuerpos[2].max_tokens >= 3000);
+    ok('sin calidad escogida, la Normal', cuerpos[3].model === 'claude-sonnet-5-5');
+    // Reintento sin respuesta útil: Sonnet/Opus 5.5 no aceptan obligar la herramienta
+    for (const q of ['normal', 'economica']) {
+      cuerpos.length = 0; primera = true;
+      const fetchR = async (u, o) => { cuerpos.push(JSON.parse(o.body)); if (primera) { primera = false; return responde(true, { content: [], usage: {} }); } return responde(true, util); };
+      await cerebro.pensar({ apiKey: 'x', sistema: 'S', mensajes: [{ autor: 'cliente', texto: 'hola' }], fetchImpl: fetchR, calidad: q });
+      if (q === 'normal') ok('reintento en Normal: más tope y SIN obligar la herramienta (daría 400)', cuerpos.length === 2 && cuerpos[1].tool_choice.type === 'auto' && cuerpos[1].max_tokens > cuerpos[0].max_tokens);
+      else ok('reintento en Económica: obliga la herramienta (Haiku sí lo acepta)', cuerpos.length === 2 && cuerpos[1].tool_choice.type === 'tool');
+    }
+    // Paola apagada en Instagram: el mensaje llega, no se le pregunta a Claude ni se responde
+    const R = armar(); R.deps.cfg.responde = { instagram: false };
+    R.cerebroFalso.ultimo = null; const igAntes = R.ig.length;
+    const ra = await procesar.procesarMensaje(R.deps, { canal: 'instagram', metaId: 'mid.apag', de: '777001', nombre: '', tipo: 'texto', texto: 'precio?', medio: null, hora: AHORA });
+    ok('Paola apagada en Instagram: el mensaje queda en el panel y no se responde', ra.apagada && !R.cerebroFalso.ultimo && R.ig.length === igAntes && R.db26._store.get('conversaciones/ig:777001').noLeidos === 1 && !!R.db26._store.get('conversaciones/ig:777001/mensajes/mid.apag'));
+    // Comentarios apagados
+    const rcA = await procesar.procesarAviso(R.deps, meta.parsearWebhook(avisoCom('c9', '¿precio de la BRZ?', '555790', 'carla')));
+    R.deps.cfg.responde = { comentariosIg: false }; R.cerebroFalso.ultimo = null;
+    await procesar.procesarAviso(R.deps, meta.parsearWebhook(avisoCom('c10', '¿precio de la BRZ?', '555791', 'marta')));
+    const c10 = R.db26._store.get('comentarios_ig/c10');
+    ok('Paola apagada en comentarios: el comentario se guarda "sin respuesta" y dice por qué', !!rcA && c10 && c10.estado === 'sin-respuesta' && /apagada/.test(c10.motivo) && !R.cerebroFalso.ultimo);
+    // La calidad que se escogió le llega al cerebro, por área
+    const Q = armar(); Q.deps.cfg.calidad = { ventas: 'economica', cobranza: 'maxima' };
+    await procesar.procesarMensaje(Q.deps, { canal: 'instagram', metaId: 'mid.q1', de: '777002', nombre: '', tipo: 'texto', texto: 'precio?', medio: null, hora: AHORA });
+    ok('Paola usa la calidad de ventas que se escogió', Q.cerebroFalso.ultimo && Q.cerebroFalso.ultimo.calidad === 'economica');
+  }
+
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });
