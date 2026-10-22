@@ -164,11 +164,22 @@ function _waSeleccionada(ctx){
   return sel;
 }
 function _waFirmaDe(sel){ return sel ? JSON.stringify([sel.id, sel.nombre, sel.usuario, sel.clienteNombre, sel.modo, sel.atendidoPor, sel.atencion, sel.borrador, sel.resumen, sel.ultimoEntranteHora, sel.telE164]) : 'nada'; }
+// La bandeja ocupa justo lo que queda visible del área de contenido (#cnt), sin barra para bajar
+// (Adam, 22-oct-2026: "quiero que el módulo no se corte, que entre en una sola página"). Se mide
+// DENTRO de #cnt y sumando su scroll: medida contra la ventana, si se llegaba con la página bajada
+// salía más alta de la cuenta y la caja de escribir quedaba cortada abajo.
 function _waAjustarAltura(){
   var sp = document.querySelector('.wa-split'); if(!sp) return;
-  if(window.innerWidth <= 1200){ sp.style.height = ''; return; }
-  var alto = window.innerHeight - sp.getBoundingClientRect().top - 18;
-  sp.style.height = Math.max(460, Math.round(alto)) + 'px';
+  var pg = sp.closest ? sp.closest('.rs-page') : null, lleno = window.innerWidth > 1200;
+  if(pg && pg.classList) pg.classList.toggle('rs-lleno', lleno);
+  if(!lleno){ sp.style.height = ''; return; }
+  var cnt = document.getElementById('cnt'), main = document.querySelector('.main');
+  var arriba = cnt ? cnt.getBoundingClientRect().top : 0;
+  var top = sp.getBoundingClientRect().top - arriba + (cnt ? cnt.scrollTop : 0);
+  var visible = cnt ? cnt.clientHeight : window.innerHeight;
+  sp.style.height = Math.max(420, Math.round(visible - top - 16)) + 'px';
+  if(cnt) cnt.scrollTop = 0;
+  if(main) main.scrollTop = 0;   // si algo la había corrido, la barra de arriba vuelve a verse entera
 }
 if(typeof window.addEventListener === 'function' && !window._waResize){ window._waResize = true; window.addEventListener('resize', function(){ _waAjustarAltura(); }); }
 function _waPintarSeleccion(){

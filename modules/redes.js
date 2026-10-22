@@ -67,6 +67,8 @@ var _RS_CSS = '<style id="rs-css">'
   + '.rs-caja .wa-kv{border:0;padding:4px 0;font-size:13px}.rs-caja .wa-kv span:first-child{color:var(--ink2)}.rs-caja .wa-kv span:last-child{font-weight:600}.rs-caja .rs-pend{border:0;border-radius:0}'
   + '.rs-caja .wa-hilo-top{flex-wrap:nowrap}.rs-caja .wa-hilo-top .quien{min-width:0;flex:1}.rs-caja .wa-hilo-top .quien>div:last-child{min-width:0}.rs-caja .wa-hilo-top .quien small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rs-caja .wa-hilo-top .acc{flex:none;flex-wrap:nowrap}'
   + '.rs-caja .wa-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.rs-caja .wa-filtros::-webkit-scrollbar{display:none}.rs-caja .wa-filtros button{flex:none}'
+  // En pantalla grande la bandeja cabe entera: sin el relleno de abajo de #cnt no queda nada para bajar
+  + '@media(min-width:1201px){#cnt:has(.rs-page.rs-lleno){padding-bottom:0}}.rs-page.rs-lleno{margin-bottom:0}'
   + '.rs-com .estado{margin-top:4px}.rs-asis{display:flex;gap:0;margin:0 0 14px;border:1px solid var(--rim);border-radius:14px;overflow:hidden;width:max-content;max-width:100%}.rs-asis button{border:0;background:var(--surf);font:inherit;font-size:13px;font-weight:800;color:var(--ink2);padding:10px 18px;cursor:pointer}.rs-asis button+button{border-left:1px solid var(--rim)}.rs-asis button.on{background:var(--p1);color:#fff}'
   + '</style>';
 
@@ -211,5 +213,7 @@ PG.redes = function(){
     h += '</div>';
   }
   h += '</div>';
+  // Se vuelve a medir cuando termina la animación de entrada de la página (la corre 8 px)
+  setTimeout(function(){ if(S.page === 'redes' && typeof _waAjustarAltura === 'function') _waAjustarAltura(); }, 260);
   return h;
 };
