@@ -28,28 +28,31 @@ const ADAM_UID = 'l8OCCAHCWyNLU6akwlU8vdrP3Ow2';
 // ── 1. Otro administrador: no los ve ni entra ──
 S.currentUser = { uid:'a2', email:'alejandro@pagasi.io', nombre:'Alejandro', rol:'Administrador', permisos:[], concesionarios:[] }; S.creds = [];
 ctx.renderSidebar(); let menu = modulosEnMenu();
-ok('otro administrador no ve WhatsApp ni Instagram en el menú', !menu.includes('whatsapp') && !menu.includes('instagram'));
-ok('...y tampoco puede entrar directo', !ctx.hasModuleAccess('whatsapp') && !ctx.hasModuleAccess('instagram'));
+ok('otro administrador no ve Redes sociales en el menú', !menu.includes('redes') && !menu.includes('whatsapp') && !menu.includes('instagram'));
+ok('...y tampoco puede entrar directo', !ctx.hasModuleAccess('redes') && !ctx.hasModuleAccess('whatsapp') && !ctx.hasModuleAccess('instagram'));
 ok('...pero sigue viendo todo lo demás', ['dash','clientes','pagos','config','users'].every(k => menu.includes(k)) && ctx.hasModuleAccess('config'));
 
 // ── 2. Un empleado con los permisos puestos: tampoco ──
 S.currentUser = { uid:'e1', email:'emp@pagasi.io', nombre:'Empleada', rol:'Empleado', permisos:['dash','clientes','whatsapp','instagram'], concesionarios:[] };
 ctx.renderSidebar(); menu = modulosEnMenu();
-ok('un empleado con los permisos puestos tampoco los ve', !menu.includes('whatsapp') && !menu.includes('instagram') && menu.includes('clientes'));
-ok('...ni entra', !ctx.hasModuleAccess('whatsapp') && !ctx.hasModuleAccess('instagram') && ctx.hasModuleAccess('clientes'));
+ok('un empleado con los permisos puestos tampoco lo ve', !menu.includes('redes') && menu.includes('clientes'));
+ok('...ni entra', !ctx.hasModuleAccess('redes') && !ctx.hasModuleAccess('whatsapp') && !ctx.hasModuleAccess('instagram') && ctx.hasModuleAccess('clientes'));
 
 // ── 3. Adam (por uid) sí ──
 S.currentUser = { uid:ADAM_UID, email:'adam@pagasi.io', nombre:'adam', rol:'Administrador', permisos:[], concesionarios:[] };
 ctx.renderSidebar(); menu = modulosEnMenu();
-ok('Adam ve los dos módulos en su menú', menu.includes('whatsapp') && menu.includes('instagram'));
-ok('...y entra', ctx.hasModuleAccess('whatsapp') && ctx.hasModuleAccess('instagram'));
+ok('Adam ve Redes sociales en su menú, una sola vez (ya no WhatsApp e Instagram sueltos)', menu.filter(k => k === 'redes').length === 1 && !menu.includes('whatsapp') && !menu.includes('instagram'));
+ok('...y entra, con los dos canales', ctx.hasModuleAccess('redes') && ctx.hasModuleAccess('whatsapp') && ctx.hasModuleAccess('instagram'));
 // ── 4. Adam por correo (si el uid cambiara) ──
 S.currentUser = { uid:'otro', email:'Adam@pagasi.io', nombre:'adam', rol:'Administrador', permisos:[], concesionarios:[] };
-ok('también lo reconoce por el correo, sin importar mayúsculas', ctx.hasModuleAccess('whatsapp') && ctx.hasModuleAccess('instagram'));
+ok('también lo reconoce por el correo, sin importar mayúsculas', ctx.hasModuleAccess('redes') && ctx.hasModuleAccess('whatsapp') && ctx.hasModuleAccess('instagram'));
 // ── 5. Al vaciar la lista de prueba, se abren para quien tenga el permiso ──
 vm.runInContext("MODULOS_EN_PRUEBA = {}", ctx);
 S.currentUser = { uid:'e1', email:'emp@pagasi.io', nombre:'Empleada', rol:'Empleado', permisos:['dash','clientes','whatsapp'], concesionarios:[] };
 ctx.renderSidebar(); menu = modulosEnMenu();
-ok('cuando se abran (MODULOS_EN_PRUEBA vacío), manda el permiso: WhatsApp sí, Instagram no', menu.includes('whatsapp') && !menu.includes('instagram') && ctx.hasModuleAccess('whatsapp') && !ctx.hasModuleAccess('instagram'));
+ok('cuando se abran (MODULOS_EN_PRUEBA vacío), manda el permiso: Redes sociales con WhatsApp sí, Instagram no', menu.includes('redes') && ctx.hasModuleAccess('redes') && ctx.hasModuleAccess('whatsapp') && !ctx.hasModuleAccess('instagram'));
+S.currentUser = { uid:'e2', email:'emp2@pagasi.io', nombre:'Otra', rol:'Empleado', permisos:['dash','clientes'], concesionarios:[] };
+ctx.renderSidebar(); menu = modulosEnMenu();
+ok('...y sin ninguno de los dos permisos no aparece', !menu.includes('redes') && !ctx.hasModuleAccess('redes'));
 
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

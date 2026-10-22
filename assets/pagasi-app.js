@@ -2660,8 +2660,10 @@ var MODULOS = [
   {id:'motos', label:'Motocicletas', grupo:'Gestión'},
   {id:'creditos', label:'Créditos', grupo:'Gestión'},
   {id:'pagos', label:'Cobranza', grupo:'Gestión'},
-  {id:'whatsapp', label:'WhatsApp', grupo:'Gestión'},
-  {id:'instagram', label:'Instagram', grupo:'Gestión'},
+  // 22-oct-2026: WhatsApp e Instagram se ven en un solo modulo, Redes sociales; los dos permisos
+  // siguen separados (cada uno abre su canal dentro del modulo, y las Reglas los usan).
+  {id:'whatsapp', label:'Redes sociales · WhatsApp', grupo:'Gestión'},
+  {id:'instagram', label:'Redes sociales · Instagram', grupo:'Gestión'},
   {id:'contratos', label:'Contratos', grupo:'Operaciones'},
   {id:'notif', label:'Notificaciones', grupo:'Operaciones'},
   {id:'calculadora', label:'Calculadora', grupo:'Operaciones'},
@@ -2923,7 +2925,7 @@ function fmtFecha(iso){
 }
 const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
-const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'WhatsApp',instagram:'Instagram',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
+const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'WhatsApp',instagram:'Instagram',redes:'Redes sociales',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
 
 const EXTRA_PERMS={perm_delete:'Permiso para eliminar'};
 function getCurrentPerms(){ return (S.currentUser&&Array.isArray(S.currentUser.permisos)) ? S.currentUser.permisos : []; }
@@ -3010,11 +3012,15 @@ function getPermsEfectivos(){
 var MODULOS_EN_PRUEBA = { whatsapp: true, instagram: true };
 var USUARIOS_DE_PRUEBA = ['l8OCCAHCWyNLU6akwlU8vdrP3Ow2', 'adam@pagasi.io'];   // Adam (mismo uid en las dos companias)
 function moduloOcultoParaMi(key){
+  // Redes sociales queda escondido solo si los dos canales lo estan
+  if(key === 'redes') return moduloOcultoParaMi('whatsapp') && moduloOcultoParaMi('instagram');
   if(!MODULOS_EN_PRUEBA[key]) return false;
   var u = S.currentUser || {};
   return !(USUARIOS_DE_PRUEBA.indexOf(String(u.uid || '')) > -1 || USUARIOS_DE_PRUEBA.indexOf(String(u.email || '').toLowerCase()) > -1);
 }
 function hasModuleAccess(key){
+  // Redes sociales (22-oct-2026): entra quien ve al menos uno de sus canales
+  if(key === 'redes') return hasModuleAccess('whatsapp') || hasModuleAccess('instagram');
   if(moduloOcultoParaMi(key)) return false;
   if(isAdminUser()) return true;
   // Recursos: repositorio de material disponible para TODOS los usuarios logueados
@@ -3147,6 +3153,7 @@ var PG_NAVICONS = {
   notif:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg>',
   whatsapp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9.2 8.4 8.6 8.6 0 0 1-3.4-.8L3 21l1.9-5.1A8.4 8.4 0 1 1 21 11.5z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
   instagram:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>',
+  redes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 9h2a2 2 0 0 1 2 2v9l-3-2.5h-6a2 2 0 0 1-2-2V15"/><path d="M3 4h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2z"/></svg>',
   calculadora:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="10" height="3" rx="0.5"/><circle cx="8" cy="13" r="0.6" fill="currentColor"/><circle cx="12" cy="13" r="0.6" fill="currentColor"/><circle cx="16" cy="13" r="0.6" fill="currentColor"/><circle cx="8" cy="17" r="0.6" fill="currentColor"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/><circle cx="16" cy="17" r="0.6" fill="currentColor"/></svg>',
   reportes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>',
   aprobaciones:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
@@ -3196,7 +3203,7 @@ function renderSidebar(){
     var permsEmp = getCurrentPerms();
     var grposEmp = [
       {label:'Mi Trabajo', keys:['dash','centro','recursos']},
-      {label:'Gestión', keys:['clientes','motos','creditos','pagos','whatsapp','instagram']},
+      {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes']},
       {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
       {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
       // 16-oct-2026: el menu del empleado no listaba Concesionarios ni Cumplimiento, asi que el
@@ -3221,7 +3228,7 @@ function renderSidebar(){
           +'</div>'
         : '')
       + grposEmp.map(function(g){
-          var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (k==='recursos' || permsEmp.includes(k)); });
+          var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (k==='recursos' || permsEmp.includes(k) || (k==='redes' && (permsEmp.includes('whatsapp') || permsEmp.includes('instagram')))); });
           if(!items.length) return '';
           return '<div class="sb-grp"><div class="sb-lbl">'+g.label+'</div>'
             +items.map(function(k){
@@ -3263,7 +3270,7 @@ function renderSidebar(){
   var perms = getCurrentPerms();
   var grupos = [
     {label:'Principal', keys:['dash','centro','recursos']},
-    {label:'Gestión', keys:['clientes','motos','creditos','pagos','whatsapp','instagram']},
+    {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes']},
     {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
     {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
     {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','catalogo']},
@@ -3277,7 +3284,7 @@ function renderSidebar(){
     aprobaciones:'<span class="si-bx">'+_sidebarAprobPendientes()+'</span>'};
 
   sb.innerHTML = grupos.map(function(g){
-    var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (isAdminUser() || k==='recursos' || perms.includes(k)); });
+    var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (isAdminUser() || k==='recursos' || perms.includes(k) || (k==='redes' && (perms.includes('whatsapp') || perms.includes('instagram')))); });
     if(!items.length) return '';
     return '<div class="sb-grp"><div class="sb-lbl">'+g.label+'</div>'
       +items.map(function(k){
@@ -3517,6 +3524,8 @@ window.addEventListener('popstate', function(ev){
 
 function nav(p){
   var _navT0 = Date.now();
+  // WhatsApp e Instagram viven dentro de Redes sociales (22-oct-2026): abre esa pestaña
+  if(p === 'whatsapp' || p === 'instagram'){ window._rsTab = p; window._rsVista = 'bandeja'; p = 'redes'; }
   if(typeof closeMobileMenu==='function') closeMobileMenu();
   // Verificar permiso
   if(S.currentUser){

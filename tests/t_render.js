@@ -192,7 +192,10 @@ ok('los sidebars declaran modulos (' + clavesSidebar.size + ')', clavesSidebar.s
 
 // Estos viven fuera del sidebar a proposito
 const APARTE = new Set(['concesionarios', 'aprobaciones']);
-const huerfanos = otorgables.filter(k => !clavesSidebar.has(k) && !APARTE.has(k));
+// Permisos que se usan DENTRO de otro modulo: WhatsApp e Instagram son canales de Redes
+// sociales desde el 22-oct-2026; el boton del menu es el de 'redes'
+const DENTRO_DE = { whatsapp: 'redes', instagram: 'redes' };
+const huerfanos = otorgables.filter(k => !clavesSidebar.has(DENTRO_DE[k] || k) && !APARTE.has(k));
 if (huerfanos.length) {
   console.log('');
   huerfanos.forEach(k => console.log('     ✗ "' + k + '" se puede otorgar pero no esta en ningun sidebar'));

@@ -5,7 +5,7 @@
 // config/asistente lo edita solo administracion.
 const fs = require('fs'), path = require('path');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, addDoc, query, where } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, addDoc, query, where, orderBy, limit } = require('firebase/firestore');
 
 let pass = 0, fail = 0;
 async function prueba(nombre, promesa) {
@@ -36,6 +36,7 @@ async function prueba(nombre, promesa) {
     await setDoc(doc(db, 'recordatorios_corridas/r1'), { hoy: '2026-10-18' });
     await setDoc(doc(db, 'leads/ig:555001'), { canal: 'instagram', nombre: 'Luis', modelo: 'BRZ 200', estado: 'nuevo' });
     await setDoc(doc(db, 'leads/wa:+584160000000'), { canal: 'whatsapp', nombre: 'Ana', modelo: 'Kavak', estado: 'nuevo' });
+    await setDoc(doc(db, 'comentarios_ig/c1'), { usuario: 'luis', texto: 'precio?', hora: '2026-10-22T10:00:00.000Z', estado: 'respondido', respuesta: 'Está en $1,750' });
   });
   const ses = (uid, email) => env.authenticatedContext(uid, { email, firebase: { sign_in_provider: 'password' } }).firestore();
   const admin = ses('admin1', 'a@x.com'), cob = ses('cob1', 'cob1@x.com'), ven = ses('ven1', 'ven1@x.com'), emp = ses('emp1', 'emp1@x.com'), vc = ses('vc1', 'vc1@x.com');
@@ -68,6 +69,18 @@ async function prueba(nombre, promesa) {
   await prueba('...ni sus mensajes', assertFails(getDocs(collection(ven, WA + '/mensajes'))));
   await prueba('...ni los leads de WhatsApp', assertFails(getDoc(doc(ven, 'leads/wa:+584160000000'))));
   await prueba('...ni cambia el teléfono de un lead ni crea leads', assertFails(updateDoc(doc(ven, 'leads/ig:555001'), { telefono: '0' })) && assertFails(setDoc(doc(ven, 'leads/ig:9'), { nombre: 'x' })));
+
+  // ── Comentarios de Instagram (22-oct-2026): los lee quien tiene el canal Instagram ──
+  const comentarios = (db) => getDocs(query(collection(db, 'comentarios_ig'), orderBy('hora', 'desc'), limit(200)));
+  await prueba('la vendedora con Instagram lee los comentarios (como los pide Redes sociales)', assertSucceeds(comentarios(ven)));
+  await prueba('...y uno suelto', assertSucceeds(getDoc(doc(ven, 'comentarios_ig/c1'))));
+  await prueba('...pero no los escribe ni los borra', Promise.all([assertFails(updateDoc(doc(ven, 'comentarios_ig/c1'), { estado: 'nuevo' })), assertFails(deleteDoc(doc(ven, 'comentarios_ig/c1')))]));
+  await prueba('el administrador los lee', assertSucceeds(comentarios(admin)));
+  await prueba('...pero tampoco los escribe', assertFails(setDoc(doc(admin, 'comentarios_ig/c2'), { texto: 'x' })));
+  await prueba('la cobradora (solo WhatsApp) no los lee', Promise.all([assertFails(comentarios(cob)), assertFails(getDoc(doc(cob, 'comentarios_ig/c1')))]));
+  await prueba('la empleada sin módulos tampoco', assertFails(comentarios(emp)));
+  await prueba('el vendedor de concesionario tampoco, aunque le pongan el permiso', assertFails(comentarios(vc)));
+  await prueba('sin sesión nada', assertFails(comentarios(nadie)));
 
   // ── Lo que no se hace desde el navegador ──
   await prueba('no cambia el teléfono ni el cliente de la conversación', assertFails(updateDoc(doc(cob, WA), { telE164: '+580000000000' })));

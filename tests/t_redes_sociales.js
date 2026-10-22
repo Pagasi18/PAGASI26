@@ -1,0 +1,138 @@
+// 22-oct-2026: Adam: "el módulo de WhatsApp e Instagram ponmelo en uno solo que se llame Redes
+// sociales... que aparezca todo: Messenger, Instagram, WhatsApp, comentarios de Facebook,
+// comentarios de Instagram, igual que la foto". Una bandeja con una pestaña por canal; Messenger y
+// los comentarios de Facebook todavía sin conectar; la cola de hoy y los asistentes como botones.
+process.env.TZ = 'America/Caracas';   // la hora de la oficina, para la prueba de fechas
+const fs = require('fs'), path = require('path'), vm = require('vm');
+const ROOT = path.join(__dirname, '..');
+let pass = 0, fail = 0;
+const ok = (l, v) => { if (v) { pass++; console.log('OK   ' + l); } else { fail++; console.log('FALLA ' + l); } };
+
+const els = {};
+function el(id) { return els[id] || (els[id] = { id, innerHTML: '', textContent: '', value: '', scrollTop: 0, scrollHeight: 0 }); }
+const doc = { getElementById(id) { return els[id] || null; }, head: { insertAdjacentHTML() {} }, querySelector() { return null; }, querySelectorAll() { return []; } };
+const navs = [], timers = [], escuchas = [];
+const ctx = { console: { log() {}, warn() {}, error() {} }, document: doc, setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout() {},
+  S: { page: 'redes', currentUser: { nombre: 'Adam', uid: 'u1' }, creds: [], pagos: [], clientes: [] }, PG: {}, nav: (p) => navs.push(p), toast() {}, logActividad() {},
+  isAdminUser: () => true, fmt: (n) => '$' + n, hoyLocalISO: () => '2026-10-22', CreditoLedger: { generarEstadoCredito() { return { cuotas: [], cuotasPagadas: 0, totalCuotas: 0 }; } },
+  fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({}) }); } };
+ctx.window = ctx;
+// Base falsa: anota qué colecciones se escuchan
+function consulta(col) { const q = { where() { return q; }, orderBy() { return q; }, limit() { return q; }, onSnapshot() { escuchas.push(col); return () => {}; }, doc() { return { set() { return Promise.resolve(); }, collection() { return consulta(col + '/sub'); } }; } }; return q; }
+ctx.db = { collection: consulta };
+vm.createContext(ctx);
+for (const f of ['logic/whatsapp.js', 'modules/whatsapp.js', 'modules/redes.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+const flush = () => { while (timers.length) timers.shift()(); };
+const montar = () => { ['wa-items', 'wa-filtros', 'wa-hilo', 'wa-ficha', 'wa-q', 'rs-com-items', 'rs-com-filtros', 'rs-com-hilo', 'rs-com-ficha', 'rs-com-q'].forEach(el); const h = ctx.PG.redes(); flush(); return h; };
+
+// WhatsApp e Instagram conectados (como en la PAGASI 26)
+ctx._waCfg = { conectado: true, telefono: '+58 414-2719914', instagram: 'pagasi.io' };
+const hoy = new Date().toISOString(), ayer = new Date(Date.now() - 86400000).toISOString();
+ctx._waConvs = [
+  { id: 'wa:+584140000001', canal: 'whatsapp', area: 'cobranza', nombre: 'María', telE164: '+584140000001', noLeidos: 2, ultimoMensaje: 'ya pagué', ultimoMensajeHora: hoy, ultimoEntranteHora: hoy, ultimoAutor: 'cliente' },
+  { id: 'wa:+584140000002', canal: 'whatsapp', area: 'ventas', nombre: 'Ana', telE164: '+584140000002', noLeidos: 0, ultimoMensaje: 'precio?', ultimoMensajeHora: ayer, ultimoEntranteHora: ayer, borrador: { tipo: 'lead', modelo: 'Kavak' } },
+  { id: 'ig:1', canal: 'instagram', area: 'ventas', nombre: 'Luis', usuario: 'luis', noLeidos: 1, ultimoMensaje: 'hola', ultimoMensajeHora: hoy, ultimoEntranteHora: hoy, origenComentario: 'c1' }
+];
+ctx._waComs = [
+  { id: 'c1', usuario: 'luis', texto: 'Precio de la BRZ?', hora: hoy, tipoMedia: 'FEED', estado: 'respondido', respuesta: 'Está en $1,750. Escríbeme por directo.', privado: { enviado: true, igsid: '1' } },
+  { id: 'c2', usuario: 'pedro', texto: '🔥', hora: ayer, tipoMedia: 'AD', estado: 'sin-respuesta', motivo: 'solo emoji o vacío' },
+  { id: 'c3', usuario: 'jose', texto: 'nadie me llama', hora: hoy, tipoMedia: 'FEED', estado: 'fallo', reclamo: true, error: 'Meta HTTP 400' }
+];
+
+// ── 1. Las pestañas, como la bandeja de Meta ──
+ctx._rsTab = 'todos';
+let html = montar();
+const nombres = ['Todos los mensajes', 'Messenger', 'Instagram', 'WhatsApp', 'Comentarios de Facebook', 'Comentarios de Instagram'];
+ok('el módulo se llama Redes sociales', /Redes sociales/.test(html));
+ok('tiene las seis pestañas de la foto, en ese orden', nombres.every(n => html.indexOf('>' + n + '<') > -1) && nombres.map(n => html.indexOf('>' + n + '<')).every((p, i, a) => !i || p > a[i - 1]));
+ok('Messenger y Comentarios de Facebook dicen "sin conectar"', (html.match(/class="pend">sin conectar/g) || []).length === 2);
+ok('los globos cuentan lo que no se ha leído: Todos 2, WhatsApp 1, Instagram 1', /id="rs-b-todos"><span class="b">2</.test(html) && /id="rs-b-whatsapp"><span class="b">1</.test(html) && /id="rs-b-instagram"><span class="b">1</.test(html));
+ok('Comentarios de Instagram cuenta los de hoy (2)', /id="rs-b-igcom"><span class="b">2</.test(html));
+ok('arriba a la derecha: Bandeja, Cobranza de hoy y Asistentes', /Bandeja<\/button>/.test(html) && /Cobranza de hoy · /.test(html) && /Asistentes<\/button>/.test(html));
+ok('escucha las conversaciones de los dos canales y los comentarios', escuchas.includes('conversaciones') && escuchas.includes('comentarios_ig'));
+
+// ── 2. "Todos los mensajes" mezcla los canales ──
+ok('en Todos salen las 3 conversaciones (WhatsApp cobranza, WhatsApp ventas e Instagram)', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 3);
+ok('cada fila lleva la marca de su canal', /class="cn wa"/.test(els['wa-items'].innerHTML) && /class="cn ig"/.test(els['wa-items'].innerHTML));
+ok('en Todos hay filtros de Cobranza y Ventas', /Cobranza<i>1<\/i>/.test(els['wa-filtros'].innerHTML) && /Ventas<i>2<\/i>/.test(els['wa-filtros'].innerHTML));
+ctx.waFiltro('cobranza');
+ok('el filtro Cobranza deja solo a María', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /María/.test(els['wa-items'].innerHTML));
+ctx.waFiltro('todas');
+
+// ── 2b. El aspecto de la bandeja de Meta (Adam: "necesito que la visual sea como la de Meta") ──
+ok('todo va en un solo panel con las pestañas arriba', /class="rs-caja"><div class="rs-tabs">/.test(html));
+ok('la fila dice quién escribió lo último ("Patricia: ..." / "Paola: ...") y lleva etiquetas', /Paola: |Patricia: /.test(els['wa-items'].innerHTML) || /class="rs-tg"><span>Cobranza<\/span>/.test(els['wa-items'].innerHTML));
+ok('las no leídas van en negrita (data-nl) con el punto azul', /data-nl="1"/.test(els['wa-items'].innerHTML) && /class="punto"/.test(els['wa-items'].innerHTML));
+ok('la cabecera del hilo trae la foto y botones cuadrados', /wa-hilo-top"><div class="quien"><div class="av/.test(els['wa-hilo'].innerHTML) && /class="rs-ib/.test(els['wa-hilo'].innerHTML));
+ok('la ficha empieza con el perfil, como en Meta', /class="card rs-perfil"/.test(els['wa-ficha'].innerHTML) && /Información/.test(els['wa-ficha'].innerHTML));
+ok('la caja de escribir dice por dónde y como quién se responde', /Responde en WhatsApp como Patricia/.test(els['wa-hilo'].innerHTML));
+ctx._waMsgs['wa:+584140000001'] = [
+  { autor: 'asistente', tipo: 'plantilla', texto: 'Tu cuota vence hoy', hora: '2026-10-20T13:00:00.000Z', estado: 'leido' },
+  { autor: 'cliente', tipo: 'texto', texto: 'ya pagué', hora: '2026-10-20T13:05:00.000Z' },
+  { autor: 'cliente', tipo: 'texto', texto: 'me confirman?', hora: '2026-10-20T18:00:00.000Z' }];
+el('wa-burbujas'); ctx._waSel = 'wa:+584140000001'; ctx._waPintarHilo('wa:+584140000001');
+ok('el hilo pone la fecha al empezar y cuando pasa más de una hora (2 separadores)', (els['wa-burbujas'].innerHTML.match(/class="wa-sep"/g) || []).length === 2);
+ok('lo que escribe la persona lleva su foto chica al lado', (els['wa-burbujas'].innerHTML.match(/class="avm/g) || []).length === 2);
+ok('en la lista: la hora si es de hoy, el día si es de esta semana, la fecha si es más vieja', ctx._waHoraLista(new Date().toISOString()).indexOf(':') > 0 && ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].includes(ctx._waHoraLista(new Date(Date.now() - 2 * 86400000).toISOString())) && /oct|sep/.test(ctx._waHoraLista('2026-09-01T15:00:00.000Z')));
+
+// ── 3. Cada pestaña de canal muestra solo lo suyo ──
+ctx._rsTab = 'instagram'; montar();
+ok('Instagram: solo Luis', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /Luis/.test(els['wa-items'].innerHTML));
+ok('Instagram no tiene los filtros de cobranza', !/Cobranza<i>/.test(els['wa-filtros'].innerHTML) && !/Con promesa/.test(els['wa-filtros'].innerHTML));
+ctx._rsTab = 'whatsapp'; montar();
+ok('WhatsApp: María y Ana', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 2 && !/Luis/.test(els['wa-items'].innerHTML));
+// Abrir desde Todos una conversación que no está en la pestaña: se va a Todos
+navs.length = 0; ctx.waAbrir('ig:1');
+ok('abrir una de Instagram estando en WhatsApp lleva a Todos los mensajes', navs[0] === 'redes' && ctx._rsTab === 'todos' && ctx._waSel === 'ig:1');
+
+// ── 4. Messenger y comentarios de Facebook: todavía no llegan ──
+ctx._rsTab = 'messenger'; html = montar();
+ok('Messenger explica que todavía no está conectado', /Messenger todavía no está conectado/.test(html) && !/id="wa-items"/.test(html));
+ctx._rsTab = 'fbcom'; html = montar();
+ok('Comentarios de Facebook explica que todavía no están conectados', /Los comentarios de Facebook todavía no están conectados/.test(html));
+
+// ── 5. Comentarios de Instagram ──
+ctx._rsTab = 'igcom'; html = montar();
+ok('la pestaña de comentarios trae su lista, el detalle y la ficha', /id="rs-com-items"/.test(html) && /id="rs-com-hilo"/.test(html) && /id="rs-com-ficha"/.test(html));
+ok('salen los 3 comentarios', (els['rs-com-items'].innerHTML.match(/class="wa-item/g) || []).length === 3);
+ok('el primero se abre con la respuesta pública de Paola', /Precio de la BRZ\?/.test(els['rs-com-hilo'].innerHTML) && /Respuesta pública/.test(els['rs-com-hilo'].innerHTML) && /Está en \$1,750/.test(els['rs-com-hilo'].innerHTML));
+ok('...y el botón para ver la conversación privada que abrió Paola', /Ver la conversación privada/.test(els['rs-com-hilo'].innerHTML) && /waAbrir\(\\?'ig:1/.test(els['rs-com-hilo'].innerHTML));
+ok('los filtros cuentan: respondió 1, sin respuesta 1, reclamos 1, no se pudo enviar 1', /Paola respondió<i>1</.test(els['rs-com-filtros'].innerHTML) && /Sin respuesta<i>1</.test(els['rs-com-filtros'].innerHTML) && /Reclamos<i>1</.test(els['rs-com-filtros'].innerHTML) && /No se pudo enviar<i>1</.test(els['rs-com-filtros'].innerHTML));
+ctx.rsComFiltro('reclamos');
+ok('el filtro Reclamos deja solo el de José, con su error', (els['rs-com-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /jose/.test(els['rs-com-items'].innerHTML) && /Meta HTTP 400/.test(els['rs-com-ficha'].innerHTML));
+ctx.rsComFiltro('todos'); ctx.rsComAbrir('c2');
+ok('el de Pedro dice por qué Paola no respondió y que fue en un anuncio', /solo emoji o vacío/.test(els['rs-com-ficha'].innerHTML) && /Anuncio/.test(els['rs-com-ficha'].innerHTML));
+
+// ── 6. La cola de hoy y los asistentes ──
+ctx._rsVista = 'hoy'; html = montar();
+ok('Cobranza de hoy muestra la cola de recordatorios', /Recordatorios antes de vencer/.test(html) && !/class="rs-tabs"/.test(html));
+ctx._rsVista = 'asistente'; ctx._rsAsis = 'cobranza'; html = montar();
+ok('Asistentes: Patricia (cobranza) con sus instrucciones', /Patricia · cobranza/.test(html) && /Instrucciones del asistente de cobranza/.test(html));
+ctx._rsAsis = 'ventas'; html = montar();
+ok('Asistentes: Paola (ventas), con WhatsApp e Instagram conectados', /Instrucciones del asistente de ventas/.test(html) && /WhatsApp: número/.test(html) && /Instagram: @pagasi.io/.test(html));
+ctx._rsVista = 'bandeja';
+
+// ── 7. Cada canal lo ve quien tiene su permiso ──
+ctx.hasModuleAccess = (k) => k === 'instagram';   // un vendedor: solo Instagram
+const abiertos = []; const abrirReal = ctx.waAbrirConversaciones;
+vm.runInContext('waAbrirConversaciones = function(canal){ __abiertos.push(canal); }', Object.assign(ctx, { __abiertos: abiertos }));
+ctx._rsTab = 'whatsapp'; html = montar();
+ok('sin permiso de WhatsApp no sale su pestaña ni la cola de cobranza', !/>WhatsApp</.test(html) && !/Cobranza de hoy/.test(html) && />Instagram</.test(html));
+ok('...y la pestaña pedida cae en Todos los mensajes', ctx._rsTab === 'todos');
+ok('...y solo se abren las conversaciones de Instagram (las Reglas no dejarían leer WhatsApp)', abiertos.length > 0 && abiertos.every(c => c === 'instagram'));
+ctx.waAbrirConversaciones = abrirReal;
+ctx.hasModuleAccess = (k) => k === 'whatsapp';    // un cobrador: solo WhatsApp
+html = montar();
+ok('sin permiso de Instagram no salen Instagram, Messenger ni los comentarios', !/>Instagram</.test(html) && !/>Messenger</.test(html) && !/Comentarios de Instagram/.test(html) && />WhatsApp</.test(html));
+
+// ── 8. Demostración: la 18 no tiene Meta conectado ──
+delete ctx.hasModuleAccess;
+ctx._waCfg = { conectado: false }; ctx._waConvs = []; ctx._waComs = []; ctx._rsTab = 'igcom';
+html = montar();
+ok('sin Meta conectado avisa que es de muestra', /todavía no están conectados en esta compañía/.test(html));
+ok('...y trae comentarios de muestra', (els['rs-com-items'].innerHTML.match(/class="wa-item/g) || []).length === 3 && ctx._waComs.every(c => c.demo));
+
+// ── 9. La fecha de un mensaje de noche es la de Caracas, no la de UTC ──
+ok('un mensaje del 21-oct a las 11:21 pm sale "21 oct 23:21" (no "22 oct")', ctx._waHora('2026-10-22T03:21:00.000Z') === '21 oct 23:21');
+
+console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

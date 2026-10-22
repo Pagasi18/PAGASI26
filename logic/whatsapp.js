@@ -204,7 +204,7 @@ function waAbrirConversaciones(canal, cb){
     var otras = (_waRoot._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') !== canal; });
     _waRoot._waConvs = otras.concat(snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }));
     // Si la pantalla esta puesta se refresca en el sitio (lista, contadores, hilo si cambio); si no, nav
-    if(S.page === 'whatsapp' || S.page === 'instagram'){ if(!(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio()) && typeof nav === 'function') nav(S.page); }
+    if(S.page === 'redes'){ if(!(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio()) && typeof nav === 'function') nav(S.page); }
     if(cb){ cb(_waRoot._waConvs); cb = null; }
   }, function(e){ console.warn('conversaciones ' + canal + ':', e); if(cb) cb([]); });
 }
@@ -222,6 +222,38 @@ function waAbrirMensajes(id, cb){
   }, function(e){ console.warn('mensajes ' + id + ':', e); _waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []; if(typeof toast === 'function') toast('No se pudieron leer los mensajes: ' + (e && e.message || e), 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); if(cb){ cb([]); cb = null; } });
 }
 function _waConv(id){ return (_waRoot._waConvs || []).find(function(c){ return c.id === id; }); }
+
+// ── Comentarios de Instagram (22-oct-2026) ──
+// Los guarda el servidor en comentarios_ig/{comentarioId} cuando Paola contesta (o decide no
+// contestar) un comentario en una publicacion o un anuncio: usuario, texto, hora, estado
+// ('nuevo' | 'respondido' | 'sin-respuesta' | 'fallo'), motivo, respuesta, reclamo, privado
+// {enviado, igsid}. Desde el panel solo se leen.
+_waRoot._waComs = _waRoot._waComs || [];
+function waAbrirComentarios(cb){
+  if(!waConectadoCanal('instagram')){ waDemoComentarios(); if(cb) cb(_waRoot._waComs); return; }
+  if(_waRoot._waComsUnsub){ if(cb) cb(_waRoot._waComs); return; }
+  if(typeof db === 'undefined' || !db){ if(cb) cb([]); return; }
+  _waRoot._waComsUnsub = db.collection('comentarios_ig').orderBy('hora', 'desc').limit(200).onSnapshot(function(snap){
+    _waRoot._waComs = snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+    _waRoot._waComsError = '';
+    if(S.page === 'redes' && typeof _rsRefrescarComentarios === 'function') _rsRefrescarComentarios();
+    if(cb){ cb(_waRoot._waComs); cb = null; }
+  }, function(e){
+    console.warn('comentarios_ig:', e); _waRoot._waComsError = String(e && e.message || e);
+    if(S.page === 'redes' && typeof _rsRefrescarComentarios === 'function') _rsRefrescarComentarios();
+    if(cb){ cb([]); cb = null; }
+  });
+}
+// Comentarios de muestra, mientras Instagram no esta conectado
+function waDemoComentarios(){
+  if(_waRoot._waComs.length) return _waRoot._waComs;
+  _waRoot._waComs = [
+    { id: 'demo-c1', usuario: 'mariaj.ve', texto: 'Precio de la BRZ 200?', hora: _waAhoraMenos(35), tipoMedia: 'FEED', estado: 'respondido', respuesta: 'La BRZ 200 está en $1,750 con inicial desde $700. Escríbeme por mensaje directo y te paso todo.', privado: { enviado: true, igsid: 'demo-1' }, reclamo: false, demo: true },
+    { id: 'demo-c2', usuario: 'carlos_moto', texto: '🔥🔥🔥', hora: _waAhoraMenos(80), tipoMedia: 'AD', estado: 'sin-respuesta', motivo: 'solo emoji o vacío', demo: true },
+    { id: 'demo-c3', usuario: 'jose.r', texto: 'Llevo una semana esperando que me llamen', hora: _waAhoraMenos(150), tipoMedia: 'FEED', estado: 'respondido', respuesta: 'Disculpa la espera, José. Te escribo por privado ahora mismo.', privado: { enviado: true }, reclamo: true, demo: true }
+  ];
+  return _waRoot._waComs;
+}
 function _waActualizar(id, cambios, accion){
   var c = _waConv(id); if(!c) return Promise.resolve();
   Object.assign(c, cambios);
@@ -230,7 +262,7 @@ function _waActualizar(id, cambios, accion){
   return db.collection('conversaciones').doc(id).set(Object.assign({}, cambios, { actualizado: new Date().toISOString() }), { merge: true }).catch(function(e){ toast('No se pudo guardar: ' + (e && e.message || e), 'error'); });
 }
 // Tras una accion sobre la conversacion: refrescar en el sitio si la pantalla esta puesta; si no, nav
-function _waTrasCambio(id){ if(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio(true)) return; if(typeof nav === 'function') nav(_waModuloDe(id)); }
+function _waTrasCambio(id){ if(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio(true)) return; if(typeof nav === 'function') nav('redes'); }
 function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){ toast('La conversación es tuya: el asistente se calla hasta que la devuelvas', 'success'); _waTrasCambio(id); }); }
 function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa_devolver').then(function(){ toast('El asistente vuelve a atender', 'info'); _waTrasCambio(id); }); }
 function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ _waTrasCambio(id); }); }
