@@ -2925,7 +2925,7 @@ function fmtFecha(iso){
 }
 const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
-const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'WhatsApp',instagram:'Instagram',redes:'Redes sociales',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
+const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Redes sociales · WhatsApp',instagram:'Redes sociales · Instagram',redes:'Redes sociales',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
 
 const EXTRA_PERMS={perm_delete:'Permiso para eliminar'};
 function getCurrentPerms(){ return (S.currentUser&&Array.isArray(S.currentUser.permisos)) ? S.currentUser.permisos : []; }
@@ -3009,7 +3009,8 @@ function getPermsEfectivos(){
 // Instagram". Los dos modulos viajan en el sistema (permisos, Reglas, servidor) pero solo los ve
 // quien esta en esta lista, hasta que Meta este conectado y el decida abrirlos. Para abrirlos a
 // todos basta vaciar MODULOS_EN_PRUEBA.
-var MODULOS_EN_PRUEBA = { whatsapp: true, instagram: true };
+// 22-oct-2026, Adam: Redes sociales (WhatsApp e Instagram) ya lo ve "todo el que tenga el permiso".
+var MODULOS_EN_PRUEBA = {};
 var USUARIOS_DE_PRUEBA = ['l8OCCAHCWyNLU6akwlU8vdrP3Ow2', 'adam@pagasi.io'];   // Adam (mismo uid en las dos companias)
 function moduloOcultoParaMi(key){
   // Redes sociales queda escondido solo si los dos canales lo estan

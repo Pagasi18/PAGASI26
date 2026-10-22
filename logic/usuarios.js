@@ -1233,7 +1233,8 @@ function editarUsuario(uid){
     var u=doc.data();
     setMicon('editar'); $('mtt').textContent='Editar Permisos'; $('msb').textContent=u.nombre||u.email;
     $('modal-box').className='modal';
-    var modCheckboxes=Object.keys(PGL).map(function(key){
+    // 'redes' no es un permiso: Redes sociales lo abren WhatsApp o Instagram (los que usan las Reglas)
+    var modCheckboxes=Object.keys(PGL).filter(function(key){ return key !== 'redes'; }).map(function(key){
       var checked=(u.permisos||[]).includes(key);
       return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;cursor:pointer">'
         +'<input type="checkbox" value="'+key+'" '+(checked?'checked':'')+' style="accent-color:var(--p1)"> '+PGL[key]+'</label>';

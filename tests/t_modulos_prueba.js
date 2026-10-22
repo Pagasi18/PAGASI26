@@ -25,6 +25,22 @@ const modulosEnMenu = () => [...sbNav.innerHTML.matchAll(/data-nav="([a-z]+)"/g)
 
 
 const ADAM_UID = 'l8OCCAHCWyNLU6akwlU8vdrP3Ow2';
+// ── 0. Desde el 22-oct-2026 (Adam: "todo el que tenga el permiso") ya no hay candado ──
+ok('el candado está quitado: MODULOS_EN_PRUEBA vacío', Object.keys(vm.runInContext('MODULOS_EN_PRUEBA', ctx)).length === 0);
+S.currentUser = { uid:'a2', email:'alejandro@pagasi.io', nombre:'Alejandro', rol:'Administrador', permisos:[], concesionarios:[] }; S.creds = [];
+ctx.renderSidebar(); let menu0 = modulosEnMenu();
+ok('otro administrador ya ve Redes sociales y entra', menu0.includes('redes') && ctx.hasModuleAccess('redes'));
+S.currentUser = { uid:'m1', email:'ms.marianne0908@gmail.com', nombre:'Marianne', rol:'Empleado', permisos:['clientes','whatsapp','instagram'], concesionarios:[] };
+ctx.renderSidebar(); menu0 = modulosEnMenu();
+ok('una empleada con WhatsApp e Instagram (Marianne) ve Redes sociales', menu0.includes('redes') && ctx.hasModuleAccess('whatsapp') && ctx.hasModuleAccess('instagram'));
+S.currentUser = { uid:'v1', email:'vc@x.com', nombre:'Vendedor', rol:'Vendedor Concesionario', permisos:['whatsapp','instagram'], concesionarios:['C1'] };
+ok('un vendedor de concesionario no lo ve aunque le marquen los permisos (las Reglas tampoco lo dejan)', !ctx.hasModuleAccess('redes'));
+S.currentUser = { uid:'e9', email:'e9@x.com', nombre:'Otro', rol:'Empleado', permisos:['clientes'], concesionarios:[] };
+ctx.renderSidebar();
+ok('sin WhatsApp ni Instagram no aparece', !modulosEnMenu().includes('redes') && !ctx.hasModuleAccess('redes'));
+
+// ── El candado (por si se vuelve a poner): solo los de USUARIOS_DE_PRUEBA ──
+vm.runInContext("MODULOS_EN_PRUEBA = { whatsapp: true, instagram: true }", ctx);
 // ── 1. Otro administrador: no los ve ni entra ──
 S.currentUser = { uid:'a2', email:'alejandro@pagasi.io', nombre:'Alejandro', rol:'Administrador', permisos:[], concesionarios:[] }; S.creds = [];
 ctx.renderSidebar(); let menu = modulosEnMenu();
