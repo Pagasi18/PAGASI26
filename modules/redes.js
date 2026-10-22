@@ -13,13 +13,14 @@ window._rsComSel = window._rsComSel || '';
 window._rsComFiltro = window._rsComFiltro || 'todos';
 
 // perm: el permiso que hace falta para ver la pestaña. pendiente: el canal aún no está conectado.
+// El orden lo puso Adam (22-oct-2026): todos, Instagram, WhatsApp, Messenger y al final los comentarios
 var RS_TABS = [
   { id: 'todos', nombre: 'Todos los mensajes' },
-  { id: 'messenger', nombre: 'Messenger', perm: 'instagram', pendiente: true },
   { id: 'instagram', nombre: 'Instagram', perm: 'instagram' },
   { id: 'whatsapp', nombre: 'WhatsApp', perm: 'whatsapp' },
-  { id: 'fbcom', nombre: 'Comentarios de Facebook', perm: 'instagram', pendiente: true },
-  { id: 'igcom', nombre: 'Comentarios de Instagram', perm: 'instagram' }
+  { id: 'messenger', nombre: 'Messenger', perm: 'instagram', pendiente: true },
+  { id: 'igcom', nombre: 'Comentarios de Instagram', perm: 'instagram' },
+  { id: 'fbcom', nombre: 'Comentarios de Facebook', perm: 'instagram', pendiente: true }
 ];
 function _rsVe(canal){ return typeof hasModuleAccess !== 'function' || hasModuleAccess(canal); }
 function _rsTabsVisibles(){ return RS_TABS.filter(function(t){ return !t.perm || _rsVe(t.perm); }); }

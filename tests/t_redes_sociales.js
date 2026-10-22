@@ -42,9 +42,9 @@ ctx._waComs = [
 // ── 1. Las pestañas, como la bandeja de Meta ──
 ctx._rsTab = 'todos';
 let html = montar();
-const nombres = ['Todos los mensajes', 'Messenger', 'Instagram', 'WhatsApp', 'Comentarios de Facebook', 'Comentarios de Instagram'];
+const nombres = ['Todos los mensajes', 'Instagram', 'WhatsApp', 'Messenger', 'Comentarios de Instagram', 'Comentarios de Facebook'];
 ok('el módulo se llama Redes sociales', /Redes sociales/.test(html));
-ok('tiene las seis pestañas de la foto, en ese orden', nombres.every(n => html.indexOf('>' + n + '<') > -1) && nombres.map(n => html.indexOf('>' + n + '<')).every((p, i, a) => !i || p > a[i - 1]));
+ok('tiene las seis pestañas en el orden de Adam: todos, Instagram, WhatsApp, Messenger y los comentarios', nombres.every(n => html.indexOf('>' + n + '<') > -1) && nombres.map(n => html.indexOf('>' + n + '<')).every((p, i, a) => !i || p > a[i - 1]));
 ok('Messenger y Comentarios de Facebook dicen "sin conectar"', (html.match(/class="pend">sin conectar/g) || []).length === 2);
 ok('los globos cuentan lo que no se ha leído: Todos 2, WhatsApp 1, Instagram 1', /id="rs-b-todos"><span class="b">2</.test(html) && /id="rs-b-whatsapp"><span class="b">1</.test(html) && /id="rs-b-instagram"><span class="b">1</.test(html));
 ok('Comentarios de Instagram cuenta los de hoy (2)', /id="rs-b-igcom"><span class="b">2</.test(html));
