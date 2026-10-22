@@ -292,6 +292,13 @@ service cloud.firestore {
       allow update: if veCanal(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado','atendidoPor','nota','actualizado']);
       allow create, delete: if false;
     }
+    // Los comentarios de Instagram (22-oct-2026): los guarda el servidor cuando Paola contesta (o
+    // decide no contestar) un comentario; en Redes sociales los lee quien tiene el canal Instagram.
+    // Nadie los escribe desde el navegador.
+    match /comentarios_ig/{id} {
+      allow read: if veInstagram();
+      allow write: if false;
+    }
     // Lo que guarda el servidor para auditoria: los avisos crudos de Meta, los recordatorios
     // mandados y el resultado de cada corrida. Se leen desde administracion, no se tocan.
     match /webhooks_meta/{id} { allow read: if esAdmin(); allow write: if false; }
