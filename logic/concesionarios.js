@@ -363,6 +363,7 @@ function _concRender(){
           + '<button class="btn btn-g btn-xs" onclick="_concAbrirDetalle(\''+c.id+'\')">Detalle</button>'
           + '<button class="btn btn-g btn-xs" onclick="_concOpenReporte(\''+c.id+'\')" title="Reporte diario/quincenal/mensual en PDF o Excel">Reporte</button>'
           + '<button class="btn btn-g btn-xs" onclick="_concOpenEdit(\''+c.id+'\')">Editar</button>'
+          + (typeof isAdminUser==='function' && isAdminUser() ? '<button class="btn btn-g btn-xs" onclick="aliadoPortalDeSede(\''+c.id+'\')" title="Usuario y clave del portal de aliados">Portal</button>' : '')
         + '</div></td>'
         + '</tr>';
     }).join('');

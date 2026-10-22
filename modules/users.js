@@ -15,6 +15,7 @@ PG.users = function(){
     [
       {label:'↻ Refrescar', onclick:'usersReload()'},
       {label:'Demo temporal', onclick:'openCreateDemoUser()'},
+      {label:'＋ Acceso de aliado', onclick:'abrirAccesoAliado([])'},
       {label:'＋ Invitar Usuario', onclick:'openInviteUser()', primary:true}
     ]
   )}
@@ -47,6 +48,9 @@ PG.users = function(){
     <button class="us-tab ${S.usersTab==='roles'?'is-active':''}" onclick="setUsersTab('roles')">
       <span style="font-size:14px">️</span> Roles y Permisos
     </button>
+    <button class="us-tab ${S.usersTab==='aliados'?'is-active':''}" onclick="setUsersTab('aliados')">
+      <span style="font-size:14px"></span> Aliados
+    </button>
     <button class="us-tab ${S.usersTab==='invitaciones'?'is-active':''}" onclick="setUsersTab('invitaciones')">
       <span style="font-size:14px">️</span> Invitaciones <span id="tab-inv-badge" style="background:var(--ambers);color:var(--amber);font-size:9.5px;font-weight:800;padding:1px 7px;border-radius:10px;margin-left:4px;display:none">0</span>
     </button>
@@ -56,6 +60,7 @@ PG.users = function(){
   <div id="users-tab-content">
     ${S.usersTab==='usuarios' ? _usersTabUsuariosHTML() :
       S.usersTab==='roles' ? _usersTabRolesHTML() :
+      S.usersTab==='aliados' ? _aliadosTabHTML() :
       _usersTabInvitacionesHTML()}
   </div>
   </div>`;};

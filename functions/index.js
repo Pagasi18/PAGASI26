@@ -1,7 +1,8 @@
 /* Cloud Functions (proyecto pagasi26-65ced, region us-east1) — Cobranza por WhatsApp.
      whatsappWebhook   GET: verificacion de Meta · POST: aviso de Meta, de WhatsApp (cobranza) o de
                        Instagram (ventas): se guarda crudo, se responde 200 y se procesa ·
-                       POST /equipo: el panel manda un mensaje como equipo por el canal que toque.
+                       POST /equipo: el panel manda un mensaje como equipo por el canal que toque ·
+                       POST /aliados: un administrador crea el acceso de un aliado o le cambia la clave.
      recordatoriosWhatsApp  todos los dias 8:30 am (Caracas): las plantillas de cuotas.
    Secretos (firebase functions:secrets:set): WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN,
    WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_SECRET, ANTHROPIC_API_KEY; y para los mensajes de
@@ -23,6 +24,7 @@ const cerebro = require('./lib/cerebro');
 const procesar = require('./lib/procesar');
 const recordatorios = require('./lib/recordatorios');
 const metricas = require('./lib/metricas');
+const aliados = require('./lib/aliados');
 
 const VERIFY = defineSecret('WHATSAPP_VERIFY_TOKEN');
 const TOKEN = defineSecret('WHATSAPP_ACCESS_TOKEN');
@@ -103,7 +105,7 @@ async function quienEscribe(req) {
     try {
       const dec = await getAuth(apps[emp]).verifyIdToken(tok);
       const u = await bases[emp].collection('usuarios').doc(dec.uid).get();
-      if (u.exists && u.data().rol !== 'Aliado' && u.data().suspendido !== true && u.data().eliminado !== true) return { empresa: emp, uid: dec.uid, nombre: u.data().nombre || dec.email || 'Equipo' };
+      if (u.exists && u.data().rol !== 'Aliado' && u.data().suspendido !== true && u.data().eliminado !== true) return { empresa: emp, uid: dec.uid, nombre: u.data().nombre || dec.email || 'Equipo', admin: ['Administrador', 'admin'].includes(u.data().rol) };
     } catch (e) { /* no es de esta compania */ }
   }
   return null;
@@ -128,6 +130,18 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
       const r = await procesar.enviarEquipo(armarDeps(cfg), { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), texto: (req.body || {}).texto, por: quien.nombre });
       return res.status(200).json({ ok: true, metaId: r.metaId });
     } catch (e) { return res.status(e.codigo === 'ventana' ? 409 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
+  }
+
+  // El panel: POST /aliados { accion: 'crear' | 'clave' | 'acceso', ... } — accesos al portal de
+  // aliados. Solo un administrador (de la 26 o de la 18); las cuentas se crean siempre en la 26.
+  if (/\/aliados\/?$/.test(req.path || '')) {
+    const quien = await quienEscribe(req);
+    if (!quien || !quien.admin) return res.status(403).json({ error: 'Solo un administrador del sistema maneja los accesos de los aliados.' });
+    try {
+      const r = await aliados.accion({ auth: getAuth(apps['26']), db: bases['26'], ahora: () => new Date().toISOString() }, quien, req.body || {});
+      logger.info('aliados', { accion: String((req.body || {}).accion || ''), por: quien.nombre, empresa: quien.empresa });
+      return res.status(200).json(r);
+    } catch (e) { return res.status(e.status || 500).json({ error: e.status ? e.message : 'No se pudo: ' + String(e.message || e).slice(0, 160), codigo: e.codigo || '' }); }
   }
 
   // El aviso de Meta: firma, guardar crudo, responder, procesar

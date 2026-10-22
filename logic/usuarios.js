@@ -12,6 +12,7 @@ function setUsersTab(tab){
   // Render content
   if(tab==='usuarios') host.innerHTML = _usersTabUsuariosHTML();
   else if(tab==='roles') host.innerHTML = _usersTabRolesHTML();
+  else if(tab==='aliados') host.innerHTML = _aliadosTabHTML();
   else host.innerHTML = _usersTabInvitacionesHTML();
   // Reload data
   setTimeout(usersReload, 50);
@@ -241,6 +242,7 @@ function usersReload(){
     });
     // Render según tab activo
     if(S.usersTab==='usuarios') _usersRenderList();
+    if(S.usersTab==='aliados' && $('users-tab-content') && typeof _aliadosTabHTML === 'function') $('users-tab-content').innerHTML = _aliadosTabHTML();
   }).catch(function(e){
     var ul = $('users-list');
     if(ul) ul.innerHTML='<div style="padding:24px;text-align:center;color:var(--red);font-size:12px">Error: '+(e.message||'sin conexión')+'</div>';

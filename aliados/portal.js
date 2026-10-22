@@ -1,6 +1,7 @@
 /* Portal de aliados (pagasi.io/aliados) — 17-oct-2026.
    Dos entradas: la demostracion (usuario bera / clave 1234, datos inventados de BERA) y la de
-   verdad: el dueno del concesionario entra con su correo y clave de Firebase (cuenta con rol
+   verdad: el dueno del concesionario entra con el usuario y la clave que le crea Pagasi (Usuarios →
+   Aliados; en Firebase es usuario@aliados.pagasi.io) o con un correo y clave de Firebase (cuenta con rol
    "Aliado" en PAGASI 26), el portal lee SOLO los resumenes de sus sedes (aliados_resumen, que
    arma el robot cada hora con las dos companias) y pinta el mismo tablero.                  */
 (function(){
@@ -306,10 +307,11 @@
   }
   function mensajeDe(e){
     var c = String((e && e.code) || '');
-    if(c === 'pagasi/no-aliado') return 'Ese correo no tiene cuenta en Pagasi. Si eres aliado, pídele a tu asesor la invitación.';
+    if(c === 'pagasi/no-aliado') return 'Ese usuario no tiene cuenta en Pagasi. Si eres aliado, pídele a tu asesor tu usuario y tu clave.';
     if(c === 'pagasi/sin-sedes') return 'Tu cuenta todavía no tiene concesionarios asignados. Escríbele a tu asesor.';
     if(c === 'pagasi/sin-resumen') return 'Tus datos se están preparando. Vuelve a intentar en una hora o escríbele a tu asesor.';
-    if(/wrong-password|invalid-credential|user-not-found|invalid-login/.test(c)) return 'Correo o clave incorrectos. Si no los tienes, pídeselos a tu asesor.';
+    if(/wrong-password|invalid-credential|user-not-found|invalid-login|invalid-email/.test(c)) return 'Usuario o clave incorrectos. Si no los tienes, pídeselos a tu asesor.';
+    if(/user-disabled/.test(c)) return 'Tu acceso está suspendido. Escríbele a tu asesor de Pagasi.';
     if(/too-many-requests/.test(c)) return 'Demasiados intentos. Espera unos minutos e intenta de nuevo.';
     if(/network/.test(c)) return 'Sin conexión. Revisa tu internet e intenta de nuevo.';
     return 'No pudimos entrar. Intenta de nuevo o escríbele a tu asesor.';
@@ -325,6 +327,7 @@
   // ── Arranque ──
   if(!$('form')){ window.PortalAliados = { desdeResumenes: desdeResumenes, DEMO: DEMO }; return; }
   var CUENTAS = { bera:'1234', 'grupo bera':'1234' };
+  function correoDeUsuario(u){ return u.indexOf('@') > -1 ? u : u + '@aliados.pagasi.io'; }
   var FICHAS = { bera:{ nombre:'Grupo BERA', detalle:'Grupo BERA · 3 sedes', logo:'assets/aliados/bera-negro.png' } }; FICHAS['grupo bera'] = FICHAS.bera;
   $('usuario').addEventListener('input', function(){
     var f = FICHAS[String(this.value || '').trim().toLowerCase()];
@@ -337,18 +340,20 @@
     e.preventDefault();
     if(entrando) return;
     var u = String($('usuario').value || '').trim().toLowerCase(), c = String($('clave').value || '');
-    if(u.indexOf('@') > -1){
-      if(!firebaseListo()){ fallo('No se pudo conectar. Revisa tu internet e intenta de nuevo.'); return; }
-      entrando = true; botonEsperando(true); $('error').textContent = '';
-      auth.signInWithEmailAndPassword(u, c).then(function(r){ return cargarAliado(r.user); })
-        .then(function(res){ entrando = false; botonEsperando(false); recibir(res); })
-        .catch(function(err){ entrando = false; console.warn('entrada:', err && err.code); fallo(mensajeDe(err)); if(/pagasi\//.test(String(err && err.code))){ try{ auth.signOut(); }catch(_e){} } });
-      return;
-    }
-    if(CUENTAS[u] && CUENTAS[u] === c){
+    // La demostración (bera / 1234): una clave de verdad no puede ser 1234 (Firebase pide 6 o más)
+    if(u.indexOf('@') < 0 && CUENTAS[u] && CUENTAS[u] === c){
       botonEsperando(true);
       setTimeout(function(){ botonEsperando(false); entrar(DEMO); }, REDUCIR ? 0 : 750);
-    } else { fallo('Usuario o clave incorrectos. Si no los tienes, pídeselos a tu asesor.'); }
+      return;
+    }
+    // La de verdad: con correo (personal de Pagasi) o con el usuario que le creó Pagasi al aliado
+    // (22-oct-2026), que en Firebase es usuario@aliados.pagasi.io
+    if(!/^[a-z0-9._@-]+$/.test(u)){ fallo('Usuario o clave incorrectos. Si no los tienes, pídeselos a tu asesor.'); return; }
+    if(!firebaseListo()){ fallo('No se pudo conectar. Revisa tu internet e intenta de nuevo.'); return; }
+    entrando = true; botonEsperando(true); $('error').textContent = '';
+    auth.signInWithEmailAndPassword(correoDeUsuario(u), c).then(function(r){ return cargarAliado(r.user); })
+      .then(function(res){ entrando = false; botonEsperando(false); recibir(res); })
+      .catch(function(err){ entrando = false; console.warn('entrada:', err && err.code); fallo(mensajeDe(err)); if(/pagasi\//.test(String(err && err.code))){ try{ auth.signOut(); }catch(_e){} } });
   });
   var salir = function(e){ if(e) e.preventDefault(); var fin = function(){ D = DEMO; TODOS = []; $('picker').hidden = true; $('modo-pagasi').hidden = true; mostrarEntrada(); }; if(auth && auth.currentUser) auth.signOut().then(fin, fin); else fin(); };
   $('salir').addEventListener('click', salir);
