@@ -48,7 +48,7 @@ var WT_TIPS = [
   'Cada hora que un crédito está en mora cuesta tu margen del día. Cobranza temprana = ganancia real.',
   'El cliente que paga su última cuota merece una llamada de felicitación. Y un descuento si vuelve.',
   'Configura recordatorios automáticos 3 días antes de cada cuota. El olvido es enemigo del cobro.',
-  'Mide tu APY real cada mes. Si bajó, algo está fallando: ya sea precio, plazo o cobranza.',
+  'Mide tu FDC real cada mes. Si bajó, algo está fallando: ya sea precio, plazo o cobranza.',
   'El sistema es tan bueno como los datos que le metes. Llena bien el perfil del cliente desde el primer contacto.',
   'No vendas crédito al primero que entra. Vende al que califica. La mora arruina más negocios que la falta de clientes.',
   '"Hay que pensar en grande, pero empezar pequeño." Cobra una cuota completa antes de pensar en 100.',

@@ -452,7 +452,7 @@ PG.reportes = function(){
     <div class="card">
       <div class="ch"><div><div class="ct">Créditos más rentables</div><div class="cs">Mayor spread generado por crédito</div></div></div>
       <div class="tw tw-compact"><table>
-        <thead><tr><th>Cliente</th><th>Modelo</th><th>APY</th><th>Spread</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Cliente</th><th>Modelo</th><th>FDC</th><th>Spread</th><th>Estado</th></tr></thead>
         <tbody>${(function(){
           var ranked = _SCREDS.filter(c=>!c.eliminado).map(function(c){
             var precio=parseFloat(c.precioBaseReal||c.precio||0);

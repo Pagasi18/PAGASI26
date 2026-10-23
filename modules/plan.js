@@ -13,7 +13,7 @@ PG.plan = function(){
     var inicialPct = p.inicial ? Math.round(p.inicial * 100) : (p.inicial === 0 ? 0 : p.inicial);
     return '<div class="card" style="padding:16px 18px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
-        +'<div style="flex:1;font-weight:800;font-size:13.5px;color:var(--ink)">'+(p.nombre||('Plan '+p.plazo+' Meses'))+'</div>'
+        +'<div style="flex:1;font-weight:800;font-size:13.5px;color:var(--ink)">'+String(p.nombre||('Plan '+p.plazo+' Meses')).replace(/\bAPY\b/g,'FDC')+'</div>'
         +(esPrincipal?'<span style="background:var(--gs);color:var(--p1);border-radius:20px;padding:3px 9px;font-size:9.5px;font-weight:800">PRINCIPAL</span>':'')
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'

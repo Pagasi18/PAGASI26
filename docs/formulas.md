@@ -15,9 +15,9 @@ Hay tres formas de llegar a la cuota, según el modo que elija el asistente de c
 | Plan global (factor) | financiero.js:2-15 | Inicial, financiado, total y cuota con el factor del plan. | `ini = precio × inicial% · fin = precio − ini · total = fin × factor · cuotaM = total / plazo · cuotaQ = cuotaM / 2 · totalPagado = ini + total` *(Configuración)* plan: plazo 12, factor 2,1023, inicial 45% |
 | Cuota francesa | financiero.js:16-23 | Cuota fija dada una tasa por período. | `cuota = pv × i / (1 − (1+i)^−n)`; si la tasa es 0: `pv / n` |
 | Tasa implícita | financiero.js:24-35 | La tasa quincenal que hace que una cuota amortice el financiado (por bisección). | 80 iteraciones, tolerancia 1e-7. Si `cuota × n ≤ financiado`, tasa 0. |
-| Plan a mano | financiero.js:36-51 | Cuando el vendedor escribe la cuota. | `fin = precio − ini · total = cuota × (plazo × 2) · factor = total / fin · APY = ((1 + tasaQ)^24 − 1) × 100` |
-| Plan por APY | financiero.js:53-69 | Cuota a partir de un APY objetivo. | `tasaQ = (1 + APY/100)^(1/24) − 1 · cuotaQ = francesa(tasaQ, plazo×2, fin)` Inicial por defecto en este modo: 50% |
-| APY mostrado | financiero.js:49 · calculadora.html:1496 | Rendimiento anual equivalente de la cuota. | `((1 + tasaQ)^24 − 1) × 100` · 24 quincenas al año |
+| Plan a mano | financiero.js:36-51 | Cuando el vendedor escribe la cuota. | `fin = precio − ini · total = cuota × (plazo × 2) · factor = total / fin · FDC = ((1 + tasaQ)^24 − 1) × 100` |
+| Plan por FDC | financiero.js:53-69 | Cuota a partir de un FDC objetivo. | `tasaQ = (1 + FDC/100)^(1/24) − 1 · cuotaQ = francesa(tasaQ, plazo×2, fin)` Inicial por defecto en este modo: 50% |
+| FDC mostrado | financiero.js:49 · calculadora.html:1496 | Rendimiento anual equivalente de la cuota. | `((1 + tasaQ)^24 − 1) × 100` · 24 quincenas al año |
 | Cuota "editada" | financiero.js:321-327 | Marca el crédito si la cuota se apartó de la fórmula. | `\|cuota − cuotaFórmula\| ≥ 1` dólar. Se ve en Aprobaciones y en el detalle. |
 | Chips de inicial | creditos.js:1972-1978 | Opciones que ofrece el asistente. | Mínimo del catálogo (40%) y 45 / 50 / 55 / 60 / 70%. Inicial menor al mínimo: solo avisa, no bloquea. |
 
@@ -26,7 +26,7 @@ Hay tres formas de llegar a la cuota, según el modo que elija el asistente de c
 | Fórmula | Dónde | Qué calcula | Expresión y valores |
 |---|---|---|---|
 | PLAN (por defecto) | pagasi-app.js:2660 | Valores del plan global si Configuración no dice otra cosa. | `plazo 12 · factor 2,102343 · inicial 0,45 · tasaMensual 14,11 · apy 413,34 · diasGracia 5 · moraPct 2,5` *(Configuración)* se lee de localStorage y luego de `config/plan` |
-| Guardar plan | configuracion.js:177-205 | Lo que escribe Configuración. | Guarda el APY tal cual estaba: si cambian factor, plazo o inicial, **el APY guardado no se recalcula**. |
+| Guardar plan | configuracion.js:177-205 | Lo que escribe Configuración. | Guarda el FDC tal cual estaba: si cambian factor, plazo o inicial, **el FDC guardado no se recalcula**. |
 | Condiciones del catálogo | catalog.js:666 · financiero.js:303 | Respaldo si Firestore no tiene `catalogo/_condiciones`. | `apy 500 · seguro 0% · inicial mínima 40% · máxima 60% · plazos 6, 9, 12` *(Configuración)* (módulo Catálogo web, solo administrador) |
 | Plan del catálogo (exacto) | catalog.js:697-707 | La cuota de la web y, desde el 15-oct, la del crédito. | `cuotas = meses × 2 · inicial = precio × pct · financiado = precio − inicial · tasaQ = (1 + apy/100)^(1/24) − 1 · quincenal = financiado × tasaQ / (1 − (1+tasaQ)^−cuotas)` |
 | Redondeo de la web | catalog.js:712-718 | Lo que se muestra y se guarda. | Todo **hacia arriba** al dólar: `⌈x⌉` en cuota e inicial; `financiado = ⌈precio⌉ − ⌈inicial⌉`; `total = cuota × cuotas`. La cuota se calcula con el financiado exacto; el financiado que se muestra sale de los redondeados. |
@@ -45,7 +45,7 @@ El modal "Detalle del Crédito" está en logic/pagos.js, no en el módulo de cr�
 | ROI | pagos.js:546 | `(total − financiado) / financiado × 100` | Aquí sí resta el financiado. |
 | Inicial % | pagos.js:537 | `round(inicial / precioBase × 100)` |  |
 | Cuota mensual | pagos.js:454 | `cuotaM \|\| cuotaMensual \|\| cuotaQ × 2` |  |
-| APY | pagos.js:451 | `c.apy → c.plan.apy → PLAN.apy` | Con dos decimales. |
+| FDC | pagos.js:451 | `c.apy → c.plan.apy → PLAN.apy` | Con dos decimales. |
 | Ratio cuota / ingreso | pagos.js:523 | `round(cuotaMensual / ingreso × 100)` | Rojo si > 40%, ámbar si > 25%. |
 | % pagado (cuotas) | pagos.js:422 | `round(cuotasPagadas / totalCuotas × 100)` |  |
 | Cuotas pagadas | pagasi-app.js:1609-1616 | `max(pagadoRegistrado, ⌊pagosConfirmados / cuota⌋)` | Acotado al total de cuotas. |
@@ -152,8 +152,8 @@ El score es una etiqueta: no decide el estado del crédito (eso lo decide el rol
 
 | Fórmula | Dónde | Expresión y valores |
 |---|---|---|
-| Plan mostrado en la web | catalog.js:697-718 | La de la sección 2: APY 500, inicial 40%, 12 meses, redondeo hacia arriba. "Montos referenciales". |
-| Calculadora de vendedores | calculadora.html:1380-1641 | Mismas fórmulas duplicadas (cuota francesa, tasa implícita, APY). Deslizador de APY de 350 a 900, arranca en 500. Inicial personalizada hasta 90%. Tasa mensual mostrada: `((1 + apy/100)^(1/24) − 1) × 200`. |
+| Plan mostrado en la web | catalog.js:697-718 | La de la sección 2: FDC 500, inicial 40%, 12 meses, redondeo hacia arriba. "Montos referenciales". |
+| Calculadora de vendedores | calculadora.html:1380-1641 | Mismas fórmulas duplicadas (cuota francesa, tasa implícita, FDC). Deslizador de FDC de 350 a 900, arranca en 500. Inicial personalizada hasta 90%. Tasa mensual mostrada: `((1 + apy/100)^(1/24) − 1) × 200`. |
 | Excel del catálogo | catalogo.js:11, 348-350 | Plazos 6, 9 y 12 con la inicial mínima. |
 | Asistente de ventas (WhatsApp e Instagram) | functions/lib/ventas.js:18-34 | Usa la misma `calcPlan` con la inicial mínima y el plazo más largo, y dice que son referenciales. |
 | Comentarios desactualizados | catalog.js:662 · catalogo.js:23 | Hablan de 650% y seguro 4,5%; el código tiene 500 y 0. **[Diferencia 8]** |
@@ -278,9 +278,9 @@ La ficha del cliente calcula `⌈mora / 15⌉`; el reporte del contador `⌊mora
 
 El detalle y los listados restan el **precio completo** al total de cuotas (por eso M-012 muestra "intereses $36" en una moto que paga $553 de más). El ROI del mismo detalle resta el **financiado**. El panel de finanzas resta `precio − inicial` pero usando `c.precio` en vez de `precioBaseReal`.
 
-### 8. APY: 413 guardado, 500 en el catálogo, 905 real
+### 8. FDC: 413 guardado, 500 en el catálogo, 905 real
 
-El plan global tiene APY 413,34 y no se recalcula al cambiar el plan. El catálogo usa 500 y redondea la cuota hacia arriba. El crédito guarda el APY implícito de la cuota final (si la cuota se editó, puede ser 900+). Los comentarios del código todavía dicen 650% y seguro 4,5%.
+El plan global tiene FDC 413,34 y no se recalcula al cambiar el plan. El catálogo usa 500 y redondea la cuota hacia arriba. El crédito guarda el FDC implícito de la cuota final (si la cuota se editó, puede ser 900+). Los comentarios del código todavía dicen 650% y seguro 4,5%.
 
 ### 9. Score: tres tablas de umbrales y dos fórmulas
 

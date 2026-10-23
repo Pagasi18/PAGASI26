@@ -210,7 +210,7 @@ function openAddMoto(id=null){
     <div style="background:var(--surf);border:1px solid var(--rim);border-radius:var(--r8);padding:12px;margin:12px 0">
       <div class="fsec" style="margin:0 0 8px 0">Plan sugerido</div>
       <div class="fgr">
-        <div class="fg"><label>Tipo de plan</label><select class="fs" id="m_plan_mode" onchange="previewCalc()"><option value="global" ${!(m&&(m.planModo==='custom'||m.planModo==='apy'))?'selected':''}>Principal</option><option value="custom" ${(m&&m.planModo==='custom')?'selected':''}>Personalizado</option><option value="apy" ${(m&&m.planModo==='apy')?'selected':''}>APY / Meses</option></select></div>
+        <div class="fg"><label>Tipo de plan</label><select class="fs" id="m_plan_mode" onchange="previewCalc()"><option value="global" ${!(m&&(m.planModo==='custom'||m.planModo==='apy'))?'selected':''}>Principal</option><option value="custom" ${(m&&m.planModo==='custom')?'selected':''}>Personalizado</option><option value="apy" ${(m&&m.planModo==='apy')?'selected':''}>FDC / Meses</option></select></div>
         <div class="fg"><label>Precio base real</label><input class="fi" id="m_precio_base" type="number" value="${(m&&(m.precioBaseReal||m.precio))||''}" placeholder="0.00" oninput="previewCalc()"></div>
       </div>
       <div id="m_plan_custom_box" style="display:${(m&&m.planModo==='custom')?'block':'none'};margin-top:8px">
@@ -222,7 +222,7 @@ function openAddMoto(id=null){
       </div>
       <div id="m_plan_apy_box" style="display:${(m&&m.planModo==='apy')?'block':'none'};margin-top:8px">
         <div class="fgr">
-          <div class="fg"><label>APY objetivo (%)</label><input class="fi" id="m_apy_objetivo" type="number" step="0.01" value="${(m&&m.planModo==='apy'&&(m.apy||(m.plan&&m.plan.apy)||''))||''}" placeholder="413.34" oninput="_mApyCompare()"></div>
+          <div class="fg"><label>FDC objetivo (%)</label><input class="fi" id="m_apy_objetivo" type="number" step="0.01" value="${(m&&m.planModo==='apy'&&(m.apy||(m.plan&&m.plan.apy)||''))||''}" placeholder="413.34" oninput="_mApyCompare()"></div>
           <div class="fg"><label>Plazo (meses)</label><input class="fi" id="m_apy_plazo" type="number" min="1" step="1" value="${(m&&m.planModo==='apy'&&(m.plazo||''))||PLAN.plazo}" placeholder="12" oninput="_mApyCompare()"></div>
         </div>
         <div id="m_apy_compare" style="display:none;margin-top:10px;background:var(--surf2);border:1px solid var(--rim);border-radius:10px;padding:10px">
@@ -237,7 +237,7 @@ function openAddMoto(id=null){
           </select></div>
           <button type="button" class="btn btn-g btn-sm" id="m_guardar_plan_apy" style="margin-top:8px" onclick="_mGuardarPlanApy()">Guardar como plan nuevo</button>
         </div>
-        <div style="font-size:11px;color:var(--ink3);margin-top:6px">Indicas APY objetivo y plazo. El sistema calcula la cuota quincenal para iniciales de 45%, 50% y 55%.</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:6px">Indicas FDC objetivo y plazo. El sistema calcula la cuota quincenal para iniciales de 45%, 50% y 55%.</div>
       </div>
     </div>
     <div id="calc-preview" style="background:var(--gs);border:1px solid var(--rim2);border-radius:var(--r8);padding:13px;margin:12px 0;display:${ed?'grid':'none'};grid-template-columns:repeat(3,1fr);gap:10px"></div>
@@ -416,11 +416,11 @@ function previewCalc(){
     r=Object.assign({precioBaseReal:precioBase, plazo:PLAN.plazo}, calcMoto(precioBase));
   }
   div.style.display='grid';
-  const modoLabel = _mode==='custom'?'Personalizado': _mode==='apy'?'APY/Mes':'Principal';
+  const modoLabel = _mode==='custom'?'Personalizado': _mode==='apy'?'FDC/Mes':'Principal';
   div.innerHTML=[['Modo',modoLabel],['Precio base','$'+(r.precioBaseReal||precioBase).toFixed(2)],['Inicial','$'+r.ini.toFixed(2)],['Cuota Q','$'+r.cuotaQ.toFixed(2)],['Plazo',(r.plazo||PLAN.plazo)+' meses'],['Total a pagar','$'+r.totalPagado.toFixed(2)]].map(([l,v])=>`<div><div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--p1);margin-bottom:2px">${l}</div><div style="font-family:var(--fd);font-weight:900;font-size:16px;color:var(--ink)">${v}</div></div>`).join('');
 }
 
-// ── Comparativo APY del modal de motos ──
+// ── Comparativo FDC del modal de motos ──
 
 function _mApyCompare(){
   const precio=parseFloat((($('m_precio_base')&&$('m_precio_base').value)||($('m_pr')&&$('m_pr').value)||0))||0;
@@ -521,7 +521,7 @@ function _mApyCustomCalc(){
   }
 }
 
-// ── Guardar plan APY del modal de motos como plan nuevo ──
+// ── Guardar plan FDC del modal de motos como plan nuevo ──
 
 function _mGuardarPlanApy(){
   const precio=parseFloat((($('m_precio_base')&&$('m_precio_base').value)||($('m_pr')&&$('m_pr').value)||0))||0;
@@ -535,9 +535,9 @@ function _mGuardarPlanApy(){
   } else {
     iniSel = parseFloat(iniSelRaw)||0.50;
   }
-  if(!(precio>0)||!(apy>0)||!(plazo>0)){ if(typeof toast==='function') toast('Completa precio, APY y plazo','error'); return; }
+  if(!(precio>0)||!(apy>0)||!(plazo>0)){ if(typeof toast==='function') toast('Completa precio, FDC y plazo','error'); return; }
   const r=calcApyPlan(precio,iniSel,apy,plazo);
-  const nombre='APY '+apy.toFixed(1)+'% · '+plazo+'m · Ini '+(iniSel*100).toFixed(0)+'%';
+  const nombre='FDC '+apy.toFixed(1)+'% · '+plazo+'m · Ini '+(iniSel*100).toFixed(0)+'%';
   const newPlan={nombre:nombre, plazo:plazo, factor:parseFloat(r.factor.toFixed(4)), inicial:iniSel, tasaMensual:parseFloat(r.tasaMensual.toFixed(2)), apy:apy, moraPct:(PLAN.moraPct||2.5), diasGracia:(PLAN.diasGracia!=null?PLAN.diasGracia:5), origen:'apy'};
   if(!window._planesExtra) window._planesExtra=[];
   window._planesExtra.push(newPlan);

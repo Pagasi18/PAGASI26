@@ -302,7 +302,7 @@ td{padding:14px 14px;border-bottom:1px solid var(--rim);font-size:12.5px;color:v
   .tw-creditos th:nth-child(9),.tw-creditos td:nth-child(9){width:92px}     /* Progreso */
   .tw-creditos th:nth-child(10),.tw-creditos td:nth-child(10){width:98px}   /* Saldo */
   .tw-creditos th:nth-child(11),.tw-creditos td:nth-child(11){width:52px}   /* Mora */
-  .tw-creditos th:nth-child(12),.tw-creditos td:nth-child(12){width:66px}   /* APY */
+  .tw-creditos th:nth-child(12),.tw-creditos td:nth-child(12){width:66px}   /* FDC */
   .tw-creditos th:nth-child(13),.tw-creditos td:nth-child(13){width:74px}   /* Estado */
   .tw-creditos th:nth-child(14),.tw-creditos td:nth-child(14){width:auto;overflow:visible} /* Acciones */
   .tw-creditos td:nth-child(14) > div{gap:2px}

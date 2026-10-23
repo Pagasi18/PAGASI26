@@ -75,7 +75,7 @@ PG.catalogo = function(){
   // Condiciones (tasa, seguro, inicial, plazos): solo administradores (Adam, 13-oct-2026)
   var condiciones = !admin ? '' : '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Condiciones del plan</div></div><div style="padding:0 16px 14px">'
     + '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">'
-    + '<div class="fg" style="min-width:150px"><label>Tasa anual (APY)</label><input class="fi" id="cat_apy" type="number" step="0.01" value="' + c.apy + '" style="width:130px"></div>'
+    + '<div class="fg" style="min-width:150px"><label>Tasa anual (FDC)</label><input class="fi" id="cat_apy" type="number" step="0.01" value="' + c.apy + '" style="width:130px"></div>'
     + '<div class="fg" style="min-width:150px"><label>Seguro (% del precio de contado)</label><input class="fi" id="cat_seguro" type="number" step="0.01" value="' + c.seguroPct + '" style="width:130px"></div>'
     + '<div style="font-size:12px;color:var(--ink2);line-height:1.7;padding-bottom:6px">Inicial desde <b>' + c.inicialMin + '%</b> · plazos de <b>' + c.plazos.join(', ') + ' meses</b><br>El seguro se paga junto con la inicial.</div>'
     + '<button class="btn btn-p btn-sm" style="margin-left:auto" onclick="catGuardarCondiciones()">Guardar condiciones</button>'

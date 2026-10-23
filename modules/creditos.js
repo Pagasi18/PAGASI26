@@ -296,7 +296,7 @@ PG.creditos = function(){
     <div class="tw tw-compact tw-creditos"><table>
     <thead><tr>
       ${['id','cli','modelo','sede','fecha','precio','total','cuota','progreso','saldo','mora','apy','estado'].map(function(col){
-        var labels={id:'ID',cli:'Cliente',modelo:'Modelo',sede:'Concesionario',fecha:'Fecha inicio',precio:'Precio',total:'Total',cuota:'Cuota Q.',progreso:'Progreso',saldo:'Saldo',mora:'Mora',apy:'APY',estado:'Estado'};
+        var labels={id:'ID',cli:'Cliente',modelo:'Modelo',sede:'Concesionario',fecha:'Fecha inicio',precio:'Precio',total:'Total',cuota:'Cuota Q.',progreso:'Progreso',saldo:'Saldo',mora:'Mora',apy:'FDC',estado:'Estado'};
         if(col==='progreso') return '<th>Progreso</th>';
         var isActive=(_cs.col===col);
         var arrow=isActive?(_cs.dir==='asc'?'↑':'↓'):'';

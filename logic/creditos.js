@@ -586,7 +586,7 @@ function _wzRender(motoId){
     + '</div>'
     + '<div id="wz_plan_apy_box" style="display:none;margin-top:10px">'
     + '<div class="fgr">'
-    + '<div class="fg"><label>APY objetivo (%)</label><input class="fi" id="wz_apy_objetivo" type="number" step="0.01" placeholder="413.34" oninput="_wzApyCompare()"></div>'
+    + '<div class="fg"><label>FDC objetivo (%)</label><input class="fi" id="wz_apy_objetivo" type="number" step="0.01" placeholder="413.34" oninput="_wzApyCompare()"></div>'
     + '<div class="fg"><label>Plazo (meses)</label><input class="fi" id="wz_apy_plazo" type="number" min="1" step="1" placeholder="12" oninput="_wzApyCompare()"></div>'
     + '</div>'
     + '<div id="wz_apy_compare" style="display:none;margin-top:12px;background:var(--surf2);border:1px solid var(--rim);border-radius:10px;padding:12px">'
@@ -601,7 +601,7 @@ function _wzRender(motoId){
     + '</select></div>'
     + '<button type="button" class="btn btn-g btn-sm" style="margin-top:8px" onclick="_wzGuardarPlanApy()">Guardar como plan nuevo</button>'
     + '</div>'
-    + '<div style="font-size:11px;color:var(--ink3);margin-top:6px">Indicas APY objetivo y plazo. El sistema calcula la cuota quincenal para iniciales de 45%, 50% y 55%.</div>'
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:6px">Indicas FDC objetivo y plazo. El sistema calcula la cuota quincenal para iniciales de 45%, 50% y 55%.</div>'
     + '</div>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">'
@@ -2381,8 +2381,8 @@ function _wzValidar(){
     if(planMode==='apy'){
       var apyObj=parseFloat((document.getElementById('wz_apy_objetivo')||{}).value)||0;
       var plazoApy=parseInt((document.getElementById('wz_apy_plazo')||{}).value,10)||0;
-      if(apyObj<=0){ toast('El APY objetivo es obligatorio','error'); return false; }
-      if(plazoApy<=0){ toast('El plazo es obligatorio en plan APY','error'); return false; }
+      if(apyObj<=0){ toast('El FDC objetivo es obligatorio','error'); return false; }
+      if(plazoApy<=0){ toast('El plazo es obligatorio en plan FDC','error'); return false; }
       var iniSelEl=document.getElementById('wz_apy_inicial_sel');
       var iniSelRaw=iniSelEl?iniSelEl.value:'0.50';
       var iniSel=iniSelRaw==='custom'?(parseFloat(window._wzCustomPct)||0.50):parseFloat(iniSelRaw);
@@ -4077,7 +4077,7 @@ function editarCredSinFirma(credId){
   preload['wz_ini_real']        = parseFloat(c.ini||0)||0;
   preload['wz_cuota_q_custom']  = parseFloat(c.cuotaQ||c.cuota||0)||0;
   preload['wz_plazo_custom']    = parseInt(c.plazo||0)||0;
-  // Plan APY
+  // Plan FDC
   preload['wz_apy_objetivo']    = c.plan ? (c.plan.apy||0) : 0;
   preload['wz_apy_plazo']       = parseInt(c.plazo||0)||0;
   preload['wz_apy_inicial_sel'] = c.plan ? String(c.plan.inicial||'0.50') : '0.50';

@@ -11,7 +11,7 @@ Los estilos y scripts nuevos están en `assets/public/`. El panel administrativo
 ## Contratos conservados
 
 - Los 46 IDs, precios y concesionarios del catálogo original se mantienen.
-- `catalog.js` centraliza la fórmula existente del simulador: inicial del 50%, 12 meses, 24 cuotas y APY del 380%. Los resultados redondeados coinciden con el simulador anterior. La vista mensual es una equivalencia informativa; no cambia la frecuencia de pago.
+- `catalog.js` centraliza la fórmula existente del simulador: inicial del 50%, 12 meses, 24 cuotas y FDC del 380%. Los resultados redondeados coinciden con el simulador anterior. La vista mensual es una equivalencia informativa; no cambia la frecuencia de pago.
 - Los importes de portada y catálogo ahora se derivan de esa misma fórmula. Antes existían cifras estáticas inconsistentes entre páginas.
 - Los campos, opciones, validación, evaluación, estructura del documento de solicitud, colección `clientes`, autenticación anónima, protección contra doble envío y manejo de errores permanecen iguales.
 - La solicitud recibe los 46 modelos compartidos, corrigiendo la omisión anterior de los IDs 42–46 (Benmo). Catálogo, simulador y solicitud conservan el modelo por `?moto=ID`.

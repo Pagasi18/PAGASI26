@@ -49,7 +49,7 @@ function calcCustomPlan(precioBaseReal, inicialReal, cuotaQ, plazoMeses){
   var apy=(Math.pow(1+tasaQ,24)-1)*100;
   return {precioBaseReal:precio, ini:ini, fin:fin, total:total, cuotaQ:cuota, cuotaM:cuota*2, totalPagado:totalPagado, plazo:plazo, totalCuotas:totalCuotas, factor:factor, inicialPct:inicialPct, tasaQuincenal:tasaQ*100, tasaMensual:tasaMensual, apy:apy};
 }
-// ── CALCULADORA APY: dada precio, %inicial, APY objetivo y plazo, calcula la cuota quincenal ──
+// ── CALCULADORA FDC: dada precio, %inicial, FDC objetivo y plazo, calcula la cuota quincenal ──
 function calcApyPlan(precioBaseReal, inicialPct, apyObjetivo, plazoMeses){
   var precio=parseFloat(precioBaseReal)||0;
   var iniPct=parseFloat(inicialPct)||0;
@@ -58,7 +58,7 @@ function calcApyPlan(precioBaseReal, inicialPct, apyObjetivo, plazoMeses){
   var totalCuotas=Math.max(0, plazo*2);
   var ini=precio*iniPct;
   var fin=Math.max(0, precio-ini);
-  // tasa quincenal a partir del APY: (1+APY)^(1/24) - 1
+  // tasa quincenal a partir del FDC: (1+FDC)^(1/24) - 1
   var tasaQ = Math.pow(1 + apy/100, 1/24) - 1;
   var cuotaQ = pmtRate(tasaQ, totalCuotas, fin);
   var total = cuotaQ*totalCuotas;
@@ -148,7 +148,7 @@ function _wzTogglePlanMode(v){
   _wzScore();
 }
 
-// ── Comparativo APY: calcula cuotas para iniciales 45%, 50%, 55% ──
+// ── Comparativo FDC: calcula cuotas para iniciales 45%, 50%, 55% ──
 function _wzApyCompare(){
   var precio=parseFloat(((document.getElementById('wz_precio_base_real')||{}).value))||parseFloat(WZ.precio)||0;
   var apy=parseFloat(((document.getElementById('wz_apy_objetivo')||{}).value))||0;
@@ -254,7 +254,7 @@ function _wzApyCustomCalc(){
   }
 }
 
-// ── Guardar el plan APY actual como plan nuevo en planesExtra ──
+// ── Guardar el plan FDC actual como plan nuevo en planesExtra ──
 function _wzGuardarPlanApy(){
   var precio=parseFloat(((document.getElementById('wz_precio_base_real')||{}).value))||parseFloat(WZ.precio)||0;
   var apy=parseFloat(((document.getElementById('wz_apy_objetivo')||{}).value))||0;
@@ -268,9 +268,9 @@ function _wzGuardarPlanApy(){
   } else {
     iniSel = parseFloat(iniSelRaw)||0.50;
   }
-  if(!(precio>0)||!(apy>0)||!(plazo>0)){ if(typeof toast==='function') toast('Completa precio, APY y plazo','error'); return; }
+  if(!(precio>0)||!(apy>0)||!(plazo>0)){ if(typeof toast==='function') toast('Completa precio, FDC y plazo','error'); return; }
   var r=calcApyPlan(precio,iniSel,apy,plazo);
-  var nombre='APY '+apy.toFixed(1)+'% · '+plazo+'m · Ini '+(iniSel*100).toFixed(0)+'%';
+  var nombre='FDC '+apy.toFixed(1)+'% · '+plazo+'m · Ini '+(iniSel*100).toFixed(0)+'%';
   var newPlan={nombre:nombre, plazo:plazo, factor:parseFloat(r.factor.toFixed(4)), inicial:iniSel, tasaMensual:parseFloat(r.tasaMensual.toFixed(2)), apy:apy, moraPct:(PLAN.moraPct||2.5), diasGracia:(PLAN.diasGracia!=null?PLAN.diasGracia:5), origen:'apy'};
   if(!window._planesExtra) window._planesExtra=[];
   window._planesExtra.push(newPlan);
