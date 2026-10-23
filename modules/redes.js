@@ -190,14 +190,15 @@ function _rsRefrescarComentarios(){ _rsPintarContadores(); _rsPintarComentarios(
 // responde {canal: false} la apaga en ese canal, calidad {ventas|cobranza} escoge el modelo.
 // Costos: con lo que contestan hoy (21-oct: ~300 respuestas de Paola al día, ~30 de Patricia), su
 // manual guardado en caché (~18 mil tokens), lo que escribe cada modelo (prueba real del 22-oct:
-// 900 a 1.500 tokens por respuesta) y los precios de Claude por millón de tokens.
+// 900 a 1.500 tokens por respuesta; con la Normal pensando corto desde el 23-oct, ~410) y los
+// precios de Claude por millón de tokens.
 var RS_ASIS = {
   ventas: { nombre: 'Paola', area: 'ventas', volumen: 'unos 300 mensajes al día, lo que contesta hoy',
     canales: [['instagram', 'Instagram (mensajes)', 'ig'], ['whatsappVentas', 'WhatsApp (ventas)', 'wa'], ['comentariosIg', 'Comentarios de Instagram', 'ig'], ['messenger', 'Messenger', 'ms', true], ['comentariosFb', 'Comentarios de Facebook', 'fb', true]],
-    costos: { economica: '≈ $5–15 al mes', normal: '≈ $150–300 al mes', maxima: '≈ $300–550 al mes' } },
+    costos: { economica: '≈ $5–15 al mes', normal: '≈ $75–160 al mes', maxima: '≈ $300–550 al mes' } },
   cobranza: { nombre: 'Patricia', area: 'cobranza', volumen: 'unos 30 mensajes al día',
     canales: [['whatsappCobranza', 'WhatsApp (respuestas a los clientes)', 'wa']],
-    costos: { economica: '≈ menos de $1 al mes', normal: '≈ $10–20 al mes', maxima: '≈ $20–40 al mes' } }
+    costos: { economica: '≈ menos de $1 al mes', normal: '≈ $5–10 al mes', maxima: '≈ $20–40 al mes' } }
 };
 var RS_CALIDADES = [
   { id: 'economica', nombre: 'Económica', modelo: 'Claude Haiku', nota: 'Respuestas más simples' },

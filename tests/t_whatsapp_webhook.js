@@ -370,9 +370,16 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     const fetchQ = async (u, o) => { cuerpos.push(JSON.parse(o.body)); return responde(true, util); };
     for (const q of ['economica', 'normal', 'maxima', undefined]) await cerebro.pensar({ apiKey: 'x', sistema: 'S', mensajes: [{ autor: 'cliente', texto: 'hola' }], fetchImpl: fetchQ, calidad: q });
     ok('calidad Económica: Claude Haiku 5.5, con el razonamiento apagado', cuerpos[0].model === 'claude-haiku-5-5' && cuerpos[0].thinking && cuerpos[0].thinking.type === 'disabled');
-    ok('calidad Normal: Claude Sonnet 5.5, sin el parámetro de razonamiento (como venía trabajando)', cuerpos[1].model === 'claude-sonnet-5-5' && !('thinking' in cuerpos[1]));
+    ok('calidad Normal: Claude Sonnet 5.5, sin el parámetro de razonamiento y pensando corto (esfuerzo bajo, 23-oct)', cuerpos[1].model === 'claude-sonnet-5-5' && !('thinking' in cuerpos[1]) && cuerpos[1].output_config && cuerpos[1].output_config.effort === 'low');
     ok('calidad Máxima: Claude Opus 5.5, sin intentar apagar el razonamiento (no lo deja)', cuerpos[2].model === 'claude-opus-5-5' && !('thinking' in cuerpos[2]) && cuerpos[2].max_tokens >= 3000);
     ok('sin calidad escogida, la Normal', cuerpos[3].model === 'claude-sonnet-5-5');
+    // Si la API no aceptara el esfuerzo, se va sin él (no se queda sin contestar)
+    {
+      const enviados = []; let n = 0;
+      const fE = async (u, o) => { const b = JSON.parse(o.body); enviados.push(b); n++; if (n === 1) return responde(false, { error: { message: 'output_config.effort: invalid value' } }); return responde(true, util); };
+      const rE = await cerebro.pensar({ apiKey: 'x', sistema: 'S', mensajes: [{ autor: 'cliente', texto: 'hola' }], fetchImpl: fE, calidad: 'normal' });
+      ok('si la API rechaza el esfuerzo, reintenta sin él y contesta', rE && rE.reply === 'Hola' && enviados.length === 2 && !('output_config' in enviados[1]));
+    }
     // Reintento sin respuesta útil: Sonnet/Opus 5.5 no aceptan obligar la herramienta
     for (const q of ['normal', 'economica']) {
       cuerpos.length = 0; primera = true;

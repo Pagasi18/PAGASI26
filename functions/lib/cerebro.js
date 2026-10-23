@@ -100,7 +100,10 @@ function leer(j) {
 // (tool_choice 'tool' da 400), asi que su reintento solo sube el tope.
 const CALIDADES = {
   economica: { modelo: 'claude-haiku-5-5', tope: 1500, extra: { thinking: { type: 'disabled' } }, forzar: true },
-  normal: { modelo: MODELO, tope: 1500, extra: {}, forzar: false },
+  // 23-oct-2026, Adam: "pensar menos". Se quedó sin saldo con Sonnet razonando al esfuerzo de
+  // fábrica (alto): ~1.500 tokens de salida por respuesta, la parte cara. Con esfuerzo bajo razona
+  // corto (la guía de Claude lo recomienda para chat) y cuesta más o menos la mitad.
+  normal: { modelo: MODELO, tope: 1500, extra: { output_config: { effort: 'low' } }, forzar: false },
   maxima: { modelo: 'claude-opus-5-5', tope: 4000, extra: {}, forzar: false }
 };
 async function pensar({ apiKey, sistema, mensajes, fetchImpl, calidad }) {
@@ -108,8 +111,9 @@ async function pensar({ apiKey, sistema, mensajes, fetchImpl, calidad }) {
   const q = CALIDADES[calidad] || CALIDADES.normal;
   const base = Object.assign({ model: q.modelo, max_tokens: q.tope, system: sistemaEnBloques(sistema), tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: conCache(turnos(mensajes)) }, q.extra);
   let r = await llamar(f, apiKey, base);
-  // Si esta version de la API no acepta como se pidio el razonamiento, se va sin ese parametro
+  // Si esta version de la API no acepta como se pidio el razonamiento o el esfuerzo, se va sin ese parametro
   if (!r.ok && r.status === 400 && base.thinking && /thinking/i.test(String(r.j.error && r.j.error.message || ''))) { delete base.thinking; r = await llamar(f, apiKey, base); }
+  if (!r.ok && r.status === 400 && base.output_config && /effort|output_config/i.test(String(r.j.error && r.j.error.message || ''))) { delete base.output_config; r = await llamar(f, apiKey, base); }
   if (!r.ok) { const e = new Error((r.j.error && r.j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
   let v = leer(r.j);
   if (v) return v;
