@@ -1957,10 +1957,15 @@ function stopRealtime(){
 function _captureFocus(){
   var el = document.activeElement;
   if(!el || !el.id || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return null;
+  // Tambien lo escrito: el redibujo arma el campo de nuevo y lo dejaba vacio con el cursor adentro
+  // (23-oct-2026, Redes sociales: "se le borra lo que escribió"). Se toma justo antes de redibujar,
+  // asi que si un formulario ya vacio su campo al guardar, se queda vacio.
+  var conTexto = el.tagName==='TEXTAREA' || (el.tagName==='INPUT' && /^(text|search|tel|email|number|url|)$/i.test(el.getAttribute('type') || ''));
   return {
     id: el.id,
     start: typeof el.selectionStart==='number' ? el.selectionStart : null,
-    end: typeof el.selectionEnd==='number' ? el.selectionEnd : null
+    end: typeof el.selectionEnd==='number' ? el.selectionEnd : null,
+    valor: conTexto ? el.value : null
   };
 }
 
@@ -1969,6 +1974,7 @@ function _restoreFocus(f){
   setTimeout(function(){
     var el = document.getElementById(f.id);
     if(!el) return;
+    if(f.valor!=null && /^(INPUT|TEXTAREA)$/.test(el.tagName) && el.value!==f.valor) el.value = f.valor;
     try{ el.focus(); }catch(e){}
     if(f.start!==null && typeof el.setSelectionRange==='function'){
       try{ el.setSelectionRange(f.start, f.end); }catch(e){}
@@ -2050,6 +2056,11 @@ function _rtRedibujar(){
   if(!S || !S.currentUser || !S.page || typeof nav!=='function') return;
   _rtRenderPending = false;
   _rtUltimoRender = Date.now();
+  // Redes sociales se refresca en el sitio: redibujarla entera vaciaba la caja donde el vendedor
+  // estaba escribiendo cada vez que alguien del equipo guardaba algo (23-oct-2026)
+  if(S.page==='redes' && typeof waRefrescarPorDatos==='function'){
+    try{ if(waRefrescarPorDatos()) return; }catch(e){ console.warn('Redes en el sitio:', e); }
+  }
   var focus = _captureFocus();
   window._pgKeep = true;           // nav() lo consume: conserva la paginacion
   window._rtRenderizando = true;   // nav() no muestra el esqueleto

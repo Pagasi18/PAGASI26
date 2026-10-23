@@ -147,7 +147,16 @@ function _waPintarHilo(id){
   cont.scrollTop = cont.scrollHeight;
   _waPintarLista();
 }
-function _waEnviarDesdeCaja(id){ var ta = document.getElementById('wa-texto'); if(!ta) return; var t = ta.value; ta.value = ''; waEnviarEquipo(id, t); }
+// Lo que el vendedor va escribiendo, por conversación (Adam, 23-oct-2026: "cuando el vendedor está
+// escribiendo y viene un latido se le borra lo que escribió"). Sobrevive a cualquier repintado y a
+// cambiar de conversación; se borra solo cuando el mensaje sale.
+window._waBorradores = window._waBorradores || {};
+function _waGuardarBorrador(id, v){ if(!id) return; if(v) window._waBorradores[id] = v; else delete window._waBorradores[id]; }
+function _waEnviarDesdeCaja(id){
+  var ta = document.getElementById('wa-texto'); if(!ta) return;
+  // Si no sale (ventana cerrada, vacío) el texto se queda en la caja
+  if(waEnviarEquipo(id, ta.value)){ ta.value = ''; _waGuardarBorrador(id, ''); }
+}
 function _waPasarAPedido(id){
   var c = _waConv(id); if(!c || !c.borrador) return;
   if(c.borrador.tipo === 'promesa'){
@@ -199,16 +208,35 @@ function _waPintarSeleccion(){
   var ctx = _waCtxActual(), hilo = document.getElementById('wa-hilo'), ficha = document.getElementById('wa-ficha'); if(!hilo || !ficha) return;
   _waAjustarAltura();
   var sel = _waSeleccionada(ctx), conectado = sel ? waConectadoCanal(sel.canal || 'whatsapp') : false;
-  var borrador = (document.getElementById('wa-texto') || {}).value || '';
+  // La caja se arma de nuevo con el borrador de su conversación; si el vendedor estaba escribiendo,
+  // el cursor vuelve a donde estaba
+  var ta0 = document.getElementById('wa-texto'), foco = null;
+  var conv0 = ta0 && ta0.getAttribute ? ta0.getAttribute('data-conv') : null;
+  if(conv0){
+    _waGuardarBorrador(conv0, ta0.value);
+    if(document.activeElement === ta0) foco = { conv: conv0, ini: ta0.selectionStart, fin: ta0.selectionEnd };
+  }
   hilo.innerHTML = _waHtmlHilo(sel, ctx, conectado);
   ficha.innerHTML = _waHtmlFicha(sel, ctx);
-  if(borrador && sel && window._waMsgSel === sel.id){ var ta = document.getElementById('wa-texto'); if(ta) ta.value = borrador; }
+  var ta1 = document.getElementById('wa-texto');
+  if(foco && ta1 && sel && foco.conv === sel.id){ try{ ta1.focus(); ta1.setSelectionRange(foco.ini, foco.fin); }catch(e){} }
   window._waFirma = _waFirmaDe(sel);
   if(sel) _waMarcarLeida(sel);   // antes de pintar la lista, para que el globo de no leidos se apague ya
   _waPintarLista();
   if(!sel) return;
   if(window._waMsgSel !== sel.id){ window._waMsgSel = sel.id; if(conectado) waAbrirMensajes(sel.id); else _waPintarHilo(sel.id); }
   else _waPintarHilo(sel.id);
+}
+// El sistema redibuja la pantalla cada vez que alguien del equipo guarda algo (pagos, créditos,
+// clientes…). En la bandeja no se arma la página de nuevo, porque vaciaba la caja de escribir: se
+// refrescan en el sitio la lista, los contadores y la ficha del cliente (que usa créditos y pagos).
+// Devuelve true si lo hizo; en las otras vistas de Redes devuelve false y se redibuja como siempre.
+function waRefrescarPorDatos(){
+  if(S.page !== 'redes' || !document.getElementById('wa-items')) return false;
+  _waRefrescarEnSitio();
+  var ficha = document.getElementById('wa-ficha'), ctx = _waCtxActual();
+  if(ficha) ficha.innerHTML = _waHtmlFicha(_waSeleccionada(ctx), ctx);
+  return true;
 }
 // Al abrir una conversacion los mensajes quedan leidos (el servidor los va contando)
 function _waMarcarLeida(c){ if(!c || !(c.noLeidos > 0)) return; c.noLeidos = 0; if(waConectadoCanal(c.canal) && typeof _waActualizar === 'function') _waActualizar(c.id, { noLeidos: 0 }); }
@@ -236,7 +264,7 @@ function _waHtmlHilo(sel, ctx, conectado){
   return '<div class="wa-hilo-top"><div class="quien"><div class="av' + (sel.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(_waIni(sel.nombre || sel.clienteNombre)) + '</div><div><b>' + _waEsc(sel.nombre || sel.telE164) + '</b><small>' + (sel.canal === 'instagram' ? 'Instagram' + (sel.usuario ? ' · @' + _waEsc(sel.usuario) : '') + ' · ventas' : _waEsc(String(sel.telE164 || '').replace('+58', '0')) + (sel.area === 'ventas' ? ' · ventas' + (sel.clienteNombre ? ' · ya es cliente' : '') : (sel.clienteNombre ? ' · cliente del sistema' : ' · no está en el sistema'))) + ' · ' + (sel.modo === 'humano' ? 'lo atiende ' + _waEsc(sel.atendidoPor || 'el equipo') : 'lo atiende el asistente') + '</small></div></div>'
           + '<div class="acc">' + (sel.atencion ? '<button class="rs-ib" title="Visto: ya lo resolví" onclick="waVisto(\'' + _waEsc(sel.id) + '\')">' + _waIcono('visto') + '</button>' : '') + (sel.modo === 'humano' ? '<button class="rs-ib" title="Devolver al asistente" onclick="waDevolver(\'' + _waEsc(sel.id) + '\')">' + _waIcono('bot') + 'Devolver al asistente</button>' : '<button class="rs-ib p" title="Atender yo: el asistente se calla" onclick="waAtender(\'' + _waEsc(sel.id) + '\')">' + _waIcono('yo') + 'Atender yo</button>') + '</div></div>'
           + '<div class="wa-burbujas" id="wa-burbujas"></div>'
-          + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" placeholder="Responde en ' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' como ' + _waNombreAsis(sel) + '…"></textarea><div class="wa-esc-pie"><span class="cs">Al escribir, tomas la conversación y queda registrado que fuiste tú.</span><button class="btn btn-p btn-sm" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div></div>'
+          + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" data-conv="' + _waEsc(sel.id) + '" oninput="_waGuardarBorrador(\'' + _waEsc(sel.id) + '\', this.value)" placeholder="Responde en ' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' como ' + _waNombreAsis(sel) + '…">' + _waEsc(window._waBorradores[sel.id] || '') + '</textarea><div class="wa-esc-pie"><span class="cs">Al escribir, tomas la conversación y queda registrado que fuiste tú.</span><button class="btn btn-p btn-sm" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div></div>'
             : (sel.canal === 'instagram' ? '<div class="wa-cerrada">Pasaron más de 7 días desde el último mensaje de la persona' + (sel.ultimoEntranteHora ? ' (' + _waHora(sel.ultimoEntranteHora) + ')' : '') + ': Instagram no deja escribirle hasta que vuelva a escribir.</div>'
               : '<div class="wa-cerrada">La ventana de 24 horas de WhatsApp está cerrada: el cliente escribió por última vez ' + (sel.ultimoEntranteHora ? 'el ' + _waHora(sel.ultimoEntranteHora) : 'hace más de un día') + '. Solo se le puede escribir con una plantilla aprobada, o esperar a que vuelva a escribir.</div>'))
           + (conectado ? '' : '<div class="wa-demo-cliente"><small>Demostración · ' + (sel.area === 'ventas' ? 'la persona' : 'el cliente') + ' escribe:</small>' + (sel.area === 'ventas' ? ['precio de la BRZ 200?', 'qué piden para el crédito?', 'quiero una, cómo hago?', 'tienen en Maracay?', 'quiero hablar con una persona'] : ['cuánto debo?', 'ya pagué', 'pago el sábado', 'cómo pago?', 'quiero hablar con una persona', 'no puedo pagar']).map(function(t){ return '<button onclick="waDemoClienteEscribe(\'' + _waEsc(sel.id) + '\',\'' + _waEsc(t) + '\')">' + _waEsc(t) + '</button>'; }).join('') + '</div>');

@@ -268,16 +268,18 @@ function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa
 function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ _waTrasCambio(id); }); }
 // Ventana de 24 h de Meta: solo se puede escribir libre si el cliente escribió en las últimas 24 h
 function waVentanaAbierta(conv, ahora){ if(!conv || !conv.ultimoEntranteHora) return false; var t = (ahora ? new Date(ahora) : new Date()).getTime() - new Date(conv.ultimoEntranteHora).getTime(); return t < (conv.canal === 'instagram' ? 7 * 24 : 24) * 3600 * 1000; }
+// Devuelve true si el mensaje salió (la caja de escribir solo se vacía entonces)
 function waEnviarEquipo(id, texto){
   var c = _waConv(id); texto = String(texto || '').trim();
-  if(!c || !texto) return;
-  if(!waVentanaAbierta(c)){ toast(c.canal === 'instagram' ? 'La ventana de 7 días de Instagram está cerrada: solo se puede escribir cuando la persona vuelva a escribir.' : 'La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return; }
+  if(!c || !texto) return false;
+  if(!waVentanaAbierta(c)){ toast(c.canal === 'instagram' ? 'La ventana de 7 días de Instagram está cerrada: solo se puede escribir cuando la persona vuelva a escribir.' : 'La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return false; }
   var m = { autor: 'equipo', direccion: 'saliente', tipo: 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
   (_waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []).push(Object.assign({ id: 'local-' + Date.now() }, m));
   Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por });
   if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m);
   if(typeof logActividad === 'function') logActividad('wa_mensaje_equipo', 'whatsapp', id, { largo: texto.length });
   if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
+  return true;
 }
 // Con Meta conectado el mensaje del equipo lo manda el servidor (Cloud Functions): él habla con
 // Meta y guarda el mensaje; aquí solo se pide con la sesión del usuario. La URL se puede cambiar
