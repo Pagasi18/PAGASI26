@@ -220,6 +220,27 @@ function _rsUsoHoy(area){
   var ult = suyas.filter(function(c){ return c.ultimoAutor === 'asistente'; }).map(function(c){ return String(c.ultimoMensajeHora || ''); }).sort().pop() || '';
   return { hoy: hoy, ultima: ult };
 }
+// ── Lo que gastan de verdad en Claude (lo anota el servidor en config/asistenteUso, 23-oct-2026) ──
+// dias.{fecha}.{ventas|cobranza}: { llamadas, entrada, salida, cacheLeida, cacheEscrita, costo }
+function _rsGastoDe(uso, area, desde, hasta){
+  var r = { costo: 0, llamadas: 0 }, d = (uso && uso.dias) || {};
+  Object.keys(d).forEach(function(f){ if(f < desde || f > hasta) return; ['ventas', 'cobranza'].forEach(function(a){ if(area && a !== area) return; var x = d[f][a]; if(x){ r.costo += +x.costo || 0; r.llamadas += +x.llamadas || 0; } }); });
+  return r;
+}
+function _rsDinero(n){ return '$' + (n < 10 ? n.toFixed(2) : n.toFixed(0)); }
+function _rsCargarGasto(cb){
+  if(typeof db === 'undefined' || !db){ cb(null); return; }
+  db.collection('config').doc('asistenteUso').get().then(function(d){ window._rsUso = d.exists ? d.data() : null; cb(window._rsUso); }).catch(function(){ cb(null); });
+}
+function _rsGastoHtml(uso, area){
+  var hoyD = new Date(), hoy = _waFechaLocal(hoyD), ay = new Date(hoyD); ay.setDate(hoyD.getDate() - 1); var s7 = new Date(hoyD); s7.setDate(hoyD.getDate() - 6);
+  var h = _rsGastoDe(uso, area, hoy, hoy), a = _rsGastoDe(uso, area, _waFechaLocal(ay), _waFechaLocal(ay)), w = _rsGastoDe(uso, area, _waFechaLocal(s7), hoy);
+  var dias = Object.keys((uso && uso.dias) || {}).sort();
+  if(!dias.length) return '<div class="sv" style="margin:0">El gasto real se empezó a anotar el 23 oct: aparece aquí con las próximas respuestas.</div>';
+  return '<div class="rs-cx" style="grid-template-columns:repeat(3,1fr)">'
+    + [['Hoy', h], ['Ayer', a], ['Últimos 7 días', w]].map(function(x){ return '<div style="background:var(--surf2);border:1px solid var(--rim2);border-radius:9px;padding:9px 11px;color:var(--ink)"><div style="font-size:11px;color:var(--ink3)">' + x[0] + '</div><div style="font-size:18px;font-weight:800;font-variant-numeric:tabular-nums">' + _rsDinero(x[1].costo) + '</div><div style="font-size:11px;color:var(--ink3)">' + x[1].llamadas + ' respuestas' + (x[1].llamadas ? ' · ' + _rsDinero(x[1].costo / x[1].llamadas) + ' c/u' : '') + '</div></div>'; }).join('')
+    + '</div>' + (dias[0] > _waFechaLocal(s7) ? '<div class="sv" style="margin:6px 0 0">Se anota desde el ' + _waFechaCorta(dias[0]) + '.</div>' : '');
+}
 function rsAsistente(area){
   var A = RS_ASIS[area] || RS_ASIS.ventas, cfg = window._waCfg || {}, resp = cfg.responde || {}, calidad = (cfg.calidad || {})[A.area] || 'normal';
   var puede = typeof isAdminUser === 'function' && isAdminUser(), aqui = waConectado() || waConectadoCanal('instagram');
@@ -230,6 +251,7 @@ function rsAsistente(area){
     return '<label class="rs-swf"><span class="ic ' + ic + '">' + (_RS_ICONOS[ic] || _waIcono(ic === 'wa' ? 'wa' : ic === 'rl' ? 'bot' : 'ig')) + '</span><span class="t">' + txt + (pend ? ' <span class="wa-pill gris">sin conectar</span>' : '') + (sub ? '<small>' + sub + '</small>' : '') + '</span>'
       + '<input type="checkbox" role="switch" class="rs-sw" data-canal="' + id + '"' + (on ? ' checked' : '') + (pend || !editable ? ' disabled' : '') + '></label>'; };
   var h = '<div class="rs-v">'
+    + '<h4>Lo que gasta ' + A.nombre + ' en Claude</h4><div id="rs-gasto"><div class="sv">Cargando…</div></div>'
     + (!aqui ? '<div class="aviso" style="margin:0 0 12px">En esta compañía ' + A.nombre + ' no está conectada a Meta: lo que ves es de muestra. Las asistentes se configuran en <b>pagasi.io</b>.</div>' : '')
     + '<h4>Dónde responde ' + A.nombre + '</h4><div class="sv">Apagada en un canal, los mensajes igual llegan aquí; los responde el equipo.</div><div class="rs-sws">'
     + A.canales.map(function(c){ return fila(c[0], c[1], c[2], c[3]); }).join('')
@@ -255,6 +277,7 @@ function rsAsistente(area){
   S.saveFn = editable ? function(){ return rsGuardarAsistente(A.area); } : null;
   document.getElementById('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>' + (editable ? '<button class="btn btn-p" onclick="saveM()">Guardar</button>' : '');
   document.getElementById('ov').style.display = 'flex';
+  _rsCargarGasto(function(uso){ var e = document.getElementById('rs-gasto'); if(e) e.innerHTML = _rsGastoHtml(uso, A.area); });
 }
 function rsGuardarAsistente(area){
   var cfg = window._waCfg || {}, resp = Object.assign({}, cfg.responde || {}), cal = Object.assign({}, cfg.calidad || {}), datos = {};
@@ -283,6 +306,7 @@ function rsCargarMetricas(){
   var listo = function(){ var e = document.getElementById('rs-met'); if(e && S.page === 'redes' && window._rsVista === 'metricas') e.innerHTML = _rsMetricasHtml(); };
   if(typeof db === 'undefined' || !db){ listo(); return; }
   db.collection('config').doc('redesMetricas').get().then(function(d){ window._rsMet = d.exists ? d.data() : null; listo(); }).catch(function(){ listo(); });
+  _rsCargarGasto(function(){ listo(); });
   // Las conversaciones de los últimos días de cada canal que este usuario ve (la bandeja trae solo las 200 más recientes)
   var canales = [];
   if(_rsVe('instagram') && waConectadoCanal('instagram')) canales.push('instagram');
@@ -315,6 +339,8 @@ function _rsMetricasHtml(){
     + kpi('Personas que escribieron', String(ventasN + nWaC), 'Instagram ' + nIg + ' · WhatsApp ventas ' + nWaV + ' · cobranza ' + nWaC)
     + kpi('Quieren comprar', String(leads), pct(leads, ventasN) + ' de las ' + ventasN + ' conversaciones de ventas')
     + kpi('Comentarios en Instagram', String(coms.length), 'En anuncios ' + cAd + ' · en publicaciones ' + (coms.length - cAd) + ' · Paola contestó ' + pct(cResp, coms.length))
+    + (function(){ var g = _rsGastoDe(window._rsUso, '', desde, _waFechaLocal(hoy)), gv = _rsGastoDe(window._rsUso, 'ventas', desde, _waFechaLocal(hoy)), gc = _rsGastoDe(window._rsUso, 'cobranza', desde, _waFechaLocal(hoy));
+        return window._rsUso ? kpi('Gasto en Claude', _rsDinero(g.costo), 'Paola ' + _rsDinero(gv.costo) + ' · Patricia ' + _rsDinero(gc.costo) + (leads ? ' · ' + _rsDinero(g.costo / leads) + ' por cada "quiere comprar"' : '')) : ''; })()
     + '</div>';
   // Gráfico: personas que escribieron por día, Instagram y WhatsApp apilados
   var porDia = lista.map(function(f){ var d = nuevas.filter(function(c){ return _rsDiaLocal(c.creado || c.ultimoMensajeHora) === f; }); return { f: f, ig: d.filter(esIg).length, wa: d.filter(function(c){ return !esIg(c); }).length }; });

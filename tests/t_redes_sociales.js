@@ -199,4 +199,17 @@ ok('un mensaje del 21-oct a las 11:21 pm sale "21 oct 23:21" (no "22 oct")', ctx
   ctx._rsVista = 'bandeja';
 }
 
+// ── 11. El gasto real en Claude (23-oct-2026) ──
+{
+  const hoyL = ctx._waFechaLocal(new Date()), ay = ctx._waFechaLocal(new Date(Date.now() - 86400000));
+  const uso = { dias: { [hoyL]: { ventas: { costo: 3.2, llamadas: 400 }, cobranza: { costo: 0.1, llamadas: 20 } }, [ay]: { ventas: { costo: 7.5, llamadas: 450 } } } };
+  const g = ctx._rsGastoHtml(uso, 'ventas');
+  ok('la ventana de Paola muestra lo que gastó hoy, ayer y en 7 días', /Hoy[\s\S]*\$3\.20[\s\S]*400 respuestas[\s\S]*Ayer[\s\S]*\$7\.50[\s\S]*Últimos 7 días[\s\S]*\$11/.test(g));
+  ok('...con el costo por respuesta', /\$0\.01 c\/u/.test(g));
+  ok('Patricia ve solo lo suyo', /\$0\.10/.test(ctx._rsGastoHtml(uso, 'cobranza')) && !/\$3\.20/.test(ctx._rsGastoHtml(uso, 'cobranza')));
+  ok('sin datos todavía, lo dice', /se empezó a anotar/.test(ctx._rsGastoHtml(null, 'ventas')));
+  ctx._rsUso = uso; ctx._rsMetDias = 7;
+  ok('Métricas de Redes trae la tarjeta "Gasto en Claude"', /Gasto en Claude<\/div><div class="v">\$11<\/div>/.test(ctx._rsMetricasHtml()) && /Paola \$11 · Patricia \$0\.10/.test(ctx._rsMetricasHtml()));
+}
+
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

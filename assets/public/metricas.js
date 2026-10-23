@@ -108,6 +108,10 @@
   if(pagina === 'solicitar'){
     root.document.addEventListener('input', e => { if(e.target && /^(wz_|fM)/.test(e.target.id || '')) unaVez('sol', 'solicitud_inicio'); }, true);
   }
+  // Cuánto se quedó: al cerrar, cambiar de página o irse a otra app se anota una vez por página
+  // (23-oct-2026, para el "tiempo en la página" del módulo Métricas web)
+  let salio = false;
+  root.document.addEventListener('visibilitychange', () => { if(!salio && root.document.visibilityState === 'hidden'){ salio = true; enviar('sale'); } });
   root.addEventListener('pagasi:metrica', e => { const d = (e && e.detail) || {}; if(d.t) enviar(String(d.t), { x: d.x, m: d.m }); });
   root.PagasiMetricas = Object.freeze({ enviar, sid, vid });
 })(typeof window !== 'undefined' ? window : this);

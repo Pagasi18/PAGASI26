@@ -418,5 +418,27 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     ok('métricas: si Meta niega algo, avisa con su mensaje', err && /sin permiso/.test(err.message));
   }
 
+  // ── Bajar costos (23-oct-2026): el manual guardado 1 hora y lo que gasta cada respuesta ──
+  {
+    let cuerpo = null;
+    const fU = async (u, o) => { cuerpo = JSON.parse(o.body); return { ok: true, status: 200, json: async () => ({ content: [{ type: 'tool_use', name: 'responder', input: { reply: 'Hola', summary: '', handoff: false } }],
+      usage: { input_tokens: 100, output_tokens: 400, cache_read_input_tokens: 18000, cache_creation_input_tokens: 1500, cache_creation: { ephemeral_5m_input_tokens: 1500, ephemeral_1h_input_tokens: 0 } } }) }; };
+    const r = await cerebro.pensar({ apiKey: 'x', sistema: 'FIJO ' + cerebro.CORTE + ' persona', mensajes: [{ autor: 'cliente', texto: 'hola' }], fetchImpl: fU, calidad: 'normal' });
+    ok('el manual se guarda 1 hora (ttl 1h) y el historial de la conversación 5 minutos', cuerpo.system[0].cache_control.ttl === '1h' && !cuerpo.messages[cuerpo.messages.length - 1].content[0].cache_control.ttl);
+    // Sonnet: 100×2 + 400×10 + 18000×0,20 + 1500×2,50 = 200 + 4000 + 3600 + 3750 = 11.550 por millón
+    ok('cada respuesta trae lo que gastó: llamadas, tokens y costo en dólares (Sonnet)', r.gasto && r.gasto.llamadas === 1 && r.gasto.salida === 400 && r.gasto.cacheLeida === 18000 && Math.abs(r.gasto.costo - 0.01155) < 1e-9);
+    const g = { llamadas: 0, entrada: 0, salida: 0, cacheLeida: 0, cacheEscrita: 0, costo: 0 };
+    cerebro.sumarUso(g, { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 18000, cache_creation: { ephemeral_1h_input_tokens: 18000 } }, 'claude-sonnet-5-5');
+    ok('guardar el manual 1 hora cuesta el doble de la entrada (18 mil tokens = $0,072 en Sonnet)', Math.abs(g.costo - 0.072) < 1e-9 && g.cacheEscrita === 18000);
+    const h = { llamadas: 0, entrada: 0, salida: 0, cacheLeida: 0, cacheEscrita: 0, costo: 0 };
+    cerebro.sumarUso(h, { input_tokens: 100, output_tokens: 400 }, 'claude-haiku-5-5');
+    ok('con Haiku el mismo trabajo cuesta 20 veces menos', Math.abs(h.costo - (100 * 0.10 + 400 * 0.50) / 1e6) < 1e-12);
+    let n = 0; const fR = async (u, o) => { n++; return { ok: true, status: 200, json: async () => (n === 1 ? { content: [], usage: { input_tokens: 10, output_tokens: 1500 } } : { content: [{ type: 'tool_use', name: 'responder', input: { reply: 'ok', summary: '', handoff: false } }], usage: { input_tokens: 10, output_tokens: 300 } }) }; };
+    const r2 = await cerebro.pensar({ apiKey: 'x', sistema: 'S', mensajes: [{ autor: 'cliente', texto: 'hola' }], fetchImpl: fR, calidad: 'normal' });
+    ok('si hubo reintento, el gasto suma las dos llamadas', r2.gasto.llamadas === 2 && r2.gasto.salida === 1800);
+    const idx = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
+    ok('el servidor anota el gasto por día y por asistente en config/asistenteUso', /anotarGasto\(area \|\| 'ventas', r && r\.gasto\)/.test(idx) && /collection\('config'\)\.doc\('asistenteUso'\)/.test(idx));
+  }
+
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });

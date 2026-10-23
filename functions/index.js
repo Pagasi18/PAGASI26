@@ -15,7 +15,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp, getApps } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { getAuth } = require('firebase-admin/auth');
 const crypto = require('crypto');
@@ -92,7 +92,16 @@ function armarDeps(cfg) {
   const m = meta.cliente({ accessToken: sec(TOKEN), phoneNumberId: sec(PHONE_ID) });
   const ig = configurado(sec(IG_TOKEN)) && configurado(sec(IG_CUENTA)) ? meta.clienteInstagram({ accessToken: sec(IG_TOKEN), accountId: sec(IG_CUENTA) }) : null;
   return { bases, storage: storageDe, meta: m, metaIG: ig, instagramId: configurado(sec(IG_CUENTA)) ? sec(IG_CUENTA) : '', ventas: catalogoVentas, cfg, ahora: () => new Date().toISOString(), hoy: hoyCaracas, log: (q, d) => logger.info(q, d || {}),
-    cerebro: { pensar: ({ sistema, mensajes, calidad }) => cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes, calidad }) } };
+    cerebro: { pensar: async ({ sistema, mensajes, calidad, area }) => { const r = await cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes, calidad }); anotarGasto(area || 'ventas', r && r.gasto); return r; } } };
+}
+// Lo que gasta cada asistente por día, en config/asistenteUso de la 26 (23-oct-2026, Adam: "ya nos
+// gastamos $40 en Paola y Patricia, ¿me ayudas a bajar los costos?"): así se ve el costo real en el
+// panel y no un cálculo. dias.{fecha}.{ventas|cobranza}: llamadas, tokens y costo en dólares.
+function anotarGasto(area, g) {
+  if (!g || !g.llamadas) return;
+  const inc = {}; ['llamadas', 'entrada', 'salida', 'cacheLeida', 'cacheEscrita'].forEach(k => { inc[k] = FieldValue.increment(g[k] || 0); });
+  inc.costo = FieldValue.increment(Math.round((g.costo || 0) * 1e6) / 1e6);
+  bases['26'].collection('config').doc('asistenteUso').set({ dias: { [hoyCaracas()]: { [area === 'cobranza' ? 'cobranza' : 'ventas']: inc } }, actualizado: new Date().toISOString() }, { merge: true }).catch(e => logger.warn('gasto no anotado', { error: String(e && e.message || e).slice(0, 120) }));
 }
 
 // Quien escribe desde el panel: su token de Firebase (de la 26 o de la 18) y su ficha en /usuarios

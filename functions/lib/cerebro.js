@@ -11,7 +11,11 @@ const MARCA = '⟦fin de la parte fija⟧', CORTE = '\n\n' + MARCA + '\n\n';
 function sistemaEnBloques(sistema) {
   const s = String(sistema || ''), i = s.indexOf(CORTE);
   const fijo = i >= 0 ? s.slice(0, i) : s, resto = i >= 0 ? s.slice(i + CORTE.length) : '';
-  const b = [{ type: 'text', text: fijo, cache_control: { type: 'ephemeral' } }];
+  // 23-oct-2026: el manual guardado una HORA y no 5 minutos. Con 5 minutos se recargaba entero
+  // ~59 veces al día (cada vez que pasaban 5 minutos sin mensajes) y cada recarga de ~18 mil tokens
+  // costaba como 12 respuestas; con 1 hora se recarga ~4 veces al día. El historial de cada
+  // conversación sigue con 5 minutos (la regla de Claude: el de 1 hora va antes que el de 5).
+  const b = [{ type: 'text', text: fijo, cache_control: { type: 'ephemeral', ttl: '1h' } }];
   if (resto.trim()) b.push({ type: 'text', text: resto });
   return b;
 }
@@ -80,10 +84,24 @@ function turnos(mensajes) {
 // Una llamada a la API. Sonnet 5.5 razona antes de responder por defecto y ese razonamiento se
 // comia el tope de salida (19-oct-2026: tope 700, stop_reason max_tokens y herramienta vacia):
 // aqui el razonamiento va apagado (respuestas mas rapidas y baratas) y el tope es holgado.
-async function llamar(f, apiKey, cuerpo) {
+async function llamar(f, apiKey, cuerpo, gasto) {
   const r = await f(URL, { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
   const j = await r.json().catch(() => ({}));
+  if (gasto && j && j.usage) sumarUso(gasto, j.usage, cuerpo.model);
   return { ok: r.ok, status: r.status, j };
+}
+// Precio por millón de tokens (USD) de cada modelo: entrada, salida, caché leída, caché escrita
+// 5 min y 1 hora. Sirve para anotar lo que gasta cada respuesta (config/asistenteUso).
+const PRECIOS = {
+  'claude-haiku-5-5': { entrada: 0.10, salida: 0.50, leida: 0.01, escrita5m: 0.125, escrita1h: 0.20 },
+  'claude-sonnet-5-5': { entrada: 2, salida: 10, leida: 0.20, escrita5m: 2.5, escrita1h: 4 },
+  'claude-opus-5-5': { entrada: 4, salida: 20, leida: 0.20, escrita5m: 5, escrita1h: 8 }
+};
+function sumarUso(g, u, modelo) {
+  const p = PRECIOS[modelo] || PRECIOS['claude-sonnet-5-5'];
+  const cc = u.cache_creation || {}, w1h = +cc.ephemeral_1h_input_tokens || 0, w5m = cc.ephemeral_5m_input_tokens != null ? +cc.ephemeral_5m_input_tokens : Math.max(0, (+u.cache_creation_input_tokens || 0) - w1h);
+  g.llamadas++; g.entrada += +u.input_tokens || 0; g.salida += +u.output_tokens || 0; g.cacheLeida += +u.cache_read_input_tokens || 0; g.cacheEscrita += w5m + w1h;
+  g.costo += ((+u.input_tokens || 0) * p.entrada + (+u.output_tokens || 0) * p.salida + (+u.cache_read_input_tokens || 0) * p.leida + w5m * p.escrita5m + w1h * p.escrita1h) / 1e6;
 }
 function leer(j) {
   const uso = (j.content || []).find(b => b.type === 'tool_use' && b.name === 'responder');
@@ -110,20 +128,22 @@ async function pensar({ apiKey, sistema, mensajes, fetchImpl, calidad }) {
   const f = fetchImpl || fetch;
   const q = CALIDADES[calidad] || CALIDADES.normal;
   const base = Object.assign({ model: q.modelo, max_tokens: q.tope, system: sistemaEnBloques(sistema), tools: [HERRAMIENTA], tool_choice: { type: 'auto' }, messages: conCache(turnos(mensajes)) }, q.extra);
-  let r = await llamar(f, apiKey, base);
+  const gasto = { llamadas: 0, entrada: 0, salida: 0, cacheLeida: 0, cacheEscrita: 0, costo: 0 };
+  const listo = v => Object.assign(v, { gasto });
+  let r = await llamar(f, apiKey, base, gasto);
   // Si esta version de la API no acepta como se pidio el razonamiento o el esfuerzo, se va sin ese parametro
-  if (!r.ok && r.status === 400 && base.thinking && /thinking/i.test(String(r.j.error && r.j.error.message || ''))) { delete base.thinking; r = await llamar(f, apiKey, base); }
-  if (!r.ok && r.status === 400 && base.output_config && /effort|output_config/i.test(String(r.j.error && r.j.error.message || ''))) { delete base.output_config; r = await llamar(f, apiKey, base); }
+  if (!r.ok && r.status === 400 && base.thinking && /thinking/i.test(String(r.j.error && r.j.error.message || ''))) { delete base.thinking; r = await llamar(f, apiKey, base, gasto); }
+  if (!r.ok && r.status === 400 && base.output_config && /effort|output_config/i.test(String(r.j.error && r.j.error.message || ''))) { delete base.output_config; r = await llamar(f, apiKey, base, gasto); }
   if (!r.ok) { const e = new Error((r.j.error && r.j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
   let v = leer(r.j);
-  if (v) return v;
+  if (v) return listo(v);
   // Sin respuesta util (p. ej. se corto por el tope): un reintento con mas tope, y obligando la
   // herramienta donde el modelo lo acepta
-  r = await llamar(f, apiKey, Object.assign({}, base, { max_tokens: q.tope + 1500 }, q.forzar ? { tool_choice: { type: 'tool', name: 'responder' } } : {}));
+  r = await llamar(f, apiKey, Object.assign({}, base, { max_tokens: q.tope + 1500 }, q.forzar ? { tool_choice: { type: 'tool', name: 'responder' } } : {}), gasto);
   if (!r.ok) { const e = new Error((r.j.error && r.j.error.message) || ('Anthropic HTTP ' + r.status)); e.code = 'anthropic'; throw e; }
   v = leer(r.j);
-  if (v) return v;
+  if (v) return listo(v);
   throw new Error('El modelo no devolvió respuesta');
 }
 
-module.exports = { pensar, validar, turnos, cedulaLimpia, HERRAMIENTA, MODELO, CALIDADES, MARCA, CORTE, sistemaEnBloques };
+module.exports = { pensar, validar, turnos, cedulaLimpia, HERRAMIENTA, MODELO, CALIDADES, PRECIOS, sumarUso, MARCA, CORTE, sistemaEnBloques };
