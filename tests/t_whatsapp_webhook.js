@@ -277,6 +277,33 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   await procesar.enviarEquipo(Object.assign({}, A.deps, { ahora: () => '2026-10-24T14:25:00.000Z' }), { empresa: '26', convId: 'wa:+584141234567', texto: 'Hola, ya te atiendo', por: 'Marianne' });
   const ur = A.db26._store.get('conversaciones/wa:+584141234567').ultimaRespuesta;
   ok('cuando el equipo contesta a quien esperaba, queda cuánto tardó (para las métricas)', ur && ur.desde === '2026-10-24T14:00:00.000Z' && ur.hasta === '2026-10-24T14:25:00.000Z' && ur.por === 'Marianne');
+  // Seguimiento automático (24-oct-2026, Adam: "sí, constrúyelo")
+  const SG = armar(), T0 = '2026-10-24T15:00:00.000Z', hh = (h) => new Date(Date.parse(T0) - h * 3600000).toISOString();
+  SG.deps.ahora = () => T0;
+  const cs = (id, extra) => SG.db26._store.set('conversaciones/' + id, Object.assign({ canal: 'instagram', area: 'ventas', igsid: id.replace('ig:', ''), nombre: 'Persona', etapa: 'interesado', modo: 'bot', ultimoAutor: 'asistente', ultimoEntranteHora: hh(21) }, extra));
+  cs('ig:701', { borrador: { tipo: 'lead', nombre: 'LUIS PEREZ' } });            // sí
+  cs('ig:702', { modo: 'humano' });                                              // la atiende una persona
+  cs('ig:703', { seguimientoEnviado: hh(30) });                                  // ya se le escribió
+  cs('ig:704', { ultimoEntranteHora: hh(10) });                                  // muy pronto
+  cs('ig:705', { ultimoEntranteHora: hh(25) });                                  // fuera de las 24 h de Meta
+  cs('ig:706', { etapa: 'solicitud' });                                          // ya está en solicitud
+  cs('ig:707', { ultimoAutor: 'cliente' });                                      // lo último lo escribió la persona
+  cs('ig:708', { nombre: '@sara.r', etapa: '', atencion: 'lead' });              // sí (lead de antes, sin etapa)
+  cs('wa:+584150000001', { canal: 'whatsapp', area: 'cobranza', telE164: '+584150000001' });   // cobranza: no
+  let rs = await procesar.seguimientoVentas(SG.deps);
+  ok('apagado no le escribe a nadie', rs.apagado === true && SG.ig.length === 0);
+  SG.deps.cfg.seguimiento = { activo: true };
+  rs = await procesar.seguimientoVentas(SG.deps);
+  ok('encendido: le escribe solo a quien mostró interés y no volvió a escribir, entre 20 y 23 horas después', rs.enviados === 2 && SG.ig.map(x => x.a).sort().join() === '701,708');
+  ok('...con el texto aprobado y su nombre (sin "@usuario")', SG.ig.find(x => x.a === '701').t === 'Hola Luis 👋 ¿Pudiste pensarlo? Si quieres, te hago la solicitud por aquí mismo, son unos datos cortos.' && SG.ig.find(x => x.a === '708').t.indexOf('Hola 👋 ¿Pudiste pensarlo?') === 0);
+  ok('...y queda anotado: el mensaje y que ya se le escribió (no se repite)', SG.db26._store.get('conversaciones/ig:701').seguimientoEnviado === T0 && Object.keys(Object.fromEntries(SG.db26._store)).some(k => k.startsWith('conversaciones/ig:701/mensajes/') && SG.db26._store.get(k).tipo === 'seguimiento'));
+  rs = await procesar.seguimientoVentas(SG.deps);
+  ok('una segunda corrida no le vuelve a escribir a nadie', rs.enviados === 0 && SG.ig.length === 2);
+  SG.deps.cfg.responde = { instagram: false };
+  cs('ig:709', {});
+  rs = await procesar.seguimientoVentas(SG.deps);
+  ok('si Paola está apagada en Instagram, tampoco hace seguimiento', rs.enviados === 0);
+  ok('se corre cada hora de 9 am a 7 pm, hora de Caracas', /exports\.seguimientoVentas = onSchedule\(\{ schedule: '10 9-19 \* \* \*', timeZone: 'America\/Caracas'/.test(require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8')));
   const idxEq = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
   ok('/equipo con accion "vendedor" va a cambiarVendedor con el usuario de la sesión', /accion === 'vendedor'[\s\S]{0,300}procesar\.cambiarVendedor\([\s\S]{0,260}quien \}/.test(idxEq) && /permisos: Array\.isArray\(u\.data\(\)\.permisos\)/.test(idxEq));
 

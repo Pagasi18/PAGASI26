@@ -215,6 +215,14 @@ exports.recordatoriosWhatsApp = onSchedule({ schedule: '30 8 * * *', timeZone: '
 // Métricas de Instagram para Redes sociales (22-oct-2026): seguidores, publicaciones y los "me gusta"
 // y comentarios de cada una, cada 2 horas, en config/redesMetricas de la 26 (lo lee el personal; son
 // datos públicos de la cuenta). seguidoresDias guarda un número por día para ver cómo crece.
+// Seguimiento automático de Paola (24-oct-2026): cada hora de 9 am a 7 pm. Solo manda si está encendido en
+// config/asistente.seguimiento (ventana de Paola).
+exports.seguimientoVentas = onSchedule({ schedule: '10 9-19 * * *', timeZone: 'America/Caracas', region: 'us-east1', secrets: [TOKEN, PHONE_ID, IG_TOKEN, IG_CUENTA], memory: '512MiB', timeoutSeconds: 300 }, async () => {
+  const cfg = await cfgAsistente();
+  const r = await procesar.seguimientoVentas(armarDeps(cfg));
+  logger.info('seguimiento', { resultado: r });
+});
+
 exports.metricasRedes = onSchedule({ schedule: '15 */2 * * *', timeZone: 'America/Caracas', region: 'us-east1', secrets: [IG_TOKEN, IG_CUENTA], memory: '256MiB', timeoutSeconds: 120 }, async () => {
   const tok = sec(IG_TOKEN), cuenta = sec(IG_CUENTA);
   if (!configurado(tok) || !configurado(cuenta)) { logger.info('metricas: Instagram no está configurado'); return; }

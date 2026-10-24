@@ -316,7 +316,7 @@ function rsAsistente(area){
     + (A.area === 'cobranza' ? fila('recordatorios', 'Recordatorios de cuotas', 'rl', false, 'Todos los días a las 8:30 am, por plantilla de WhatsApp') : '')
     + '</div>' + (A.area === 'cobranza' ? '<div class="aviso">Con los recordatorios encendidos, Patricia les escribe a los clientes de verdad todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento y cuando se atrasan.</div>' : '')
     + '<h4>Cómo va ' + A.nombre + ' según el equipo</h4><div id="rs-calidad"><div class="sv">Cargando…</div></div>'
-    + (A.area === 'ventas' ? _rsRepartoHtml(cfg, editable) : '')
+    + (A.area === 'ventas' ? _rsRepartoHtml(cfg, editable) + _rsSeguimientoHtml(cfg, editable) : '')
     + '<h4>Calidad de ' + A.nombre + '</h4><div class="sv">Lo que paga Pagasi en Claude. Aproximado, con ' + A.volumen + '.</div><div class="rs-qs" role="radiogroup">'
     + RS_CALIDADES.map(function(q){ return '<label class="rs-q' + (q.id === calidad ? ' on' : '') + '"><input type="radio" name="rs-calidad" value="' + q.id + '"' + (q.id === calidad ? ' checked' : '') + (editable ? '' : ' disabled') + ' onchange="document.querySelectorAll(\'.rs-q\').forEach(function(e){ e.classList.toggle(\'on\', e.contains(this)); }, this)"><b>' + q.nombre + '</b><span>' + A.costos[q.id] + '</span><small>' + q.modelo + ' · ' + q.nota + '</small></label>'; }).join('')
     + '</div>'
@@ -382,6 +382,17 @@ function _rsVendedoresHtml(convs, desde){
       + L.map(function(r){ return '<tr><td>' + (r.nombre === '-' ? '<i>Sin vendedor (solo Paola)</i>' : _waEsc(r.nombre)) + '</td><td>' + r.n + '</td><td>' + r.atendidas + '</td><td>' + t(r.mediana) + '</td><td>' + r.quieren + '</td><td>' + r.solicitud + '</td><td><b>' + r.vendidas + '</b></td></tr>'; }).join('') + '</table>'
       : '<div class="sv">Todavía no hay conversaciones con vendedor en este período.</div>') + '</div>';
 }
+// Seguimiento automático (Adam, 24-oct-2026: "sí, constrúyelo"): Paola le escribe una vez a quien mostró interés y no
+// volvió a escribir. Lo manda el servidor cada hora de 9 am a 7 pm (functions: seguimientoVentas).
+var RS_SEGUIMIENTO_TEXTO = 'Hola {nombre} 👋 ¿Pudiste pensarlo? Si quieres, te hago la solicitud por aquí mismo, son unos datos cortos.';
+function _rsSeguimientoHtml(cfg, editable){
+  var G = cfg.seguimiento || {}, hace7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  var enviados = (window._waConvs || []).filter(function(c){ return c.seguimientoEnviado && String(c.seguimientoEnviado) >= hace7; }).length;
+  return '<h4>Seguimiento automático</h4><div class="sv">' + (G.activo ? 'Encendido. ' : 'Apagado. ') + 'Paola le escribe <b>una sola vez</b> a quien quería comprar y no volvió a escribir, entre 20 y 23 horas después de su último mensaje (dentro de las 24 horas que permite Meta), de 9 am a 7 pm. No le escribe a quien atiende una persona ni a quien ya está en solicitud, aprobado, vendido o perdido.</div>'
+    + '<div class="rs-sws"><label class="rs-swf"><span class="t">Hacer seguimiento</span><input type="checkbox" role="switch" class="rs-sw" id="rs-seg-on"' + (G.activo ? ' checked' : '') + (editable ? '' : ' disabled') + '></label></div>'
+    + '<textarea class="fta" id="rs-seg-txt" rows="2"' + (editable ? '' : ' disabled') + '>' + _waEsc(G.texto || RS_SEGUIMIENTO_TEXTO) + '</textarea>'
+    + '<div class="sv" style="margin-top:4px">{nombre} se cambia por el nombre de la persona. Últimos 7 días: ' + enviados + ' seguimiento' + (enviados === 1 ? '' : 's') + ' enviados.</div>';
+}
 // Reparto entre vendedores (Adam, 24-oct-2026: "que nadie se quede esperando"): quién recibe, por turnos, las
 // conversaciones de quien quiere comprar o pide una persona. Lo aplica el servidor (config/asistente.reparto).
 function _rsRepartoHtml(cfg, editable){
@@ -410,7 +421,7 @@ function _rsCargarCandidatos(cfg, editable){
 }
 function rsGuardarAsistente(area){
   var cfg = window._waCfg || {}, resp = Object.assign({}, cfg.responde || {}), cal = Object.assign({}, cfg.calidad || {}), datos = {};
-  document.querySelectorAll('#mbd .rs-sw').forEach(function(e){ if(e.disabled || e.id === 'rs-rep-on') return; if(e.getAttribute('data-canal') === 'recordatorios') datos.recordatorios = !!e.checked; else resp[e.getAttribute('data-canal')] = !!e.checked; });
+  document.querySelectorAll('#mbd .rs-sw').forEach(function(e){ if(e.disabled || e.id === 'rs-rep-on' || e.id === 'rs-seg-on') return; if(e.getAttribute('data-canal') === 'recordatorios') datos.recordatorios = !!e.checked; else resp[e.getAttribute('data-canal')] = !!e.checked; });
   var q = document.querySelector('#mbd input[name="rs-calidad"]:checked'); if(q) cal[area] = q.value;
   datos.responde = resp; datos.calidad = cal;
   var t = document.getElementById('rs-instr'); if(t){ if(area === 'ventas') datos.instruccionesVentas = t.value; else datos.instrucciones = t.value; }
@@ -420,6 +431,11 @@ function rsGuardarAsistente(area){
     var lista = Array.prototype.map.call(document.querySelectorAll('#mbd .rs-rep-v:checked'), function(e){ return e.value; });
     if(rep.checked && !lista.length){ if(typeof toast === 'function') toast('Para repartir, marca al menos un vendedor', 'error'); return false; }
     datos.reparto = { activo: !!rep.checked, vendedores: lista };   // el turno (ultimo) lo lleva el servidor y se conserva
+  }
+  var seg = document.getElementById('rs-seg-on'), segTxt = document.getElementById('rs-seg-txt');
+  if(seg && !seg.disabled){
+    var tx = String(segTxt && segTxt.value || '').trim() || RS_SEGUIMIENTO_TEXTO;
+    datos.seguimiento = { activo: !!seg.checked, texto: tx.slice(0, 500) };
   }
   datos.actualizadoPor = (S.currentUser && S.currentUser.nombre) || ''; datos.actualizadoEn = new Date().toISOString();
   return db.collection('config').doc('asistente').set(datos, { merge: true }).then(function(){

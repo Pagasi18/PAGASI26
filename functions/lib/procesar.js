@@ -368,6 +368,50 @@ async function accionConversacion(deps, { empresa, convId, accion, quien, texto,
   throw Object.assign(new Error('Acción desconocida'), { codigo: 'accion' });
 }
 
+// Seguimiento automático (Adam, 24-oct-2026: "sí, constrúyelo", con este texto aprobado). Paola le escribe UNA sola
+// vez a quien mostró interés y no volvió a escribir: entre 20 y 23 horas después de su último mensaje (dentro de las
+// 24 h en que Meta deja escribir sin plantilla). No a quien ya atiende una persona, ni a quien ya está en solicitud,
+// aprobado, vendido o perdido. Se corre cada hora de 9 am a 7 pm (Caracas). Interruptor: config/asistente.seguimiento.
+const SEGUIMIENTO_TEXTO = 'Hola {nombre} 👋 ¿Pudiste pensarlo? Si quieres, te hago la solicitud por aquí mismo, son unos datos cortos.';
+function textoSeguimiento(plantilla, conv) {
+  const L = (conv && conv.borrador && conv.borrador.tipo === 'lead') ? conv.borrador : {};
+  let n = String(L.nombre || (conv && conv.nombre) || '').trim();
+  n = /^@/.test(n) ? '' : (n.split(/\s+/)[0] || '');
+  n = n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : '';
+  return String(plantilla || SEGUIMIENTO_TEXTO).replace(/\s*\{nombre\}/g, n ? ' ' + n : '').replace(/^Hola\s+👋/, 'Hola 👋');
+}
+async function seguimientoVentas(deps) {
+  const S = (deps.cfg && deps.cfg.seguimiento) || {};
+  if (!S.activo) return { apagado: true };
+  const db = deps.bases['26'], ahora = deps.ahora(), t = Date.parse(ahora);
+  const desdeH = +S.desdeHoras || 20, hastaH = +S.hastaHoras || 23;
+  const vistos = {}, candidatas = [];
+  for (const [campo, valor] of [['etapa', 'interesado'], ['atencion', 'lead']]) {
+    const snap = await db.collection('conversaciones').where(campo, '==', valor).get();
+    (snap.docs || []).forEach(d => { if (!vistos[d.id]) { vistos[d.id] = 1; candidatas.push(Object.assign({ id: d.id }, d.data())); } });
+  }
+  let enviados = 0, saltados = 0;
+  for (const c of candidatas) {
+    const canal = canalDe(c), ventas = canal === 'instagram' || c.area === 'ventas';
+    const hace = c.ultimoEntranteHora ? (t - Date.parse(c.ultimoEntranteHora)) / 3600000 : -1;
+    const ok = ventas && c.modo !== 'humano' && !c.seguimientoEnviado && c.ultimoAutor === 'asistente'
+      && hace >= desdeH && hace < hastaH && !['solicitud', 'aprobado', 'vendido', 'perdido'].includes(c.etapa)
+      && responde(deps, canal === 'instagram' ? 'instagram' : 'whatsappVentas');
+    if (!ok) { saltados++; continue; }
+    if (enviados >= 30) break;   // tope por corrida
+    const em = emisor(deps, canal); if (!em) { saltados++; continue; }
+    const texto = textoSeguimiento(S.texto, c);
+    try {
+      const metaId = await em.enviarTexto(destino(c), texto);
+      const ref = db.collection('conversaciones').doc(c.id);
+      await ref.collection('mensajes').doc(metaId || ('seg-' + Date.now())).set({ metaId, direccion: 'saliente', autor: 'asistente', tipo: 'seguimiento', texto, estado: 'enviado', error: '', hora: ahora });
+      await ref.set({ seguimientoEnviado: ahora, ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'asistente', actualizado: ahora }, { merge: true });
+      enviados++;
+    } catch (e) { deps.log('seguimiento-fallo', { canal, error: String(e && e.message || e).slice(0, 120) }); }
+  }
+  return { enviados, saltados, revisadas: candidatas.length };
+}
+
 // Reparto entre vendedores (Adam, 24-oct-2026: "que nadie se quede esperando"). Cuando alguien quiere comprar o
 // pide una persona y la conversación todavía no tiene vendedor (ni la está atendiendo alguien), se le asigna al
 // siguiente de la lista, por turnos. La lista y el interruptor están en config/asistente.reparto (ventana de
@@ -603,4 +647,4 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   return { vendedor: v };
 }
 
-module.exports = { mayus, textoLista, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { mayus, textoLista, seguimientoVentas, textoSeguimiento, SEGUIMIENTO_TEXTO, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };

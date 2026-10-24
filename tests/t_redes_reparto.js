@@ -107,6 +107,12 @@ setImmediate(() => {
       ok('la ventana del sonido muestra las 6 opciones, marcada la de esta persona, con "Probar" en cada sonido', (mod.match(/name="rs-sonido"/g) || []).length === 6 && /value="campana" checked/.test(mod) && (mod.match(/▶ Probar/g) || []).length === 5);
       ctx.rsSonidoEscoger('nada');
       ok('al escoger "Sin sonido" queda guardado y el botón muestra la campana tachada', guardado.pg_sonido_redes === 'nada' && /M3 3l18 18/.test(ctx._rsIconoSonido()));
+      // ── 5. Seguimiento automático en la ventana de Paola ──
+      ctx._waConvs = [c('ig:40', { seguimientoEnviado: new Date().toISOString() }), c('ig:41')];
+      const sg = ctx._rsSeguimientoHtml({ seguimiento: { activo: false } }, true);
+      ok('la ventana de Paola trae "Seguimiento automático" apagado, con el texto aprobado y cuántos se mandaron', /Seguimiento automático/.test(sg) && /Apagado\./.test(sg) && /id="rs-seg-on">/.test(sg) && /Hola \{nombre\} 👋 ¿Pudiste pensarlo\? Si quieres, te hago la solicitud por aquí mismo, son unos datos cortos\./.test(sg) && /Últimos 7 días: 1 seguimiento enviados/.test(sg));
+      ok('...al guardar va { activo, texto } a config/asistente.seguimiento', /datos\.seguimiento = \{ activo: !!seg\.checked, texto: tx\.slice\(0, 500\) \}/.test(fs.readFileSync(path.join(ROOT, 'modules/redes.js'), 'utf8')));
+      ok('el texto del panel es el mismo que manda el servidor', ctx.RS_SEGUIMIENTO_TEXTO === require(path.join(ROOT, 'functions/lib/procesar.js')).SEGUIMIENTO_TEXTO);
       console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
     });
   });
