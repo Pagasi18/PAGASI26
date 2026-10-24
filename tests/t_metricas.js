@@ -159,6 +159,7 @@ const campo = (w, k) => { const f = w.update.fields[k]; return f && (f.stringVal
   const g = id => graficos.filter(x => x.id === id).pop();
   ok('se dibujan 4 gráficos de barras, 3 redondos y el de días de la semana', ['met-c-personas', 'met-c-visitas', 'met-c-whatsapp', 'met-c-solicitudes', 'met-c-semana'].every(id => g(id) && g(id).cfg.type === 'bar') && ['met-d-fuente', 'met-d-disp', 'met-d-entrada'].every(id => g(id) && g(id).cfg.type === 'doughnut'));
   ok('barras con degradado y bordes redondeados (como el Dashboard); una barra por día', typeof g('met-c-personas').cfg.data.datasets[0].backgroundColor === 'function' && g('met-c-personas').cfg.data.datasets[0].borderRadius === 6 && g('met-c-personas').cfg.data.labels.length === 7);
+  ok('con 7 días las barras quedan igual de finas que con 30 días u horas (no se ensanchan)', ['met-c-personas', 'met-c-visitas', 'met-c-whatsapp', 'met-c-solicitudes', 'met-c-semana'].every(id => g(id).cfg.data.datasets[0].maxBarThickness === 12));
   ok('el redondo de fuentes: las primeras con los colores del Dashboard y el anillo fino', JSON.stringify(g('met-d-fuente').cfg.data.datasets[0].backgroundColor.slice(0, 2)) === JSON.stringify(['#2563EB', '#06B06A']) && g('met-d-fuente').cfg.options.cutout === '72%');
   graficos.length = 0;
   ctx3.metVista('whatsapp', 'hora');

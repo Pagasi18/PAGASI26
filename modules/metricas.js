@@ -78,9 +78,12 @@ function _metChart(id, cfg){
   if(_met._sinAnim) cfg.options.animation = false;
   _metCharts[id] = new Chart(cv, cfg);
 }
-function _metBarras(id, d, rgb, uni){
+// Mismo grosor en todas las vistas (Adam, 23-oct: con 7 días "barras muy gruesas, diferentes a las otras"): con
+// 30 días o 24 horas cada barra mide unos 10 px; con 7 días ya no se ensanchan, quedan igual de finas.
+var MET_BARRA_PX = 12;
+function _metBarras(id, d, rgb, uni, grosor){
   var T = _metTema();
-  _metChart(id, { type: 'bar', data: { labels: d.etq, datasets: [{ data: d.v, backgroundColor: _metGrad(rgb, d.fuerte), borderWidth: 0, borderRadius: 6, borderSkipped: false, maxBarThickness: 34 }] },
+  _metChart(id, { type: 'bar', data: { labels: d.etq, datasets: [{ data: d.v, backgroundColor: _metGrad(rgb, d.fuerte), borderWidth: 0, borderRadius: 6, borderSkipped: false, maxBarThickness: grosor || MET_BARRA_PX }] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { backgroundColor: T.tipBg, borderColor: 'rgba(' + rgb + ',0.25)', borderWidth: 1, titleColor: T.tipTit, bodyColor: T.tipTxt, padding: 10,
         callbacks: { title: function(it){ return d.tit[it[0].dataIndex]; }, label: function(ctx){ return ' ' + (ctx.raw || 0).toLocaleString('es-VE') + ' ' + uni; } } } },
