@@ -10,7 +10,7 @@
 
 var XLSX_ESTILOS = {
   normal: 0, negrita: 1, titulo: 2, grupo: 3, encabezado: 4, texto: 5, monto: 6, pct: 7,
-  totalEtiqueta: 8, totalMonto: 9, nota: 10, montoSimple: 11, textoCentro: 12, marca: 13, subtitulo: 14
+  totalEtiqueta: 8, totalMonto: 9, nota: 10, montoSimple: 11, textoCentro: 12, marca: 13, subtitulo: 14, fecha: 15
 };
 
 function _xlsxStylesXml(){
@@ -34,7 +34,7 @@ function _xlsxStylesXml(){
     + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'
     +   '<border><left style="thin"><color rgb="FF9CA3AF"/></left><right style="thin"><color rgb="FF9CA3AF"/></right><top style="thin"><color rgb="FF9CA3AF"/></top><bottom style="thin"><color rgb="FF9CA3AF"/></bottom><diagonal/></border></borders>'
     + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    + '<cellXfs count="15">'
+    + '<cellXfs count="16">'
     +   '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'                                                                     // 0 normal
     +   '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'                                                      // 1 negrita
     +   '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'                                                      // 2 titulo
@@ -50,6 +50,7 @@ function _xlsxStylesXml(){
     +   '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>' // 12 textoCentro
     +   '<xf numFmtId="0" fontId="4" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'                       // 13 marca (faltan datos / REVISAR)
     +   '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment wrapText="1"/></xf>'     // 14 subtitulo
+    +   '<xf numFmtId="14" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'                                            // 15 fecha (número de serie de Excel, como las plantillas de QuickBooks)
     + '</cellXfs>'
     + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
     + '</styleSheet>';

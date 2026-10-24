@@ -188,6 +188,7 @@ PG.reportes = function(){
     {k:'exportar', lbl:'Exportar', sub:'Reportes · CSV · Backup'},
     {k:'libroventas', lbl:'Libro de Ventas', sub:'IVA · facturas emitidas'},
     {k:'librocompras', lbl:'Libro de Compras', sub:'IVA · facturas de proveedores'},
+    {k:'quickbooks', lbl:'Exportar a QuickBooks', sub:'Clientes · facturas · proveedores'},
     {k:'contador', lbl:'📋 Contador', sub:'Reporte semanal · Tributario'},
     {k:'coromoto', lbl:'Coromoto', sub:'Libro contable · estados financieros'}
   ];
@@ -958,6 +959,8 @@ PG.reportes = function(){
   ${tab==='libroventas' ? _renderLibroVentas() : ''}
 
   ${tab==='librocompras' ? _renderLibroCompras() : ''}
+
+  ${tab==='quickbooks' ? (typeof _renderQuickBooks==='function' ? _renderQuickBooks() : '') : ''}
 
   ${tab==='contador' ? _renderTabContador({
     pagosConf, credsActivos, credsMora, credsComp,
