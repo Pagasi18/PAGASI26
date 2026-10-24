@@ -38,7 +38,11 @@ ctx._waConvs = [
 ctx._rsTab = 'instagram'; ctx._rsVista = 'bandeja'; ctx._waVendSel = '';
 ['wa-items', 'wa-filtros', 'wa-hilo', 'wa-ficha', 'wa-q', 'rs-vend'].forEach(el); ctx.PG.redes(); flush();
 const orden = (els['wa-items'].innerHTML.match(/onclick="waAbrir\('([^']+)'\)/g) || []).map(x => x.match(/'([^']+)'/)[1]).join(',');
-ok('las que esperan van primero y la que más lleva esperando, arriba', orden === 'ig:2,ig:1,ig:3');
+ok('en "Todas", lo más reciente arriba (como en Meta)', orden === 'ig:3,ig:1,ig:2');
+ctx.waFiltro('esperan');
+const ordenEsp = (els['wa-items'].innerHTML.match(/onclick="waAbrir\('([^']+)'\)/g) || []).map(x => x.match(/'([^']+)'/)[1]).join(',');
+ok('en "Esperan persona", la que más lleva esperando arriba', ordenEsp === 'ig:2,ig:1');
+ctx.waFiltro('todas');
 ok('cada una dice cuánto lleva esperando: en rojo pasada 1 hora, en ámbar antes', /class="rojo" title="Esperando a una persona desde [^"]*">⏱ 5 h<\/span>/.test(els['wa-items'].innerHTML) && /class="ambar" title="[^"]*">⏱ 20 min<\/span>/.test(els['wa-items'].innerHTML));
 
 // ── 2. El aviso al vendedor ──

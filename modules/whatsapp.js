@@ -144,8 +144,11 @@ function _waPintarLista(){
   var convs = todas
     .filter(filtro.f)
     .filter(function(c){ return !q || (String(c.nombre || '') + ' ' + String(c.telE164 || '') + ' ' + String(c.clienteNombre || '') + ' ' + String(c.usuario || '')).toLowerCase().indexOf(q) > -1; })
-    // Las que esperan a una persona van primero, la que más lleva esperando arriba (Adam, 24-oct-2026)
-    .slice().sort(function(a, b){ return (b.atencion ? 1 : 0) - (a.atencion ? 1 : 0) || (a.atencion ? String(waEsperaDesde(a)).localeCompare(String(waEsperaDesde(b))) : 0) || String(b.ultimoMensajeHora || '').localeCompare(String(a.ultimoMensajeHora || '')); });
+    // Lo más reciente arriba, como en Meta; en "Esperan persona", la que más lleva esperando arriba (Adam, 24-oct-2026:
+    // "¿cómo estás ordenando esto?"). El ⏱ rojo sigue marcando en todas las listas a quien espera.
+    .slice().sort(filtro.id === 'esperan'
+      ? function(a, b){ return String(waEsperaDesde(a)).localeCompare(String(waEsperaDesde(b))); }
+      : function(a, b){ return String(b.ultimoMensajeHora || '').localeCompare(String(a.ultimoMensajeHora || '')); });
   cont.innerHTML = convs.length ? convs.map(function(c){
     // Como la bandeja de Meta: foto redonda con la marca de la red, nombre, "Paola: ..." y etiquetas
     var quien = c.ultimoAutor === 'equipo' ? 'Tú: ' : c.ultimoAutor === 'asistente' ? _waNombreAsis(c) + ': ' : '';

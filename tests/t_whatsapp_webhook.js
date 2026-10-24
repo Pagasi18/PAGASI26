@@ -209,6 +209,9 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   ok('fuera de la ventana de 24 h el equipo no puede escribir libre', err && err.codigo === 'ventana');
   // El vendedor de la conversación (24-oct-2026, Adam: "filtros por vendedores")
   ok('el primero del equipo que escribe queda como vendedor de la conversación', A.db26._store.get('conversaciones/wa:+584141234567').vendedor === 'Samantha');
+  await A.db26.collection('conversaciones').doc('wa:+584141234567').set({ ultimoEntranteHora: new Date().toISOString(), atencion: 'pide_persona', noLeidos: 3 }, { merge: true });
+  await procesar.enviarEquipo(A.deps, { empresa: '26', convId: 'wa:+584141234567', texto: 'Ya te atiendo', por: 'Samantha' });
+  ok('cuando alguien del equipo contesta, se quita la marca de "espera persona" y los no leídos', A.db26._store.get('conversaciones/wa:+584141234567').atencion === '' && A.db26._store.get('conversaciones/wa:+584141234567').noLeidos === 0);
   await A.db26.collection('conversaciones').doc('wa:+584141234567').set({ ultimoEntranteHora: new Date().toISOString(), modo: 'bot', atendidoPor: '' }, { merge: true });
   await procesar.enviarEquipo(A.deps, { empresa: '26', convId: 'wa:+584141234567', texto: 'te escribe Liz', por: 'Liz' });
   ok('...y no cambia aunque después escriba otra persona (ni al devolverla a Paola)', A.db26._store.get('conversaciones/wa:+584141234567').vendedor === 'Samantha' && A.db26._store.get('conversaciones/wa:+584141234567').atendidoPor === 'Liz');

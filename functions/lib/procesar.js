@@ -505,8 +505,9 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   const metaId = await em.enviarTexto(destino(conv), texto, { humano: canal === 'instagram' && desde >= 24 * 3600 * 1000 });
   const msg = { metaId, direccion: 'saliente', autor: 'equipo', tipo: 'texto', texto, estado: 'enviado', error: '', hora: ahora, por: por || 'Equipo' };
   await ref.collection('mensajes').doc(metaId || ('eq-' + Date.now())).set(msg);
-  // El primero del equipo que escribe queda como vendedor de la conversación (no se borra al devolverla a Paola)
-  await ref.set(Object.assign({ modo: 'humano', atendidoPor: por || 'Equipo', ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, conv.vendedor ? {} : { vendedor: por || 'Equipo' }), { merge: true });
+  // El primero del equipo que escribe queda como vendedor de la conversación (no se borra al devolverla a Paola).
+  // Si esperaba a una persona, ya la atendieron: se quita la marca (24-oct-2026; antes solo con Visto o Atender yo).
+  await ref.set(Object.assign({ modo: 'humano', atendidoPor: por || 'Equipo', atencion: '', noLeidos: 0, ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, conv.vendedor ? {} : { vendedor: por || 'Equipo' }), { merge: true });
   return { metaId };
 }
 

@@ -367,7 +367,7 @@ function waEnviarEquipo(id, texto){
   if(!waVentanaAbierta(c)){ toast(c.canal === 'instagram' ? 'La ventana de 7 días de Instagram está cerrada: solo se puede escribir cuando la persona vuelva a escribir.' : 'La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return false; }
   var m = { autor: 'equipo', direccion: 'saliente', tipo: 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
   (_waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []).push(Object.assign({ id: 'local-' + Date.now() }, m));
-  Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por, vendedor: c.vendedor || m.por });
+  Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por, vendedor: c.vendedor || m.por, atencion: '', noLeidos: 0 });   // ya la atendieron
   if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m);
   if(typeof logActividad === 'function') logActividad('wa_mensaje_equipo', 'whatsapp', id, { largo: texto.length });
   if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
