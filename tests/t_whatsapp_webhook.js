@@ -147,6 +147,7 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   // Reparto entre vendedores (24-oct-2026, Adam: "que nadie se quede esperando")
   const cvA = A.db26._store.get('conversaciones/wa:+584160000000');
   ok('sin reparto encendido no se asigna a nadie, pero queda desde cuándo espera', !cvA.vendedor && cvA.atencion === 'lead' && cvA.atencionDesde === AHORA);
+  ok('quien quiere comprar queda en la etapa "interesado"', cvA.etapa === 'interesado');
   A.deps.cfg.reparto = { activo: true, vendedores: ['Liz Alejandra', 'Marianne Molina'] };
   const quiere = { reply: 'Listo. Un asesor te escribe.', draft: { tipo: 'lead', nombre: 'Rosa Díaz', modelo: 'BRZ 200' }, summary: 'Quiere la BRZ.', handoff: true, handoffReason: 'lead' };
   const persona = { reply: 'Ya te paso con una persona.', draft: null, summary: 'Pide una persona.', handoff: true, handoffReason: 'pide_persona' };
@@ -253,6 +254,29 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   ok('solo fotos del sitio (catálogo) o de Firebase Storage', ee && ee.codigo === 'imagen' && fotos.length === 2);
   // Lo que Paola anota del chat, sin caracteres peligrosos (A4)
   ok('lo que viene del chat queda sin < > " \' ` \\ &', procesar.sinPeligro('<img src=x onerror="alert(1)">Ana & `Luis`\\') === 'img src=x onerror=alert(1)Ana Luis');
+  // Notas internas, etapa y calificar a la asistente (24-oct-2026)
+  const Q = { empresa: '26', nombre: 'Marianne', permisos: ['whatsapp'] }, AD = { bases: A.deps.bases, ahora: () => '2026-10-24T15:00:00.000Z' };
+  await procesar.accionConversacion(AD, { empresa: '26', convId: 'wa:+584141234567', accion: 'nota', texto: 'Viene el sábado <b>con el fiador</b>', quien: Q });
+  const nt = A.db26._store.get('conversaciones/wa:+584141234567').notas;
+  ok('nota interna: queda con quién y cuándo, sin caracteres peligrosos', nt && nt.length === 1 && nt[0].texto === 'Viene el sábado bcon el fiador/b' && nt[0].por === 'Marianne' && nt[0].hora === '2026-10-24T15:00:00.000Z');
+  await procesar.accionConversacion(AD, { empresa: '26', convId: 'wa:+584141234567', accion: 'etapa', etapa: 'solicitud', quien: Q });
+  ok('etapa del cliente', A.db26._store.get('conversaciones/wa:+584141234567').etapa === 'solicitud' && A.db26._store.get('conversaciones/wa:+584141234567').etapaPor === 'Marianne');
+  let ea = null; try { await procesar.accionConversacion(AD, { empresa: '26', convId: 'wa:+584141234567', accion: 'etapa', etapa: 'inventada', quien: Q }); } catch (x) { ea = x; }
+  ok('...solo las etapas conocidas', ea && ea.codigo === 'etapa');
+  ea = null; try { await procesar.accionConversacion(AD, { empresa: '26', convId: 'wa:+584141234567', accion: 'nota', texto: 'x', quien: { empresa: '26', nombre: 'Otro', permisos: ['pagos'] } }); } catch (x) { ea = x; }
+  ok('...y quien no tiene el canal no puede anotar', ea && ea.codigo === 'permiso');
+  await A.db26.collection('conversaciones').doc('wa:+584141234567').collection('mensajes').doc('wamid.asis1').set({ autor: 'asistente', texto: 'Tu cuota es de $50.', hora: AHORA });
+  await procesar.accionConversacion(AD, { empresa: '26', convId: 'wa:+584141234567', accion: 'calificar', msgId: 'wamid.asis1', voto: 'mal', texto: 'Ya había pagado', quien: Q });
+  const cq = A.db26._store.get('config/asistenteCalidad');
+  ok('👎 a una respuesta de la asistente: queda en el mensaje y en la lista para revisar', A.db26._store.get('conversaciones/wa:+584141234567/mensajes/wamid.asis1').calificacion.voto === 'mal' && cq.lista[0].voto === 'mal' && cq.lista[0].texto === 'Tu cuota es de $50.' && cq.lista[0].nota === 'Ya había pagado');
+  await procesar.accionConversacion(AD, { empresa: '26', convId: 'wa:+584141234567', accion: 'calificar', msgId: 'wamid.asis1', voto: '', quien: Q });
+  ok('...y se puede quitar', A.db26._store.get('conversaciones/wa:+584141234567/mensajes/wamid.asis1').calificacion === null && A.db26._store.get('config/asistenteCalidad').lista.length === 0);
+  ea = null; try { await procesar.accionConversacion(AD, { empresa: '26', convId: 'wa:+584141234567', accion: 'calificar', msgId: 'wamid.foto1', voto: 'bien', quien: Q }); } catch (x) { ea = x; }
+  ok('...solo se califican respuestas de la asistente (no las del equipo)', ea && ea.codigo === 'mensaje');
+  await A.db26.collection('conversaciones').doc('wa:+584141234567').set({ atencion: 'pide_persona', atencionDesde: '2026-10-24T14:00:00.000Z', ultimoEntranteHora: new Date().toISOString() }, { merge: true });
+  await procesar.enviarEquipo(Object.assign({}, A.deps, { ahora: () => '2026-10-24T14:25:00.000Z' }), { empresa: '26', convId: 'wa:+584141234567', texto: 'Hola, ya te atiendo', por: 'Marianne' });
+  const ur = A.db26._store.get('conversaciones/wa:+584141234567').ultimaRespuesta;
+  ok('cuando el equipo contesta a quien esperaba, queda cuánto tardó (para las métricas)', ur && ur.desde === '2026-10-24T14:00:00.000Z' && ur.hasta === '2026-10-24T14:25:00.000Z' && ur.por === 'Marianne');
   const idxEq = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
   ok('/equipo con accion "vendedor" va a cambiarVendedor con el usuario de la sesión', /accion === 'vendedor'[\s\S]{0,300}procesar\.cambiarVendedor\([\s\S]{0,260}quien \}/.test(idxEq) && /permisos: Array\.isArray\(u\.data\(\)\.permisos\)/.test(idxEq));
 

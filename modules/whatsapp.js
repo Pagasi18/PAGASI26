@@ -87,6 +87,9 @@ var _WA_CSS = '<style id="wa-css">'
   + '.wa-rr-ed{border:1px solid var(--rim);border-radius:10px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}'
   + '.wa-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;max-height:46vh;overflow:auto}.wa-foto{border:1px solid var(--rim);background:var(--surf);border-radius:10px;padding:6px;cursor:pointer;text-align:left;font:inherit}.wa-foto:hover{border-color:var(--p1)}.wa-foto img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;display:block;margin-bottom:4px}.wa-foto b{display:block;font-size:12px}.wa-foto small{color:var(--ink3);font-size:11px}'
   + '.wa-foto-ok{display:flex;gap:10px;align-items:flex-start;margin-top:12px;border-top:1px solid var(--rim);padding-top:12px}.wa-foto-ok img{width:120px;max-width:40%;aspect-ratio:4/3;object-fit:cover;border-radius:8px}'
+  + '.wa-notas{display:flex;flex-direction:column;gap:6px;margin:8px 0;max-height:180px;overflow:auto}.wa-nota{background:#fff8e1;border:1px solid #f3e1a4;border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.45}.wa-nota small{display:block;color:var(--ink3);font-size:10.5px;margin-top:2px}'
+  + '.wa-nota-n{display:flex;gap:6px}.wa-nota-n .fi{flex:1;min-width:0;font-size:12px}'
+  + '.wa-cal{display:inline-flex;gap:2px;margin-left:4px}.wa-cal button{border:0;background:none;cursor:pointer;font-size:11px;opacity:.35;padding:0 1px;filter:grayscale(1)}.wa-cal button:hover{opacity:.8}.wa-cal button.on{opacity:1;filter:none}'
   + '.wa-vend-sel{border:1px solid var(--rim);border-radius:8px;background:var(--surf);color:var(--ink);font:inherit;font-size:12px;font-weight:600;padding:3px 6px;max-width:170px}'
   + '.wa-escribir{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rim)}.wa-escribir textarea{flex:1;min-height:44px;max-height:120px;resize:vertical}.wa-cerrada{padding:10px 14px;font-size:12px;color:#b45309;background:#fff4e0;border-top:1px solid #f3d9a4}'
   + '.wa-ficha{display:flex;flex-direction:column;gap:12px}.wa-ficha .card{padding:16px}.wa-ficha .ct{margin-bottom:8px}.wa-kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px solid var(--rim)}.wa-kv:first-of-type{border-top:0}.wa-kv span:last-child{font-weight:800;text-align:right}'
@@ -162,6 +165,7 @@ function _waPintarLista(){
     var tags = [_waEsCobranza(c) ? '<span>Cobranza</span>' : '<span>Ventas</span>'];
     if(c.atencion) tags.push('<span class="' + (/pide_persona|queja|error/.test(c.atencion) ? 'rojo' : c.atencion === 'lead' ? 'verde' : 'ambar') + '">' + _waAtencion(c.atencion).replace(/<[^>]+>/g, '') + '</span>');
     else if(c.borrador && c.borrador.tipo === 'lead') tags.push('<span class="verde">Quiere comprar</span>');
+    if(c.etapa && WA_ETAPAS_TAG[c.etapa]) tags.push('<span class="' + WA_ETAPAS_TAG[c.etapa][1] + '">' + WA_ETAPAS_TAG[c.etapa][0] + '</span>');
     var esp = waEsperaMin(c); if(esp != null) tags.push('<span class="' + (esp >= 60 ? 'rojo' : 'ambar') + '" title="Esperando a una persona desde ' + _waEsc(_waHora(waEsperaDesde(c))) + '">⏱ ' + _waEsperaTexto(esp) + '</span>');
     if(c.modo === 'humano') tags.push('<span>Lo atiende ' + _waEsc(c.atendidoPor || 'el equipo') + '</span>');
     return '<div class="wa-item' + (c.id === window._waSel ? ' on' : '') + '" onclick="waAbrir(\'' + _waEsc(c.id) + '\')"' + (c.noLeidos ? ' data-nl="1"' : '') + '>'
@@ -182,7 +186,7 @@ function _waPintarHilo(id){
       + '<div class="wa-b ' + _waEsc(m.autor) + '">' + (m.tipo === 'plantilla' ? '<div class="plantilla">Recordatorio automático</div>' : '')
       + (m.medio && m.medio.url ? '<img src="' + _waEsc(m.medio.url) + '" alt="">' : '')
       + _waEsc(m.texto || (m.tipo === 'imagen' ? '(imagen)' : m.tipo === 'audio' ? '(audio)' : '')).replace(/\n/g, '<br>')
-      + '<div class="meta">' + (quien ? '<span class="quien">' + _waEsc(quien) + '</span>' : '') + '<span>' + _waHora(m.hora) + '</span>' + (m.autor !== 'cliente' ? '<span title="' + _waEsc(m.estado || '') + '">' + _waEstadoIcono(m.estado) + '</span>' : '') + (m.error ? '<span class="err">' + _waEsc(m.error) + '</span>' : '') + '</div></div></div>';
+      + '<div class="meta">' + (quien ? '<span class="quien">' + _waEsc(quien) + '</span>' : '') + '<span>' + _waHora(m.hora) + '</span>' + (m.autor !== 'cliente' ? '<span title="' + _waEsc(m.estado || '') + '">' + _waEstadoIcono(m.estado) + '</span>' : '') + (m.error ? '<span class="err">' + _waEsc(m.error) + '</span>' : '') + (m.autor === 'asistente' && m.id && String(m.id).indexOf('local-') !== 0 ? _waHtmlCalificar(id, m) : '') + '</div></div></div>';
   }).join('') : '<div class="empty">Sin mensajes.</div>';
   cont.scrollTop = cont.scrollHeight;
   _waPintarLista();
@@ -462,6 +466,44 @@ function waPasarASolicitud(id){
   openAddCred();
 }
 
+// ── Notas internas, etapa del cliente y calificar a la asistente (Adam, 24-oct-2026: "arranca con todo") ──
+var WA_ETAPAS = [['nuevo', 'Nuevo'], ['interesado', 'Interesado'], ['solicitud', 'Solicitud'], ['aprobado', 'Aprobado'], ['vendido', 'Vendido'], ['perdido', 'Perdido']];
+var WA_ETAPAS_TAG = { solicitud: ['Solicitud', 'ambar'], aprobado: ['Aprobado', 'verde'], vendido: ['Vendido ✓', 'verde'], perdido: ['Perdido', ''] };
+function _waHtmlSeguimiento(sel){
+  var ventas = sel.area === 'ventas' || sel.canal === 'instagram', notas = Array.isArray(sel.notas) ? sel.notas : [];
+  return '<div class="card"><div class="ct">Seguimiento del equipo</div>'
+    + (ventas ? '<div class="wa-kv"><span>Etapa</span><span><select class="wa-vend-sel" onchange="waEtapa(\'' + _waEsc(sel.id) + '\', this.value)" aria-label="Etapa del cliente">' + WA_ETAPAS.map(function(e){ return '<option value="' + e[0] + '"' + ((sel.etapa || 'nuevo') === e[0] ? ' selected' : '') + '>' + e[1] + '</option>'; }).join('') + '</select></span></div>' : '')
+    + '<div class="wa-notas">' + (notas.length ? notas.slice().reverse().map(function(n){ return '<div class="wa-nota"><div>' + _waEsc(n.texto) + '</div><small>' + _waEsc(n.por || '') + ' · ' + _waHora(n.hora) + '</small></div>'; }).join('') : '<div class="cs">Sin notas. Solo las ve el equipo.</div>') + '</div>'
+    + '<div class="wa-nota-n"><input class="fi" id="wa-nota-txt" placeholder="Nota interna (ej.: viene el sábado con el fiador)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();waNota(\'' + _waEsc(sel.id) + '\')}"><button class="btn btn-g btn-sm" onclick="waNota(\'' + _waEsc(sel.id) + '\')">Anotar</button></div></div>';
+}
+function _waHtmlCalificar(id, m){
+  var v = m.calificacion && m.calificacion.voto;
+  return '<span class="wa-cal" title="¿Estuvo bien esta respuesta?"><button class="' + (v === 'bien' ? 'on' : '') + '" onclick="waCalificar(\'' + _waEsc(id) + '\',\'' + _waEsc(m.id) + '\',\'bien\')" aria-label="Buena respuesta">👍</button><button class="' + (v === 'mal' ? 'on' : '') + '" onclick="waCalificar(\'' + _waEsc(id) + '\',\'' + _waEsc(m.id) + '\',\'mal\')" aria-label="Mala respuesta">👎</button></span>';
+}
+function waNota(id){
+  var c = _waConv(id), e = document.getElementById('wa-nota-txt'), t = e ? String(e.value || '').trim() : ''; if(!c || !t) return;
+  var nota = { texto: t, por: (S.currentUser && S.currentUser.nombre) || 'Equipo', hora: new Date().toISOString() };
+  c.notas = (Array.isArray(c.notas) ? c.notas : []).concat([nota]); if(e) e.value = '';
+  _waRepintarFicha();
+  if(waConectadoCanal(c.canal)) _waPedirAccion(id, { accion: 'nota', texto: t }).catch(function(x){ c.notas = c.notas.filter(function(n){ return n !== nota; }); _waRepintarFicha(); toast('No se pudo guardar la nota: ' + (x && x.message || x), 'error'); });
+}
+function waEtapa(id, etapa){
+  var c = _waConv(id); if(!c) return;
+  var antes = c.etapa; c.etapa = etapa;
+  if(typeof logActividad === 'function') logActividad('wa_etapa', 'redes', id, { etapa: etapa });
+  _waPintarLista();
+  if(waConectadoCanal(c.canal)) _waPedirAccion(id, { accion: 'etapa', etapa: etapa }).then(function(){ toast('Etapa: ' + ((WA_ETAPAS.filter(function(x){ return x[0] === etapa; })[0] || [])[1] || etapa), 'success'); }).catch(function(x){ c.etapa = antes; _waRepintarFicha(); _waPintarLista(); toast('No se pudo cambiar la etapa: ' + (x && x.message || x), 'error'); });
+}
+function waCalificar(id, msgId, voto){
+  var m = ((window._waMsgs || {})[id] || []).find(function(x){ return x.id === msgId; }); if(!m) return;
+  var c = _waConv(id), antes = m.calificacion, quitar = antes && antes.voto === voto, nota = '';
+  if(!quitar && voto === 'mal' && typeof prompt === 'function') nota = prompt('¿Qué estuvo mal en esta respuesta? (opcional)') || '';
+  m.calificacion = quitar ? null : { voto: voto, por: (S.currentUser && S.currentUser.nombre) || 'Equipo', nota: nota };
+  if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
+  if(c && waConectadoCanal(c.canal)) _waPedirAccion(id, { accion: 'calificar', msg: msgId, voto: quitar ? '' : voto, texto: nota }).then(function(){ if(!quitar) toast(voto === 'bien' ? 'Gracias: 👍 anotado' : '👎 anotado: lo revisamos para mejorar a ' + _waNombreAsis(c), 'success'); }).catch(function(x){ m.calificacion = antes; _waPintarHilo(id); toast('No se pudo calificar: ' + (x && x.message || x), 'error'); });
+}
+function _waRepintarFicha(){ var f = document.getElementById('wa-ficha'), ctx = _waCtxActual(); if(f) f.innerHTML = _waHtmlFicha(_waSeleccionada(ctx), ctx); }
+
 // "Pasar a…": el vendedor de la conversación, en la ficha
 function _waHtmlVendedor(sel){
   var actual = waVendedorDe(sel), yo = String((S.currentUser && S.currentUser.nombre) || '').trim();
@@ -488,6 +530,7 @@ function _waHtmlFicha(sel, ctx){
           + (sel.borrador && sel.borrador.tipo === 'lead' ? '<div class="wa-kv"><span>Quiere</span><span>' + _waEsc(sel.borrador.modelo || 'una moto') + '</span></div>' + (sel.borrador.nombre ? '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.borrador.nombre) + '</span></div>' : '') + (sel.borrador.cedula ? '<div class="wa-kv"><span>Cédula</span><span>' + _waEsc(sel.borrador.cedula) + '</span></div>' : '') + '<div class="wa-kv"><span>Ciudad</span><span>' + _waEsc(sel.borrador.ciudad || '—') + '</span></div>' + (sel.borrador.inicial ? '<div class="wa-kv"><span>Inicial disponible</span><span>' + _waMoney(sel.borrador.inicial) + '</span></div>' : '') + (sel.borrador.ocupacion ? '<div class="wa-kv"><span>Se dedica a</span><span>' + _waEsc(sel.borrador.ocupacion) + '</span></div>' : '') + (sel.clienteLead ? '<div class="wa-kv"><span>En el sistema</span><span>' + (sel.canal === 'instagram' ? 'Lead Instagram' : 'Lead WhatsApp') + ' · ' + _waEsc(sel.clienteLead) + '</span></div>' : '') + '<div class="wa-kv"><span>WhatsApp</span><span>' + (sel.borrador.telefono ? '<a href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '" target="_blank" rel="noopener">' + _waEsc(sel.borrador.telefono) + '</a>' : '—') + '</span></div>' + (sel.borrador.telefono && sel.canal === 'instagram' ? '<a class="btn btn-p btn-sm" style="margin-top:10px;display:inline-block" href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '?text=' + encodeURIComponent('Hola ' + (sel.borrador.nombre || '') + ', te escribo de Pagasi por la ' + (sel.borrador.modelo || 'moto') + ' que preguntaste en Instagram.') + '" target="_blank" rel="noopener">Escribirle por WhatsApp</a>' : '') + (sel.clienteLead ? '<button class="btn btn-g btn-sm" style="margin-top:10px;margin-left:6px" onclick="nav(\'clientes\');setTimeout(function(){ if(typeof verCliente===\'function\') verCliente(\'' + _waEsc(sel.clienteLead) + '\'); },150)">Ver cliente</button>' : '<button class="btn btn-g btn-sm" style="margin-top:10px;margin-left:6px" onclick="nav(\'clientes\')">Crear cliente</button>') : '<div class="cs">Todavía no dejó sus datos.</div>')
           + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '')
           + (sel.borrador && sel.borrador.tipo === 'lead' && waPuedeSolicitud() ? '<button class="btn btn-p btn-sm" style="margin-top:10px;width:100%" onclick="waPasarASolicitud(\'' + _waEsc(sel.id) + '\')">Pasar a solicitud</button><div class="cs" style="margin-top:4px">Abre la solicitud con lo que anotó Paola; revisa y completa antes de guardar.</div>' : '') + '</div>'
+        + _waHtmlSeguimiento(sel)
         + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
       : sel ? '<div class="card"><div class="ct">Información</div>'
           + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.clienteNombre || sel.nombre || '—') + '</span></div>' + _waHtmlVendedor(sel)
@@ -497,6 +540,7 @@ function _waHtmlFicha(sel, ctx){
         + '<div class="card"><div class="ct">Lo que anotó el asistente</div>'
           + (sel.borrador && sel.borrador.tipo === 'promesa' ? '<div class="wa-kv"><span>Promesa de pago</span><span>' + _waFechaCorta(sel.borrador.fecha) + ' · ' + _waMoney(sel.borrador.monto) + '</span></div><button class="btn btn-p btn-sm" style="margin-top:10px" onclick="_waPasarAPedido(\'' + _waEsc(sel.id) + '\')">Anotar el compromiso en el crédito</button>' : '<div class="cs">Sin promesas ni solicitudes pendientes.</div>')
           + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '') + '</div>'
+        + _waHtmlSeguimiento(sel)
         + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
     : '');
 }

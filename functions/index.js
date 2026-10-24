@@ -143,6 +143,14 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
         return res.status(200).json(Object.assign({ ok: true }, r));
       } catch (e) { return res.status(e.codigo === 'permiso' ? 403 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
     }
+    // Notas internas, etapa del cliente y calificar a la asistente (24-oct-2026)
+    if (['nota', 'etapa', 'calificar'].includes((req.body || {}).accion)) {
+      try {
+        const b = req.body || {};
+        const r = await procesar.accionConversacion({ bases, ahora: () => new Date().toISOString() }, { empresa: String(b.empresa || quien.empresa), convId: String(b.conv || ''), accion: b.accion, texto: b.texto, etapa: b.etapa, msgId: b.msg, voto: b.voto, quien });
+        return res.status(200).json(Object.assign({ ok: true }, r));
+      } catch (e) { return res.status(e.codigo === 'permiso' ? 403 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
+    }
     if (!topeEquipo(quien.uid)) return res.status(429).json({ error: 'Demasiados mensajes seguidos: espera un minuto', codigo: 'tope' });
     try {
       const cfg = await cfgAsistente();

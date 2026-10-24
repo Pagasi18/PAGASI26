@@ -80,6 +80,8 @@ var _RS_CSS = '<style id="rs-css">'
   + '.rs-v h4{font-size:14px;font-weight:800;margin:18px 0 3px}.rs-v h4:first-child{margin-top:0}.rs-v .sv{font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5}'
   + '.rs-rep{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}.rs-rep-p{display:flex;align-items:center;gap:7px;border:1px solid var(--rim);border-radius:999px;padding:4px 11px 4px 6px;font-size:12.5px;font-weight:600;cursor:pointer}.rs-rep-p small{color:var(--ink3);font-weight:600}'
   + '.rs-rep-p .av{width:22px;height:22px;border-radius:50%;color:#fff;font-size:9.5px;font-weight:800;display:grid;place-items:center}.rs-rep-p input{margin:0}'
+  + '.rs-cal-res{display:flex;gap:14px;align-items:baseline;margin:6px 0 8px;font-size:13px}.rs-cal-res small{color:var(--ink3)}.rs-cal-l{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}'
+  + '.rs-cal-i{border:1px solid var(--rim);border-radius:10px;padding:8px 10px;font-size:12.5px}.rs-cal-i .t{color:var(--ink2)}.rs-cal-i .n{margin-top:3px;color:#b45309}.rs-cal-i small{display:block;color:var(--ink3);margin-top:4px}.rs-cal-i a{color:var(--p1)}'
   + '.rs-sons{display:flex;flex-direction:column;gap:6px}.rs-son{display:flex;align-items:center;gap:11px;border:1px solid var(--rim);border-radius:12px;padding:9px 12px;cursor:pointer}.rs-son.on{border-color:var(--p1);background:#e8f0ff}'
   + '.rs-son .t{flex:1;min-width:0}.rs-son .t b{display:block;font-size:13.5px}.rs-son .t small{color:var(--ink3);font-size:11.5px}.rs-son input{margin:0}'
   + '.rs-sws{display:flex;flex-direction:column;gap:4px}.rs-swf{display:flex;align-items:center;gap:10px;padding:7px 2px;font-size:13.5px;font-weight:600}.rs-swf .ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;flex:none}.rs-swf .ic svg{width:12px;height:12px}.rs-swf .ic.wa{background:#25D366}.rs-swf .ic.ig{background:linear-gradient(135deg,#f58529,#dd2a7b,#8134af)}.rs-swf .ic.ms{background:linear-gradient(135deg,#00b2ff,#a334fa)}.rs-swf .ic.fb{background:#0866ff}.rs-swf .ic.rl{background:var(--ink2)}.rs-swf .t{flex:1}.rs-swf small{display:block;font-weight:500;color:var(--ink3);font-size:11.5px}'
@@ -313,6 +315,7 @@ function rsAsistente(area){
     + A.canales.map(function(c){ return fila(c[0], c[1], c[2], c[3]); }).join('')
     + (A.area === 'cobranza' ? fila('recordatorios', 'Recordatorios de cuotas', 'rl', false, 'Todos los días a las 8:30 am, por plantilla de WhatsApp') : '')
     + '</div>' + (A.area === 'cobranza' ? '<div class="aviso">Con los recordatorios encendidos, Patricia les escribe a los clientes de verdad todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento y cuando se atrasan.</div>' : '')
+    + '<h4>Cómo va ' + A.nombre + ' según el equipo</h4><div id="rs-calidad"><div class="sv">Cargando…</div></div>'
     + (A.area === 'ventas' ? _rsRepartoHtml(cfg, editable) : '')
     + '<h4>Calidad de ' + A.nombre + '</h4><div class="sv">Lo que paga Pagasi en Claude. Aproximado, con ' + A.volumen + '.</div><div class="rs-qs" role="radiogroup">'
     + RS_CALIDADES.map(function(q){ return '<label class="rs-q' + (q.id === calidad ? ' on' : '') + '"><input type="radio" name="rs-calidad" value="' + q.id + '"' + (q.id === calidad ? ' checked' : '') + (editable ? '' : ' disabled') + ' onchange="document.querySelectorAll(\'.rs-q\').forEach(function(e){ e.classList.toggle(\'on\', e.contains(this)); }, this)"><b>' + q.nombre + '</b><span>' + A.costos[q.id] + '</span><small>' + q.modelo + ' · ' + q.nota + '</small></label>'; }).join('')
@@ -336,6 +339,48 @@ function rsAsistente(area){
   document.getElementById('ov').style.display = 'flex';
   _rsCargarGasto(function(uso){ var e = document.getElementById('rs-gasto'); if(e) e.innerHTML = _rsGastoHtml(uso, A.area); });
   if(A.area === 'ventas') _rsCargarCandidatos(cfg, editable);
+  _rsCargarCalidad(A);
+}
+// Las 👍/👎 que el equipo le pone a las respuestas de la asistente (config/asistenteCalidad, lo escribe el servidor)
+function _rsCargarCalidad(A){
+  var pintar = function(lista){
+    var e = document.getElementById('rs-calidad'); if(!e) return;
+    var hace7 = new Date(Date.now() - 7 * 86400000).toISOString();
+    var mias = (lista || []).filter(function(x){ return (x.area || 'ventas') === A.area; }), sem = mias.filter(function(x){ return String(x.hora || '') >= hace7; });
+    var bien = sem.filter(function(x){ return x.voto === 'bien'; }).length, mal = sem.filter(function(x){ return x.voto === 'mal'; }).length;
+    var malas = mias.filter(function(x){ return x.voto === 'mal'; }).slice(0, 8);
+    e.innerHTML = '<div class="sv">En cada respuesta de ' + A.nombre + ' hay un 👍 y un 👎. Lo marcado con 👎 se revisa para ajustar sus instrucciones.</div>'
+      + '<div class="rs-cal-res"><span>👍 <b>' + bien + '</b> bien</span><span>👎 <b>' + mal + '</b> mal</span><small>últimos 7 días</small></div>'
+      + (malas.length ? '<div class="rs-cal-l">' + malas.map(function(x){ return '<div class="rs-cal-i"><div class="t">«' + _waEsc(x.texto || '') + '»</div>' + (x.nota ? '<div class="n">' + _waEsc(x.nota) + '</div>' : '') + '<small>' + _waEsc(x.por || '') + ' · ' + _waHora(x.hora) + ' · <a href="#" onclick="event.preventDefault();closeM();waAbrir(\'' + _waEsc(x.conv) + '\')">ver la conversación</a></small></div>'; }).join('') + '</div>' : '<div class="sv">Todavía nadie marcó una respuesta con 👎.</div>');
+  };
+  if(typeof db === 'undefined' || !db){ pintar([]); return; }
+  db.collection('config').doc('asistenteCalidad').get().then(function(d){ pintar(d.exists ? (d.data() || {}).lista : []); }).catch(function(){ pintar([]); });
+}
+// Métricas por vendedor (Adam, 24-oct-2026): de las conversaciones del período con vendedor
+function _rsVendedoresDatos(convs, desde){
+  var o = {}, creds = (typeof S !== 'undefined' && S.creds) || [];
+  var vendio = function(c){ return c.etapa === 'vendido' || (!!c.clienteLead && creds.some(function(x){ return x && String(x.clienteId || x.cliId || '') === String(c.clienteLead) && x.estado !== 'cancelado' && !x.eliminado; })); };
+  convs.forEach(function(c){
+    if(_rsDiaLocal(c.ultimoMensajeHora || c.creado) < desde) return;
+    var v = waVendedorDe(c) || '-';
+    var r = o[v] = o[v] || { nombre: v, n: 0, atendidas: 0, tiempos: [], quieren: 0, solicitud: 0, vendidas: 0 };
+    r.n++;
+    if(c.ultimaRespuesta || c.ultimoAutor === 'equipo' || c.modo === 'humano') r.atendidas++;
+    if(c.ultimaRespuesta && c.ultimaRespuesta.desde && c.ultimaRespuesta.hasta){ var m = (new Date(c.ultimaRespuesta.hasta) - new Date(c.ultimaRespuesta.desde)) / 60000; if(m >= 0) r.tiempos.push(m); }
+    if(c.borrador && c.borrador.tipo === 'lead') r.quieren++;
+    if(['solicitud', 'aprobado', 'vendido'].indexOf(c.etapa) > -1) r.solicitud++;
+    if(vendio(c)) r.vendidas++;
+  });
+  return Object.keys(o).map(function(k){ var r = o[k]; r.tiempos.sort(function(a, b){ return a - b; }); r.mediana = r.tiempos.length ? r.tiempos[Math.floor((r.tiempos.length - 1) / 2)] : null; return r; })
+    .sort(function(a, b){ return (a.nombre === '-' ? 1 : 0) - (b.nombre === '-' ? 1 : 0) || b.n - a.n; });
+}
+function _rsVendedoresHtml(convs, desde){
+  var L = _rsVendedoresDatos(convs, desde).filter(function(r){ return r.nombre !== '-' || r.n; });
+  var t = function(m){ return m == null ? '—' : m < 60 ? Math.round(m) + ' min' : (m / 60).toLocaleString('es-VE', { maximumFractionDigits: 1 }) + ' h'; };
+  return '<div class="bloque"><h3>Equipo de ventas</h3><div class="sv">Conversaciones del período por vendedor. "Contestó en" es lo que tardó en escribirle a quien esperaba una persona (la mitad de las veces fue más rápido). "Vendidas": etapa Vendido o un crédito para ese cliente.</div>'
+    + (L.length ? '<table><tr><th>Vendedor</th><th>Conversaciones</th><th>Atendidas</th><th>Contestó en</th><th>Quieren comprar</th><th>Solicitud</th><th>Vendidas</th></tr>'
+      + L.map(function(r){ return '<tr><td>' + (r.nombre === '-' ? '<i>Sin vendedor (solo Paola)</i>' : _waEsc(r.nombre)) + '</td><td>' + r.n + '</td><td>' + r.atendidas + '</td><td>' + t(r.mediana) + '</td><td>' + r.quieren + '</td><td>' + r.solicitud + '</td><td><b>' + r.vendidas + '</b></td></tr>'; }).join('') + '</table>'
+      : '<div class="sv">Todavía no hay conversaciones con vendedor en este período.</div>') + '</div>';
 }
 // Reparto entre vendedores (Adam, 24-oct-2026: "que nadie se quede esperando"): quién recibe, por turnos, las
 // conversaciones de quien quiere comprar o pide una persona. Lo aplica el servidor (config/asistente.reparto).
@@ -438,6 +483,7 @@ function _rsMetricasHtml(){
     + '<div class="rs-ley"><span><i style="background:var(--s-ig)"></i>Instagram</span><span><i style="background:var(--s-wa)"></i>WhatsApp</span></div>'
     + _rsGrafico(porDia)
     + '<details><summary>Ver como tabla</summary><table><tr><th>Día</th><th>Instagram</th><th>WhatsApp</th><th>Total</th></tr>' + porDia.slice().reverse().map(function(d){ return '<tr><td>' + _waFechaCorta(d.f) + '</td><td>' + d.ig + '</td><td>' + d.wa + '</td><td>' + (d.ig + d.wa) + '</td></tr>'; }).join('') + '</table></details></div>';
+  h += _rsVendedoresHtml(convs, desde);
   // Las publicaciones de Instagram
   h += '<div class="bloque"><h3>Publicaciones de Instagram</h3><div class="sv">' + (ig ? 'Las últimas ' + ig.posts.length + ', con sus "me gusta" y comentarios' + (met.actualizado ? ' · actualizado ' + _waHora(met.actualizado) : '') : 'El servidor las trae cada 2 horas.') + '</div>'
     + (ig && ig.posts.length ? '<div class="rs-posts">' + ig.posts.map(function(p){ return '<div class="rs-post"><div class="img"' + (p.imagen ? ' style="background-image:url(\'' + _waEsc(p.imagen) + '\')"' : '') + '></div><div class="c"><div class="n">♥ ' + p.meGusta + ' &nbsp; 💬 ' + p.comentarios + '</div><div class="t">' + _waEsc(p.texto || '(sin texto)') + '</div><div class="f">' + _waFechaCorta(_rsDiaLocal(p.fecha)) + (p.producto === 'REELS' ? ' · reel' : p.tipo === 'CAROUSEL_ALBUM' ? ' · carrusel' : '') + '</div>' + (p.enlace ? '<a href="' + _waEsc(p.enlace) + '" target="_blank" rel="noopener">Ver en Instagram</a>' : '') + '</div></div>'; }).join('') + '</div>' : '<div class="cs">Sin publicaciones para mostrar todavía.</div>')

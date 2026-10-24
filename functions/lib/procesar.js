@@ -306,6 +306,7 @@ async function responderVentas(deps, x) {
     if (lead.cedula) lead.cedula = cedulaLimpia(lead.cedula);   // V-12345678, aunque el modelo la mande con puntos
     cambios.borrador = lead;
     cambios.atencion = 'lead';
+    if (!conv || !conv.etapa) cambios.etapa = 'interesado';   // etapa del cliente (24-oct-2026)
     const clienteLead = await clienteDesdeLead(deps, db, { canal, convId: x.leadId, base, conv, lead, resumen: r.summary, ahora, motos: cat.motos });
     if (clienteLead) { cambios.clienteLead = clienteLead; lead.clienteLead = clienteLead; }
     await db.collection('leads').doc(x.leadId).set(Object.assign({ canal, convId: x.leadId, usuario: base.usuario || '', nombrePerfil: base.nombre || '', telE164: base.telE164 || '', clienteId: base.clienteId || '', estado: 'nuevo', creado: ahora }, lead, { actualizado: ahora, resumen: r.summary || '' }), { merge: true });
@@ -315,6 +316,44 @@ async function responderVentas(deps, x) {
   if (asignado) { cambios.vendedor = asignado; cambios.asignadoEn = ahora; deps.log('reparto', { canal, area: 'ventas' }); }
   await responder(deps, convRef, base, r.reply, ahora, cambios);
   return { empresa: x.empresa, canal, area: 'ventas', respondido: true, handoff: !!r.handoff || !!(r.draft && r.draft.tipo === 'lead'), draft: r.draft || null };
+}
+
+// Lo que el equipo anota en una conversación desde el panel (Adam, 24-oct-2026: "arranca con todo"). Pasa por el
+// servidor porque las Reglas no dejan escribir las conversaciones desde el navegador.
+//  · nota: notas internas que solo ve el equipo (las últimas 50)
+//  · etapa: nuevo → interesado → solicitud → aprobado → vendido (o perdido)
+//  · calificar: 👍/👎 a una respuesta de la asistente; las calificadas se listan en config/asistenteCalidad
+const ETAPAS = ['nuevo', 'interesado', 'solicitud', 'aprobado', 'vendido', 'perdido'];
+async function accionConversacion(deps, { empresa, convId, accion, quien, texto, etapa, msgId, voto }) {
+  const db = deps.bases[empresa]; if (!db) throw Object.assign(new Error('Compañía desconocida'), { codigo: 'empresa' });
+  const ref = db.collection('conversaciones').doc(String(convId || ''));
+  const d = await ref.get(); if (!d.exists) throw Object.assign(new Error('Conversación no encontrada'), { codigo: 'conversacion' });
+  const conv = d.data(), canal = canalDe(conv), ahora = deps.ahora(), por = (quien && quien.nombre) || 'Equipo';
+  if (!puedeCanal(quien, canal, empresa)) throw Object.assign(new Error('No tienes el canal ' + (canal === 'instagram' ? 'Instagram' : 'WhatsApp')), { codigo: 'permiso' });
+  if (accion === 'nota') {
+    const t = sinPeligro(texto).slice(0, 600); if (!t) throw Object.assign(new Error('La nota está vacía'), { codigo: 'texto' });
+    const notas = (Array.isArray(conv.notas) ? conv.notas : []).concat([{ texto: t, por, hora: ahora }]).slice(-50);
+    await ref.set({ notas }, { merge: true });
+    return { notas };
+  }
+  if (accion === 'etapa') {
+    if (!ETAPAS.includes(etapa)) throw Object.assign(new Error('Etapa desconocida'), { codigo: 'etapa' });
+    await ref.set({ etapa, etapaPor: por, etapaEn: ahora }, { merge: true });
+    return { etapa };
+  }
+  if (accion === 'calificar') {
+    if (!['bien', 'mal', ''].includes(voto)) throw Object.assign(new Error('Calificación desconocida'), { codigo: 'voto' });
+    const mref = ref.collection('mensajes').doc(String(msgId || ''));
+    const m = await mref.get(); if (!m.exists || m.data().autor !== 'asistente') throw Object.assign(new Error('Solo se califican las respuestas de la asistente'), { codigo: 'mensaje' });
+    const nota = sinPeligro(texto).slice(0, 300);
+    await mref.set({ calificacion: voto ? { voto, por, hora: ahora, nota } : null }, { merge: true });
+    const cal = deps.bases['26'].collection('config').doc('asistenteCalidad'), c = await cal.get();
+    const lista = ((c.exists && c.data().lista) || []).filter(x => !(x.conv === convId && x.msg === msgId));
+    if (voto) lista.unshift({ conv: convId, msg: msgId, voto, por, hora: ahora, area: conv.area || (canal === 'instagram' ? 'ventas' : 'cobranza'), texto: String(m.data().texto || '').slice(0, 280), nota });
+    await cal.set({ lista: lista.slice(0, 200), actualizado: ahora }, { merge: true });
+    return { voto };
+  }
+  throw Object.assign(new Error('Acción desconocida'), { codigo: 'accion' });
 }
 
 // Reparto entre vendedores (Adam, 24-oct-2026: "que nadie se quede esperando"). Cuando alguien quiere comprar o
@@ -531,7 +570,9 @@ async function enviarEquipo(deps, { empresa, convId, texto, por, quien, imagen }
   await ref.collection('mensajes').doc(metaId || ('eq-' + Date.now())).set(msg);
   // El primero del equipo que escribe queda como vendedor de la conversación (no se borra al devolverla a Paola).
   // Si esperaba a una persona, ya la atendieron: se quita la marca (24-oct-2026; antes solo con Visto o Atender yo).
-  await ref.set(Object.assign({ modo: 'humano', atendidoPor: por || 'Equipo', atencion: '', noLeidos: 0, ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, conv.vendedor ? {} : { vendedor: por || 'Equipo' }), { merge: true });
+  // Cuánto tardó el equipo en contestar a quien esperaba (para las métricas por vendedor)
+  const respuesta = conv.atencion && conv.atencionDesde ? { ultimaRespuesta: { desde: conv.atencionDesde, hasta: ahora, por: por || 'Equipo' } } : {};
+  await ref.set(Object.assign({ modo: 'humano', atendidoPor: por || 'Equipo', atencion: '', noLeidos: 0, ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, respuesta, conv.vendedor ? {} : { vendedor: por || 'Equipo' }), { merge: true });
   return { metaId };
 }
 
@@ -550,4 +591,4 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   return { vendedor: v };
 }
 
-module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };

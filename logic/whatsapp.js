@@ -379,14 +379,17 @@ function waEnviarEquipo(id, texto, imagen){
 // en config/asistente.urlEquipo.
 var WA_URL_EQUIPO = 'https://pagasi-webhook-5ao0p23z.ue.gateway.dev/equipo';   // la puerta pública (API Gateway) delante del servidor
 function waEmpresa(){ return (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG && FIREBASE_CONFIG.projectId === 'pagasi-v2') ? '18' : '26'; }
-function _waPedirVendedor(id, nombre){
+// Lo que el equipo cambia en una conversación pasa por el servidor (las Reglas no dejan escribirlas desde aquí):
+// vendedor, nota, etapa, calificar
+function _waPedirAccion(id, cuerpo){
   var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
   var user = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) || null;
   if(!user) return Promise.reject(new Error('sin sesión'));
   return user.getIdToken().then(function(tok){
-    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify({ empresa: waEmpresa(), conv: id, accion: 'vendedor', vendedor: nombre }) });
+    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify(Object.assign({ empresa: waEmpresa(), conv: id }, cuerpo)) });
   }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
 }
+function _waPedirVendedor(id, nombre){ return _waPedirAccion(id, { accion: 'vendedor', vendedor: nombre }); }
 function _waMandarAlServidor(id, texto, m, imagen){
   var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
   var fallo = function(msg){ m.estado = 'fallo'; toast('No se pudo enviar: ' + msg, 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); };
