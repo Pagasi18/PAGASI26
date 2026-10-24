@@ -11,6 +11,13 @@ functions/logic/
 # log de la CLI de Firebase
 firebase-debug.log
 
+# Seguridad (auditoría del 24-oct-2026): GitHub Pages publica TODO lo que está en el repositorio.
+# Datos de clientes y documentos internos no van aquí; viven en Documents/PAGASI/privado-18 (fuera del repo).
+bot/gps-instalados.json
+reportes/
+docs/
+WORK_LOG.md
+
 # nada de esto va al repositorio
 node_modules/
 bot/node_modules/
