@@ -176,4 +176,4 @@ PROCESO:
   return L.join('\n\n');
 }
 
-module.exports = { armarVentas, resumenCatalogo, money };
+module.exports = { armarVentas, resumenCatalogo, money, Cat };

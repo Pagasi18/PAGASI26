@@ -542,6 +542,102 @@ async function contarComentarios(db, usuario, ahora) {
   (s.docs || []).forEach(d => { const x = d.data() || {}; if (x.estado === 'respondido' && x.respondidoEn && t - Date.parse(x.respondidoEn) < dia) publicos++; if (x.privado && x.privado.enviado && x.respondidoEn && t - Date.parse(x.respondidoEn) < dia) privados++; });
   return { publicos, privados };
 }
+// Abre el DM con quien comentó (respuesta privada de Meta: una sola vez por comentario) y deja la conversación de
+// Instagram lista en el panel; desde ahí sigue como cualquier otra. extra: campos de más para la conversación.
+async function abrirPrivado(deps, c, texto, extra, extraNueva) {
+  const db = deps.bases['26'], ahora = deps.ahora();
+  try {
+    const p = await deps.metaIG.mensajePrivado(c.comentarioId, texto);
+    if (p.igsid) {
+      const convRef = db.collection('conversaciones').doc('ig:' + p.igsid);
+      const conv = await convRef.get();
+      await convRef.set(Object.assign({ canal: 'instagram', area: 'ventas', igsid: p.igsid, usuario: c.usuario || '', nombre: (conv.exists && conv.data().nombre) || (c.usuario ? '@' + c.usuario : 'Instagram'), modo: (conv.exists && conv.data().modo) || 'bot', ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'asistente', actualizado: ahora, empresa: '26', origenComentario: c.comentarioId }, conv.exists ? {} : Object.assign({ creado: ahora, noLeidos: 0 }, extraNueva || {}), extra || {}), { merge: true });
+      await convRef.collection('mensajes').doc(p.metaId || ('cm-' + c.comentarioId)).set({ metaId: p.metaId, direccion: 'saliente', autor: 'asistente', tipo: 'texto', texto, estado: 'enviado', error: '', hora: ahora, desdeComentario: c.comentarioId });
+    }
+    return { enviado: true, metaId: p.metaId, igsid: p.igsid };
+  } catch (e) { return { enviado: false, error: String(e && e.message || e).slice(0, 200) }; }
+}
+
+// ── "Comenta MOTO" (Adam, 24-oct-2026: "vamos a hacer esto") ──
+// En las publicaciones se pide comentar una palabra (MOTO). A quien la comenta, Paola le escribe por privado con el
+// precio de contado, la inicial y la cuota de la moto de esa publicación (el modelo sale del texto de la publicación
+// y los números del catálogo, con la fórmula de pagasi.io) y le contesta corto en público. No pasa por Claude: es
+// al instante y no cuesta. Si la persona responde el DM, sigue Paola como en cualquier conversación.
+// Interruptor y palabras: config/asistente.comentaMoto { activo, palabras } (ventana de Paola).
+const COMENTA_PALABRAS = ['moto'];
+const COMENTA_PUBLICO = ['¡Listo! Te escribí por mensaje directo 📩', 'Te acabo de escribir por privado con el precio y las cuotas 🙌', '¡Revisa tus mensajes! Ahí te pasé todo 📲', 'Ya te mandé la información por mensaje directo ✅'];
+const COMENTA_PUBLICO_REPETIDO = 'Ya te escribí por mensaje directo: revisa tus mensajes 📩';
+const COMENTA_PUBLICO_SIN_DM = '¡Hola! Escríbenos por mensaje directo y te paso el precio y las cuotas 📩';
+const sinAcentos = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim();
+// La palabra cuenta si el comentario es corto (hasta 5 palabras) y la trae: "MOTO", "motos", "moto 🙌", "Moto por favor"
+function palabraClave(texto, cfg) {
+  const C = (cfg && cfg.comentaMoto) || {};
+  if (!C.activo) return '';
+  const lista = (Array.isArray(C.palabras) && C.palabras.length ? C.palabras : COMENTA_PALABRAS).map(sinAcentos).filter(Boolean);
+  const t = sinAcentos(texto);
+  if (!t || t.split(' ').length > 5) return '';
+  return lista.find(p => (' ' + t + ' ').includes(' ' + p + ' ') || (' ' + t + ' ').includes(' ' + p + 's ')) || '';   // MOTO o MOTOS
+}
+// La moto de la publicación: el modelo del catálogo cuyo nombre aparece en el texto (el más largo; si hay varias
+// sedes con el mismo nombre, la que trae la marca de la sede en el texto y, si no, la más barata)
+function motoDeTexto(texto, motos) {
+  const t = ' ' + sinAcentos(texto) + ' ';
+  let mejor = null;
+  (motos || []).forEach(m => {
+    if (!m || m.eliminado || m.disponible === false || !(+m.precio > 0)) return;
+    const n = sinAcentos(m.modelo || m.name);
+    if (n.length < 2 || !t.includes(' ' + n + ' ')) return;
+    const marca = sinAcentos(m.sedeName || m.sede).split(' ')[0];
+    const punto = n.length * 10 + (marca && marca.length > 1 && t.includes(' ' + marca + ' ') ? 5 : 0);
+    if (!mejor || punto > mejor.punto || (punto === mejor.punto && +m.precio < +mejor.m.precio)) mejor = { m, punto };
+  });
+  return mejor ? mejor.m : null;
+}
+const _publicaciones = new Map();   // mediaId -> { t, texto }: el texto de una publicación no cambia seguido (1 hora)
+async function textoPublicacion(deps, mediaId) {
+  if (!mediaId) return '';
+  const c = _publicaciones.get(mediaId);
+  if (c && Date.now() - c.t < 3600 * 1000) return c.texto;
+  let texto = '';
+  if (deps.metaIG.publicacion) { try { texto = (await deps.metaIG.publicacion(mediaId)).texto || ''; } catch (e) { deps.log('publicacion-fallo', { error: String(e && e.message || e).slice(0, 120) }); } }
+  if (!texto) {   // respaldo: las métricas guardan las últimas 24 publicaciones con su texto
+    try { const d = await deps.bases['26'].collection('config').doc('redesMetricas').get(); const p = ((d.exists && d.data().instagram) || {}).posts || []; texto = ((p.find(x => String(x.id) === String(mediaId)) || {}).texto) || ''; } catch (e) { /* sin texto: va el mensaje general */ }
+  }
+  if (texto) _publicaciones.set(mediaId, { t: Date.now(), texto });
+  return texto;
+}
+const dolares = n => '$' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+function textoComentaMoto(moto, cond, motos) {
+  const C = ventas.Cat, c = C.condValidas(cond || C.COND_BASE), meses = c.plazos[c.plazos.length - 1], pct = c.inicialMin / 100;
+  if (moto) {
+    const p = C.calcPlan(moto.precio, meses, pct, c), otros = c.plazos.filter(x => x !== meses).map(x => x + ' meses (' + dolares(C.calcPlan(moto.precio, x, pct, c).quincenal) + ')');
+    return `Hola 👋 Soy Paola, de Pagasi. Te paso lo de la ${String(moto.name || moto.modelo).trim()}:\n· Precio de contado: ${dolares(moto.precio)}\n· Inicial desde ${dolares(p.inicial)} (${c.inicialMin}%)\n· ${p.totalCuotas} cuotas quincenales de ${dolares(p.quincenal)} (${meses} meses)${otros.length ? '\nTambién hay plan a ' + otros.join(' y a ') + ' por quincena.' : ''}\n¿En qué ciudad estás? Te digo dónde retirarla y te hago la solicitud por aquí mismo.`;
+  }
+  const qs = (motos || []).filter(m => m && !m.eliminado && m.disponible !== false && +m.precio > 0).map(m => C.calcPlan(m.precio, meses, pct, c).quincenal);
+  return `Hola 👋 Soy Paola, de Pagasi. Vi tu comentario: financiamos motos nuevas con ${c.inicialMin}% de inicial y cuotas quincenales${qs.length ? ' desde ' + dolares(Math.min.apply(null, qs)) : ''}. ¿Qué moto te interesa y en qué ciudad estás? Te paso el precio, las cuotas y te hago la solicitud por aquí mismo.`;
+}
+async function comentaMoto(deps, c, ref, clave) {
+  const db = deps.bases['26'], ahora = deps.ahora();
+  const cuenta = await contarComentarios(db, c.usuario, ahora);
+  if (cuenta.publicos >= TOPE_COMENTARIOS.publicos) { await ref.set({ estado: 'sin-respuesta', motivo: 'tope: ya se le respondió ' + cuenta.publicos + ' veces hoy', palabraClave: clave }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'tope-usuario', palabraClave: clave }; }
+  let cat = { motos: [], cond: null };
+  try { cat = await deps.ventas(); } catch (e) { /* sin catálogo: va el mensaje general */ }
+  const moto = motoDeTexto(await textoPublicacion(deps, c.mediaId), cat.motos);
+  const salida = { palabraClave: clave, via: 'palabra-clave', moto: moto ? String(moto.modelo || moto.name) : '', motoId: moto ? String(moto.id) : '', respondidoEn: ahora };
+  // Primero el privado (Meta deja uno por comentario); la respuesta pública dice si se le escribió o no
+  if (cuenta.privados < TOPE_COMENTARIOS.privados) {
+    const privado = textoComentaMoto(moto, cat.cond, cat.motos);
+    salida.privado = await abrirPrivado(deps, c, privado, { campana: { palabra: clave, mediaId: c.mediaId || '', moto: salida.moto, motoId: salida.motoId, hora: ahora } }, { etapa: 'interesado' });
+  }
+  const publico = salida.privado ? (salida.privado.enviado ? COMENTA_PUBLICO[[...String(c.comentarioId)].reduce((a, x) => a + x.charCodeAt(0), 0) % COMENTA_PUBLICO.length] : COMENTA_PUBLICO_SIN_DM) : COMENTA_PUBLICO_REPETIDO;
+  let error = '';
+  try { salida.respuestaId = await deps.metaIG.responderComentario(c.comentarioId, publico); } catch (e) { error = String(e && e.message || e).slice(0, 200); deps.log('comentario-envio-fallo', { error }); }
+  Object.assign(salida, { estado: error ? 'fallo' : 'respondido', respuesta: publico, error });
+  await ref.set(salida, { merge: true });
+  deps.log('comentario-clave', { respondido: !error, privado: !!(salida.privado && salida.privado.enviado), moto: !!moto });
+  return { comentarioId: c.comentarioId, respondido: !error, privado: !!(salida.privado && salida.privado.enviado), palabraClave: clave, moto: salida.moto };
+}
+
 async function procesarComentario(deps, c) {
   if (!deps.metaIG) return { saltado: 'instagram-no-configurado' };
   const db = deps.bases['26'], ahora = deps.ahora(), hoy = deps.hoy();
@@ -553,6 +649,8 @@ async function procesarComentario(deps, c) {
   const texto = String(c.texto || '').trim();
   if (!texto || /^[\s\p{Emoji}\p{P}]+$/u.test(texto)) { await ref.set({ estado: 'sin-respuesta', motivo: 'solo emoji o vacío' }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'vacio' }; }
   const esReclamo = RECLAMO.test(texto), esPregunta = PREGUNTA.test(texto);
+  const clave = esReclamo ? '' : palabraClave(texto, deps.cfg);
+  if (clave) return comentaMoto(deps, c, ref, clave);
   if (!responde(deps, 'comentariosIg')) { await ref.set({ estado: 'sin-respuesta', motivo: 'Paola está apagada en los comentarios', reclamo: esReclamo }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'apagada' }; }
   const cuenta = await contarComentarios(db, c.usuario, ahora);
   if (cuenta.publicos >= TOPE_COMENTARIOS.publicos) { await ref.set({ estado: 'sin-respuesta', motivo: 'tope: ya se le respondió ' + cuenta.publicos + ' veces hoy', reclamo: esReclamo }, { merge: true }); return { comentarioId: c.comentarioId, respondido: false, motivo: 'tope-usuario' }; }
@@ -573,16 +671,7 @@ async function procesarComentario(deps, c) {
     const privado = esReclamo
       ? 'Hola, soy Paola, de Pagasi. Vi tu comentario y quiero resolverlo: cuéntame por aquí qué pasó y con quién hablaste, y lo escalo hoy mismo al equipo.'
       : 'Hola 👋 Soy Paola, asesora comercial de Pagasi. Vi tu comentario en la publicación; por aquí te paso precios, cuotas y la solicitud. ¿Qué moto te interesa o en qué ciudad estás?';
-    try {
-      const p = await deps.metaIG.mensajePrivado(c.comentarioId, privado);
-      salida.privado = { enviado: true, metaId: p.metaId, igsid: p.igsid };
-      if (p.igsid) {
-        const convRef = db.collection('conversaciones').doc('ig:' + p.igsid);
-        const conv = await convRef.get();
-        await convRef.set(Object.assign({ canal: 'instagram', area: 'ventas', igsid: p.igsid, usuario: c.usuario || '', nombre: (conv.exists && conv.data().nombre) || (c.usuario ? '@' + c.usuario : 'Instagram'), modo: (conv.exists && conv.data().modo) || 'bot', ultimoMensaje: privado, ultimoMensajeHora: ahora, ultimoAutor: 'asistente', actualizado: ahora, empresa: '26', origenComentario: c.comentarioId }, conv.exists ? {} : { creado: ahora, noLeidos: 0 }, esReclamo ? { atencion: 'queja' } : {}), { merge: true });
-        await convRef.collection('mensajes').doc(p.metaId || ('cm-' + c.comentarioId)).set({ metaId: p.metaId, direccion: 'saliente', autor: 'asistente', tipo: 'texto', texto: privado, estado: 'enviado', error: '', hora: ahora, desdeComentario: c.comentarioId });
-      }
-    } catch (e) { salida.privado = { enviado: false, error: String(e && e.message || e).slice(0, 200) }; }
+    salida.privado = await abrirPrivado(deps, c, privado, esReclamo ? { atencion: 'queja' } : {});
   }
   await ref.set(salida, { merge: true });
   deps.log('comentario', { usuario: c.usuario, respondido: !error, privado: !!(salida.privado && salida.privado.enviado), reclamo: esReclamo });
@@ -647,4 +736,4 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   return { vendedor: v };
 }
 
-module.exports = { mayus, textoLista, seguimientoVentas, textoSeguimiento, SEGUIMIENTO_TEXTO, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { palabraClave, motoDeTexto, textoComentaMoto, COMENTA_PUBLICO, mayus, textoLista, seguimientoVentas, textoSeguimiento, SEGUIMIENTO_TEXTO, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };

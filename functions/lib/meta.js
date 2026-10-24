@@ -150,6 +150,13 @@ function clienteInstagram(cfg) {
       if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Meta HTTP ' + r.status)); e.code = j.error && j.error.code; throw e; }
       return { metaId: j.message_id || '', igsid: j.recipient_id ? String(j.recipient_id) : '' };
     },
+    // El texto de una publicación propia (para saber de qué moto es; "Comenta MOTO", 24-oct-2026)
+    async publicacion(mediaId) {
+      const r = await fetch(`${GRAPH}/${mediaId}?fields=caption,permalink`, { headers: { authorization: 'Bearer ' + cfg.accessToken } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Meta HTTP ' + r.status)); e.code = j.error && j.error.code; throw e; }
+      return { texto: String(j.caption || ''), enlace: j.permalink || '' };
+    },
     async perfil(igsid) {
       const r = await fetch(`${GRAPH}/${igsid}?fields=name,username`, { headers: { authorization: 'Bearer ' + cfg.accessToken } });
       const j = await r.json().catch(() => ({}));

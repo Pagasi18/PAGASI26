@@ -57,7 +57,7 @@ var _RS_CSS = '<style id="rs-css">'
   + '.rs-caja .wa-item .av{width:48px;height:48px;font-size:14px}.rs-caja .wa-item .n{font-size:14.5px;font-weight:600;flex-wrap:nowrap}.rs-caja .wa-item .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rs-caja .wa-item .u{font-size:13px;color:var(--ink2);max-width:none;margin-top:1px}'
   + '.rs-caja .wa-item[data-nl] .n,.rs-caja .wa-item[data-nl] .u{font-weight:800;color:var(--ink)}.rs-caja .wa-item .h{font-size:12px;padding-top:2px;display:flex;flex-direction:column;align-items:flex-end;gap:8px}.rs-caja .wa-item .punto{width:10px;height:10px;border-radius:50%;background:var(--mt-azul)}'
   + '.rs-caja .wa-item .av .cn{width:19px;height:19px;right:-3px;bottom:-3px;display:grid;place-items:center;color:#fff}.rs-caja .wa-item .av .cn svg{width:10px;height:10px}'
-  + '.rs-tg{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.rs-tg span{background:var(--mt-gris);border-radius:5px;padding:2px 8px;font-size:11.5px;font-weight:600;color:var(--ink)}.rs-tg span.rojo{color:#c81e1e}.rs-tg span.ambar{color:#b45309}.rs-tg span.verde{color:#0f7a3e}'
+  + '.rs-tg{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.rs-tg span{background:var(--mt-gris);border-radius:5px;padding:2px 8px;font-size:11.5px;font-weight:600;color:var(--ink)}.rs-tg span.rojo{color:#c81e1e}.rs-tg span.ambar{color:#b45309}.rs-tg span.verde{color:#0f7a3e}.rs-tg span.azul{color:#065cff}'
   + '.rs-caja .wa-hilo-top{padding:12px 18px;border-bottom:1px solid var(--mt-borde)}.rs-caja .wa-hilo-top .quien{display:flex;gap:12px;align-items:center}.rs-caja .wa-hilo-top .quien b{font-size:16px}'
   + '.rs-caja .av{border-radius:50%;background:var(--lift);color:var(--ink2);display:grid;place-items:center;font-weight:800;flex:none}.rs-caja .wa-hilo-top .av{width:44px;height:44px;font-size:13px}.rs-caja .av.ig,.rs-caja .avm.ig{background:linear-gradient(135deg,#f58529,#dd2a7b,#8134af);color:#fff}'
   + '.rs-ib{height:38px;min-width:38px;border:1px solid var(--rim2);background:var(--surf);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}.rs-ib:hover{background:var(--surf2)}.rs-ib svg{width:17px;height:17px}.rs-ib.p{background:#0866ff;border-color:#0866ff;color:#fff}'
@@ -171,6 +171,7 @@ var RS_COM_FILTROS = [
   { id: 'todos', nombre: 'Todos', f: function(){ return true; } },
   { id: 'respondido', nombre: 'Paola respondió', f: function(c){ return c.estado === 'respondido'; } },
   { id: 'sin', nombre: 'Sin respuesta', f: function(c){ return c.estado === 'sin-respuesta' || c.estado === 'nuevo'; } },
+  { id: 'clave', nombre: 'Comentaron MOTO', f: function(c){ return !!c.palabraClave; } },
   { id: 'reclamos', nombre: 'Reclamos', f: function(c){ return !!c.reclamo; } },
   { id: 'fallo', nombre: 'No se pudo enviar', f: function(c){ return c.estado === 'fallo'; } },
   { id: 'hoy', nombre: 'Hoy', f: function(c){ return _waEsHoy(c.hora); } }
@@ -212,7 +213,7 @@ function _rsPintarComentarios(){
       return '<div class="wa-item' + (sel && c.id === sel.id ? ' on' : '') + '" onclick="rsComAbrir(\'' + _waEsc(c.id) + '\')">'
         + '<div class="av ig">' + _waEsc(String(c.usuario || '?').slice(0, 2).toUpperCase()) + '<span class="cn ig">' + _waIcono('ig') + '</span></div>'
         + '<div class="cuerpo"><div class="n"><span class="nom">@' + _waEsc(c.usuario || 'alguien') + '</span></div>'
-        + '<div class="u">' + _waEsc(c.texto || '') + '</div><div class="rs-tg">' + _rsComTag(c) + (c.reclamo ? '<span class="rojo">Reclamo</span>' : '') + '<span>' + ({ AD: 'Anuncio', REELS: 'Reel', STORY: 'Historia' }[c.tipoMedia] || 'Publicación') + '</span></div></div>'
+        + '<div class="u">' + _waEsc(c.texto || '') + '</div><div class="rs-tg">' + _rsComTag(c) + (c.palabraClave ? '<span class="azul">' + _waEsc(String(c.palabraClave).toUpperCase()) + (c.privado && c.privado.enviado ? ' → DM' : '') + '</span>' : '') + (c.reclamo ? '<span class="rojo">Reclamo</span>' : '') + '<span>' + ({ AD: 'Anuncio', REELS: 'Reel', STORY: 'Historia' }[c.tipoMedia] || 'Publicación') + '</span></div></div>'
         + '<div class="h">' + _waHoraLista(c.hora) + '</div></div>';
     }).join('') : '<div class="empty" style="padding:30px 16px">' + (todos.length ? 'Ningún comentario con ese filtro.' : 'Todavía no hay comentarios.') + '</div>';
   var hilo = document.getElementById('rs-com-hilo'), ficha = document.getElementById('rs-com-ficha');
@@ -224,7 +225,7 @@ function _rsPintarComentarios(){
     + '<div class="wa-burbujas"><div class="wa-sep">' + _waSep(sel.hora) + '</div>'
       + '<div class="wa-m cliente"><div class="avm ig">' + _waEsc(ini) + '</div><div class="wa-b cliente">' + _waEsc(sel.texto || '(sin texto)') + '<div class="meta"><span class="quien">@' + _waEsc(sel.usuario || '') + '</span><span>' + _waHora(sel.hora) + '</span></div></div></div>'
       + (sel.respuesta ? '<div class="wa-m asistente"><div class="wa-b asistente"><div class="plantilla">Respuesta pública</div>' + _waEsc(sel.respuesta) + '<div class="meta"><span class="quien">Paola</span><span>' + _waHora(sel.respondidoEn || sel.hora) + '</span>' + (sel.estado === 'fallo' ? '<span class="err">✕ no se publicó</span>' : '') + '</div></div></div>' : '')
-      + (sel.privado && sel.privado.enviado ? '<div class="wa-m asistente"><div class="wa-b asistente"><div class="plantilla">Mensaje privado</div>Paola también le escribió por mensaje directo.' + (conv ? '' : ' (la conversación aparece en la pestaña Instagram)') + '<div class="meta"><span class="quien">Paola</span></div></div></div>' : '')
+      + (sel.privado && sel.privado.enviado ? '<div class="wa-m asistente"><div class="wa-b asistente"><div class="plantilla">Mensaje privado</div>' + (sel.palabraClave ? 'Comentó ' + _waEsc(String(sel.palabraClave).toUpperCase()) + ': Paola le mandó por mensaje directo ' + (sel.moto ? 'el precio, la inicial y las cuotas de la ' + _waEsc(sel.moto) + '.' : 'las cuotas y le preguntó qué moto quiere (la publicación no nombra un modelo del catálogo).') : 'Paola también le escribió por mensaje directo.') + (conv ? '' : ' (la conversación aparece en la pestaña Instagram)') + '<div class="meta"><span class="quien">Paola</span></div></div></div>' : '')
     + '</div>'
     + '<div class="wa-cerrada" style="background:var(--surf2);color:var(--ink3);border-top-color:var(--rim)">Paola contesta los comentarios sola. Para contestar tú, hazlo desde Instagram.</div>';
   if(ficha) ficha.innerHTML = '<div class="card rs-perfil"><div class="av ig">' + _waEsc(ini) + '</div><div><b>@' + _waEsc(sel.usuario || 'alguien') + '</b>' + (sel.usuario ? '<a href="https://www.instagram.com/' + encodeURIComponent(sel.usuario) + '/" target="_blank" rel="noopener">Ver perfil</a>' : '') + '</div></div>'
@@ -235,6 +236,7 @@ function _rsPintarComentarios(){
       + '<div class="wa-kv"><span>Estado</span><span>' + _rsComEstado(sel) + '</span></div>'
       + (sel.motivo ? '<div class="wa-kv"><span>Por qué no respondió</span><span>' + _waEsc(sel.motivo) + '</span></div>' : '')
       + (sel.error ? '<div class="wa-kv"><span>Error</span><span>' + _waEsc(sel.error) + '</span></div>' : '')
+      + (sel.palabraClave ? '<div class="wa-kv"><span>Palabra clave</span><span><span class="wa-pill azul">' + _waEsc(String(sel.palabraClave).toUpperCase()) + '</span></span></div><div class="wa-kv"><span>Moto de la publicación</span><span>' + _waEsc(sel.moto || 'No se reconoció') + '</span></div>' : '')
       + '<div class="wa-kv"><span>Mensaje privado</span><span>' + (sel.privado && sel.privado.enviado ? 'Sí' : 'No') + '</span></div>'
       + '<div class="wa-kv"><span>Reclamo</span><span>' + (sel.reclamo ? '<span class="wa-pill rojo">Sí</span>' : 'No') + '</span></div>'
       + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '')
@@ -316,7 +318,7 @@ function rsAsistente(area){
     + (A.area === 'cobranza' ? fila('recordatorios', 'Recordatorios de cuotas', 'rl', false, 'Todos los días a las 8:30 am, por plantilla de WhatsApp') : '')
     + '</div>' + (A.area === 'cobranza' ? '<div class="aviso">Con los recordatorios encendidos, Patricia les escribe a los clientes de verdad todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento y cuando se atrasan.</div>' : '')
     + '<h4>Cómo va ' + A.nombre + ' según el equipo</h4><div id="rs-calidad"><div class="sv">Cargando…</div></div>'
-    + (A.area === 'ventas' ? _rsRepartoHtml(cfg, editable) + _rsSeguimientoHtml(cfg, editable) : '')
+    + (A.area === 'ventas' ? _rsComentaMotoHtml(cfg, editable) + _rsRepartoHtml(cfg, editable) + _rsSeguimientoHtml(cfg, editable) : '')
     + '<h4>Calidad de ' + A.nombre + '</h4><div class="sv">Lo que paga Pagasi en Claude. Aproximado, con ' + A.volumen + '.</div><div class="rs-qs" role="radiogroup">'
     + RS_CALIDADES.map(function(q){ return '<label class="rs-q' + (q.id === calidad ? ' on' : '') + '"><input type="radio" name="rs-calidad" value="' + q.id + '"' + (q.id === calidad ? ' checked' : '') + (editable ? '' : ' disabled') + ' onchange="document.querySelectorAll(\'.rs-q\').forEach(function(e){ e.classList.toggle(\'on\', e.contains(this)); }, this)"><b>' + q.nombre + '</b><span>' + A.costos[q.id] + '</span><small>' + q.modelo + ' · ' + q.nota + '</small></label>'; }).join('')
     + '</div>'
@@ -393,6 +395,20 @@ function _rsSeguimientoHtml(cfg, editable){
     + '<textarea class="fta" id="rs-seg-txt" rows="2"' + (editable ? '' : ' disabled') + '>' + _waEsc(G.texto || RS_SEGUIMIENTO_TEXTO) + '</textarea>'
     + '<div class="sv" style="margin-top:4px">{nombre} se cambia por el nombre de la persona. Últimos 7 días: ' + enviados + ' seguimiento' + (enviados === 1 ? '' : 's') + ' enviados.</div>';
 }
+// "Comenta MOTO" (Adam, 24-oct-2026: "vamos a hacer esto"): en las publicaciones se pide comentar una palabra y Paola le
+// escribe por privado a quien la comenta, con el precio, la inicial y la cuota de la moto de la publicación. Lo hace el
+// servidor al instante y sin Claude (config/asistente.comentaMoto { activo, palabras }).
+function _rsComentaMotoHtml(cfg, editable){
+  var C = cfg.comentaMoto || {}, pal = Array.isArray(C.palabras) && C.palabras.length ? C.palabras : ['moto'];
+  var hace7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  var coms = (window._waComs || []).filter(function(c){ return c.palabraClave && String(c.hora || '') >= hace7; });
+  var dms = coms.filter(function(c){ return c.privado && c.privado.enviado; });
+  var respondieron = dms.filter(function(c){ var v = _rsComConv(c); return v && v.ultimoEntranteHora && String(v.ultimoEntranteHora) > String(c.respondidoEn || c.hora); }).length;
+  return '<h4>Comenta MOTO</h4><div class="sv">' + (C.activo ? 'Encendido. ' : 'Apagado. ') + 'Cuando alguien comenta la palabra en una publicación, Paola le escribe <b>por mensaje directo</b> con el precio de contado, la inicial y las cuotas de la moto de esa publicación, y le contesta corto en público ("te escribí por mensaje directo"). Sale al instante y no gasta Claude. Para que sepa cuál moto es, el texto de la publicación tiene que traer el modelo como está en el catálogo (por ejemplo "EK Xpress 150 Lite"); si no lo trae, le pregunta qué moto quiere. Si la persona contesta, sigue Paola.</div>'
+    + '<div class="rs-sws"><label class="rs-swf"><span class="t">Escribirle por privado a quien comente la palabra</span><input type="checkbox" role="switch" class="rs-sw" id="rs-cm-on"' + (C.activo ? ' checked' : '') + (editable ? '' : ' disabled') + '></label></div>'
+    + '<input class="fi" id="rs-cm-pal" style="width:100%" value="' + _waEsc(pal.join(', ').toUpperCase()) + '"' + (editable ? '' : ' disabled') + ' placeholder="MOTO">'
+    + '<div class="sv" style="margin-top:4px">Palabras separadas por coma (MOTO también cuenta MOTOS). Solo vale si el comentario es corto, de 5 palabras o menos. Últimos 7 días: ' + coms.length + ' comentario' + (coms.length === 1 ? '' : 's') + ' con la palabra, ' + dms.length + ' mensaje' + (dms.length === 1 ? '' : 's') + ' directo' + (dms.length === 1 ? '' : 's') + ', ' + respondieron + ' respondi' + (respondieron === 1 ? 'ó' : 'eron') + '.</div>';
+}
 // Reparto entre vendedores (Adam, 24-oct-2026: "que nadie se quede esperando"): quién recibe, por turnos, las
 // conversaciones de quien quiere comprar o pide una persona. Lo aplica el servidor (config/asistente.reparto).
 function _rsRepartoHtml(cfg, editable){
@@ -421,7 +437,7 @@ function _rsCargarCandidatos(cfg, editable){
 }
 function rsGuardarAsistente(area){
   var cfg = window._waCfg || {}, resp = Object.assign({}, cfg.responde || {}), cal = Object.assign({}, cfg.calidad || {}), datos = {};
-  document.querySelectorAll('#mbd .rs-sw').forEach(function(e){ if(e.disabled || e.id === 'rs-rep-on' || e.id === 'rs-seg-on') return; if(e.getAttribute('data-canal') === 'recordatorios') datos.recordatorios = !!e.checked; else resp[e.getAttribute('data-canal')] = !!e.checked; });
+  document.querySelectorAll('#mbd .rs-sw').forEach(function(e){ if(e.disabled || e.id === 'rs-rep-on' || e.id === 'rs-seg-on' || e.id === 'rs-cm-on') return; if(e.getAttribute('data-canal') === 'recordatorios') datos.recordatorios = !!e.checked; else resp[e.getAttribute('data-canal')] = !!e.checked; });
   var q = document.querySelector('#mbd input[name="rs-calidad"]:checked'); if(q) cal[area] = q.value;
   datos.responde = resp; datos.calidad = cal;
   var t = document.getElementById('rs-instr'); if(t){ if(area === 'ventas') datos.instruccionesVentas = t.value; else datos.instrucciones = t.value; }
@@ -436,6 +452,12 @@ function rsGuardarAsistente(area){
   if(seg && !seg.disabled){
     var tx = String(segTxt && segTxt.value || '').trim() || RS_SEGUIMIENTO_TEXTO;
     datos.seguimiento = { activo: !!seg.checked, texto: tx.slice(0, 500) };
+  }
+  var cm = document.getElementById('rs-cm-on'), cmPal = document.getElementById('rs-cm-pal');
+  if(cm && !cm.disabled){
+    var palabras = String(cmPal && cmPal.value || '').split(',').map(function(x){ return x.trim().toLowerCase(); }).filter(function(x){ return x && x.length <= 30; }).slice(0, 10);
+    if(cm.checked && !palabras.length){ if(typeof toast === 'function') toast('Escribe al menos una palabra (por ejemplo MOTO)', 'error'); return false; }
+    datos.comentaMoto = { activo: !!cm.checked, palabras: palabras.length ? palabras : ['moto'] };
   }
   datos.actualizadoPor = (S.currentUser && S.currentUser.nombre) || ''; datos.actualizadoEn = new Date().toISOString();
   return db.collection('config').doc('asistente').set(datos, { merge: true }).then(function(){

@@ -53,7 +53,10 @@ async function cfgAsistente() {
     // Redes sociales (22-oct-2026): donde contesta cada asistente (apagada, el mensaje llega y lo
     // atiende el equipo) y la calidad de Claude de cada una. Sin escoger, todo encendido y "normal".
     responde: Object.assign({ whatsappCobranza: true, whatsappVentas: true, instagram: true, comentariosIg: true, messenger: true, comentariosFb: true }, c.responde || {}),
-    calidad: Object.assign({ cobranza: 'normal', ventas: 'normal' }, c.calidad || {}) };
+    calidad: Object.assign({ cobranza: 'normal', ventas: 'normal' }, c.calidad || {}),
+    // 24-oct-2026: reparto, seguimiento y "Comenta MOTO" se guardan desde la ventana de Paola; sin estas líneas el
+    // servidor no los veía y los interruptores no hacían nada
+    reparto: c.reparto || {}, seguimiento: c.seguimiento || {}, comentaMoto: c.comentaMoto || {}, instagram: c.instagram || '' };
 }
 // Lo que necesita el asistente de ventas (Instagram): el catalogo de pagasi.io y las sedes de la 26
 // Modelos que cada sede ha financiado (créditos de la 26), con el precio del crédito más reciente.
