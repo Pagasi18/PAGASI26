@@ -30,7 +30,7 @@ const RAZON_A_ATENCION = { pide_persona: 'pide_persona', queja: 'queja', comprob
 function sinPeligro(v) { return String(v == null ? '' : v).replace(/[<>"'`\\&]/g, '').replace(/\s+/g, ' ').trim(); }
 function telDe(waId) { const d = String(waId || '').replace(/\D/g, ''); return d ? '+' + d : ''; }
 function extDe(mime) { return mime === 'image/png' ? 'png' : mime === 'application/pdf' ? 'pdf' : mime === 'image/webp' ? 'webp' : 'jpg'; }
-function textoLista(m) { return m.texto || (m.tipo === 'imagen' ? '📷 Imagen' : m.tipo === 'audio' ? '🎤 Audio' : m.tipo === 'documento' ? '📄 Documento' : m.tipo === 'video' ? '🎬 Video' : 'Mensaje'); }
+function textoLista(m) { return m.texto || ({ imagen: '📷 Imagen', audio: '🎤 Audio', documento: '📄 Documento', video: '🎬 Video', publicacion: '📌 Compartió una publicación', historia: '📣 Te mencionó en una historia', adjunto: '📎 Adjunto' })[m.tipo] || 'Mensaje'; }
 
 async function docs(q) { const s = await q.get(); return (s.docs || []).map(d => Object.assign({ id: d.id }, d.data())); }
 
@@ -196,6 +196,18 @@ async function procesarInstagram(deps, m) {
   const msgRef = convRef.collection('mensajes').doc(m.metaId);
   const entrante = { metaId: m.metaId, direccion: 'entrante', autor: 'cliente', tipo: m.tipo, texto: m.texto || '', medio: m.medio ? { url: m.medio.url, mime: m.medio.mime || '', tipoMeta: m.medio.tipoMeta || '' } : null, estado: 'recibido', hora: m.hora || ahora };
   try { await msgRef.create(entrante); } catch (e) { return { saltado: 'repetido', empresa: '26', canal: 'instagram' }; }
+  // La foto (o la de la publicación compartida) se copia a Storage: el enlace de Meta vence en horas y después la
+  // pantalla ya no la puede mostrar (24-oct-2026). Si falla, queda el enlace original.
+  if (deps.bajarUrl && entrante.medio && entrante.medio.url && (m.tipo === 'imagen' || m.tipo === 'publicacion')) {
+    try {
+      const b = await deps.bajarUrl(entrante.medio.url);
+      if (b && b.bytes && /^image\//.test(b.mime || '') && b.bytes.length <= 8 * 1024 * 1024) {
+        const ruta = 'redes_instagram/' + igsid + '/' + String(m.metaId).replace(/[^\w.-]/g, '_').slice(0, 80) + '.' + extDe(b.mime);
+        const url = await deps.storage('26').subir(ruta, b.bytes, b.mime);
+        await msgRef.set({ medio: { url, path: ruta, mime: b.mime, original: entrante.medio.url, tipoMeta: entrante.medio.tipoMeta } }, { merge: true });
+      }
+    } catch (e) { deps.log('medio-ig-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
+  }
 
   const convSnap = await convRef.get();
   const conv = convSnap.exists ? convSnap.data() : null;
@@ -591,4 +603,4 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   return { vendedor: v };
 }
 
-module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { mayus, textoLista, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };

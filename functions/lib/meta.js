@@ -39,7 +39,10 @@ function parsearInstagram(cuerpo) {
       const m = ev.message;
       if (m && m.mid && !m.is_echo && !m.is_deleted) {
         const adj = Array.isArray(m.attachments) && m.attachments[0] ? m.attachments[0] : null;
-        const tipoAdj = adj ? (adj.type === 'image' ? 'imagen' : adj.type === 'audio' ? 'audio' : adj.type === 'video' ? 'video' : 'adjunto') : null;
+        // 24-oct-2026: compartir una publicación, un reel o una historia llegaba como "adjunto" sin texto: la pantalla
+        // mostraba una burbuja vacía y Paola no se enteraba de que le habían escrito
+        const T_ADJ = { image: 'imagen', animated_image: 'imagen', audio: 'audio', video: 'video', ig_reel: 'video', reel: 'video', share: 'publicacion', ig_post: 'publicacion', story_mention: 'historia', file: 'documento' };
+        const tipoAdj = adj ? (T_ADJ[adj.type] || 'adjunto') : null;
         const texto = m.text || (adj && adj.type === 'share' && adj.payload && adj.payload.title) || '';
         mensajes.push({ canal: 'instagram', metaId: m.mid, de: String(ev.sender.id), nombre: '', tipo: m.text ? 'texto' : (tipoAdj || (m.is_unsupported ? 'adjunto' : 'texto')), texto,
           medio: adj && adj.payload && adj.payload.url ? { url: adj.payload.url, mime: '', tipoMeta: adj.type } : null, hora, cuentaNegocio: ev.recipient && ev.recipient.id ? String(ev.recipient.id) : '' });

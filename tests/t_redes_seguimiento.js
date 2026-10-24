@@ -43,6 +43,14 @@ ok('anotar agrega la nota (con quién) y vacía la casilla', ctx._waConvs[0].not
 ctx.waEtapa('ig:1', 'vendido');
 ok('cambiar la etapa se ve en la lista', ctx._waConvs[0].etapa === 'vendido' && /Vendido ✓/.test(els['wa-items'].innerHTML));
 
+// ── 1b. Fotos, publicaciones y adjuntos (24-oct-2026: "cuando el usuario manda una imagen el sistema como que crashea") ──
+const ha = (m) => ctx._waHtmlAdjunto(m);
+ok('una foto se ve (con enlace para abrirla) y si el enlace de Instagram venció lo dice en vez de quedar en blanco', /<a class="wa-foto-msg" href="https:\/\/st\/f\.jpg"[^>]*><img src="https:\/\/st\/f\.jpg"[^>]*referrerpolicy="no-referrer" onerror="_waImgFallo\(this\)">/.test(ha({ tipo: 'imagen', medio: { url: 'https://st/f.jpg' } })) && typeof ctx._waImgFallo === 'function');
+ok('compartir una publicación: su foto, "📌 Compartió una publicación" y el título', /<img src="https:\/\/x\/p\.jpg"[\s\S]*📌 Compartió una publicación<div class="pub">«BRZ 200 en cuotas»<\/div>/.test(ha({ tipo: 'publicacion', texto: 'BRZ 200 en cuotas', medio: { url: 'https://x/p.jpg' } })));
+ok('un adjunto que Instagram no deja ver lo explica (antes: burbuja vacía)', /📎 Adjunto<small>Instagram no deja verlo aquí/.test(ha({ tipo: 'adjunto', texto: '' })) && /📣 Te mencionó en una historia/.test(ha({ tipo: 'historia' })));
+ok('un video con enlace trae "Abrir"', /🎬 Video · <a href="https:\/\/x\/v\.mp4"[^>]*>Abrir<\/a>/.test(ha({ tipo: 'video', medio: { url: 'https://x/v.mp4' } })));
+ok('un mensaje de texto no lleva nada extra', ha({ tipo: 'texto', texto: 'hola' }) === '');
+
 // ── 2. 👍/👎 en las respuestas de la asistente ──
 const b = els['wa-burbujas'].innerHTML;
 ok('las respuestas de la asistente traen 👍/👎 (las del equipo y del cliente no)', (b.match(/class="wa-cal"/g) || []).length === 1 && /waCalificar\('ig:1','mid\.2','mal'\)/.test(b));

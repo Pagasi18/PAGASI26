@@ -70,7 +70,11 @@ function turnos(mensajes) {
   const t = [];
   (mensajes || []).slice(-40).forEach(m => {
     const rol = m.autor === 'cliente' ? 'user' : 'assistant';
-    let texto = m.texto || (m.tipo === 'imagen' ? '[el cliente mandó una imagen]' : m.tipo === 'audio' ? '[el cliente mandó un audio]' : m.tipo === 'documento' ? '[el cliente mandó un documento]' : '');
+    // Lo que no es texto también le llega a la asistente, para que sepa que le escribieron (24-oct-2026: compartir una
+    // publicación o un reel se perdía y Paola contestaba como si nadie hubiera escrito)
+    let texto = m.tipo === 'publicacion' ? '[compartió una publicación o anuncio de Instagram' + (m.texto ? ': «' + m.texto + '»' : '') + '. No la puedes ver: seguramente le interesa la moto que aparece ahí; si no lo dijo, pregúntale cuál]'
+      : m.texto || ({ imagen: '[el cliente mandó una imagen]', audio: '[el cliente mandó un audio]', documento: '[el cliente mandó un documento]', video: '[la persona mandó un video (no lo puedes ver)]',
+        historia: '[la persona mencionó a Pagasi en una historia de Instagram]', adjunto: '[la persona mandó algo que no se puede ver aquí (un sticker, un reel o un archivo); pregúntale con amabilidad qué necesita]' })[m.tipo] || '';
     if (m.autor === 'equipo') texto = '[respuesta del equipo de Pagasi] ' + texto;
     if (!texto) return;
     if (t.length && t[t.length - 1].role === rol) t[t.length - 1].content += '\n' + texto;

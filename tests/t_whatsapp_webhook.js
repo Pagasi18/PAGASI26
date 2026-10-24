@@ -309,6 +309,17 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     { sender: { id: '555001' }, recipient: { id: '17841400000' }, timestamp: 1760796003000, read: { mid: 'mid.out1' } } ] }] };
   const pi = meta.parsearWebhook(avisoIg);
   ok('de Instagram salen el texto y la imagen, se ignora el eco y la lectura es un estado', pi.objeto === 'instagram' && pi.mensajes.length === 2 && pi.mensajes.every(x => x.canal === 'instagram' && x.de === '555001') && pi.mensajes[0].texto === 'hola, precio de la BRZ 200?' && pi.mensajes[1].tipo === 'imagen' && pi.mensajes[1].medio.url === 'https://cdn.ig/x.jpg' && pi.estados.length === 1 && pi.estados[0].estado === 'leido' && pi.estados[0].para === '555001');
+  // Lo que no es texto (24-oct-2026: "cuando el usuario manda una imagen el sistema como que crashea")
+  const adjs = meta.parsearWebhook({ object: 'instagram', entry: [{ id: '17841400000', messaging: [
+    { sender: { id: '9' }, recipient: { id: '1' }, timestamp: 1, message: { mid: 'a1', attachments: [{ type: 'share', payload: { url: 'https://lookaside.fbsbx.com/p.jpg', title: 'BRZ 200 en cuotas' } }] } },
+    { sender: { id: '9' }, recipient: { id: '1' }, timestamp: 2, message: { mid: 'a2', attachments: [{ type: 'ig_reel', payload: { url: 'https://x/r.mp4' } }] } },
+    { sender: { id: '9' }, recipient: { id: '1' }, timestamp: 3, message: { mid: 'a3', attachments: [{ type: 'story_mention', payload: { url: 'https://x/s' } }] } },
+    { sender: { id: '9' }, recipient: { id: '1' }, timestamp: 4, message: { mid: 'a4', attachments: [{ type: 'algo_nuevo' }] } },
+    { sender: { id: '9' }, recipient: { id: '1' }, timestamp: 5, message: { mid: 'a5', attachments: [{ type: 'animated_image', payload: { url: 'https://x/g.gif' } }] } } ] }] }).mensajes;
+  ok('compartir una publicación, un reel, una historia o un GIF llega con su tipo (antes todo era "adjunto")', adjs.map(x => x.tipo).join() === 'publicacion,video,historia,adjunto,imagen' && adjs[0].texto === 'BRZ 200 en cuotas' && adjs[0].medio.url === 'https://lookaside.fbsbx.com/p.jpg');
+  const tu = cerebro.turnos([{ autor: 'cliente', tipo: 'publicacion', texto: 'BRZ 200 en cuotas' }, { autor: 'asistente', texto: '¿Qué moto?' }, { autor: 'cliente', tipo: 'adjunto', texto: '' }]);
+  ok('la asistente se entera de lo que le mandaron (antes un adjunto sin texto se perdía)', /compartió una publicación o anuncio de Instagram: «BRZ 200 en cuotas»/.test(tu[0].content) && /mandó algo que no se puede ver aquí/.test(tu[tu.length - 1].content));
+  ok('en la lista dice qué llegó', procesar.textoLista({ tipo: 'publicacion', texto: '' }) === '📌 Compartió una publicación' && procesar.textoLista({ tipo: 'adjunto' }) === '📎 Adjunto');
   let B = armar();
   const sv = ventas.armarVentas({ instrucciones: B.deps.cfg.instruccionesVentas, motos: B.catalogo.motos, cond: B.catalogo.cond, sedes: B.catalogo.sedes, hoy: HOY, nombrePerfil: 'Luis', usuario: 'luisperez.ve' });
   const plan = Cat.calcPlan(1750, 12, 0.4, Cat.condValidas(B.catalogo.cond));
@@ -432,6 +443,11 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   const convIg = B.db26._store.get('conversaciones/ig:555001');
   ok('un mensaje de Instagram crea la conversación en la 26 (área ventas) con el usuario del perfil y sin cliente ni crédito', ri.empresa === '26' && ri.canal === 'instagram' && convIg && convIg.canal === 'instagram' && convIg.area === 'ventas' && convIg.usuario === 'luisperez.ve' && convIg.nombre === 'Luis Pérez' && convIg.clienteId === '' && !convIg.cred);
   ok('...el cerebro recibió el briefing de VENTAS (catálogo, no ledger) y se respondió por Instagram', /CATÁLOGO VIGENTE/.test(B.cerebroFalso.ultimo.sistema) && !/CRÉDITO M-1/.test(B.cerebroFalso.ultimo.sistema) && B.ig.length === 1 && B.ig[0].a === '555001' && B.enviados.length === 0);
+  const bajadas = []; B.deps.bajarUrl = async (u) => { bajadas.push(u); return { bytes: Buffer.from('jpgdata'), mime: 'image/jpeg' }; };
+  await procesar.procesarMensaje(B.deps, { canal: 'instagram', metaId: 'mid.foto9', de: '555001', nombre: '', tipo: 'imagen', texto: '', medio: { url: 'https://lookaside.fbsbx.com/foto.jpg', tipoMeta: 'image' }, hora: AHORA });
+  const mf9 = B.db26._store.get('conversaciones/ig:555001/mensajes/mid.foto9');
+  ok('la foto que manda la persona por Instagram se copia a Storage (el enlace de Meta vence) y queda el original', bajadas[0] === 'https://lookaside.fbsbx.com/foto.jpg' && mf9.medio.url === 'https://st/redes_instagram/555001/mid.foto9.jpg' && mf9.medio.original === 'https://lookaside.fbsbx.com/foto.jpg' && B.subidos.some(x => x.ruta === 'redes_instagram/555001/mid.foto9.jpg'));
+  delete B.deps.bajarUrl;
   B.cerebroFalso.respuesta = { reply: 'Listo, Luis. Un asesor te escribe.', draft: { tipo: 'lead', nombre: 'Luis Pérez', ciudad: 'Maracay', modelo: 'BRZ 200', telefono: '04145550000' }, summary: 'Quiere la BRZ 200, Maracay.', handoff: true, handoffReason: 'lead' };
   ri = await procesar.procesarMensaje(B.deps, { canal: 'instagram', metaId: 'mid.3', de: '555001', nombre: '', tipo: 'texto', texto: 'soy Luis, Maracay, 0414-5550000', medio: null, hora: AHORA });
   const lead = B.db26._store.get('leads/ig:555001');

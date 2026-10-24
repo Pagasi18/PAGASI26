@@ -87,6 +87,8 @@ var _WA_CSS = '<style id="wa-css">'
   + '.wa-rr-ed{border:1px solid var(--rim);border-radius:10px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}'
   + '.wa-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;max-height:46vh;overflow:auto}.wa-foto{border:1px solid var(--rim);background:var(--surf);border-radius:10px;padding:6px;cursor:pointer;text-align:left;font:inherit}.wa-foto:hover{border-color:var(--p1)}.wa-foto img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;display:block;margin-bottom:4px}.wa-foto b{display:block;font-size:12px}.wa-foto small{color:var(--ink3);font-size:11px}'
   + '.wa-foto-ok{display:flex;gap:10px;align-items:flex-start;margin-top:12px;border-top:1px solid var(--rim);padding-top:12px}.wa-foto-ok img{width:120px;max-width:40%;aspect-ratio:4/3;object-fit:cover;border-radius:8px}'
+  + '.wa-adj{font-size:12px;color:var(--ink2);background:rgba(127,140,180,.14);border-radius:8px;padding:6px 9px;margin-bottom:4px}.wa-adj small{display:block;color:var(--ink3);font-size:11px;margin-top:2px}.wa-adj .pub{margin-top:3px;font-style:italic}.wa-adj a{color:inherit;font-weight:700}'
+  + '.wa-foto-msg{display:block}.wa-foto-msg img{max-width:240px;max-height:300px;object-fit:cover;border-radius:10px;display:block;margin-bottom:6px}'
   + '.wa-notas{display:flex;flex-direction:column;gap:6px;margin:8px 0;max-height:180px;overflow:auto}.wa-nota{background:#fff8e1;border:1px solid #f3e1a4;border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.45}.wa-nota small{display:block;color:var(--ink3);font-size:10.5px;margin-top:2px}'
   + '.wa-nota-n{display:flex;gap:6px}.wa-nota-n .fi{flex:1;min-width:0;font-size:12px}'
   + '.wa-cal{display:inline-flex;gap:2px;margin-left:4px}.wa-cal button{border:0;background:none;cursor:pointer;font-size:11px;opacity:.35;padding:0 1px;filter:grayscale(1)}.wa-cal button:hover{opacity:.8}.wa-cal button.on{opacity:1;filter:none}'
@@ -184,8 +186,8 @@ function _waPintarHilo(id){
     var t = new Date(m.hora).getTime(), sep = !antes || t - antes > 3600000 ? '<div class="wa-sep">' + _waSep(m.hora) + '</div>' : ''; antes = t;
     return sep + '<div class="wa-m ' + _waEsc(m.autor) + '">' + (m.autor === 'cliente' ? '<div class="avm' + (conv && conv.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(ini) + '</div>' : '')
       + '<div class="wa-b ' + _waEsc(m.autor) + '">' + (m.tipo === 'plantilla' ? '<div class="plantilla">Recordatorio automático</div>' : '')
-      + (m.medio && m.medio.url ? '<img src="' + _waEsc(m.medio.url) + '" alt="">' : '')
-      + _waEsc(m.texto || (m.tipo === 'imagen' ? '(imagen)' : m.tipo === 'audio' ? '(audio)' : '')).replace(/\n/g, '<br>')
+      + _waHtmlAdjunto(m)
+      + _waEsc(m.tipo === 'publicacion' ? '' : (m.texto || '')).replace(/\n/g, '<br>')
       + '<div class="meta">' + (quien ? '<span class="quien">' + _waEsc(quien) + '</span>' : '') + '<span>' + _waHora(m.hora) + '</span>' + (m.autor !== 'cliente' ? '<span title="' + _waEsc(m.estado || '') + '">' + _waEstadoIcono(m.estado) + '</span>' : '') + (m.error ? '<span class="err">' + _waEsc(m.error) + '</span>' : '') + (m.autor === 'asistente' && m.id && String(m.id).indexOf('local-') !== 0 ? _waHtmlCalificar(id, m) : '') + '</div></div></div>';
   }).join('') : '<div class="empty">Sin mensajes.</div>';
   cont.scrollTop = cont.scrollHeight;
@@ -503,6 +505,20 @@ function waCalificar(id, msgId, voto){
   if(c && waConectadoCanal(c.canal)) _waPedirAccion(id, { accion: 'calificar', msg: msgId, voto: quitar ? '' : voto, texto: nota }).then(function(){ if(!quitar) toast(voto === 'bien' ? 'Gracias: 👍 anotado' : '👎 anotado: lo revisamos para mejorar a ' + _waNombreAsis(c), 'success'); }).catch(function(x){ m.calificacion = antes; _waPintarHilo(id); toast('No se pudo calificar: ' + (x && x.message || x), 'error'); });
 }
 function _waRepintarFicha(){ var f = document.getElementById('wa-ficha'), ctx = _waCtxActual(); if(f) f.innerHTML = _waHtmlFicha(_waSeleccionada(ctx), ctx); }
+
+// Fotos, publicaciones compartidas, videos y adjuntos (Adam, 24-oct-2026: "cuando el usuario manda una imagen el sistema
+// como que crashea"): salían como una burbuja vacía. Las fotos de Instagram vienen de un enlace de Meta que vence; si ya
+// no se puede mostrar, lo dice en vez de quedar en blanco.
+var WA_ADJ = { imagen: '📷 Foto', video: '🎬 Video', audio: '🎤 Audio', documento: '📄 Documento', publicacion: '📌 Compartió una publicación', historia: '📣 Te mencionó en una historia', adjunto: '📎 Adjunto' };
+function _waHtmlAdjunto(m){
+  var url = m.medio && m.medio.url ? String(m.medio.url) : '', t = m.tipo || '', foto = url && (t === 'imagen' || t === 'publicacion');
+  var img = foto ? '<a class="wa-foto-msg" href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + _waEsc(url) + '" alt="Foto" loading="lazy" referrerpolicy="no-referrer" onerror="_waImgFallo(this)"></a>' : (url && !WA_ADJ[t] ? '<img src="' + _waEsc(url) + '" alt="" referrerpolicy="no-referrer" onerror="_waImgFallo(this)">' : '');
+  if(!WA_ADJ[t] || t === 'imagen' && foto) return img;
+  var tituloPub = t === 'publicacion' && m.texto ? '<div class="pub">«' + _waEsc(m.texto) + '»</div>' : '';
+  var nota = !url && (t === 'adjunto' || t === 'historia' || t === 'publicacion' || t === 'video') ? '<small>Instagram no deja verlo aquí: ábrelo en la app de Instagram.</small>' : '';
+  return img + '<div class="wa-adj">' + WA_ADJ[t] + (url && !foto ? ' · <a href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '') + tituloPub + nota + '</div>';
+}
+function _waImgFallo(img){ var a = img && img.closest ? img.closest('a') || img : img; if(!a || !a.parentNode) return; var d = document.createElement('div'); d.className = 'wa-adj'; d.innerHTML = '📷 Foto<small>Ya no se puede mostrar aquí (los enlaces de Instagram vencen): ábrela en la app de Instagram.</small>'; a.parentNode.replaceChild(d, a); }
 
 // "Pasar a…": el vendedor de la conversación, en la ficha
 function _waHtmlVendedor(sel){
