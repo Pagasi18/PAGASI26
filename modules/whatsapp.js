@@ -15,7 +15,7 @@ function waAbrir(id){
   var enSitio = S.page === 'redes' && (window._rsVista || 'bandeja') === 'bandeja' && document.getElementById('wa-hilo') && enLista;
   if(enSitio){ _waPintarSeleccion(); return; }
   window._rsVista = 'bandeja';
-  if(!enLista) window._rsTab = 'todos';
+  if(!enLista){ window._rsTab = 'todos'; window._waVendSel = ''; }   // que se vea aunque sea de otro vendedor
   nav('redes');
 }
 // Filtros de la lista (por pestana): la clave es redes:canal
@@ -41,8 +41,29 @@ var WA_FILTROS = [
   { id: 'hoy', nombre: 'Hoy', f: function(c){ return _waEsHoy(c.ultimoMensajeHora); } }
 ];
 function _waFiltrosDe(ctx){ return WA_FILTROS.filter(function(f){ return !f.en || f.en.indexOf(ctx.canal) > -1; }); }
-// Las conversaciones de la pestana abierta ('todos' = todos los canales que este usuario ve)
-function _waConvsDe(ctx){ return (window._waConvs || []).filter(function(c){ return ctx.canal === 'todos' || (c.canal || 'whatsapp') === ctx.canal; }); }
+// Las conversaciones de la pestana abierta ('todos' = todos los canales que este usuario ve)...
+function _waConvsCanal(ctx){ return (window._waConvs || []).filter(function(c){ return ctx.canal === 'todos' || (c.canal || 'whatsapp') === ctx.canal; }); }
+// ...y del vendedor escogido en la barra de vendedores
+function _waConvsDe(ctx){ var v = waVendSel(); return _waConvsCanal(ctx).filter(function(c){ return !v || (v === '-' ? !waVendedorDe(c) : waVendedorDe(c) === v); }); }
+// El vendedor de cada conversación (Adam, 24-oct-2026: "necesito también filtros por vendedores"). Lo anota el
+// servidor la primera vez que alguien del equipo escribe (o con "Pasar a…") y no se borra al devolverla a Paola.
+// Las de antes del 24-oct, que no lo tienen: quien la está atendiendo. Vacío = sin vendedor (solo Paola).
+function waVendedorDe(c){ if(!c) return ''; if(c.vendedor != null) return String(c.vendedor).trim(); return c.modo === 'humano' ? String(c.atendidoPor || '').trim() : ''; }
+// Lo escogido en la barra: null = todavía nada (un vendedor entra viendo lo suyo; un administrador, todo),
+// '' = todos, '-' = sin vendedor, o el nombre. Es uno solo para todas las pestañas.
+if(window._waVendSel === undefined) window._waVendSel = null;
+function waVendSel(){
+  if(window._waVendSel != null) return window._waVendSel;
+  var yo = String((S.currentUser && S.currentUser.nombre) || '').trim(), admin = typeof isAdminUser === 'function' && isAdminUser();
+  return (!admin && yo && (window._waConvs || []).some(function(c){ return waVendedorDe(c) === yo; })) ? yo : '';
+}
+function waVendedorFiltro(v){ window._waVendSel = v == null ? '' : String(v); if(!_waRefrescarEnSitio(true)) nav('redes'); }
+// Los vendedores de la pestaña, con cuántas conversaciones tiene cada uno (los nuevos aparecen solos)
+function waVendedores(ctx){
+  var o = {}, sin = 0, convs = _waConvsCanal(ctx || _waCtxActual());
+  convs.forEach(function(c){ var v = waVendedorDe(c); if(v) o[v] = (o[v] || 0) + 1; else sin++; });
+  return { total: convs.length, sin: sin, lista: Object.keys(o).map(function(k){ return { nombre: k, n: o[k] }; }).sort(function(a, b){ return b.n - a.n || a.nombre.localeCompare(b.nombre); }) };
+}
 
 var _WA_CSS = '<style id="wa-css">'
   + '.wa-cab{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:12px}.wa-cab-izq .cs{max-width:620px}.wa-cab-der{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.wa-cab .wa-tabs,.wa-cab .wa-areas{margin:0}.wa-minis{display:flex;gap:6px;flex-wrap:wrap}.wa-minis span{border:1px solid var(--rim);background:var(--surf);border-radius:999px;padding:5px 11px;font-size:11.5px;color:var(--ink3);white-space:nowrap}.wa-minis b{color:var(--ink);font-size:13px;margin-right:3px}.wa-minis .ambar b{color:#b45309}.wa-minis .verde b{color:#0f7a3e}.wa-tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}.wa-tabs button{border:1px solid var(--rim);background:var(--surf);border-radius:999px;padding:8px 14px;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink2);cursor:pointer}.wa-tabs button.on{background:var(--p1);border-color:var(--p1);color:#fff}'
@@ -54,6 +75,7 @@ var _WA_CSS = '<style id="wa-css">'
   + '.wa-item{display:grid;grid-template-columns:38px 1fr auto;gap:10px;padding:11px 12px;border-bottom:1px solid var(--rim);cursor:pointer;align-items:center}.wa-item:hover{background:var(--surf2)}.wa-item.on{background:#e8f0ff}.wa-item .av{width:38px;height:38px;border-radius:50%;background:var(--surf2);color:var(--ink2);display:grid;place-items:center;font-weight:800;font-size:12px}.wa-item .n{font-weight:800;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.wa-item .u{font-size:11.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}.wa-item .h{font-size:10.5px;color:var(--ink3);text-align:right}.wa-item .nl{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:999px;background:var(--p1);color:#fff;font-size:10px;font-weight:800;padding:0 5px;margin-top:4px}'
   + '.wa-hilo{background:var(--surf);border:1px solid var(--rim);border-radius:var(--r20);display:flex;flex-direction:column;min-height:0}.wa-hilo-top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rim);flex-wrap:wrap}.wa-hilo-top .quien b{font-size:14px}.wa-hilo-top .quien small{display:block;color:var(--ink3);font-size:11.5px}.wa-hilo-top .acc{display:flex;gap:6px;flex-wrap:wrap}'
   + '.wa-burbujas{flex:1;overflow:auto;padding:16px;background:#f3f6fc;display:flex;flex-direction:column;gap:8px;min-height:160px}.wa-b{max-width:78%;border-radius:14px;padding:9px 12px;font-size:13px;line-height:1.5;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.05)}.wa-b.cliente{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}.wa-b.asistente{align-self:flex-end;background:#dcf2ff;border-bottom-right-radius:4px}.wa-b.equipo{align-self:flex-end;background:#d9fbe6;border-bottom-right-radius:4px}.wa-b .meta{display:flex;gap:6px;justify-content:flex-end;font-size:10px;color:var(--ink3);margin-top:4px}.wa-b .meta .quien{font-weight:800}.wa-b img{max-width:220px;border-radius:10px;display:block;margin-bottom:6px}.wa-b .plantilla{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#065cff;margin-bottom:3px}'
+  + '.wa-vend-sel{border:1px solid var(--rim);border-radius:8px;background:var(--surf);color:var(--ink);font:inherit;font-size:12px;font-weight:600;padding:3px 6px;max-width:170px}'
   + '.wa-escribir{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rim)}.wa-escribir textarea{flex:1;min-height:44px;max-height:120px;resize:vertical}.wa-cerrada{padding:10px 14px;font-size:12px;color:#b45309;background:#fff4e0;border-top:1px solid #f3d9a4}'
   + '.wa-ficha{display:flex;flex-direction:column;gap:12px}.wa-ficha .card{padding:16px}.wa-ficha .ct{margin-bottom:8px}.wa-kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px solid var(--rim)}.wa-kv:first-of-type{border-top:0}.wa-kv span:last-child{font-weight:800;text-align:right}'
   + '.wa-demo-cliente{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px dashed var(--rim);background:#fffdf5}.wa-demo-cliente button{font:inherit;font-size:11px;border:1px solid var(--rim);background:#fff;border-radius:999px;padding:4px 10px;cursor:pointer}.wa-demo-cliente small{width:100%;color:var(--ink3);font-size:10.5px}'
@@ -108,6 +130,7 @@ function _waFiltrosHtml(filtros, activo, contar, fn, visibles){
 }
 function _waPintarLista(){
   var cont = document.getElementById('wa-items'); if(!cont) return;
+  if(typeof _rsPintarVendedores === 'function') _rsPintarVendedores();
   var ctx = _waCtxActual(), q = String((document.getElementById('wa-q') || {}).value || '').toLowerCase();
   var todas = _waConvsDe(ctx), filtros = _waFiltrosDe(ctx), fid = _waFiltroActual(ctx);
   var filtro = filtros.find(function(f){ return f.id === fid; }) || filtros[0];
@@ -269,6 +292,15 @@ function _waHtmlHilo(sel, ctx, conectado){
               : '<div class="wa-cerrada">La ventana de 24 horas de WhatsApp está cerrada: el cliente escribió por última vez ' + (sel.ultimoEntranteHora ? 'el ' + _waHora(sel.ultimoEntranteHora) : 'hace más de un día') + '. Solo se le puede escribir con una plantilla aprobada, o esperar a que vuelva a escribir.</div>'))
           + (conectado ? '' : '<div class="wa-demo-cliente"><small>Demostración · ' + (sel.area === 'ventas' ? 'la persona' : 'el cliente') + ' escribe:</small>' + (sel.area === 'ventas' ? ['precio de la BRZ 200?', 'qué piden para el crédito?', 'quiero una, cómo hago?', 'tienen en Maracay?', 'quiero hablar con una persona'] : ['cuánto debo?', 'ya pagué', 'pago el sábado', 'cómo pago?', 'quiero hablar con una persona', 'no puedo pagar']).map(function(t){ return '<button onclick="waDemoClienteEscribe(\'' + _waEsc(sel.id) + '\',\'' + _waEsc(t) + '\')">' + _waEsc(t) + '</button>'; }).join('') + '</div>');
 }
+// "Pasar a…": el vendedor de la conversación, en la ficha
+function _waHtmlVendedor(sel){
+  var actual = waVendedorDe(sel), yo = String((S.currentUser && S.currentUser.nombre) || '').trim();
+  var V = waVendedores({ canal: 'todos' }).lista.map(function(x){ return x.nombre; });
+  [yo, actual].forEach(function(n){ if(n && V.indexOf(n) < 0) V.push(n); });
+  return '<div class="wa-kv"><span>Vendedor</span><span><select class="wa-vend-sel" onchange="waPasarA(\'' + _waEsc(sel.id) + '\', this.value)" aria-label="Pasar a otro vendedor">'
+    + '<option value=""' + (actual ? '' : ' selected') + '>Sin vendedor (Paola)</option>'
+    + V.map(function(n){ return '<option value="' + _waEsc(n) + '"' + (n === actual ? ' selected' : '') + '>' + _waEsc(n) + (n === yo ? ' (yo)' : '') + '</option>'; }).join('') + '</select></span></div>';
+}
 function _waHtmlFicha(sel, ctx){
   var cred = sel ? (S.creds || []).find(function(x){ return x.id === sel.cred || (sel.clienteId && String(x.clienteId) === String(sel.clienteId) && x.estado !== 'cancelado'); }) : null;
   var est = null; if(cred){ try{ est = CreditoLedger.generarEstadoCredito(cred, S.pagos || [], { diasGracia: WA_GRACIA, today: hoyLocalISO() }); }catch(e){} }
@@ -280,14 +312,14 @@ function _waHtmlFicha(sel, ctx){
   return perfil + (sel && sel.area === 'ventas' ? '<div class="card"><div class="ct">Información</div>'
           + (sel.canal === 'instagram' ? '<div class="wa-kv"><span>Instagram</span><span>' + (sel.usuario ? '@' + _waEsc(sel.usuario) : '—') + '</span></div>' : '<div class="wa-kv"><span>WhatsApp</span><span>' + _waEsc(String(sel.telE164 || '').replace('+58', '0')) + '</span></div>')
           + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.nombre || '—') + '</span></div>'
-          + '<div class="wa-kv"><span>Canal</span><span>' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' · ventas</span></div>'
+          + '<div class="wa-kv"><span>Canal</span><span>' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' · ventas</span></div>' + _waHtmlVendedor(sel)
           + (sel.clienteNombre ? '<div class="wa-kv"><span>En el sistema</span><span>' + _waEsc(sel.clienteNombre) + '</span></div>' : '') + '</div>'
         + '<div class="card"><div class="ct">Lo que anotó el asistente</div>'
           + (sel.borrador && sel.borrador.tipo === 'lead' ? '<div class="wa-kv"><span>Quiere</span><span>' + _waEsc(sel.borrador.modelo || 'una moto') + '</span></div>' + (sel.borrador.nombre ? '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.borrador.nombre) + '</span></div>' : '') + (sel.borrador.cedula ? '<div class="wa-kv"><span>Cédula</span><span>' + _waEsc(sel.borrador.cedula) + '</span></div>' : '') + '<div class="wa-kv"><span>Ciudad</span><span>' + _waEsc(sel.borrador.ciudad || '—') + '</span></div>' + (sel.borrador.inicial ? '<div class="wa-kv"><span>Inicial disponible</span><span>' + _waMoney(sel.borrador.inicial) + '</span></div>' : '') + (sel.borrador.ocupacion ? '<div class="wa-kv"><span>Se dedica a</span><span>' + _waEsc(sel.borrador.ocupacion) + '</span></div>' : '') + (sel.clienteLead ? '<div class="wa-kv"><span>En el sistema</span><span>' + (sel.canal === 'instagram' ? 'Lead Instagram' : 'Lead WhatsApp') + ' · ' + _waEsc(sel.clienteLead) + '</span></div>' : '') + '<div class="wa-kv"><span>WhatsApp</span><span>' + (sel.borrador.telefono ? '<a href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '" target="_blank" rel="noopener">' + _waEsc(sel.borrador.telefono) + '</a>' : '—') + '</span></div>' + (sel.borrador.telefono && sel.canal === 'instagram' ? '<a class="btn btn-p btn-sm" style="margin-top:10px;display:inline-block" href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '?text=' + encodeURIComponent('Hola ' + (sel.borrador.nombre || '') + ', te escribo de Pagasi por la ' + (sel.borrador.modelo || 'moto') + ' que preguntaste en Instagram.') + '" target="_blank" rel="noopener">Escribirle por WhatsApp</a>' : '') + (sel.clienteLead ? '<button class="btn btn-g btn-sm" style="margin-top:10px;margin-left:6px" onclick="nav(\'clientes\');setTimeout(function(){ if(typeof verCliente===\'function\') verCliente(\'' + _waEsc(sel.clienteLead) + '\'); },150)">Ver cliente</button>' : '<button class="btn btn-g btn-sm" style="margin-top:10px;margin-left:6px" onclick="nav(\'clientes\')">Crear cliente</button>') : '<div class="cs">Todavía no dejó sus datos.</div>')
           + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '') + '</div>'
         + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
       : sel ? '<div class="card"><div class="ct">Información</div>'
-          + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.clienteNombre || sel.nombre || '—') + '</span></div>'
+          + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.clienteNombre || sel.nombre || '—') + '</span></div>' + _waHtmlVendedor(sel)
           + '<div class="wa-kv"><span>Crédito</span><span>' + (cred ? _waEsc(cred.id) + ' · ' + _waEsc(cred.modelo || '') : '—') + '</span></div>'
           + (est ? '<div class="wa-kv"><span>Cuotas</span><span>' + est.cuotasPagadas + ' de ' + est.totalCuotas + '</span></div><div class="wa-kv"><span>Próxima</span><span>' + (prox ? _waMoney(prox.saldo) + ' · ' + _waFechaCorta(prox.fechaVence) : '—') + '</span></div><div class="wa-kv"><span>Estado</span><span>' + (prox && prox.fechaVence < hoyLocalISO() ? '<span class="wa-pill rojo">Atraso ' + _waDias(prox.fechaVence, hoyLocalISO()) + ' d</span>' : '<span class="wa-pill verde">Al día</span>') + '</span></div>' : '')
           + (sel.clienteId && cred ? '<button class="btn btn-g btn-sm" style="margin-top:10px" onclick="nav(\'pagos\')">Ver en Cobranza</button>' : '') + '</div>'

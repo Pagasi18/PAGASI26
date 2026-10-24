@@ -28,12 +28,18 @@ function _rsGlobo(n){ return n > 0 ? '<span class="b">' + (n > 9 ? '9+' : n) + '
 function _rsCuenta(tab){
   if(tab === 'igcom') return (window._waComs || []).filter(function(c){ return _waEsHoy(c.hora); }).length;
   if(tab === 'messenger' || tab === 'fbcom') return 0;
-  return _waConvsDe({ canal: tab }).filter(function(c){ return (c.noLeidos || 0) > 0; }).length;
+  return _waConvsCanal({ canal: tab }).filter(function(c){ return (c.noLeidos || 0) > 0; }).length;   // los globos no dependen del vendedor escogido
 }
 
 var _RS_CSS = '<style id="rs-css">'
   + '.rs-tabs{display:flex;gap:4px;background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:6px;margin-bottom:12px;overflow-x:auto}'
   + '.rs-tabs button{border:0;background:transparent;border-radius:10px;padding:9px 14px;font:inherit;font-size:13px;font-weight:700;color:var(--ink2);cursor:pointer;display:flex;gap:7px;align-items:center;white-space:nowrap;flex:none}'
+  + '.rs-vend{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--mt-borde,var(--rim));overflow-x:auto;scrollbar-width:thin}'
+  + '.rs-vend .et{font-size:10.5px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-right:4px;flex:none}'
+  + '.rs-vend button{flex:none;display:flex;align-items:center;gap:6px;border:1px solid var(--mt-borde,var(--rim));background:var(--surf);border-radius:999px;padding:3px 10px 3px 3px;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap}'
+  + '.rs-vend button.solo{padding-left:11px}.rs-vend button:hover{background:var(--surf2)}.rs-vend button.on{background:var(--mt-sel,#e8f0ff);border-color:var(--mt-azul,#0866ff);color:var(--mt-azul,#0866ff)}'
+  + '.rs-vend button i{font-style:normal;font-size:11px;font-weight:700;color:var(--ink3);font-variant-numeric:tabular-nums}.rs-vend button.on i{color:var(--mt-azul,#0866ff)}'
+  + '.rs-vend .av{width:22px;height:22px;border-radius:50%;color:#fff;font-size:9.5px;font-weight:800;display:grid;place-items:center;flex:none}'
   + '.rs-tabs button:hover{background:var(--surf2)}.rs-tabs button.on{background:#e8f0ff;color:#065cff}'
   + '.rs-tabs .b{background:#c81e1e;color:#fff;border-radius:999px;font-size:10.5px;font-weight:800;padding:1px 7px;line-height:16px}'
   + '.rs-tabs .pend{background:var(--surf2);color:var(--ink3);border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px}'
@@ -92,6 +98,22 @@ var _RS_CSS = '<style id="rs-css">'
 
 function rsTab(t){ window._rsTab = t; window._rsVista = 'bandeja'; window._waSel = null; nav('redes'); }
 function rsVista(v){ window._rsVista = v; nav('redes'); }
+
+// La barra de vendedores, debajo de las pestañas (Adam, 24-oct-2026: "necesito también filtros por vendedores…
+// pronto vamos a tener más… ponle una barra abajo de esta"). Cada vendedor con su inicial y cuántas conversaciones
+// tiene en la pestaña; los nuevos aparecen solos. Si no caben, la barra se desliza de lado.
+var _RS_VEND_COL = ['#2563EB', '#06B06A', '#F59E0B', '#8B5CF6', '#0E9488', '#E8335A', '#0EA5E9', '#B45309'];
+function _rsColorDe(n){ var h = 0; String(n).split('').forEach(function(ch){ h = (h * 31 + ch.charCodeAt(0)) >>> 0; }); return _RS_VEND_COL[h % _RS_VEND_COL.length]; }
+function _rsVendInner(){
+  var V = waVendedores(_waCtxActual()), sel = waVendSel();
+  var primeros = {}; V.lista.forEach(function(x){ var p = x.nombre.split(/\s+/)[0].toLowerCase(); primeros[p] = (primeros[p] || 0) + 1; });
+  var corto = function(n){ var w = n.split(/\s+/), p = w[0]; return (primeros[p.toLowerCase()] > 1 ? n : p).replace(/^./, function(c){ return c.toUpperCase(); }); };
+  var chip = function(v, html, n, titulo, solo){ return '<button class="' + (sel === v ? 'on' : '') + (solo ? ' solo' : '') + '" data-v="' + _waEsc(v) + '" onclick="waVendedorFiltro(this.getAttribute(\'data-v\'))"' + (titulo ? ' title="' + _waEsc(titulo) + '"' : '') + '>' + html + '<i>' + n + '</i></button>'; };
+  return '<span class="et">Vendedor</span>' + chip('', 'Todos', V.total, '', true)
+    + V.lista.map(function(x){ return chip(x.nombre, '<span class="av" style="background:' + _rsColorDe(x.nombre) + '">' + _waEsc(_waIni(x.nombre).toUpperCase()) + '</span>' + _waEsc(corto(x.nombre)), x.n, x.nombre); }).join('')
+    + chip('-', 'Sin vendedor', V.sin, 'Las que atiende solo Paola', true);
+}
+function _rsPintarVendedores(){ var e = document.getElementById('rs-vend'); if(e) e.innerHTML = _rsVendInner(); }
 
 // Globos de las pestañas y contadores de arriba, en el sitio (al llegar mensajes o comentarios)
 function _rsPintarContadores(){
@@ -427,7 +449,7 @@ PG.redes = function(){
     setTimeout(function(){ var b = document.querySelector('.rs-tabs button.on'), f = b && b.parentNode; if(f && b.offsetLeft + b.offsetWidth > f.clientWidth) f.scrollLeft = b.offsetLeft - 12; }, 0);
     if(tab === 'messenger' || tab === 'fbcom') h += _rsPanelPendiente(tab);
     else if(tab === 'igcom') h += _rsPanelComentarios();
-    else h += _waPanelConversaciones(ctx);
+    else h += '<div class="rs-vend" id="rs-vend" role="group" aria-label="Filtrar por vendedor">' + _rsVendInner() + '</div>' + _waPanelConversaciones(ctx);
     h += '</div>';
   }
   h += '</div>';

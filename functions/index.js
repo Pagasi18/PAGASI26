@@ -114,7 +114,7 @@ async function quienEscribe(req) {
     try {
       const dec = await getAuth(apps[emp]).verifyIdToken(tok);
       const u = await bases[emp].collection('usuarios').doc(dec.uid).get();
-      if (u.exists && u.data().rol !== 'Aliado' && u.data().suspendido !== true && u.data().eliminado !== true) return { empresa: emp, uid: dec.uid, nombre: u.data().nombre || dec.email || 'Equipo', admin: ['Administrador', 'admin'].includes(u.data().rol) };
+      if (u.exists && u.data().rol !== 'Aliado' && u.data().suspendido !== true && u.data().eliminado !== true) return { empresa: emp, uid: dec.uid, nombre: u.data().nombre || dec.email || 'Equipo', admin: ['Administrador', 'admin'].includes(u.data().rol), permisos: Array.isArray(u.data().permisos) ? u.data().permisos : [] };
     } catch (e) { /* no es de esta compania */ }
   }
   return null;
@@ -130,10 +130,16 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
   }
   if (req.method !== 'POST') return res.status(405).send('método no permitido');
 
-  // El panel: POST /equipo { empresa, conv, texto }
+  // El panel: POST /equipo { empresa, conv, texto } · { empresa, conv, accion: 'vendedor', vendedor } (Pasar a…)
   if (/\/equipo\/?$/.test(req.path || '')) {
     const quien = await quienEscribe(req);
     if (!quien) return res.status(401).json({ error: 'Sin sesión del sistema' });
+    if ((req.body || {}).accion === 'vendedor') {
+      try {
+        const r = await procesar.cambiarVendedor({ bases, ahora: () => new Date().toISOString() }, { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), vendedor: (req.body || {}).vendedor, quien });
+        return res.status(200).json(Object.assign({ ok: true }, r));
+      } catch (e) { return res.status(e.codigo === 'permiso' ? 403 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
+    }
     try {
       const cfg = await cfgAsistente();
       const r = await procesar.enviarEquipo(armarDeps(cfg), { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), texto: (req.body || {}).texto, por: quien.nombre });

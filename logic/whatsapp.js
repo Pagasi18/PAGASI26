@@ -263,7 +263,20 @@ function _waActualizar(id, cambios, accion){
 }
 // Tras una accion sobre la conversacion: refrescar en el sitio si la pantalla esta puesta; si no, nav
 function _waTrasCambio(id){ if(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio(true)) return; if(typeof nav === 'function') nav('redes'); }
-function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){ toast('La conversación es tuya: el asistente se calla hasta que la devuelvas', 'success'); _waTrasCambio(id); }); }
+function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){
+  // Si todavía no tiene vendedor, queda como suya (también cuando la devuelva a Paola)
+  var c = _waConv(id); if(c && !c.vendedor){ c.vendedor = yo; if(waConectadoCanal(c.canal)) _waPedirVendedor(id, yo).catch(function(){}); }
+  toast('La conversación es tuya: el asistente se calla hasta que la devuelvas', 'success'); _waTrasCambio(id); }); }
+// "Pasar a…" otro vendedor (o dejarla sin vendedor). Lo guarda el servidor: las Reglas no dejan escribir ese campo.
+function waPasarA(id, nombre){
+  var c = _waConv(id); if(!c) return Promise.resolve();
+  nombre = String(nombre || '').trim();
+  var antes = c.vendedor; c.vendedor = nombre;
+  if(typeof logActividad === 'function') logActividad('wa_vendedor', 'whatsapp', id, { vendedor: nombre });
+  var listo = function(){ toast(nombre ? 'La conversación queda con ' + nombre : 'La conversación queda sin vendedor', 'success'); _waTrasCambio(id); };
+  if(!waConectadoCanal(c.canal)){ listo(); return Promise.resolve(); }
+  return _waPedirVendedor(id, nombre).then(listo).catch(function(e){ c.vendedor = antes; toast('No se pudo cambiar el vendedor: ' + (e && e.message || e), 'error'); _waTrasCambio(id); });
+}
 function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa_devolver').then(function(){ toast('El asistente vuelve a atender', 'info'); _waTrasCambio(id); }); }
 function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ _waTrasCambio(id); }); }
 // Ventana de 24 h de Meta: solo se puede escribir libre si el cliente escribió en las últimas 24 h
@@ -275,7 +288,7 @@ function waEnviarEquipo(id, texto){
   if(!waVentanaAbierta(c)){ toast(c.canal === 'instagram' ? 'La ventana de 7 días de Instagram está cerrada: solo se puede escribir cuando la persona vuelva a escribir.' : 'La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return false; }
   var m = { autor: 'equipo', direccion: 'saliente', tipo: 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
   (_waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []).push(Object.assign({ id: 'local-' + Date.now() }, m));
-  Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por });
+  Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por, vendedor: c.vendedor || m.por });
   if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m);
   if(typeof logActividad === 'function') logActividad('wa_mensaje_equipo', 'whatsapp', id, { largo: texto.length });
   if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
@@ -286,6 +299,14 @@ function waEnviarEquipo(id, texto){
 // en config/asistente.urlEquipo.
 var WA_URL_EQUIPO = 'https://pagasi-webhook-5ao0p23z.ue.gateway.dev/equipo';   // la puerta pública (API Gateway) delante del servidor
 function waEmpresa(){ return (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG && FIREBASE_CONFIG.projectId === 'pagasi-v2') ? '18' : '26'; }
+function _waPedirVendedor(id, nombre){
+  var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
+  var user = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) || null;
+  if(!user) return Promise.reject(new Error('sin sesión'));
+  return user.getIdToken().then(function(tok){
+    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify({ empresa: waEmpresa(), conv: id, accion: 'vendedor', vendedor: nombre }) });
+  }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
+}
 function _waMandarAlServidor(id, texto, m){
   var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
   var fallo = function(msg){ m.estado = 'fallo'; toast('No se pudo enviar: ' + msg, 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); };

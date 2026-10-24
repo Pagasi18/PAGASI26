@@ -485,8 +485,24 @@ async function enviarEquipo(deps, { empresa, convId, texto, por }) {
   const metaId = await em.enviarTexto(destino(conv), texto, { humano: canal === 'instagram' && desde >= 24 * 3600 * 1000 });
   const msg = { metaId, direccion: 'saliente', autor: 'equipo', tipo: 'texto', texto, estado: 'enviado', error: '', hora: ahora, por: por || 'Equipo' };
   await ref.collection('mensajes').doc(metaId || ('eq-' + Date.now())).set(msg);
-  await ref.set({ modo: 'humano', atendidoPor: por || 'Equipo', ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, { merge: true });
+  // El primero del equipo que escribe queda como vendedor de la conversación (no se borra al devolverla a Paola)
+  await ref.set(Object.assign({ modo: 'humano', atendidoPor: por || 'Equipo', ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, conv.vendedor ? {} : { vendedor: por || 'Equipo' }), { merge: true });
   return { metaId };
 }
 
-module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+// El vendedor de la conversación (Adam, 24-oct-2026: "necesito también filtros por vendedores"). Queda
+// aunque la conversación se le devuelva a Paola; lo cambia ("Pasar a…") quien ve ese canal en su compañía.
+// Vacío = sin vendedor. No toca 'actualizado' para no mover la conversación en la lista.
+async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
+  const db = deps.bases[empresa]; if (!db) throw Object.assign(new Error('Compañía desconocida'), { codigo: 'empresa' });
+  if (!quien || (quien.empresa !== empresa && !quien.admin)) throw Object.assign(new Error('No puedes cambiar conversaciones de otra compañía'), { codigo: 'permiso' });
+  const ref = db.collection('conversaciones').doc(String(convId || ''));
+  const d = await ref.get(); if (!d.exists) throw Object.assign(new Error('Conversación no encontrada'), { codigo: 'conversacion' });
+  const canal = canalDe(d.data());
+  if (!quien.admin && !(quien.permisos || []).includes(canal)) throw Object.assign(new Error('No tienes el canal ' + (canal === 'instagram' ? 'Instagram' : 'WhatsApp')), { codigo: 'permiso' });
+  const v = String(vendedor || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  await ref.set({ vendedor: v, vendedorCambiadoPor: quien.nombre || 'Equipo', vendedorCambiado: deps.ahora() }, { merge: true });
+  return { vendedor: v };
+}
+
+module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
