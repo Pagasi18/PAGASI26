@@ -45,6 +45,11 @@ function _waFiltrosDe(ctx){ return WA_FILTROS.filter(function(f){ return !f.en |
 function _waConvsCanal(ctx){ return (window._waConvs || []).filter(function(c){ return ctx.canal === 'todos' || (c.canal || 'whatsapp') === ctx.canal; }); }
 // ...y del vendedor escogido en la barra de vendedores
 function _waConvsDe(ctx){ var v = waVendSel(); return _waConvsCanal(ctx).filter(function(c){ return !v || (v === '-' ? !waVendedorDe(c) : waVendedorDe(c) === v); }); }
+// Desde cuándo espera a una persona (quiere comprar, pidió una persona, queja…). El servidor lo anota desde el
+// 24-oct-2026 (atencionDesde); las de antes, desde su último mensaje.
+function waEsperaDesde(c){ return c && c.atencion ? (c.atencionDesde || c.ultimoEntranteHora || c.ultimoMensajeHora || '') : ''; }
+function waEsperaMin(c, ahora){ var d = waEsperaDesde(c); if(!d) return null; var m = Math.floor(((ahora || Date.now()) - new Date(d).getTime()) / 60000); return isFinite(m) ? Math.max(0, m) : null; }
+function _waEsperaTexto(m){ return m < 60 ? m + ' min' : m < 48 * 60 ? Math.floor(m / 60) + ' h' : Math.floor(m / 1440) + ' d'; }
 // El vendedor de cada conversación (Adam, 24-oct-2026: "necesito también filtros por vendedores"). Lo anota el
 // servidor la primera vez que alguien del equipo escribe (o con "Pasar a…") y no se borra al devolverla a Paola.
 // Las de antes del 24-oct, que no lo tienen: quien la está atendiendo. Vacío = sin vendedor (solo Paola).
@@ -139,13 +144,15 @@ function _waPintarLista(){
   var convs = todas
     .filter(filtro.f)
     .filter(function(c){ return !q || (String(c.nombre || '') + ' ' + String(c.telE164 || '') + ' ' + String(c.clienteNombre || '') + ' ' + String(c.usuario || '')).toLowerCase().indexOf(q) > -1; })
-    .slice().sort(function(a, b){ return (b.atencion ? 1 : 0) - (a.atencion ? 1 : 0) || String(b.ultimoMensajeHora || '').localeCompare(String(a.ultimoMensajeHora || '')); });
+    // Las que esperan a una persona van primero, la que más lleva esperando arriba (Adam, 24-oct-2026)
+    .slice().sort(function(a, b){ return (b.atencion ? 1 : 0) - (a.atencion ? 1 : 0) || (a.atencion ? String(waEsperaDesde(a)).localeCompare(String(waEsperaDesde(b))) : 0) || String(b.ultimoMensajeHora || '').localeCompare(String(a.ultimoMensajeHora || '')); });
   cont.innerHTML = convs.length ? convs.map(function(c){
     // Como la bandeja de Meta: foto redonda con la marca de la red, nombre, "Paola: ..." y etiquetas
     var quien = c.ultimoAutor === 'equipo' ? 'Tú: ' : c.ultimoAutor === 'asistente' ? _waNombreAsis(c) + ': ' : '';
     var tags = [_waEsCobranza(c) ? '<span>Cobranza</span>' : '<span>Ventas</span>'];
     if(c.atencion) tags.push('<span class="' + (/pide_persona|queja|error/.test(c.atencion) ? 'rojo' : c.atencion === 'lead' ? 'verde' : 'ambar') + '">' + _waAtencion(c.atencion).replace(/<[^>]+>/g, '') + '</span>');
     else if(c.borrador && c.borrador.tipo === 'lead') tags.push('<span class="verde">Quiere comprar</span>');
+    var esp = waEsperaMin(c); if(esp != null) tags.push('<span class="' + (esp >= 60 ? 'rojo' : 'ambar') + '" title="Esperando a una persona desde ' + _waEsc(_waHora(waEsperaDesde(c))) + '">⏱ ' + _waEsperaTexto(esp) + '</span>');
     if(c.modo === 'humano') tags.push('<span>Lo atiende ' + _waEsc(c.atendidoPor || 'el equipo') + '</span>');
     return '<div class="wa-item' + (c.id === window._waSel ? ' on' : '') + '" onclick="waAbrir(\'' + _waEsc(c.id) + '\')"' + (c.noLeidos ? ' data-nl="1"' : '') + '>'
       + '<div class="av' + (c.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(_waIni(c.nombre || c.clienteNombre)) + '<span class="cn ' + (c.canal === 'instagram' ? 'ig' : 'wa') + '" title="' + (c.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + '">' + _waIcono(c.canal === 'instagram' ? 'ig' : 'wa') + '</span></div>'

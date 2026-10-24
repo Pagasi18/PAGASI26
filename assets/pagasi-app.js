@@ -2216,6 +2216,9 @@ function startRealtime(){
   if(!db || !S || !S.currentUser || _rtStarted) return;
   stopRealtime();
   _rtStarted = true;
+  // Redes sociales: quien tiene el módulo escucha sus canales desde que entra, para que el aviso de
+  // "nueva conversación para ti" le llegue en cualquier pantalla (24-oct-2026)
+  if(typeof waVigilar === 'function') setTimeout(function(){ try{ waVigilar(); }catch(e){} }, 3000);
   var especs = [
     {col:'motos', key:'motos', map:mapMoto},
     {col:'clientes', key:'clientes'},

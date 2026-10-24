@@ -144,6 +144,26 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   ok('si ya existe un cliente con ese teléfono no se duplica: se le anota lo del chat', !A.db26._store.get('clientes/WA-04170000000') && A.db26._store.get('clientes/77').lead_chat && A.db26._store.get('clientes/77').lead_chat.modelo === 'GTL 150' && A.db26._store.get('conversaciones/wa:+584170000000').clienteLead === '77');
   const leadWa = A.db26._store.get('leads/wa:+584160000000');
   ok('...cuando quiere comprar queda el lead de WhatsApp con el teléfono ya puesto y la conversación "Quiere comprar"', leadWa && leadWa.canal === 'whatsapp' && leadWa.telefono === '584160000000' && leadWa.modelo === 'Kavak 250' && A.db26._store.get('conversaciones/wa:+584160000000').atencion === 'lead');
+  // Reparto entre vendedores (24-oct-2026, Adam: "que nadie se quede esperando")
+  const cvA = A.db26._store.get('conversaciones/wa:+584160000000');
+  ok('sin reparto encendido no se asigna a nadie, pero queda desde cuándo espera', !cvA.vendedor && cvA.atencion === 'lead' && cvA.atencionDesde === AHORA);
+  A.deps.cfg.reparto = { activo: true, vendedores: ['Liz Alejandra', 'Marianne Molina'] };
+  const quiere = { reply: 'Listo. Un asesor te escribe.', draft: { tipo: 'lead', nombre: 'Rosa Díaz', modelo: 'BRZ 200' }, summary: 'Quiere la BRZ.', handoff: true, handoffReason: 'lead' };
+  const persona = { reply: 'Ya te paso con una persona.', draft: null, summary: 'Pide una persona.', handoff: true, handoffReason: 'pide_persona' };
+  A.cerebroFalso.respuesta = quiere; await procesar.procesarMensaje(A.deps, msgVentas('584180000001', 'quiero la BRZ', 'wamid.r1'));
+  A.cerebroFalso.respuesta = persona; await procesar.procesarMensaje(A.deps, msgVentas('584180000002', 'quiero hablar con alguien', 'wamid.r2'));
+  A.cerebroFalso.respuesta = quiere; await procesar.procesarMensaje(A.deps, msgVentas('584180000003', 'me interesa', 'wamid.r3'));
+  const vd = n => (A.db26._store.get('conversaciones/wa:+58418000000' + n) || {}).vendedor;
+  ok('con el reparto encendido, quien quiere comprar o pide una persona se asigna por turnos: Liz, Marianne, Liz', vd(1) === 'Liz Alejandra' && vd(2) === 'Marianne Molina' && vd(3) === 'Liz Alejandra');
+  ok('...queda cuándo se asignó y el turno se guarda en config/asistente', A.db26._store.get('conversaciones/wa:+584180000001').asignadoEn === AHORA && (A.db26._store.get('config/asistente') || {}).reparto.ultimo === 'Liz Alejandra');
+  A.cerebroFalso.respuesta = quiere; await procesar.procesarMensaje(A.deps, msgVentas('584180000001', 'sigo interesada', 'wamid.r4'));
+  ok('una conversación que ya tiene vendedor no se reasigna ni gasta turno', vd(1) === 'Liz Alejandra' && A.deps.cfg.reparto.ultimo === 'Liz Alejandra');
+  await A.db26.collection('conversaciones').doc('wa:+584180000005').set({ canal: 'whatsapp', area: 'ventas', telE164: '+584180000005', modo: 'humano', atendidoPor: 'Adam' });
+  ok('ni una que ya atiende una persona', await procesar.repartir(A.deps, A.db26._store.get('conversaciones/wa:+584180000005'), 'lead') === '');
+  ok('ni por otros motivos (error del asistente, revisar, comprobante)', await procesar.repartir(A.deps, {}, 'error') === '' && await procesar.repartir(A.deps, {}, 'comprobante') === '');
+  A.deps.cfg.reparto = { activo: false, vendedores: ['Liz Alejandra'] };
+  ok('apagado o sin vendedores en la lista, no asigna', await procesar.repartir(A.deps, {}, 'lead') === '' && await procesar.repartir(Object.assign({}, A.deps, { cfg: { reparto: { activo: true, vendedores: [] } } }), {}, 'lead') === '');
+  A.deps.cfg.reparto = { activo: true, vendedores: ['Liz Alejandra', 'Marianne Molina'] };
   A.cerebroFalso.respuesta = null; delete A.deps.cfg.numeros;
   ok('el área se decide por el número de negocio cuando hay uno de ventas configurado', procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000', cobranza: '0422-0000000' } } }, { telefonoNegocio: '584125550000' }, 'C26') === 'ventas' && procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000' } } }, { telefonoNegocio: '584220000000' }, 'C26') === 'cobranza' && procesar.areaDe({ cfg: {} }, { telefonoNegocio: '584220000000' }, '') === 'cobranza');
   // promesa y handoff del cerebro
@@ -153,6 +173,8 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   A.cerebroFalso.respuesta = { reply: 'Ya te paso con una persona.', draft: null, summary: 'Se queja del cobro.', handoff: true, handoffReason: 'queja' };
   await procesar.procesarMensaje(A.deps, msgTexto('584141234567', 'esto está mal cobrado', 'wamid.a3'));
   ok('la queja marca la conversación para una persona', A.db26._store.get('conversaciones/wa:+584141234567').atencion === 'queja');
+  ok('...en cobranza no se reparte entre vendedores (la atiende el equipo de cobranza), pero queda desde cuándo espera', !A.db26._store.get('conversaciones/wa:+584141234567').vendedor && A.db26._store.get('conversaciones/wa:+584141234567').atencionDesde === AHORA);
+  delete A.deps.cfg.reparto;
   // modo humano: el asistente se calla
   await A.db26.collection('conversaciones').doc('wa:+584141234567').set({ modo: 'humano', atendidoPor: 'Samantha' }, { merge: true });
   const antes = A.enviados.length;

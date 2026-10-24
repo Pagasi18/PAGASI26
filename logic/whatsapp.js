@@ -203,10 +203,89 @@ function waAbrirConversaciones(canal, cb){
   _waRoot._waUnsubs[canal] = db.collection('conversaciones').where('canal', '==', canal).orderBy('actualizado', 'desc').limit(200).onSnapshot(function(snap){
     var otras = (_waRoot._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') !== canal; });
     _waRoot._waConvs = otras.concat(snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }));
+    try{ _waAvisar(canal, _waRoot._waConvs.filter(function(c){ return (c.canal || 'whatsapp') === canal; })); }catch(e){}
     // Si la pantalla esta puesta se refresca en el sitio (lista, contadores, hilo si cambio); si no, nav
     if(S.page === 'redes'){ if(!(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio()) && typeof nav === 'function') nav(S.page); }
     if(cb){ cb(_waRoot._waConvs); cb = null; }
   }, function(e){ console.warn('conversaciones ' + canal + ':', e); if(cb) cb([]); });
+}
+// Avisos al vendedor (Adam, 24-oct-2026: "que nadie se quede esperando"): cuando le asignan una conversación, o
+// alguien de las suyas que espera a una persona (o que él atiende) le escribe, suena un aviso y sale un mensaje,
+// esté en la pantalla que esté. La primera foto de cada canal no avisa (es lo que ya había).
+_waRoot._waVistos = _waRoot._waVistos || {};
+function _waAvisar(canal, convs){
+  var yo = String((S.currentUser && S.currentUser.nombre) || '').trim(), prev = _waRoot._waVistos[canal], ahora = {};
+  var nuevas = [], escribieron = [];
+  convs.forEach(function(c){
+    var v = typeof waVendedorDe === 'function' ? waVendedorDe(c) : '';
+    ahora[c.id] = { v: v, e: c.ultimoEntranteHora || '' };
+    if(!prev || !yo || v !== yo) return;
+    var p = prev[c.id];
+    if(!p || p.v !== yo) nuevas.push(c);
+    else if(String(c.ultimoEntranteHora || '') > p.e && c.ultimoAutor === 'cliente' && (c.modo === 'humano' || c.atencion)) escribieron.push(c);
+  });
+  _waRoot._waVistos[canal] = ahora;
+  _waTitulo();
+  if(!nuevas.length && !escribieron.length) return;
+  _waSonar();
+  var nom = function(c){ return _waEsc(c.nombre || c.clienteNombre || c.usuario || 'alguien'); };
+  if(typeof toast === 'function'){
+    if(nuevas.length) toast(nuevas.length === 1 ? 'Nueva conversación para ti: <b>' + nom(nuevas[0]) + '</b>' : nuevas.length + ' conversaciones nuevas para ti', 'info');
+    if(escribieron.length) toast(escribieron.length === 1 ? '<b>' + nom(escribieron[0]) + '</b> te escribió' : escribieron.length + ' de tus conversaciones tienen mensajes nuevos', 'info');
+  }
+}
+// Los sonidos del aviso, hechos en el navegador (sin archivos). Adam, 24-oct-2026: "ponme un botón del sonido en el
+// módulo de redes para probar y que lo puedan cambiar los vendedores". Cada quien escoge el suyo; se guarda en su
+// navegador. notas: [frecuencia, empieza (s), dura (s), forma]; barrido: [de Hz, a Hz, dura (s)].
+var WA_SONIDOS = [
+  { id: 'dingdong', nombre: 'Ding-dong', desc: 'Dos notas, como un timbre', notas: [[880, 0, 0.38], [1320, 0.17, 0.38]] },
+  { id: 'campana', nombre: 'Campanita', desc: 'Una campana clara', notas: [[1568, 0, 0.9], [3136, 0, 0.45]] },
+  { id: 'pip', nombre: 'Pip-pip', desc: 'Dos pitidos cortos', notas: [[1046, 0, 0.12, 'triangle'], [1046, 0.17, 0.12, 'triangle']] },
+  { id: 'tres', nombre: 'Tres notas', desc: 'Sube: do, mi, sol', notas: [[523, 0, 0.28], [659, 0.13, 0.28], [784, 0.26, 0.45]] },
+  { id: 'gota', nombre: 'Gota', desc: 'Un "plop" suave', barrido: [1300, 480, 0.2] },
+  { id: 'nada', nombre: 'Sin sonido', desc: 'Solo el mensaje en la pantalla' }
+];
+function waSonidoActual(){ var v = ''; try{ v = localStorage.getItem('pg_sonido_redes') || ''; }catch(e){} return WA_SONIDOS.some(function(x){ return x.id === v; }) ? v : 'dingdong'; }
+function waSonidoGuardar(id){ if(!WA_SONIDOS.some(function(x){ return x.id === id; })) return; try{ localStorage.setItem('pg_sonido_redes', id); }catch(e){} }
+var _waAudio = null;
+// Suena el aviso escogido (o el que se pasa, para probarlo). Fuera de las pruebas, como máximo uno cada 4 segundos.
+function _waSonar(id, probar){
+  try{
+    var son = WA_SONIDOS.filter(function(x){ return x.id === (id || waSonidoActual()); })[0];
+    if(!son || son.id === 'nada') return;
+    var Ctx = window.AudioContext || window.webkitAudioContext; if(!Ctx) return;
+    if(!probar){ if(Date.now() - (_waSonar.ult || 0) < 4000) return; _waSonar.ult = Date.now(); }
+    _waAudio = _waAudio || new Ctx(); if(_waAudio.state === 'suspended' && _waAudio.resume) _waAudio.resume();
+    var t0 = _waAudio.currentTime + 0.02;
+    var tono = function(f, ini, dur, forma, hasta){
+      var o = _waAudio.createOscillator(), g = _waAudio.createGain(), t = t0 + ini, vol = forma === 'triangle' ? 0.16 : 0.22;
+      o.type = forma || 'sine'; o.frequency.setValueAtTime(f, t); if(hasta) o.frequency.exponentialRampToValueAtTime(hasta, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(_waAudio.destination); o.start(t); o.stop(t + dur + 0.05);
+    };
+    if(son.barrido) tono(son.barrido[0], 0, son.barrido[2], 'sine', son.barrido[1]);
+    (son.notas || []).forEach(function(n){ tono(n[0], n[1], n[2], n[3]); });
+  }catch(e){}
+}
+// El navegador solo deja sonar después de que la persona tocó algo: al primer clic se prepara el sonido
+if(typeof document !== 'undefined' && document.addEventListener && !_waRoot._waAudioListo){
+  _waRoot._waAudioListo = true;
+  document.addEventListener('click', function(){ try{ var Ctx = window.AudioContext || window.webkitAudioContext; if(!Ctx) return; _waAudio = _waAudio || new Ctx(); if(_waAudio.state === 'suspended' && _waAudio.resume) _waAudio.resume(); }catch(e){} }, true);
+}
+// En la pestaña del navegador: (3) cuando hay mensajes sin leer en tus conversaciones
+function _waTitulo(){
+  if(typeof document === 'undefined') return;
+  var yo = String((S.currentUser && S.currentUser.nombre) || '').trim();
+  var base = _waRoot._waTituloBase || (_waRoot._waTituloBase = String(document.title || '').replace(/^\(\d+\)\s*/, ''));
+  var n = !yo || typeof waVendedorDe !== 'function' ? 0 : (_waRoot._waConvs || []).filter(function(c){ return waVendedorDe(c) === yo && (c.noLeidos || 0) > 0; }).length;
+  document.title = (n ? '(' + n + ') ' : '') + base;
+}
+// Al entrar al sistema, quien tiene Redes queda escuchando sus canales para que los avisos lleguen en cualquier pantalla
+function waVigilar(){
+  if(!(S && S.currentUser) || typeof hasModuleAccess !== 'function') return;
+  var veWa = hasModuleAccess('whatsapp'), veIg = hasModuleAccess('instagram');
+  if(!veWa && !veIg) return;
+  waCargarCfg(function(){ if(veWa && waConectado()) waAbrirConversaciones('whatsapp'); if(veIg && waConectadoCanal('instagram')) waAbrirConversaciones('instagram'); });
 }
 function waAbrirMensajes(id, cb){
   // La conexion que manda es la del canal de ESTA conversacion (Instagram puede estar conectado

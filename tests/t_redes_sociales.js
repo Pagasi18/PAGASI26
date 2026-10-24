@@ -114,7 +114,7 @@ ctx._waCfg = Object.assign({}, ctx._waCfg, { responde: { comentariosIg: false },
 ctx.rsAsistente('ventas');
 let v = els['mbd'].innerHTML;
 ok('la ventana de Paola se abre con su nombre', els['mtt'].textContent === 'Paola de Pagasi' && els['ov'].style.display === 'flex' && /Hoy contestó en/.test(els['msb'].textContent));
-ok('Dónde responde Paola: Instagram, WhatsApp ventas, comentarios de Instagram, y Messenger y comentarios de Facebook sin conectar', /Dónde responde Paola/.test(v) && (v.match(/class="rs-sw"/g) || []).length === 5 && (v.match(/sin conectar/g) || []).length === 2);
+ok('Dónde responde Paola: Instagram, WhatsApp ventas, comentarios de Instagram, y Messenger y comentarios de Facebook sin conectar', /Dónde responde Paola/.test(v) && (v.match(/class="rs-sw" data-canal=/g) || []).length === 5 && (v.match(/sin conectar/g) || []).length === 2);
 ok('...con los comentarios de Instagram apagados como estaban guardados', /data-canal="comentariosIg">/.test(v) && /data-canal="instagram" checked>/.test(v));
 ok('la calidad: Económica, Normal y Máxima con lo que cuesta, y marcada la que se escogió', /Económica[\s\S]*Normal[\s\S]*Máxima/.test(v) && /\$75–160 al mes/.test(v) && /class="rs-q on"><input type="radio" name="rs-calidad" value="economica" checked/.test(v));
 ok('lo que Paola debe saber trae lo que ya estaba escrito', /Lo que Paola debe saber/.test(v) && /Casco gratis esta semana/.test(v));

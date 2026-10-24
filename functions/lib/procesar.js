@@ -179,6 +179,7 @@ async function procesarMensaje(deps, m) {
   if (r.draft && r.draft.tipo === 'promesa') cambios.borrador = r.draft;
   if (!u.clienteId) { r.handoff = true; r.handoffReason = r.handoffReason || 'no_cliente'; }
   if (r.handoff) cambios.atencion = RAZON_A_ATENCION[r.handoffReason] || 'pide_persona';
+  if (cambios.atencion && !(conv && conv.atencion)) cambios.atencionDesde = ahora;   // desde cuándo espera a una persona
   await responder(deps, convRef, base, r.reply, ahora, cambios);
   return { empresa: u.empresa, respondido: true, handoff: !!r.handoff, draft: r.draft || null };
 }
@@ -305,8 +306,27 @@ async function responderVentas(deps, x) {
     if (clienteLead) { cambios.clienteLead = clienteLead; lead.clienteLead = clienteLead; }
     await db.collection('leads').doc(x.leadId).set(Object.assign({ canal, convId: x.leadId, usuario: base.usuario || '', nombrePerfil: base.nombre || '', telE164: base.telE164 || '', clienteId: base.clienteId || '', estado: 'nuevo', creado: ahora }, lead, { actualizado: ahora, resumen: r.summary || '' }), { merge: true });
   } else if (r.handoff) cambios.atencion = RAZON_A_ATENCION[r.handoffReason] || 'pide_persona';
+  if (cambios.atencion && !(conv && conv.atencion)) cambios.atencionDesde = ahora;   // desde cuándo espera a una persona
+  const asignado = cambios.atencion ? await repartir(deps, conv, cambios.atencion) : '';
+  if (asignado) { cambios.vendedor = asignado; cambios.asignadoEn = ahora; deps.log('reparto', { canal, area: 'ventas' }); }
   await responder(deps, convRef, base, r.reply, ahora, cambios);
   return { empresa: x.empresa, canal, area: 'ventas', respondido: true, handoff: !!r.handoff || !!(r.draft && r.draft.tipo === 'lead'), draft: r.draft || null };
+}
+
+// Reparto entre vendedores (Adam, 24-oct-2026: "que nadie se quede esperando"). Cuando alguien quiere comprar o
+// pide una persona y la conversación todavía no tiene vendedor (ni la está atendiendo alguien), se le asigna al
+// siguiente de la lista, por turnos. La lista y el interruptor están en config/asistente.reparto (ventana de
+// Paola): { activo, vendedores: [nombres], ultimo }. Devuelve el nombre asignado o ''.
+const ATENCION_REPARTO = ['lead', 'pide_persona', 'queja'];
+async function repartir(deps, conv, atencion) {
+  const R = (deps.cfg && deps.cfg.reparto) || {};
+  const lista = (Array.isArray(R.vendedores) ? R.vendedores : []).map(v => String(v || '').trim()).filter(Boolean);
+  if (!R.activo || !lista.length || !ATENCION_REPARTO.includes(atencion)) return '';
+  if (conv && (conv.vendedor || conv.modo === 'humano')) return '';
+  const sig = lista[(lista.indexOf(String(R.ultimo || '')) + 1) % lista.length];
+  R.ultimo = sig;   // por si en el mismo aviso llega otra
+  try { await deps.bases['26'].collection('config').doc('asistente').set({ reparto: { ultimo: sig } }, { merge: true }); } catch (e) { deps.log('reparto-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
+  return sig;
 }
 
 // El lead del chat entra a Clientes como "Lead Instagram" / "Lead WhatsApp" (estado lead, igual que
@@ -505,4 +525,4 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   return { vendedor: v };
 }
 
-module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, repartir, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
