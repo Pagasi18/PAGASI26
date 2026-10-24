@@ -72,6 +72,23 @@ setImmediate(() => {
   ok('al enviar va la foto con el enlace completo de pagasi.io y su texto', ultimo.tipo === 'imagen' && ultimo.medio.url === 'https://pagasi.io/assets/motos/brz-200.jpg' && ultimo.texto === 'Esta es la BRZ 200' && toasts.some(t => /Foto enviada: BRZ 200/.test(t)));
   ok('...y se le pide al servidor con la foto (imagen) en el mismo envío del equipo', /JSON\.stringify\(Object\.assign\(\{ empresa: waEmpresa\(\), conv: id, texto: texto \}, imagen \? \{ imagen: imagen \} : \{\}\)\)/.test(src('logic/whatsapp.js')));
 
+  // ── 2b. Del chat a la solicitud ──
+  ctx.S.clientes = [{ id: 'IG-123', nombre: 'LUIS PEREZ', tel: '04141112233' }];
+  ctx.S.concesionarios = [{ id: 'CONC-7', nombre: 'EK Bello Monte' }];
+  const lead = { id: 'ig:9', canal: 'instagram', area: 'ventas', nombre: 'Luis', ultimoMensajeHora: hoy, ultimoEntranteHora: hoy, usuario: 'luisp', clienteLead: 'IG-123', resumen: 'Quiere la BRZ.', borrador: { tipo: 'lead', nombre: 'LUIS PEREZ', cedula: 'V-12345678', telefono: '0414-111.22.33', ciudad: 'Caracas', direccion: 'Petare, calle 2', ocupacion: 'Mototaxista', ingreso: 400, inicial: 700, modelo: 'BRZ 200', sede: 'EK Bello Monte', fiador: 'José Pérez · V-11222333 · 0412-5556677', ref1: 'Ana Gil · 0414-1112233', ref2: 'Luis Díaz · 0424-4445566' } };
+  const pre = ctx.waPreloadSolicitud(lead);
+  ok('la solicitud se abre con los datos del cliente que anotó Paola', pre.wz_nom === 'LUIS PEREZ' && pre.wz_ci === 'V-12345678' && pre.wz_tel === '04141112233' && pre.wz_ciudad === 'Caracas' && pre.wz_dir_det === 'Petare, calle 2' && pre.wz_cargo === 'Mototaxista' && pre.wz_ing === 400 && pre.wz_conocio === 'redes' && pre.clienteSel === 'IG-123');
+  ok('...con el fiador y las referencias', pre.fiador_tiene === 'si' && pre.wz_fiador_nom === 'José Pérez' && pre.wz_fiador_ci === 'V-11222333' && pre.wz_fiador_tel === '0412-5556677' && pre.wz_r1n === 'Ana Gil' && pre.wz_r1t === '0414-1112233' && pre.wz_r2n === 'Luis Díaz');
+  ok('...con la moto (y su precio del catálogo) y la sede de Concesionarios', pre.motoModelo === 'BRZ 200' && pre.precio === 1750 && pre.wz_concesionarioId === 'CONC-7');
+  ok('...y en las notas lo que no tiene casilla: de dónde viene, la inicial que tiene y el resumen', /Viene del chat de Instagram \(@luisp\)\. Inicial disponible: \$700\. Resumen de Paola: Quiere la BRZ\./.test(pre.wz_obs));
+  let abierto = null; ctx.openAddCred = () => { abierto = ctx._wzPreload; }; ctx._puedeVender = () => true; ctx.hasModuleAccess = () => true;
+  ctx._waConvs.push(lead); ctx.waPasarASolicitud('ig:9');
+  ok('"Pasar a solicitud" abre la Nueva solicitud con esos datos', abierto && abierto.wz_nom === 'LUIS PEREZ');
+  ctx._waSel = 'ig:9'; ctx._rsTab = 'todos'; ['wa-items', 'wa-filtros', 'wa-hilo', 'wa-ficha', 'wa-q', 'rs-vend'].forEach(el); ctx.PG.redes(); flush();
+  ok('el botón sale en la ficha de quien quiere comprar', /onclick="waPasarASolicitud\('ig:9'\)">Pasar a solicitud<\/button>/.test(els['wa-ficha'].innerHTML));
+  ctx._puedeVender = () => false; ctx.PG.redes(); flush();
+  ok('...pero no en la compañía que ya no vende (PAGASI 18)', !/Pasar a solicitud/.test(els['wa-ficha'].innerHTML));
+
   // ── 3. Nombres escapados en el panel (auditoría A4) ──
   const c2 = { console, document: { getElementById() { return null; } } };
   vm.createContext(c2);

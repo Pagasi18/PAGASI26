@@ -411,6 +411,57 @@ function _waFotoEnviar(){
   if(waEnviarEquipo(id, t ? t.value : '', _waFotoUrl(m))){ closeM(); toast('Foto enviada: ' + _waEsc(m.name), 'success'); }
 }
 
+// ── Del chat a la solicitud (Adam, 24-oct-2026: "arranca con todo") ──
+// Abre la Nueva solicitud con lo que Paola anotó en el chat, para no volver a escribirlo. Lo que no tiene casilla
+// (la inicial que tiene, a qué se dedica, el resumen) va en las notas. El vendedor revisa y completa antes de guardar.
+function waPuedeSolicitud(){ return typeof openAddCred === 'function' && (typeof _puedeVender !== 'function' || _puedeVender()) && (typeof hasModuleAccess !== 'function' || hasModuleAccess('creditos')); }
+function waPreloadSolicitud(c){
+  var L = (c && c.borrador && c.borrador.tipo === 'lead') ? c.borrador : {}, pre = { step: 1 };
+  var poner = function(k, v){ if(v == null || v === '' || v === 0) return; pre['wz_' + k] = v; pre[k] = v; };
+  var partes = function(t){ return String(t || '').split(/\s*[·|]\s*/).map(function(x){ return x.trim(); }); };
+  var cli = (S.clientes || []).find(function(x){ return x && (String(x.id) === String(c.clienteLead || L.clienteLead || '') || (c.clienteId && String(x.id) === String(c.clienteId))); });
+  var tel = String(L.telefono || (cli && cli.tel) || '').replace(/\D/g, ''), wa = String(c.telE164 || '').replace(/\D/g, '');
+  if(tel.length >= 10){ tel = tel.replace(/^58/, ''); tel = tel.charAt(0) === '0' ? tel : '0' + tel; } else tel = '';
+  poner('nom', L.nombre || (cli && cli.nombre) || '');
+  poner('ci', L.cedula || (cli && (cli.cedula || cli.ci)) || '');
+  poner('tel', tel);
+  if(wa.length >= 11) poner('wa', '0' + wa.replace(/^58/, ''));
+  poner('ciudad', L.ciudad || (cli && cli.ciudad) || '');
+  poner('dir_det', L.direccion || '');
+  poner('cargo', L.ocupacion || '');
+  if(+L.ingreso > 0) poner('ing', +L.ingreso);
+  pre.wz_conocio = pre.conocio = 'redes';
+  if(L.fiador){ var f = partes(L.fiador); pre.fiador_tiene = 'si'; poner('fiador_nom', f[0]); poner('fiador_ci', f[1]); poner('fiador_tel', f[2]); }
+  [['r1', L.ref1], ['r2', L.ref2]].forEach(function(r){ if(!r[1]) return; var p = partes(r[1]); poner(r[0] + 'n', p[0]); poner(r[0] + 't', p[1]); });
+  if(cli) pre.clienteSel = cli.id;
+  // La moto y la sede, si están en el catálogo y en Concesionarios
+  if(L.modelo){
+    var mod = String(L.modelo).toLowerCase(), cat = ((typeof _cat !== 'undefined' && _cat.motos) || []).concat(typeof CATALOGO !== 'undefined' ? CATALOGO : []);
+    var m = cat.find(function(x){ var n = String(x.name || x.modelo || '').toLowerCase(); return n && (n === mod || n.indexOf(mod) > -1 || mod.indexOf(n) > -1); });
+    pre.motoModelo = m ? (m.name || m.modelo) : L.modelo;
+    if(m && +m.precio > 0){ pre.precio = +m.precio; pre.wz_precio = +m.precio; }
+    if(m && m.marca) pre.marca = pre.wz_marca = m.marca;
+  }
+  if(L.sede){
+    var sd = String(L.sede).toLowerCase(), cc = (S.concesionarios || []).find(function(x){ var n = String(x.nombre || '').toLowerCase(); return x && !x.eliminado && n && (n === sd || n.indexOf(sd) > -1 || sd.indexOf(n) > -1); });
+    if(cc) pre.wz_concesionarioId = pre.concesionarioId = cc.id;
+  }
+  var notas = ['Viene del chat de ' + (c.canal === 'instagram' ? 'Instagram' + (c.usuario ? ' (@' + c.usuario + ')' : '') : 'WhatsApp') + '.'];
+  if(+L.inicial > 0) notas.push('Inicial disponible: $' + (+L.inicial).toLocaleString('es-VE') + '.');
+  if(L.sede && !pre.concesionarioId) notas.push('Sede que pidió: ' + L.sede + '.');
+  if(c.resumen) notas.push('Resumen de Paola: ' + c.resumen);
+  pre.wz_obs = pre.obs = notas.join(' ');
+  return pre;
+}
+function waPasarASolicitud(id){
+  var c = _waConv(id); if(!c) return;
+  if(!waPuedeSolicitud()){ toast('No tienes acceso para abrir solicitudes', 'error'); return; }
+  window._wzEditando = null;
+  window._wzPreload = waPreloadSolicitud(c);
+  if(typeof logActividad === 'function') logActividad('wa_a_solicitud', 'redes', id, {});
+  openAddCred();
+}
+
 // "Pasar a…": el vendedor de la conversación, en la ficha
 function _waHtmlVendedor(sel){
   var actual = waVendedorDe(sel), yo = String((S.currentUser && S.currentUser.nombre) || '').trim();
@@ -435,7 +486,8 @@ function _waHtmlFicha(sel, ctx){
           + (sel.clienteNombre ? '<div class="wa-kv"><span>En el sistema</span><span>' + _waEsc(sel.clienteNombre) + '</span></div>' : '') + '</div>'
         + '<div class="card"><div class="ct">Lo que anotó el asistente</div>'
           + (sel.borrador && sel.borrador.tipo === 'lead' ? '<div class="wa-kv"><span>Quiere</span><span>' + _waEsc(sel.borrador.modelo || 'una moto') + '</span></div>' + (sel.borrador.nombre ? '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.borrador.nombre) + '</span></div>' : '') + (sel.borrador.cedula ? '<div class="wa-kv"><span>Cédula</span><span>' + _waEsc(sel.borrador.cedula) + '</span></div>' : '') + '<div class="wa-kv"><span>Ciudad</span><span>' + _waEsc(sel.borrador.ciudad || '—') + '</span></div>' + (sel.borrador.inicial ? '<div class="wa-kv"><span>Inicial disponible</span><span>' + _waMoney(sel.borrador.inicial) + '</span></div>' : '') + (sel.borrador.ocupacion ? '<div class="wa-kv"><span>Se dedica a</span><span>' + _waEsc(sel.borrador.ocupacion) + '</span></div>' : '') + (sel.clienteLead ? '<div class="wa-kv"><span>En el sistema</span><span>' + (sel.canal === 'instagram' ? 'Lead Instagram' : 'Lead WhatsApp') + ' · ' + _waEsc(sel.clienteLead) + '</span></div>' : '') + '<div class="wa-kv"><span>WhatsApp</span><span>' + (sel.borrador.telefono ? '<a href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '" target="_blank" rel="noopener">' + _waEsc(sel.borrador.telefono) + '</a>' : '—') + '</span></div>' + (sel.borrador.telefono && sel.canal === 'instagram' ? '<a class="btn btn-p btn-sm" style="margin-top:10px;display:inline-block" href="https://wa.me/' + _waEsc(sel.borrador.telefono) + '?text=' + encodeURIComponent('Hola ' + (sel.borrador.nombre || '') + ', te escribo de Pagasi por la ' + (sel.borrador.modelo || 'moto') + ' que preguntaste en Instagram.') + '" target="_blank" rel="noopener">Escribirle por WhatsApp</a>' : '') + (sel.clienteLead ? '<button class="btn btn-g btn-sm" style="margin-top:10px;margin-left:6px" onclick="nav(\'clientes\');setTimeout(function(){ if(typeof verCliente===\'function\') verCliente(\'' + _waEsc(sel.clienteLead) + '\'); },150)">Ver cliente</button>' : '<button class="btn btn-g btn-sm" style="margin-top:10px;margin-left:6px" onclick="nav(\'clientes\')">Crear cliente</button>') : '<div class="cs">Todavía no dejó sus datos.</div>')
-          + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '') + '</div>'
+          + (sel.resumen ? '<div class="cs" style="margin-top:10px;line-height:1.5"><b>Resumen:</b> ' + _waEsc(sel.resumen) + '</div>' : '')
+          + (sel.borrador && sel.borrador.tipo === 'lead' && waPuedeSolicitud() ? '<button class="btn btn-p btn-sm" style="margin-top:10px;width:100%" onclick="waPasarASolicitud(\'' + _waEsc(sel.id) + '\')">Pasar a solicitud</button><div class="cs" style="margin-top:4px">Abre la solicitud con lo que anotó Paola; revisa y completa antes de guardar.</div>' : '') + '</div>'
         + '<div class="card"><div class="ct">Alertas</div>' + (sel.atencion ? _waAtencion(sel.atencion) + '<div class="cs" style="margin-top:8px">Cuando lo resuelvas, toca "Visto".</div>' : '<div class="cs">Nada pendiente.</div>') + '</div>'
       : sel ? '<div class="card"><div class="ct">Información</div>'
           + '<div class="wa-kv"><span>Nombre</span><span>' + _waEsc(sel.clienteNombre || sel.nombre || '—') + '</span></div>' + _waHtmlVendedor(sel)
