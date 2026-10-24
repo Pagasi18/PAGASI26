@@ -25,6 +25,9 @@ function yaDisculpado(historial, ahora) {
 const ACK_COMPROBANTE = '¡Gracias! Recibí tu comprobante y lo pasé al equipo de Pagasi para confirmarlo. En cuanto lo registren te aviso por aquí.';
 const RAZON_A_ATENCION = { pide_persona: 'pide_persona', queja: 'queja', comprobante: 'comprobante', no_puede_pagar: 'pide_persona', descuento: 'pide_persona', no_cliente: 'pide_persona', lead: 'lead', otro: 'pide_persona' };
 
+// Lo que escribe la persona en el chat y Paola anota (nombre, dirección, fiador…) se muestra en varias pantallas:
+// sin los caracteres que podrían armar código en el navegador (auditoría del 24-oct-2026, A4)
+function sinPeligro(v) { return String(v == null ? '' : v).replace(/[<>"'`\\&]/g, '').replace(/\s+/g, ' ').trim(); }
 function telDe(waId) { const d = String(waId || '').replace(/\D/g, ''); return d ? '+' + d : ''; }
 function extDe(mime) { return mime === 'image/png' ? 'png' : mime === 'application/pdf' ? 'pdf' : mime === 'image/webp' ? 'webp' : 'jpg'; }
 function textoLista(m) { return m.texto || (m.tipo === 'imagen' ? '📷 Imagen' : m.tipo === 'audio' ? '🎤 Audio' : m.tipo === 'documento' ? '📄 Documento' : m.tipo === 'video' ? '🎬 Video' : 'Mensaje'); }
@@ -298,6 +301,7 @@ async function responderVentas(deps, x) {
   if (r.draft && r.draft.tipo === 'lead') {
     const previo = (conv && conv.borrador && conv.borrador.tipo === 'lead') ? conv.borrador : {};
     const lead = Object.assign({}, previo, Object.fromEntries(Object.entries(r.draft).filter(([, v]) => v)));   // lo nuevo completa lo que ya habia
+    Object.keys(lead).forEach(k => { if (typeof lead[k] === 'string') lead[k] = sinPeligro(lead[k]); });   // viene del chat: sin < > " ' ` \ &
     if (!lead.telefono && x.telefono) lead.telefono = x.telefono;
     if (lead.cedula) lead.cedula = cedulaLimpia(lead.cedula);   // V-12345678, aunque el modelo la mande con puntos
     cambios.borrador = lead;
@@ -492,18 +496,38 @@ async function procesarComentario(deps, c) {
 
 // El equipo escribe desde el panel. WhatsApp: solo dentro de la ventana de 24 h de Meta.
 // Instagram: dentro de la ventana va normal; hasta 7 dias despues va como agente humano.
-async function enviarEquipo(deps, { empresa, convId, texto, por }) {
+// Quién puede escribir o cambiar algo en una conversación (auditoría del 24-oct-2026, A3): un administrador, o quien
+// tiene el permiso de ese canal y no es vendedor de concesionario, de su misma compañía.
+function puedeCanal(quien, canal, empresa) {
+  if (!quien) return false;
+  if (quien.admin) return true;
+  return quien.empresa === empresa && quien.rol !== 'Vendedor Concesionario' && (quien.permisos || []).includes(canal);
+}
+// Las fotos que manda el equipo: solo las del sitio (catálogo) o las de Firebase Storage
+const FOTO_OK = /^https:\/\/((18\.)?pagasi\.io\/assets\/[\w\/.%-]+\.(jpe?g|png|webp)|firebasestorage\.googleapis\.com\/[^\s"'<>]+)$/i;
+async function enviarEquipo(deps, { empresa, convId, texto, por, quien, imagen }) {
   const db = deps.bases[empresa]; if (!db) throw Object.assign(new Error('Compañía desconocida'), { codigo: 'empresa' });
-  texto = String(texto || '').trim(); if (!texto) throw Object.assign(new Error('Sin texto'), { codigo: 'texto' });
+  texto = String(texto || '').trim(); imagen = String(imagen || '').trim();
+  if (imagen && !FOTO_OK.test(imagen)) throw Object.assign(new Error('Esa foto no se puede mandar'), { codigo: 'imagen' });
+  if (!texto && !imagen) throw Object.assign(new Error('Sin texto'), { codigo: 'texto' });
   const ref = db.collection('conversaciones').doc(convId);
   const d = await ref.get(); if (!d.exists) throw Object.assign(new Error('Conversación no encontrada'), { codigo: 'conversacion' });
   const conv = d.data(), ahora = deps.ahora(), canal = canalDe(conv);
+  if (quien && !puedeCanal(quien, canal, empresa)) throw Object.assign(new Error('No tienes el canal ' + (canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' para escribir'), { codigo: 'permiso' });
   const desde = conv.ultimoEntranteHora ? Date.parse(ahora) - Date.parse(conv.ultimoEntranteHora) : Infinity;
   const limite = canal === 'instagram' ? 7 * 24 : 24;
   if (desde >= limite * 3600 * 1000) throw Object.assign(new Error(canal === 'instagram' ? 'Pasaron más de 7 días desde el último mensaje de la persona: hay que esperar a que vuelva a escribir.' : 'La ventana de 24 horas está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.'), { codigo: 'ventana' });
   const em = emisor(deps, canal); if (!em) throw Object.assign(new Error('Ese canal no está configurado'), { codigo: 'canal' });
-  const metaId = await em.enviarTexto(destino(conv), texto, { humano: canal === 'instagram' && desde >= 24 * 3600 * 1000 });
-  const msg = { metaId, direccion: 'saliente', autor: 'equipo', tipo: 'texto', texto, estado: 'enviado', error: '', hora: ahora, por: por || 'Equipo' };
+  const humano = canal === 'instagram' && desde >= 24 * 3600 * 1000;
+  let metaId;
+  if (imagen) {
+    // WhatsApp lleva el texto como pie de la foto; Instagram, la foto y después el texto
+    if (canal === 'instagram') { metaId = await em.enviarImagen(destino(conv), imagen, { humano }); if (texto) await em.enviarTexto(destino(conv), texto, { humano }); }
+    else metaId = await em.enviarImagen(destino(conv), imagen, texto);
+  } else metaId = await em.enviarTexto(destino(conv), texto, { humano });
+  const msg = { metaId, direccion: 'saliente', autor: 'equipo', tipo: imagen ? 'imagen' : 'texto', texto, estado: 'enviado', error: '', hora: ahora, por: por || 'Equipo' };
+  if (imagen) msg.medio = { url: imagen };
+  if (!texto) texto = '📷 Foto';
   await ref.collection('mensajes').doc(metaId || ('eq-' + Date.now())).set(msg);
   // El primero del equipo que escribe queda como vendedor de la conversación (no se borra al devolverla a Paola).
   // Si esperaba a una persona, ya la atendieron: se quita la marca (24-oct-2026; antes solo con Visto o Atender yo).
@@ -520,10 +544,10 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   const ref = db.collection('conversaciones').doc(String(convId || ''));
   const d = await ref.get(); if (!d.exists) throw Object.assign(new Error('Conversación no encontrada'), { codigo: 'conversacion' });
   const canal = canalDe(d.data());
-  if (!quien.admin && !(quien.permisos || []).includes(canal)) throw Object.assign(new Error('No tienes el canal ' + (canal === 'instagram' ? 'Instagram' : 'WhatsApp')), { codigo: 'permiso' });
+  if (!puedeCanal(quien, canal, empresa)) throw Object.assign(new Error('No tienes el canal ' + (canal === 'instagram' ? 'Instagram' : 'WhatsApp')), { codigo: 'permiso' });
   const v = String(vendedor || '').replace(/\s+/g, ' ').trim().slice(0, 60);
   await ref.set({ vendedor: v, vendedorCambiadoPor: quien.nombre || 'Equipo', vendedorCambiado: deps.ahora() }, { merge: true });
   return { vendedor: v };
 }
 
-module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, repartir, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { mayus, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };

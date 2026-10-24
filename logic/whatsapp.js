@@ -360,15 +360,16 @@ function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa
 function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ _waTrasCambio(id); }); }
 // Ventana de 24 h de Meta: solo se puede escribir libre si el cliente escribió en las últimas 24 h
 function waVentanaAbierta(conv, ahora){ if(!conv || !conv.ultimoEntranteHora) return false; var t = (ahora ? new Date(ahora) : new Date()).getTime() - new Date(conv.ultimoEntranteHora).getTime(); return t < (conv.canal === 'instagram' ? 7 * 24 : 24) * 3600 * 1000; }
-// Devuelve true si el mensaje salió (la caja de escribir solo se vacía entonces)
-function waEnviarEquipo(id, texto){
-  var c = _waConv(id); texto = String(texto || '').trim();
-  if(!c || !texto) return false;
+// Devuelve true si el mensaje salió (la caja de escribir solo se vacía entonces). imagen: la foto de una moto (enlace)
+function waEnviarEquipo(id, texto, imagen){
+  var c = _waConv(id); texto = String(texto || '').trim(); imagen = String(imagen || '').trim();
+  if(!c || (!texto && !imagen)) return false;
   if(!waVentanaAbierta(c)){ toast(c.canal === 'instagram' ? 'La ventana de 7 días de Instagram está cerrada: solo se puede escribir cuando la persona vuelva a escribir.' : 'La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return false; }
-  var m = { autor: 'equipo', direccion: 'saliente', tipo: 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
+  var m = { autor: 'equipo', direccion: 'saliente', tipo: imagen ? 'imagen' : 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
+  if(imagen) m.medio = { url: imagen };
   (_waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []).push(Object.assign({ id: 'local-' + Date.now() }, m));
-  Object.assign(c, { ultimoMensaje: texto, ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por, vendedor: c.vendedor || m.por, atencion: '', noLeidos: 0 });   // ya la atendieron
-  if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m);
+  Object.assign(c, { ultimoMensaje: texto || '📷 Foto', ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por, vendedor: c.vendedor || m.por, atencion: '', noLeidos: 0 });   // ya la atendieron
+  if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m, imagen);
   if(typeof logActividad === 'function') logActividad('wa_mensaje_equipo', 'whatsapp', id, { largo: texto.length });
   if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
   return true;
@@ -386,13 +387,13 @@ function _waPedirVendedor(id, nombre){
     return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify({ empresa: waEmpresa(), conv: id, accion: 'vendedor', vendedor: nombre }) });
   }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
 }
-function _waMandarAlServidor(id, texto, m){
+function _waMandarAlServidor(id, texto, m, imagen){
   var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
   var fallo = function(msg){ m.estado = 'fallo'; toast('No se pudo enviar: ' + msg, 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); };
   var user = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) || null;
   if(!user){ fallo('sin sesión'); return Promise.resolve(); }
   return user.getIdToken().then(function(tok){
-    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify({ empresa: waEmpresa(), conv: id, texto: texto }) });
+    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify(Object.assign({ empresa: waEmpresa(), conv: id, texto: texto }, imagen ? { imagen: imagen } : {})) });
   }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); m.estado = 'enviado'; }); })
     .catch(function(e){ fallo(e && e.message || e); });
 }

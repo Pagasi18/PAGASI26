@@ -327,7 +327,7 @@ PG.creditos = function(){
       var sedeName = c.concesionarioId ? (((_concGetById(c.concesionarioId)||{}).nombre)||'—') : '—';
       return`<tr style="cursor:pointer" onclick="openAmort('${c.id}')">
       <td class="tdm" style="font-family:var(--fd)">${c.id}</td>
-      <td style="max-width:140px"><div class="tdm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="${c.cli}">${c.cli}</div></td>
+      <td style="max-width:140px"><div class="tdm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="${pgEsc(c.cli)}">${pgEsc(c.cli)}</div></td>
       <td class="tds">${c.modelo||'—'}</td>
       <td class="tds" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${sedeName}">${sedeName}</td>
       <td class="tds" style="font-family:var(--fd);font-size:11px;color:var(--ink3);white-space:nowrap">${fechaFmt}${horaCre?`<div style="font-size:9.5px;opacity:.75">${horaCre}</div>`:''}</td>
@@ -419,7 +419,7 @@ PG.creditos = function(){
         return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--rim2);cursor:pointer" onclick="openAmort('${c.id}')">
           <div style="width:24px;height:24px;border-radius:50%;background:${hasMora?'var(--reds)':'var(--gs)'};color:${hasMora?'var(--red)':'var(--p1)'};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;flex-shrink:0">${i+1}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.cli}</div>
+            <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${pgEsc(c.cli)}</div>
             <div style="font-size:10px;color:var(--ink3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
               <span style="font-family:var(--fd)">${c.id}</span> · ${c.modelo||'—'}${hasMora?` · <span style="color:var(--red);font-weight:700">${c.mora}d mora</span>`:''}
             </div>

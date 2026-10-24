@@ -105,6 +105,9 @@ function anotarGasto(area, g) {
 }
 
 // Quien escribe desde el panel: su token de Firebase (de la 26 o de la 18) y su ficha en /usuarios
+// Tope de mensajes del equipo por persona (auditoría del 24-oct-2026, A3): 20 por minuto en cada instancia
+const _envios = new Map();
+function topeEquipo(uid) { const t = Date.now(), l = (_envios.get(uid) || []).filter(x => t - x < 60000); if (l.length >= 20) return false; l.push(t); _envios.set(uid, l); return true; }
 async function quienEscribe(req) {
   // Detrás de la puerta pública (API Gateway) el Authorization original del panel llega en
   // X-Forwarded-Authorization; directo a Cloud Run, en Authorization.
@@ -114,7 +117,7 @@ async function quienEscribe(req) {
     try {
       const dec = await getAuth(apps[emp]).verifyIdToken(tok);
       const u = await bases[emp].collection('usuarios').doc(dec.uid).get();
-      if (u.exists && u.data().rol !== 'Aliado' && u.data().suspendido !== true && u.data().eliminado !== true) return { empresa: emp, uid: dec.uid, nombre: u.data().nombre || dec.email || 'Equipo', admin: ['Administrador', 'admin'].includes(u.data().rol), permisos: Array.isArray(u.data().permisos) ? u.data().permisos : [] };
+      if (u.exists && u.data().rol !== 'Aliado' && u.data().suspendido !== true && u.data().eliminado !== true) return { empresa: emp, uid: dec.uid, nombre: u.data().nombre || dec.email || 'Equipo', admin: ['Administrador', 'admin'].includes(u.data().rol), rol: u.data().rol || '', permisos: Array.isArray(u.data().permisos) ? u.data().permisos : [] };
     } catch (e) { /* no es de esta compania */ }
   }
   return null;
@@ -140,11 +143,12 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
         return res.status(200).json(Object.assign({ ok: true }, r));
       } catch (e) { return res.status(e.codigo === 'permiso' ? 403 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
     }
+    if (!topeEquipo(quien.uid)) return res.status(429).json({ error: 'Demasiados mensajes seguidos: espera un minuto', codigo: 'tope' });
     try {
       const cfg = await cfgAsistente();
-      const r = await procesar.enviarEquipo(armarDeps(cfg), { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), texto: (req.body || {}).texto, por: quien.nombre });
+      const r = await procesar.enviarEquipo(armarDeps(cfg), { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), texto: (req.body || {}).texto, imagen: (req.body || {}).imagen, por: quien.nombre, quien });
       return res.status(200).json({ ok: true, metaId: r.metaId });
-    } catch (e) { return res.status(e.codigo === 'ventana' ? 409 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
+    } catch (e) { return res.status(e.codigo === 'ventana' ? 409 : e.codigo === 'permiso' ? 403 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
   }
 
   // El panel: POST /aliados { accion: 'crear' | 'clave' | 'acceso', ... } — accesos al portal de

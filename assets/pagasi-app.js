@@ -3723,8 +3723,8 @@ function confirmarEliminacion(opts){
   $('modal-box').className='modal';
   $('mbd').innerHTML = '<div style="text-align:center;padding:8px 0 14px">'
     +'<div style="font-size:40px;margin-bottom:10px"></div>'
-    +'<div style="font-size:14px;font-weight:800;margin-bottom:6px">'+(opts.descripcion||'¿Confirmar eliminación?')+'</div>'
-    +'<div style="color:var(--ink3);font-size:12px;margin-bottom:14px">Quedará registrado como eliminado por <strong>'+((S.currentUser&&S.currentUser.nombre)||'Administrador')+'</strong></div>'
+    +'<div style="font-size:14px;font-weight:800;margin-bottom:6px">'+pgHtmlSeguro(opts.descripcion||'¿Confirmar eliminación?')+'</div>'
+    +'<div style="color:var(--ink3);font-size:12px;margin-bottom:14px">Quedará registrado como eliminado por <strong>'+pgEsc((S.currentUser&&S.currentUser.nombre)||'Administrador')+'</strong></div>'
     +'</div>'
     +'<div class="fg"><label>Razón de la eliminación (obligatorio)</label>'
     +'<select class="fs" id="del_razon">'
@@ -3858,10 +3858,14 @@ function updateTopbar(){
   // Notification bell badge in mobile
   updateBadge();
 }
+// Texto que viene de afuera (nombres de clientes, del chat…) puesto dentro de HTML: escapado (auditoría del
+// 24-oct-2026, A4). pgHtmlSeguro deja solo negritas, cursivas y saltos, para los mensajes que los usan.
+function pgEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
+function pgHtmlSeguro(s){ return String(s==null?'':s).replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/&lt;(\/?)(b|i|strong|em|br)\s*\/?&gt;/gi,'<$1$2>'); }
 function toast(msg,type='info'){
   const c=$('toasts'),t=document.createElement('div');t.className=`toast ${type}`;
   const ic={success:'✓',error:'OFF',info:'ℹ️',warn:''};
-  t.innerHTML=`<span>${ic[type]||'ℹ️'}</span><span>${msg}</span>`;c.appendChild(t);
+  t.innerHTML=`<span>${ic[type]||'ℹ️'}</span><span>${pgHtmlSeguro(msg)}</span>`;c.appendChild(t);
   setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(12px)';t.style.transition='all .26s';},3000);
   setTimeout(()=>t.remove(),3300);
 }

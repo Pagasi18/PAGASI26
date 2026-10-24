@@ -420,7 +420,7 @@ PG.pagos = function(){
         const cl = S.clientes.find(function(x){return c.clienteId && String(x.id)===String(c.clienteId);}) || S.clientes.find(function(x){return x.nombre===c.cli && c.cli;}) || {};
         const conc = ((c.concesionarioId && typeof _concGetById==='function') ? ((_concGetById(c.concesionarioId)||{}).nombre||'') : '') || c.sede || '';
         return `<tr>
-          <td class="tdm"><span onclick="verClienteDeCred('${c.id}')" title="Ver perfil del cliente (teléfono, dirección, créditos)" style="cursor:pointer;color:var(--p1);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">${c.cli}</span>${item.gam&&item.gam.nivel&&item.gam.nivel.cupo>0?`<div style="margin-top:3px;display:flex;align-items:center;gap:5px"><span style="font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:20px;color:${item.gam.nivel.col};background:${item.gam.nivel.bg}" title="Nivel del cliente en el programa de puntos">${item.gam.nivel.nom}</span>${item.gam.racha>0?`<span style="font-size:9.5px;font-weight:700;color:var(--ink3)" title="Pagos puntuales seguidos">${item.gam.racha} al día</span>`:''}</div>`:''}${c.fechaCompromiso?`<div style="font-size:9px;font-weight:800;color:var(--p1);margin-top:3px" title="Este crédito tiene acuerdo de pago mensual">🗓️ Acuerdo: ${c.fechaCompromiso}</div>`:''}</td>
+          <td class="tdm"><span onclick="verClienteDeCred('${c.id}')" title="Ver perfil del cliente (teléfono, dirección, créditos)" style="cursor:pointer;color:var(--p1);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">${pgEsc(c.cli)}</span>${item.gam&&item.gam.nivel&&item.gam.nivel.cupo>0?`<div style="margin-top:3px;display:flex;align-items:center;gap:5px"><span style="font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:20px;color:${item.gam.nivel.col};background:${item.gam.nivel.bg}" title="Nivel del cliente en el programa de puntos">${item.gam.nivel.nom}</span>${item.gam.racha>0?`<span style="font-size:9.5px;font-weight:700;color:var(--ink3)" title="Pagos puntuales seguidos">${item.gam.racha} al día</span>`:''}</div>`:''}${c.fechaCompromiso?`<div style="font-size:9px;font-weight:800;color:var(--p1);margin-top:3px" title="Este crédito tiene acuerdo de pago mensual">🗓️ Acuerdo: ${c.fechaCompromiso}</div>`:''}</td>
           <td class="tds" style="font-family:var(--fd);white-space:nowrap">${cl.tel||'—'}</td>
           <td class="tds" style="font-family:var(--fd)">${c.id}</td>
           <td class="tds">${item.cuotaNum}/${c.totalCuotas||c.plazo*2||24}</td>
@@ -551,7 +551,7 @@ PG.pagos = function(){
       var _tp = _tipoPago(p);
       return `<tr style="cursor:pointer${_tp==='inicial'?';background:rgba(124,58,237,.035)':''}" onclick="abrirDetallePago('${p.id}')">
       <td class="tdm" style="font-family:var(--fd)">${p.id}</td>
-      <td class="tdm">${p.cli}</td>
+      <td class="tdm">${pgEsc(p.cli)}</td>
       <td class="tds">${p.cred}</td>
       <td class="tds" style="white-space:nowrap">${p.fecha}${(function(){var h=_pagoHoraTxt(p);return h?`<div style="font-size:9.5px;opacity:.75">${h}</div>`:'';})()}</td>
       <td style="color:var(--green);font-weight:800;font-family:var(--fd)">${fmt(p.monto)}</td>

@@ -130,6 +130,8 @@ function clienteInstagram(cfg) {
   }
   return {
     enviarTexto: (para, texto, op) => enviar(Object.assign({ recipient: { id: String(para) }, message: { text: String(texto).slice(0, 1000) } }, op && op.humano ? { messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' } : {})),
+    // Una foto por enlace público (24-oct-2026: el equipo manda la foto de la moto desde el catálogo)
+    enviarImagen: (para, url, op) => enviar(Object.assign({ recipient: { id: String(para) }, message: { attachment: { type: 'image', payload: { url: String(url), is_reusable: false } } } }, op && op.humano ? { messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' } : {})),
     marcarLeido: (para) => enviar({ recipient: { id: String(para) }, sender_action: 'mark_seen' }).catch(() => ''),
     // Respuesta publica a un comentario de una publicacion (POST /{comment-id}/replies, token de pagina)
     async responderComentario(comentarioId, texto) {

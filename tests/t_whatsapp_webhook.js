@@ -164,6 +164,10 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   A.deps.cfg.reparto = { activo: false, vendedores: ['Liz Alejandra'] };
   ok('apagado o sin vendedores en la lista, no asigna', await procesar.repartir(A.deps, {}, 'lead') === '' && await procesar.repartir(Object.assign({}, A.deps, { cfg: { reparto: { activo: true, vendedores: [] } } }), {}, 'lead') === '');
   A.deps.cfg.reparto = { activo: true, vendedores: ['Liz Alejandra', 'Marianne Molina'] };
+  A.cerebroFalso.respuesta = { reply: 'Listo.', draft: { tipo: 'lead', nombre: 'Eva <script>alert(1)</script> "Mora"', telefono: '04190000000', modelo: 'BRZ 200' }, summary: 'Quiere la BRZ.', handoff: true, handoffReason: 'lead' };
+  await procesar.procesarMensaje(A.deps, msgVentas('584190000000', 'soy Eva', 'wamid.x1'));
+  const bx = A.db26._store.get('conversaciones/wa:+584190000000').borrador, cx = A.db26._store.get('clientes/WA-04190000000');
+  ok('el nombre que viene del chat se guarda limpio en la conversación y en Clientes', bx.nombre === 'Eva scriptalert(1)/script Mora' && cx && !/[<>"]/.test(cx.nombre));
   A.cerebroFalso.respuesta = null; delete A.deps.cfg.numeros;
   ok('el área se decide por el número de negocio cuando hay uno de ventas configurado', procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000', cobranza: '0422-0000000' } } }, { telefonoNegocio: '584125550000' }, 'C26') === 'ventas' && procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000' } } }, { telefonoNegocio: '584220000000' }, 'C26') === 'cobranza' && procesar.areaDe({ cfg: {} }, { telefonoNegocio: '584220000000' }, '') === 'cobranza');
   // promesa y handoff del cerebro
@@ -225,6 +229,30 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   ok('...ni alguien de la otra compañía que no es administrador', ev && ev.codigo === 'permiso');
   await procesar.cambiarVendedor({ bases: A.deps.bases, ahora: () => 'x' }, { empresa: '26', convId: 'wa:+584141234567', vendedor: '', quien: { empresa: '18', nombre: 'Adam', admin: true } });
   ok('...un administrador sí, y vacío la deja sin vendedor', A.db26._store.get('conversaciones/wa:+584141234567').vendedor === '');
+  // Quién puede mandar mensajes (auditoría del 24-oct-2026, A3)
+  await A.db26.collection('conversaciones').doc('wa:+584141234567').set({ ultimoEntranteHora: new Date().toISOString() }, { merge: true });
+  const intentaEq = async (q, extra) => { try { await procesar.enviarEquipo(A.deps, Object.assign({ empresa: '26', convId: 'wa:+584141234567', texto: 'hola', por: q.nombre, quien: q }, extra || {})); return null; } catch (x) { return x; } };
+  let ee = await intentaEq({ empresa: '26', nombre: 'Cobradora', rol: 'Empleado', permisos: ['pagos'] });
+  ok('sin el permiso del canal no se puede mandar un mensaje del equipo', ee && ee.codigo === 'permiso');
+  ee = await intentaEq({ empresa: '26', nombre: 'Vendedor X', rol: 'Vendedor Concesionario', permisos: ['whatsapp'] });
+  ok('...ni siendo vendedor de concesionario, aunque tenga el permiso', ee && ee.codigo === 'permiso');
+  ee = await intentaEq({ empresa: '18', nombre: 'Empleada 18', rol: 'Empleado', permisos: ['whatsapp'] });
+  ok('...ni desde la otra compañía sin ser administrador', ee && ee.codigo === 'permiso');
+  ee = await intentaEq({ empresa: '26', nombre: 'Marianne', rol: 'Empleado', permisos: ['whatsapp'] });
+  const ee2 = await intentaEq({ empresa: '18', nombre: 'Adam', rol: 'Administrador', admin: true, permisos: [] });
+  ok('con el permiso del canal en su compañía, o siendo administrador, sí', ee === null && ee2 === null);
+  ok('el servidor pone un tope de 20 mensajes por minuto por persona y responde 403 sin permiso', /topeEquipo\(quien\.uid\)/.test(require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8')) && /e\.codigo === 'permiso' \? 403/.test(require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8')));
+  // La foto de la moto desde el catálogo
+  const fotos = []; A.metaFalso.enviarImagen = async (para, url, pie) => { fotos.push({ para, url, pie }); return 'wamid.foto' + fotos.length; };
+  await procesar.enviarEquipo(A.deps, { empresa: '26', convId: 'wa:+584141234567', texto: 'Esta es la BRZ 200', imagen: 'https://pagasi.io/assets/motos/brz-200.jpg', por: 'Marianne', quien: { empresa: '26', nombre: 'Marianne', permisos: ['whatsapp'] } });
+  const mf = A.db26._store.get('conversaciones/wa:+584141234567/mensajes/wamid.foto1');
+  ok('el equipo manda la foto de la moto por WhatsApp con el texto como pie, y queda guardada como imagen', fotos.length === 1 && fotos[0].url === 'https://pagasi.io/assets/motos/brz-200.jpg' && fotos[0].pie === 'Esta es la BRZ 200' && mf && mf.tipo === 'imagen' && mf.medio.url === fotos[0].url);
+  await procesar.enviarEquipo(A.deps, { empresa: '26', convId: 'wa:+584141234567', imagen: 'https://pagasi.io/assets/motos/tx-250.png', por: 'Marianne' });
+  ok('...también sin texto ("📷 Foto" en la lista)', A.db26._store.get('conversaciones/wa:+584141234567').ultimoMensaje === '📷 Foto');
+  ee = null; try { await procesar.enviarEquipo(A.deps, { empresa: '26', convId: 'wa:+584141234567', imagen: 'https://otro-sitio.com/x.jpg', por: 'M' }); } catch (x) { ee = x; }
+  ok('solo fotos del sitio (catálogo) o de Firebase Storage', ee && ee.codigo === 'imagen' && fotos.length === 2);
+  // Lo que Paola anota del chat, sin caracteres peligrosos (A4)
+  ok('lo que viene del chat queda sin < > " \' ` \\ &', procesar.sinPeligro('<img src=x onerror="alert(1)">Ana & `Luis`\\') === 'img src=x onerror=alert(1)Ana Luis');
   const idxEq = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'index.js'), 'utf8');
   ok('/equipo con accion "vendedor" va a cambiarVendedor con el usuario de la sesión', /accion === 'vendedor'[\s\S]{0,300}procesar\.cambiarVendedor\([\s\S]{0,260}quien \}/.test(idxEq) && /permisos: Array\.isArray\(u\.data\(\)\.permisos\)/.test(idxEq));
 

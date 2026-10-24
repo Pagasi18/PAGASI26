@@ -80,6 +80,13 @@ var _WA_CSS = '<style id="wa-css">'
   + '.wa-item{display:grid;grid-template-columns:38px 1fr auto;gap:10px;padding:11px 12px;border-bottom:1px solid var(--rim);cursor:pointer;align-items:center}.wa-item:hover{background:var(--surf2)}.wa-item.on{background:#e8f0ff}.wa-item .av{width:38px;height:38px;border-radius:50%;background:var(--surf2);color:var(--ink2);display:grid;place-items:center;font-weight:800;font-size:12px}.wa-item .n{font-weight:800;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.wa-item .u{font-size:11.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}.wa-item .h{font-size:10.5px;color:var(--ink3);text-align:right}.wa-item .nl{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:999px;background:var(--p1);color:#fff;font-size:10px;font-weight:800;padding:0 5px;margin-top:4px}'
   + '.wa-hilo{background:var(--surf);border:1px solid var(--rim);border-radius:var(--r20);display:flex;flex-direction:column;min-height:0}.wa-hilo-top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rim);flex-wrap:wrap}.wa-hilo-top .quien b{font-size:14px}.wa-hilo-top .quien small{display:block;color:var(--ink3);font-size:11.5px}.wa-hilo-top .acc{display:flex;gap:6px;flex-wrap:wrap}'
   + '.wa-burbujas{flex:1;overflow:auto;padding:16px;background:#f3f6fc;display:flex;flex-direction:column;gap:8px;min-height:160px}.wa-b{max-width:78%;border-radius:14px;padding:9px 12px;font-size:13px;line-height:1.5;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.05)}.wa-b.cliente{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}.wa-b.asistente{align-self:flex-end;background:#dcf2ff;border-bottom-right-radius:4px}.wa-b.equipo{align-self:flex-end;background:#d9fbe6;border-bottom-right-radius:4px}.wa-b .meta{display:flex;gap:6px;justify-content:flex-end;font-size:10px;color:var(--ink3);margin-top:4px}.wa-b .meta .quien{font-weight:800}.wa-b img{max-width:220px;border-radius:10px;display:block;margin-bottom:6px}.wa-b .plantilla{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#065cff;margin-bottom:3px}'
+  + '.wa-escribir{position:relative}.rs-caja .wa-esc-pie,.wa-esc-pie{flex-wrap:wrap}.wa-esc-pie .cs{order:3;flex:1 1 100%}.wa-esc-her{display:flex;gap:6px;flex-wrap:nowrap;margin-right:auto}.wa-her{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--rim);background:var(--surf);color:var(--ink2);border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.wa-her:hover{background:var(--surf2)}'
+  + '.wa-rr{position:absolute;left:10px;right:10px;bottom:calc(100% + 6px);max-height:320px;overflow:auto;background:var(--surf);border:1px solid var(--rim);border-radius:12px;box-shadow:0 12px 32px -10px rgba(15,23,42,.3);z-index:5;padding:6px}'
+  + '.wa-rr-cab{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:12.5px}.wa-rr-cab button{border:0;background:none;color:var(--p1);font:inherit;font-weight:700;cursor:pointer}'
+  + '.wa-rr-i{display:block;width:100%;text-align:left;border:0;background:none;border-radius:8px;padding:8px;cursor:pointer;font:inherit}.wa-rr-i:hover{background:var(--surf2)}.wa-rr-i b{display:block;font-size:12.5px}.wa-rr-i span{display:block;font-size:11.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+  + '.wa-rr-ed{border:1px solid var(--rim);border-radius:10px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}'
+  + '.wa-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;max-height:46vh;overflow:auto}.wa-foto{border:1px solid var(--rim);background:var(--surf);border-radius:10px;padding:6px;cursor:pointer;text-align:left;font:inherit}.wa-foto:hover{border-color:var(--p1)}.wa-foto img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;display:block;margin-bottom:4px}.wa-foto b{display:block;font-size:12px}.wa-foto small{color:var(--ink3);font-size:11px}'
+  + '.wa-foto-ok{display:flex;gap:10px;align-items:flex-start;margin-top:12px;border-top:1px solid var(--rim);padding-top:12px}.wa-foto-ok img{width:120px;max-width:40%;aspect-ratio:4/3;object-fit:cover;border-radius:8px}'
   + '.wa-vend-sel{border:1px solid var(--rim);border-radius:8px;background:var(--surf);color:var(--ink);font:inherit;font-size:12px;font-weight:600;padding:3px 6px;max-width:170px}'
   + '.wa-escribir{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rim)}.wa-escribir textarea{flex:1;min-height:44px;max-height:120px;resize:vertical}.wa-cerrada{padding:10px 14px;font-size:12px;color:#b45309;background:#fff4e0;border-top:1px solid #f3d9a4}'
   + '.wa-ficha{display:flex;flex-direction:column;gap:12px}.wa-ficha .card{padding:16px}.wa-ficha .ct{margin-bottom:8px}.wa-kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-top:1px solid var(--rim)}.wa-kv:first-of-type{border-top:0}.wa-kv span:last-child{font-weight:800;text-align:right}'
@@ -297,11 +304,113 @@ function _waHtmlHilo(sel, ctx, conectado){
   return '<div class="wa-hilo-top"><div class="quien"><div class="av' + (sel.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(_waIni(sel.nombre || sel.clienteNombre)) + '</div><div><b>' + _waEsc(sel.nombre || sel.telE164) + '</b><small>' + (sel.canal === 'instagram' ? 'Instagram' + (sel.usuario ? ' · @' + _waEsc(sel.usuario) : '') + ' · ventas' : _waEsc(String(sel.telE164 || '').replace('+58', '0')) + (sel.area === 'ventas' ? ' · ventas' + (sel.clienteNombre ? ' · ya es cliente' : '') : (sel.clienteNombre ? ' · cliente del sistema' : ' · no está en el sistema'))) + ' · ' + (sel.modo === 'humano' ? 'lo atiende ' + _waEsc(sel.atendidoPor || 'el equipo') : 'lo atiende el asistente') + '</small></div></div>'
           + '<div class="acc">' + (sel.atencion ? '<button class="rs-ib" title="Visto: ya lo resolví" onclick="waVisto(\'' + _waEsc(sel.id) + '\')">' + _waIcono('visto') + '</button>' : '') + (sel.modo === 'humano' ? '<button class="rs-ib" title="Devolver al asistente" onclick="waDevolver(\'' + _waEsc(sel.id) + '\')">' + _waIcono('bot') + 'Devolver al asistente</button>' : '<button class="rs-ib p" title="Atender yo: el asistente se calla" onclick="waAtender(\'' + _waEsc(sel.id) + '\')">' + _waIcono('yo') + 'Atender yo</button>') + '</div></div>'
           + '<div class="wa-burbujas" id="wa-burbujas"></div>'
-          + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" data-conv="' + _waEsc(sel.id) + '" oninput="_waGuardarBorrador(\'' + _waEsc(sel.id) + '\', this.value)" placeholder="Responde en ' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' como ' + _waNombreAsis(sel) + '…">' + _waEsc(window._waBorradores[sel.id] || '') + '</textarea><div class="wa-esc-pie"><span class="cs">Al escribir, tomas la conversación y queda registrado que fuiste tú.</span><button class="btn btn-p btn-sm" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div></div>'
+          + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" data-conv="' + _waEsc(sel.id) + '" oninput="_waGuardarBorrador(\'' + _waEsc(sel.id) + '\', this.value)" placeholder="Responde en ' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' como ' + _waNombreAsis(sel) + '…">' + _waEsc(window._waBorradores[sel.id] || '') + '</textarea><div class="wa-rr" id="wa-rr" hidden></div><div class="wa-esc-pie"><div class="wa-esc-her">'
+            + '<button type="button" class="wa-her" onclick="waRespuestas(\'' + _waEsc(sel.id) + '\')" title="Textos guardados: requisitos, proceso, inicial…">' + _WA_RAYO + 'Respuestas</button>'
+            + '<button type="button" class="wa-her" onclick="waFotoMoto(\'' + _waEsc(sel.id) + '\')" title="Mandar la foto de una moto del catálogo">' + _WA_FOTO + 'Foto de moto</button></div>'
+            + '<span class="cs">Al escribir, tomas la conversación y queda registrado que fuiste tú.</span><button class="btn btn-p btn-sm" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div></div>'
             : (sel.canal === 'instagram' ? '<div class="wa-cerrada">Pasaron más de 7 días desde el último mensaje de la persona' + (sel.ultimoEntranteHora ? ' (' + _waHora(sel.ultimoEntranteHora) + ')' : '') + ': Instagram no deja escribirle hasta que vuelva a escribir.</div>'
               : '<div class="wa-cerrada">La ventana de 24 horas de WhatsApp está cerrada: el cliente escribió por última vez ' + (sel.ultimoEntranteHora ? 'el ' + _waHora(sel.ultimoEntranteHora) : 'hace más de un día') + '. Solo se le puede escribir con una plantilla aprobada, o esperar a que vuelva a escribir.</div>'))
           + (conectado ? '' : '<div class="wa-demo-cliente"><small>Demostración · ' + (sel.area === 'ventas' ? 'la persona' : 'el cliente') + ' escribe:</small>' + (sel.area === 'ventas' ? ['precio de la BRZ 200?', 'qué piden para el crédito?', 'quiero una, cómo hago?', 'tienen en Maracay?', 'quiero hablar con una persona'] : ['cuánto debo?', 'ya pagué', 'pago el sábado', 'cómo pago?', 'quiero hablar con una persona', 'no puedo pagar']).map(function(t){ return '<button onclick="waDemoClienteEscribe(\'' + _waEsc(sel.id) + '\',\'' + _waEsc(t) + '\')">' + _waEsc(t) + '</button>'; }).join('') + '</div>');
 }
+// ── Respuestas rápidas y foto de la moto (Adam, 24-oct-2026: "arranca con todo") ──
+var _WA_RAYO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>';
+var _WA_FOTO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>';
+// Las de fábrica salen del manual de Paola (functions/lib/ventas.js), para que el equipo diga lo mismo que ella.
+// {nombre} = el nombre de la persona; {yo} = quien escribe; {inicial}, {inicialMax}, {plazos} = las condiciones del catálogo.
+var WA_RESPUESTAS_BASE = [
+  { titulo: 'Saludo', texto: 'Hola {nombre} 👋, soy {yo} de Pagasi. Ya te atiendo.' },
+  { titulo: 'Requisitos', texto: 'Requisitos (originales vigentes y copia):\n• Cédula\n• RIF actualizado (misma dirección de la constancia de residencia)\n• Licencia y certificado médico de 2do grado\n• Constancia de residencia firmada y sellada (junta de condominio, consejo comunal o alcaldía)\n• 2 referencias personales con cédula, teléfono, dirección y firma\n• 2 de estos: constancia de trabajo, estados de cuenta de 3 meses o certificación de ingresos de contador\n• Acta de matrimonio, si aplica\nEl día de la aprobación vienes con tu fiador: cédula original, RIF y un comprobante de ingresos.' },
+  { titulo: 'Cómo es el proceso', texto: 'Es así:\n1) Eliges la moto\n2) Llenamos la solicitud por aquí, son unos datos cortos\n3) La evaluamos y te respondo por este chat con la aprobación, la inicial y la cuota\n4) Aprobado: vienes a la sede con tu fiador y los documentos, pagas la inicial, firmas y te llevas la moto ese mismo día.' },
+  { titulo: 'Inicial y cuotas', texto: 'La inicial es desde el {inicial}% del precio (puedes dar hasta {inicialMax}%: más inicial, menos cuota). El resto va en cuotas quincenales a {plazos} meses.' },
+  { titulo: 'Pago en bolívares', texto: 'Sí, puedes pagar la inicial y las cuotas en bolívares, a la tasa oficial del euro del BCV del día del pago.' },
+  { titulo: 'Hacer la solicitud', texto: 'Te hago la solicitud por aquí, son unos datos cortos. ¿Me das tu nombre completo?' }
+];
+function waRespuestasLista(){ var r = (window._waCfg || {}).respuestasRapidas; return Array.isArray(r) && r.length ? r : WA_RESPUESTAS_BASE; }
+function waLlenarRespuesta(texto, conv){
+  var cap = function(n){ n = String(n || '').trim().split(/\s+/)[0] || ''; return n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : ''; };
+  var c = (typeof _cat !== 'undefined' && _cat.cond) || {}, pl = Array.isArray(c.plazos) && c.plazos.length ? c.plazos : [6, 9, 12];
+  var plazos = pl.length > 1 ? pl.slice(0, -1).join(', ') + ' o ' + pl[pl.length - 1] : String(pl[0]);
+  return String(texto || '').replace(/\{nombre\}/g, cap(conv && (conv.clienteNombre || conv.nombre)).replace(/^@/, '')).replace(/\{yo\}/g, cap(S.currentUser && S.currentUser.nombre))
+    .replace(/\{inicial\}/g, c.inicialMin || 40).replace(/\{inicialMax\}/g, c.inicialMax || 60).replace(/\{plazos\}/g, plazos).replace(/ ,/g, ',').replace(/Hola\s+👋/, 'Hola 👋');
+}
+// El panel de respuestas, encima de la caja: tocar una la pone en la caja (se puede editar antes de enviar)
+function waRespuestas(id){
+  var p = document.getElementById('wa-rr'); if(!p) return;
+  if(!p.hidden){ p.hidden = true; return; }
+  if(typeof catCargar === 'function' && typeof _cat !== 'undefined' && !_cat.cargado) catCargar();
+  var admin = typeof isAdminUser === 'function' && isAdminUser();
+  p.innerHTML = '<div class="wa-rr-cab"><b>Respuestas rápidas</b>' + (admin ? '<button type="button" onclick="waEditarRespuestas()">Editar</button>' : '') + '</div>'
+    + waRespuestasLista().map(function(r, i){ return '<button type="button" class="wa-rr-i" onclick="waUsarRespuesta(\'' + _waEsc(id) + '\',' + i + ')"><b>' + _waEsc(r.titulo) + '</b><span>' + _waEsc(String(r.texto).replace(/\n/g, ' ')) + '</span></button>'; }).join('');
+  p.hidden = false;
+}
+function waUsarRespuesta(id, i){
+  var r = waRespuestasLista()[i], ta = document.getElementById('wa-texto'), p = document.getElementById('wa-rr'); if(!r || !ta) return;
+  var txt = waLlenarRespuesta(r.texto, _waConv(id)), ini = ta.selectionStart != null ? ta.selectionStart : ta.value.length, fin = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  var antes = ta.value.slice(0, ini), despues = ta.value.slice(fin), sep = antes && !/\s$/.test(antes) ? ' ' : '';
+  ta.value = antes + sep + txt + despues; _waGuardarBorrador(id, ta.value);
+  if(p) p.hidden = true;
+  try{ ta.focus(); var pos = (antes + sep + txt).length; ta.setSelectionRange(pos, pos); }catch(e){}
+}
+// Editar la lista (administradores): config/asistente.respuestasRapidas, la misma para todo el equipo
+function waEditarRespuestas(){
+  var L = waRespuestasLista().map(function(r){ return { titulo: r.titulo, texto: r.texto }; });
+  window._waRrEdit = L;
+  var pintar = function(){
+    document.getElementById('mbd').innerHTML = '<div class="rs-v"><div class="sv" style="margin-bottom:10px">Las ve todo el equipo en el botón Respuestas. Puedes usar {nombre} (la persona), {yo} (quien escribe) y {inicial}, {inicialMax}, {plazos} (las condiciones del catálogo).</div>'
+      + window._waRrEdit.map(function(r, i){ return '<div class="wa-rr-ed"><div style="display:flex;gap:8px"><input class="fi" placeholder="Título" value="' + _waEsc(r.titulo) + '" oninput="_waRrEdit[' + i + '].titulo=this.value"><button type="button" class="btn btn-g btn-sm" onclick="_waRrEdit.splice(' + i + ',1);waEditarRespuestasPintar()">Quitar</button></div><textarea class="fta" rows="3" oninput="_waRrEdit[' + i + '].texto=this.value">' + _waEsc(r.texto) + '</textarea></div>'; }).join('')
+      + '<button type="button" class="btn btn-g btn-sm" onclick="_waRrEdit.push({titulo:\'\',texto:\'\'});waEditarRespuestasPintar()">+ Agregar respuesta</button></div>';
+  };
+  window.waEditarRespuestasPintar = pintar;
+  document.getElementById('mtt').textContent = 'Respuestas rápidas';
+  document.getElementById('msb').textContent = 'Para todo el equipo de Redes';
+  document.getElementById('modal-box').className = 'modal modal-lg';
+  pintar();
+  S.saveFn = function(){
+    var lista = window._waRrEdit.map(function(r){ return { titulo: String(r.titulo || '').trim().slice(0, 40), texto: String(r.texto || '').trim().slice(0, 1000) }; }).filter(function(r){ return r.titulo && r.texto; });
+    return db.collection('config').doc('asistente').set({ respuestasRapidas: lista }, { merge: true }).then(function(){
+      window._waCfg = Object.assign(window._waCfg || {}, { respuestasRapidas: lista });
+      if(typeof logActividad === 'function') logActividad('respuestas_rapidas', 'redes', 'config/asistente', { cuantas: lista.length });
+      toast('Respuestas guardadas (' + lista.length + ')', 'success'); closeM();
+    }).catch(function(e){ toast('No se pudieron guardar: ' + (e && e.message || e), 'error'); return false; });
+  };
+  document.getElementById('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button><button class="btn btn-p" onclick="saveM()">Guardar</button>';
+  document.getElementById('ov').style.display = 'flex';
+}
+// La foto de una moto del catálogo: se escoge, se revisa el texto y se manda
+function waFotoMoto(id){
+  var abrir = function(){
+    var motos = ((typeof _cat !== 'undefined' && _cat.motos) || []).filter(function(m){ return m && m.image && m.disponible !== false; }).sort(function(a, b){ return String(a.name || '').localeCompare(String(b.name || '')); });
+    window._waFotoLista = motos; window._waFotoConv = id;
+    document.getElementById('mtt').textContent = 'Foto de moto';
+    document.getElementById('msb').textContent = 'Se manda por el chat de ' + ((_waConv(id) || {}).nombre || 'la persona');
+    document.getElementById('modal-box').className = 'modal modal-lg';
+    document.getElementById('mbd').innerHTML = '<div class="rs-v"><input class="fi" id="wa-foto-q" placeholder="Buscar moto…" oninput="_waFotoFiltrar(this.value)" style="margin-bottom:10px"><div class="wa-fotos" id="wa-fotos"></div><div id="wa-foto-sel"></div></div>';
+    S.saveFn = null;
+    document.getElementById('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>';
+    document.getElementById('ov').style.display = 'flex';
+    _waFotoFiltrar('');
+  };
+  if(typeof catCargar === 'function' && typeof _cat !== 'undefined' && !_cat.cargado) catCargar().then(abrir); else abrir();
+}
+function _waFotoUrl(m){ var u = String(m.image || ''); return /^https:\/\//.test(u) ? u : location.origin + '/' + u.replace(/^\//, ''); }
+function _waFotoFiltrar(q){
+  var e = document.getElementById('wa-fotos'); if(!e) return;
+  q = String(q || '').toLowerCase();
+  var L = (window._waFotoLista || []).filter(function(m){ return !q || (String(m.name || '') + ' ' + String(m.sedeName || '')).toLowerCase().indexOf(q) > -1; });
+  e.innerHTML = L.length ? L.map(function(m){ return '<button type="button" class="wa-foto" onclick="_waFotoEscoger(' + (window._waFotoLista || []).indexOf(m) + ')"><img src="' + _waEsc(m.image) + '" alt="" loading="lazy"><b>' + _waEsc(m.name) + '</b><small>' + (m.precio ? '$' + Number(m.precio).toLocaleString('es-VE') : '') + (m.sedeName ? ' · ' + _waEsc(m.sedeName) : '') + '</small></button>'; }).join('') : '<div class="cs">No hay motos con foto' + (q ? ' con esa búsqueda' : '') + '.</div>';
+}
+function _waFotoEscoger(i){
+  var m = (window._waFotoLista || [])[i], e = document.getElementById('wa-foto-sel'); if(!m || !e) return;
+  window._waFotoMoto = m;
+  e.innerHTML = '<div class="wa-foto-ok"><img src="' + _waEsc(m.image) + '" alt=""><div style="flex:1"><label class="cs">Texto que va con la foto</label><textarea class="fta" id="wa-foto-txt" rows="2">' + _waEsc(m.name + (m.precio ? ' · $' + Number(m.precio).toLocaleString('es-VE') : '') + (m.sedeName ? ' · ' + m.sedeName : '')) + '</textarea></div></div>';
+  document.getElementById('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button><button class="btn btn-p" onclick="_waFotoEnviar()">Enviar foto</button>';
+  try{ e.scrollIntoView({ block: 'nearest' }); }catch(x){}
+}
+function _waFotoEnviar(){
+  var m = window._waFotoMoto, id = window._waFotoConv, t = document.getElementById('wa-foto-txt'); if(!m || !id) return;
+  if(waEnviarEquipo(id, t ? t.value : '', _waFotoUrl(m))){ closeM(); toast('Foto enviada: ' + _waEsc(m.name), 'success'); }
+}
+
 // "Pasar a…": el vendedor de la conversación, en la ficha
 function _waHtmlVendedor(sel){
   var actual = waVendedorDe(sel), yo = String((S.currentUser && S.currentUser.nombre) || '').trim();

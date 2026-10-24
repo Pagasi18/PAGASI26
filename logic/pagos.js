@@ -66,7 +66,7 @@ function openAddPago(preCredId){
   setMicon('pago');$('mtt').textContent='Registrar Pago';$('msb').textContent='Plan '+PLAN.plazo+' meses';
   $('modal-box').className='modal';
   $('mbd').innerHTML=`
-    <div class="fgr c1" style="gap:9px"><div class="fg"><label>Crédito</label><select class="fs" id="p_cred" onchange="updPagoMonto(this)">${S.creds.filter(c=>c.estado==='activo'||c.estado==='mora').map(c=>`<option value="${c.id}" data-cuota="${c.cuota}" data-cuotaq="${c.cuotaQ}" ${preCredId&&String(c.id)===String(preCredId)?'selected':''}>${c.id} — ${c.cli} (${c.modelo})</option>`).join('')}</select></div></div>
+    <div class="fgr c1" style="gap:9px"><div class="fg"><label>Crédito</label><select class="fs" id="p_cred" onchange="updPagoMonto(this)">${S.creds.filter(c=>c.estado==='activo'||c.estado==='mora').map(c=>`<option value="${c.id}" data-cuota="${c.cuota}" data-cuotaq="${c.cuotaQ}" ${preCredId&&String(c.id)===String(preCredId)?'selected':''}>${c.id} — ${pgEsc(c.cli)} (${pgEsc(c.modelo)})</option>`).join('')}</select></div></div>
     <div class="fgr" style="margin-top:9px">
       <div class="fg"><label>Frecuencia</label><input class="fi" value="Quincenal (cada 15 días)" readonly style="color:var(--p1);font-weight:700;background:var(--surf)"></div>
       <div class="fg"><label>Fecha en que el cliente pagó</label><input class="fi" id="p_fecha" type="date" value="${hoyLocalISO()}" onchange="_pagoFechaAviso(this.value)"><div id="p_fecha_aviso" class="tds" style="margin-top:3px;font-size:10.5px;line-height:1.35">La del comprobante del cliente. Si pagó otro día, cámbiala: la contadora concilia con esa fecha.</div></div>
@@ -469,7 +469,7 @@ function openAmort(id){
           <div style="width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;letter-spacing:-.5px;overflow:hidden;flex-shrink:0">${_credFoto?`<img src="${_credFoto}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`:String(c.cli||'Cliente').split(' ').map(function(w){return w.charAt(0);}).join('').substring(0,2).toUpperCase()}</div>
           <div>
             <div style="font-size:10px;font-weight:800;opacity:.85;letter-spacing:1.2px;text-transform:uppercase">${c.id} · Crédito</div>
-            <div style="font-size:19px;font-weight:900;letter-spacing:-.4px;line-height:1.1;margin-top:2px">${c.cli}</div>
+            <div style="font-size:19px;font-weight:900;letter-spacing:-.4px;line-height:1.1;margin-top:2px">${pgEsc(c.cli)}</div>
             <div style="font-size:11.5px;opacity:.85;margin-top:3px">${c.modelo}${c.vin?' · VIN '+c.vin:''}</div>
             ${_concNom?`<div style="margin-top:6px"><span style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:800;letter-spacing:.2px">CONCESIONARIO · ${_concNom}</span></div>`:''}
           </div>
@@ -688,7 +688,7 @@ function confirmarRecuperacion(credId){
   $('mbd').innerHTML='<div style="text-align:center;padding:14px 0">'
     +'<div style="font-size:40px;margin-bottom:12px">MOT</div>'
     +'<div style="font-size:15px;font-weight:800;margin-bottom:6px">'+c.modelo+'</div>'
-    +'<div style="color:var(--ink3);font-size:12px;margin-bottom:18px">Crédito '+credId+' · Cliente: '+c.cli+'</div>'
+    +'<div style="color:var(--ink3);font-size:12px;margin-bottom:18px">Crédito '+credId+' · Cliente: '+pgEsc(c.cli)+'</div>'
     +'<div style="background:var(--reds);border:1px solid rgba(240,75,106,0.2);border-radius:var(--r8);padding:12px;color:var(--red);font-size:13px;font-weight:700">'
     +' ¿Confirmas la recuperación de esta unidad? El crédito pasará a estado "recuperado" y la moto quedará disponible.</div></div>';
   S.saveFn=function(){
@@ -718,7 +718,7 @@ function confirmarDelPago(id){
   $('mbd').innerHTML='<div style="text-align:left;padding:10px 0">'
     +'<div style="text-align:center;font-size:42px;margin-bottom:10px">PAG</div>'
     +'<div style="text-align:center;font-size:15px;font-weight:800">¿Cómo quieres eliminar el pago '+p.id+'?</div>'
-    +'<div style="text-align:center;color:var(--ink3);font-size:13px;margin-top:6px">'+p.cli+' · '+fmt(p.monto)+' · '+p.fecha+'</div>'
+    +'<div style="text-align:center;color:var(--ink3);font-size:13px;margin-top:6px">'+pgEsc(p.cli)+' · '+fmt(p.monto)+' · '+p.fecha+'</div>'
     +'<div style="margin-top:14px;display:grid;gap:10px">'
     +'<label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:10px;cursor:pointer">'
     +'<input type="radio" name="del_pago_modo" value="mantener" '+(window._delPagoModo==='mantener'?'checked':'')+' onchange="window._delPagoModo=this.value">'
@@ -1316,7 +1316,7 @@ function openEditPago(pagoId){
   }).join('');
   $('mbd').innerHTML = '<div style="background:var(--surf2);border:1px solid var(--rim);border-radius:9px;padding:10px 12px;margin-bottom:12px;font-size:11px">'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1.5fr;gap:6px">'
-    +'<div><span style="color:var(--ink3)">Cliente</span><div style="font-weight:700">'+p.cli+'</div></div>'
+    +'<div><span style="color:var(--ink3)">Cliente</span><div style="font-weight:700">'+pgEsc(p.cli)+'</div></div>'
     +'<div><span style="color:var(--ink3)">Crédito</span><div style="font-weight:700">'+p.cred+'</div></div>'
     +'<div><span style="color:var(--ink3)">Estado actual</span><div style="font-weight:700">'+p.estado+'</div></div>'
     +'<div><span style="color:var(--ink3)">Registrado en el sistema</span><div style="font-weight:700">'+_pagoRegistroTxt(p)+'</div></div>'
