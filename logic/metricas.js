@@ -82,9 +82,10 @@ function metResumen(docs, desde, hasta, horaTope){
   var r = { visitas: 0, visitantes: 0, paginas: 0, porDia: {}, fuentes: {}, disp: { telefono: 0, computadora: 0, tablet: 0 }, horas: [], semana: [0, 0, 0, 0, 0, 0, 0], motos: {}, entradas: {},
             embudo: { visitas: 0, moto: 0, simulo: 0, quiero: 0, whatsapp: 0, solInicio: 0, solEnviada: 0 },
             contactos: 0, rebote: 0, tiempoTipico: 0, conTiempo: 0, volvieron: 0,
-            grupos: { fuente: {}, disp: {}, entrada: {}, campana: {} }, motosDet: {} };
-  for(var h = 0; h < 24; h++) r.horas.push(0);
-  var vids = {}, vidsDia = {}, diasDeVid = {}, durs = [];
+            grupos: { fuente: {}, disp: {}, entrada: {}, campana: {} }, motosDet: {},
+            horasDet: { personas: [], visitas: [], whatsapp: [], solicitudes: [] } };
+  for(var h = 0; h < 24; h++){ r.horas.push(0); r.horasDet.personas.push(0); r.horasDet.visitas.push(0); r.horasDet.whatsapp.push(0); r.horasDet.solicitudes.push(0); }
+  var vids = {}, vidsDia = {}, diasDeVid = {}, durs = [], vidsHora = {};
   var sumar = function(tipo, clave, v, vid){
     var g = r.grupos[tipo][clave] = r.grupos[tipo][clave] || _metGrupoNuevo();
     g.visitas++; if(vid) g._vids[vid] = 1;
@@ -100,7 +101,7 @@ function metResumen(docs, desde, hasta, horaTope){
     dia.visitas++;
     var fu = metFuente(d.fuente); r.fuentes[fu] = (r.fuentes[fu] || 0) + 1;
     if(r.disp[d.disp] != null) r.disp[d.disp]++;
-    var hr = +d.hora; if(hr >= 0 && hr < 24) r.horas[hr]++;
+    var hr = +d.hora; if(hr >= 0 && hr < 24){ r.horas[hr]++; r.horasDet.visitas[hr]++; if(d.vid) (vidsHora[hr] = vidsHora[hr] || {})[d.vid] = 1; } else hr = -1;
     var dow = new Date(f + 'T12:00:00').getDay(); if(dow >= 0) r.semana[dow]++;
     var en = String(d.entrada || 'index'); r.entradas[en] = (r.entradas[en] || 0) + 1;
     var tiene = {}, vistasMoto = {}, simMoto = {}, quieroMoto = {}, waMoto = {}, nVistas = 0, acciones = false, ultimo = 0, primero = +d.inicio || 0;
@@ -132,9 +133,9 @@ function metResumen(docs, desde, hasta, horaTope){
     if(v.moto) E.moto++;
     if(v.simulo) E.simulo++;
     if(v.quiero) E.quiero++;
-    if(v.whatsapp){ E.whatsapp++; dia.whatsapp++; }
+    if(v.whatsapp){ E.whatsapp++; dia.whatsapp++; if(hr >= 0) r.horasDet.whatsapp[hr]++; }
     if(tiene.solicitud_inicio) E.solInicio++;
-    if(v.solEnviada){ E.solEnviada++; dia.solicitudes++; }
+    if(v.solEnviada){ E.solEnviada++; dia.solicitudes++; if(hr >= 0) r.horasDet.solicitudes[hr]++; }
     if(v.contactos){ r.contactos++; dia.contactos++; }
     if(v.rebote) r.rebote++;
     sumar('fuente', fu, v, d.vid);
@@ -144,6 +145,7 @@ function metResumen(docs, desde, hasta, horaTope){
     if(camp) sumar('campana', camp.toLowerCase(), v, d.vid);
   });
   r.visitantes = Object.keys(vids).length;
+  Object.keys(vidsHora).forEach(function(hh){ r.horasDet.personas[hh] = Object.keys(vidsHora[hh]).length; });
   r.volvieron = Object.keys(diasDeVid).filter(function(k){ return Object.keys(diasDeVid[k]).length > 1; }).length;
   Object.keys(r.porDia).forEach(function(f){ r.porDia[f].visitantes = Object.keys(vidsDia[f] || {}).length; });
   Object.keys(r.grupos).forEach(function(t){ Object.keys(r.grupos[t]).forEach(function(k){ var g = r.grupos[t][k]; g.personas = Object.keys(g._vids).length; delete g._vids; }); });

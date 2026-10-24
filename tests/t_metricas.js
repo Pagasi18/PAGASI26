@@ -136,19 +136,36 @@ const campo = (w, k) => { const f = w.update.fields[k]; return f && (f.stringVal
     /mayoría llega por <b>Google<\/b>, 71%/.test(ideas) && /más escriben vienen de <b>Instagram<\/b>: 100%/.test(ideas) && /se pierde: de <b>mirar una moto<\/b> a <b>usar el simulador<\/b>/.test(ideas) && /más vista: <b>Moto 47<\/b> \(85 visitas\)/.test(ideas) && /hora con más visitas: <b>8 pm<\/b>/.test(ideas));
 
   // La pantalla, en un VM limpio (si falta una función, revienta como en el navegador)
-  const ctx3 = { console, PG: {}, S: { page: 'metricas' }, document: { head: { insertAdjacentHTML(){} }, getElementById(){ return null; } },
-    isAdminUser: () => true, nav(){}, pageBanner: (a, b) => '<h1>' + b + '</h1>', Date, Math, JSON, Object, Array, String, Number };
+  // 23-oct-2026, Adam: "quiero que se vean como las del dashboard… pon algunos redondos"
+  const graficos = [], esperando = [];
+  const ctx3 = { console, PG: {}, S: { page: 'metricas' }, document: { head: { insertAdjacentHTML(){} }, documentElement: { getAttribute(){ return null; } }, getElementById: (id) => (/^met-[cd]-/.test(id) ? { id } : null) },
+    isAdminUser: () => true, nav(){}, pageBanner: (a, b) => '<h1>' + b + '</h1>', setTimeout: (f) => esperando.push(f), Date, Math, JSON, Object, Array, String, Number,
+    Chart: function(cv, cfg){ graficos.push({ id: cv.id, cfg }); this.destroy = () => {}; } };
+  ctx3.window = ctx3;
   vm.createContext(ctx3);
   vm.runInContext(src('logic/metricas.js') + '\n' + src('logic/exportar.js') + '\n' + src('modules/metricas.js'), ctx3);
   ctx3._metHoyVE = () => '2026-10-22'; ctx3._metHoraVE = () => 22;
   vm.runInContext('_met.docs = ' + JSON.stringify(docs3.concat(muchas)) + '; _met.rango = 7;', ctx3);
   let h = ctx3.PG.metricas();
-  ok('la pantalla de 7 días pinta números, resumen, gráfico, embudo y tablas', /Personas/.test(h) && /Lo más importante/.test(h) && /class="met-plot" style="height:190px"/.test(h) && /Del paso anterior/.test(h) && /De dónde vienen/.test(h) && /Enlace de la biografía de Instagram/.test(h) && /Teléfono o computadora/.test(h) && /Días de la semana/.test(h));
-  ok('...con los botones de Excel/PDF y sin comparar antes del 14-oct', /pgExportarTablas\('met-cont'/.test(h) && /La comparación con los 7 días anteriores aparece/.test(h) && !/vs los 7 días anteriores/.test(h));
-  ok('el gráfico tiene altura fija (no crece con la pantalla) y detalle al pasar el mouse', !/<svg viewBox="0 0 640/.test(h) && /onmousemove="_metTip\(event,this\)"/.test(h) && /data-tip="<b>Jueves 22\/10 \(hasta ahora\)<\/b>/.test(h));
-  vm.runInContext('_met.rango = 1; _met.docs.push({ vid: "z1", fecha: "2026-10-21", hora: 9, fuente: "google", disp: "telefono", entrada: "index", ev: [] });', ctx3);
+  ok('arriba, las tarjetas del Dashboard: la azul con personas y visitas, WhatsApp, solicitudes, el anillo de los que se van y el tiempo',
+    /class="kx-row"/.test(h) && /class="kx-hero met-k"[\s\S]*Personas que entraron/.test(h) && />WhatsApp<\/span>[\s\S]*class="kx-mes"/.test(h) && />Solicitudes<\/span>[\s\S]*Empezaron a llenarla/.test(h) && />Se fueron<\/span>[\s\S]*class="kx-ring"/.test(h) && /Tiempo en la web/.test(h));
+  ok('los 4 gráficos como los del Dashboard, con el selector Día / Hora (sin las pastillas de antes)',
+    ['personas', 'visitas', 'whatsapp', 'solicitudes'].every(s => h.indexOf('id="met-c-' + s + '"') > -1 && h.indexOf('id="met-s-' + s + '-hora"') > -1) && /class="dash-seg"/.test(h) && !/met-chip/.test(h) && !/met-plot/.test(h));
+  ok('redondos para de dónde vienen, teléfono o computadora y por dónde entran, con su leyenda y el % que escribe',
+    ['fuente', 'disp', 'entrada'].every(k => h.indexOf('id="met-d-' + k + '"') > -1) && /De dónde vienen/.test(h) && /class="met-dona-t"><b>/.test(h) && /% escribe<\/span>/.test(h));
+  ok('lo más importante, el embudo con el paso donde se pierde gente, motos, días de la semana y campañas', /Lo más importante/.test(h) && /aquí se pierde más/.test(h) && /Motos más vistas/.test(h) && /id="met-c-semana"/.test(h) && /Campañas y enlaces/.test(h));
+  ok('...y abajo todos los números en tablas, con Excel/PDF; sin comparar antes del 14-oct', /Todos los números en tablas/.test(h) && (h.match(/<table>/g) || []).length >= 6 && /pgExportarTablas\('met-cont'/.test(h) && /La comparación con los 7 días anteriores aparece/.test(h));
+  esperando.splice(0).forEach(f => f());
+  const g = id => graficos.filter(x => x.id === id).pop();
+  ok('se dibujan 4 gráficos de barras, 3 redondos y el de días de la semana', ['met-c-personas', 'met-c-visitas', 'met-c-whatsapp', 'met-c-solicitudes', 'met-c-semana'].every(id => g(id) && g(id).cfg.type === 'bar') && ['met-d-fuente', 'met-d-disp', 'met-d-entrada'].every(id => g(id) && g(id).cfg.type === 'doughnut'));
+  ok('barras con degradado y bordes redondeados (como el Dashboard); una barra por día', typeof g('met-c-personas').cfg.data.datasets[0].backgroundColor === 'function' && g('met-c-personas').cfg.data.datasets[0].borderRadius === 6 && g('met-c-personas').cfg.data.labels.length === 7);
+  ok('el redondo de fuentes: las primeras con los colores del Dashboard y el anillo fino', JSON.stringify(g('met-d-fuente').cfg.data.datasets[0].backgroundColor.slice(0, 2)) === JSON.stringify(['#2563EB', '#06B06A']) && g('met-d-fuente').cfg.options.cutout === '72%');
+  graficos.length = 0;
+  ctx3.metVista('whatsapp', 'hora');
+  ok('Día / Hora cambia solo ese gráfico, sin armar la página', graficos.length === 1 && g('met-c-whatsapp').cfg.data.labels.length === 24 && g('met-c-whatsapp').cfg.data.labels[20] === '8 pm');
+  vm.runInContext('_met.rango = 1; _met.vistas = {}; _met.docs.push({ vid: "z1", fecha: "2026-10-21", hora: 9, fuente: "google", disp: "telefono", entrada: "index", ev: [] });', ctx3);
   h = ctx3.PG.metricas();
-  ok('hoy: hora por hora y comparado con ayer a esta hora', /Visitas de hoy, hora por hora/.test(h) && /vs ayer a esta hora/.test(h) && /ayer a esa hora/.test(h));
+  ok('hoy: hora por hora, comparado con ayer y sin selector', /Hoy, hora por hora/.test(h) && /vs ayer/.test(h) && !/met-s-personas-dia/.test(h) && !/id="met-c-semana"/.test(h));
 
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });
