@@ -317,7 +317,7 @@ function rsAsistente(area){
     + '<h4>Dónde responde ' + A.nombre + '</h4><div class="sv">Apagada en un canal, los mensajes igual llegan aquí; los responde el equipo.</div><div class="rs-sws">'
     + A.canales.map(function(c){ return fila(c[0], c[1], c[2], c[3]); }).join('')
     + (A.area === 'cobranza' ? fila('recordatorios', 'Recordatorios de cuotas', 'rl', false, 'Todos los días a las 8:30 am, por plantilla de WhatsApp') : '')
-    + '</div>' + (A.area === 'cobranza' ? '<div class="aviso">Con los recordatorios encendidos, Patricia les escribe a los clientes de verdad todos los días a las 8:30 am: 2 días antes de vencer, el día del vencimiento y cuando se atrasan.</div>' : '')
+    + '</div>' + (A.area === 'cobranza' ? '<div class="aviso">Con los recordatorios encendidos, Patricia les escribe a los clientes de verdad todos los días a las 8:30 am: 3 días antes de vencer, el día del vencimiento y, si se atrasan, al día siguiente, a los 3 y a los 7 días. Con acuerdo de pago, el día antes y el mismo día del compromiso.</div>' : '')
     + '<h4>Cómo va ' + A.nombre + ' según el equipo</h4><div id="rs-calidad"><div class="sv">Cargando…</div></div>'
     + (A.area === 'ventas' ? _rsComentaMotoHtml(cfg, editable) + _rsRepartoHtml(cfg, editable) + _rsSeguimientoHtml(cfg, editable) : '')
     + '<h4>Calidad de ' + A.nombre + '</h4><div class="sv">Lo que paga Pagasi en Claude. Aproximado, con ' + A.volumen + '.</div><div class="rs-qs" role="radiogroup">'

@@ -141,6 +141,9 @@ const ENC = { comentaMoto: { activo: true, palabras: ['moto'] } };
 
   // Los globos de las pestañas con el número real (24-oct-2026: antes pasado 9 decía "9+")
   ok('los globos de las pestañas dicen el número real, sin "9+"', ctx._rsGlobo(47) === '<span class="b">47</span>' && ctx._rsGlobo(1234) === '<span class="b">1.234</span>' && ctx._rsGlobo(0) === '' && ctx._rsGlobo(3) === '<span class="b">3</span>');
+  // El aviso de Patricia dice los mismos días que manda el servidor (functions/lib/recordatorios.js CUANDO)
+  const R = require(path.join(F, 'recordatorios.js')), red = fs.readFileSync(path.join(ROOT, 'modules', 'redes.js'), 'utf8');
+  ok('el aviso de los recordatorios dice "3 días antes", igual que el servidor', /3 días antes de vencer, el día del vencimiento y, si se atrasan, al día siguiente, a los 3 y a los 7 días/.test(red) && !/2 días antes de vencer/.test(red) && R.CUANDO.proximas({ dias: -3 }) && !R.CUANDO.proximas({ dias: -2 }) && R.CUANDO.gracia({ dias: 1 }) && R.CUANDO.gracia({ dias: 3 }) && R.CUANDO.atrasadas({ dias: 7 }));
   console.log(`\n${pass} OK · ${fail} fallas`);
   if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA (excepción) ' + (e && e.stack || e)); process.exitCode = 1; });
