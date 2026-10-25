@@ -139,6 +139,8 @@ const ENC = { comentaMoto: { activo: true, palabras: ['moto'] } };
   ctx._rsComSel = 'k4'; ctx._rsPintarComentarios();
   ok('sin modelo reconocido lo explica', /la publicación no nombra un modelo del catálogo/.test(els['rs-com-hilo'].innerHTML) && /No se reconoció/.test(els['rs-com-ficha'].innerHTML));
 
+  // Los globos de las pestañas con el número real (24-oct-2026: antes pasado 9 decía "9+")
+  ok('los globos de las pestañas dicen el número real, sin "9+"', ctx._rsGlobo(47) === '<span class="b">47</span>' && ctx._rsGlobo(1234) === '<span class="b">1.234</span>' && ctx._rsGlobo(0) === '' && ctx._rsGlobo(3) === '<span class="b">3</span>');
   console.log(`\n${pass} OK · ${fail} fallas`);
   if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA (excepción) ' + (e && e.stack || e)); process.exitCode = 1; });

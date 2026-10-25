@@ -23,7 +23,8 @@ var RS_TABS = [
 ];
 function _rsVe(canal){ return typeof hasModuleAccess !== 'function' || hasModuleAccess(canal); }
 function _rsTabsVisibles(){ return RS_TABS.filter(function(t){ return !t.perm || _rsVe(t.perm); }); }
-function _rsGlobo(n){ return n > 0 ? '<span class="b">' + (n > 9 ? '9+' : n) + '</span>' : ''; }
+// El número real, sin tope (Adam, 24-oct-2026: "pon aquí los números reales"; antes pasado 9 decía "9+")
+function _rsGlobo(n){ return n > 0 ? '<span class="b">' + Number(n).toLocaleString('es-VE') + '</span>' : ''; }
 // Lo que pide atención en cada pestaña: conversaciones con mensajes sin leer, o comentarios de hoy
 function _rsCuenta(tab){
   if(tab === 'igcom') return (window._waComs || []).filter(function(c){ return _waEsHoy(c.hora); }).length;
