@@ -349,6 +349,8 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   ok('en la lista dice qué llegó', procesar.textoLista({ tipo: 'publicacion', texto: '' }) === '📌 Compartió una publicación' && procesar.textoLista({ tipo: 'adjunto' }) === '📎 Adjunto');
   let B = armar();
   const sv = ventas.armarVentas({ instrucciones: B.deps.cfg.instruccionesVentas, motos: B.catalogo.motos, cond: B.catalogo.cond, sedes: B.catalogo.sedes, hoy: HOY, nombrePerfil: 'Luis', usuario: 'luisperez.ve' });
+  // 25-oct-2026, Adam ("dale al 3"): de 328 personas solo 29 dejaron el teléfono porque se pedía de tercero; ahora va justo después del nombre
+  ok('Paola pide el WhatsApp justo después del nombre, antes de la cédula, y lo pide apenas haya interés', /nombre completo → número de WhatsApp → cédula → ciudad/.test(sv) && !/nombre completo → cédula → teléfono/.test(sv) && /El nombre y el WhatsApp son lo primero/.test(sv) && /Si no quiere dar el WhatsApp, sigue por aquí sin insistir/.test(sv));
   const plan = Cat.calcPlan(1750, 12, 0.4, Cat.condValidas(B.catalogo.cond));
   ok('el briefing de ventas lleva el catálogo con la cuota exacta de la web, la sede con ciudad, la promo y cómo solicitar', new RegExp('BRZ 200 200cc \\(Ciudad\\): precio \\$1,750 · inicial desde \\$' + plan.inicial + ' \\(40%\\) · cuota quincenal \\$' + plan.quincenal + ' a 12 meses \\(24 cuotas\\)').test(sv) && /SEDE EK Bello Monte \(Caracas\)/.test(sv) && /casco gratis/.test(sv) && /pagasi\.io\/solicitar/.test(sv) && /@luisperez\.ve/.test(sv));
   ok('...sin precio dice "por confirmar" y lo no disponible no aparece', /SBR 150: precio por confirmar/.test(sv) && !/Vieja/.test(sv));
