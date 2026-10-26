@@ -13,33 +13,49 @@ function openAddEgreso(){
     +'<option value="nomina">Salarios / Nómina</option>'
     +'<option value="otros">Otros</option>'
     +'</select></div>'
-    +'<div class="fg"><label>Monto ($) *</label><input class="fi" id="eg_monto" type="number" step="0.01" placeholder="0.00"></div>'
+    +'<div class="fg"><label>Monto (<span id="egf_lblmonto">$</span>) *</label><input class="fi" id="eg_monto" type="number" step="0.01" placeholder="0.00" oninput="if(typeof lbFiscalCalc===\'function\')lbFiscalCalc(\'egf\')"><div id="eg_monto_eq" style="font-size:10.5px;color:var(--ink3);min-height:13px;margin-top:2px"></div></div>'
     +'</div>'
+    // Moneda del gasto: en bolívares el monto y la factura se escriben en Bs y el sistema los pasa a dólares con la
+    // tasa BCV de la fecha de la factura (Adam, 26-oct-2026). Lo que se guarda sigue en dólares.
+    +(typeof lbMonedaHtml==='function' ? lbMonedaHtml('egf', {}) : '')
     +'<div class="fgr" style="gap:8px">'
     +'<div class="fg"><label>Forma de pago</label><select class="fs" id="eg_forma">'+_metodosOpts+'</select></div>'
     +'</div>'
     +'<div class="fgr" style="gap:8px">'
-    +'<div class="fg"><label>Fecha</label><input class="fi" id="eg_fecha" type="date" value="'+hoyLocalISO()+'"></div>'
+    +'<div class="fg"><label>Fecha</label><input class="fi" id="eg_fecha" type="date" value="'+hoyLocalISO()+'" onchange="if(typeof lbTasaBuscar===\'function\')lbTasaBuscar(\'egf\')"></div>'
     +'<div class="fg"><label>Referencia</label><input class="fi" id="eg_notas" placeholder="Opcional"></div>'
     +'</div>'
     // Datos de la factura del proveedor para el Libro de Compras (Adam, 21-oct-2026)
     +(typeof lbCamposFiscalesHtml==='function'
       ? '<details id="eg_fiscal_box" style="margin-top:4px;border:1px solid var(--rim);border-radius:9px;padding:9px 11px"><summary style="cursor:pointer;font-size:12.5px;font-weight:800">Factura del proveedor (para el Libro de Compras)</summary>'
-        +'<div class="fgr c1" style="gap:9px;margin-top:9px">'+lbCamposFiscalesHtml('egf', {}, 0)+'</div></details>'
+        +'<div class="fgr c1" style="gap:9px;margin-top:9px">'+lbCamposFiscalesHtml('egf', {}, 0, {sinMoneda:true})+'</div></details>'
       : '')
     +'</div>';
+    if(typeof _lbTasaEscrita!=='undefined'){ _lbTasaEscrita.egf=false; _lbTasaReq.egf=(_lbTasaReq.egf||0)+1; }
     S.saveFn=function(){
     var conc=(($('eg_conc')&&$('eg_conc').value)||'').trim();
-    var monto=parseFloat(($('eg_monto')&&$('eg_monto').value))||0;
-    if(!conc||monto<=0){toast('Concepto y monto son obligatorios','error');return false;}
+    var montoIn=parseFloat(($('eg_monto')&&$('eg_monto').value))||0;
+    if(!conc||montoIn<=0){toast('Concepto y monto son obligatorios','error');return false;}
+    // En bolívares: el monto se guarda en dólares a la tasa BCV de la fecha; el original queda de constancia
+    var enBs = typeof lbMonedaEs==='function' && lbMonedaEs('egf');
+    var tasaEg = enBs ? lbTasaDe('egf') : 0;
+    if(enBs && !(tasaEg>1)){ toast('Falta la tasa BCV (Bs por $) para pasar el monto a dólares','error'); return false; }
+    var monto = enBs ? bsAUsd(montoIn, tasaEg) : montoIn;
+    if(monto<=0){toast('El monto en dólares queda en cero: revisa la tasa','error');return false;}
     // El numero lo da el contador de Firestore, no el maximo en memoria: con dos
     // personas guardando a la vez, el segundo gasto borraba al primero (punto 30).
     return nextEgresoIdAsync().then(function(newId){
     var newEg={id:newId,concepto:conc,monto:monto,fecha:($('eg_fecha')&&$('eg_fecha').value)||hoyLocalISO(),categoria:($('eg_cat')&&$('eg_cat').value)||'otros',forma:($('eg_forma')&&$('eg_forma').value)||'',notas:($('eg_notas')&&$('eg_notas').value)||'',eliminado:false};
     // "Referencia" se guardaba solo en notas y los reportes leen e.referencia (salía vacío)
     newEg.referencia = newEg.notas || '';
+    if(enBs){
+      newEg.moneda='BS'; newEg.montoBs=montoIn; newEg.tasaBs=tasaEg;
+      newEg.tasaMoneda=(($('egf_tasasel')&&$('egf_tasasel').value)==='eur')?'eur':'usd';
+      newEg.tasaFecha=($('egf_tasafecha')&&$('egf_tasafecha').value)||newEg.fecha; newEg.tasaFuente=($('egf_tasafuente')&&$('egf_tasafuente').value)||'historial';
+    }
     var _fis = (typeof lbLeerCamposFiscales==='function') ? lbLeerCamposFiscales('egf') : null;
     if(_fis){ if(!_fis.noAplica && !_fis.fecha) _fis.fecha = newEg.fecha; newEg.fiscal = _fis; }
+    if(enBs && typeof lbTasaPersistir==='function') lbTasaPersistir(_fis && _fis.moneda==='BS' ? _fis : { moneda:'BS', tasaFuente:newEg.tasaFuente, tasa:tasaEg, tasaFecha:newEg.tasaFecha, tasaMoneda:newEg.tasaMoneda }, 'egf');
     S.egresos.push(newEg);
     DB.saveEgreso(newEg);
     if(typeof logActividad==='function') logActividad('egreso_registrado','egresos',String(newId),{concepto:conc, monto:monto, categoria:newEg.categoria});
@@ -58,14 +74,15 @@ function openAddEgreso(){
         fecha:newEg.fecha,
         referencia:newEg.notas||'',
         realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin',
-        tasaBs:window._tasaBsGlobal||1,
+        tasaBs:enBs ? tasaEg : (window._tasaBsGlobal||1),
         hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false})
       };
+      if(enBs) mov.montoBs = montoIn;
       S.movimientos.push(mov);
       DB.saveMovimiento(mov);
     }
 
-    toast('Egreso registrado · '+fmt(monto),'success');closeM();nav('conta');return true;
+    toast('Egreso registrado · '+fmt(monto)+(enBs ? ' (Bs '+montoIn.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' a '+tasaEg+' Bs/$)' : ''),'success');closeM();nav('conta');return true;
     });
   };
   $('mft').innerHTML=`<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" onclick="saveM()">Guardar Egreso</button>`;

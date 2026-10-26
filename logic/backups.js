@@ -11,13 +11,18 @@ function exportarBackupJSON(){
   var tareasPromise = db
     ? db.collection('tareas').get().then(function(s){ return s.docs.map(function(d){ return Object.assign({id:d.id},d.data()); }); }).catch(function(){ return []; })
     : Promise.resolve(S.tareas||[]);
+  // Historial de tasas por día (no vive en S): sin él, en otra base las facturas en Bs de fechas pasadas no tienen tasa
+  var tasasPromise = db
+    ? db.collection('tasas').get().then(function(s){ return s.docs.map(function(d){ return Object.assign({id:d.id},d.data()); }); }).catch(function(){ return []; })
+    : Promise.resolve([]);
 
   toast('Preparando backup completo...','info');
-  Promise.all([usuariosPromise, tareasPromise].concat(configPromises)).then(function(results){
+  Promise.all([usuariosPromise, tareasPromise, tasasPromise].concat(configPromises)).then(function(results){
     var usuarios = results[0];
     var tareas   = results[1];
+    var tasasHist = results[2];
     var configData = {};
-    results.slice(2).forEach(function(r){ if(r.data) configData[r.key] = r.data; });
+    results.slice(3).forEach(function(r){ if(r.data) configData[r.key] = r.data; });
 
     var backup={
       version:2,
@@ -33,6 +38,7 @@ function exportarBackupJSON(){
       cuentasPendientes: S.cuentasPendientes || [],
       facturas:     S.facturas     || [],
       tareas:       tareas,
+      tasas:        tasasHist,
       usuarios:     usuarios,
       // Configuración
       config:       configData
@@ -82,6 +88,7 @@ function importarBackupJSON(input){
       + 'Concesionarios: '+(data.concesionarios||[]).length+'\n'
       + 'Facturas: '+(data.facturas||[]).length+'\n'
       + 'Tareas: '+(data.tareas||[]).length+'\n'
+      + 'Tasas por día: '+(data.tasas||[]).length+'\n'
       + (data.config ? 'Config: '+Object.keys(data.config).join(', ')+'\n' : '')
       + '\n¿Continuar?';
     if(!confirm(resumen)){ input.value=''; return; }
@@ -119,7 +126,8 @@ function importarBackupJSON(input){
       { col:'concesionarios',    arr:S.concesionarios,    id:idDe },
       { col:'cuentasPendientes', arr:S.cuentasPendientes, id:idDe },
       { col:'facturas',          arr:S.facturas,          id:idDe },
-      { col:'tareas',            arr:S.tareas,            id:idDe }
+      { col:'tareas',            arr:S.tareas,            id:idDe },
+      { col:'tasas',             arr:(data.tasas||[]).map(function(t){ var x=Object.assign({},t); x.fecha=x.fecha||x.id; delete x.id; return x; }), id:function(o){ return o && o.fecha; } }
     ];
 
     // ── 4) Lista plana de operaciones {col, docId, data} ──────────────────

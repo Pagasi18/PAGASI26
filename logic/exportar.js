@@ -230,23 +230,24 @@ function pgBotonesExportar(id, titulo, extra){
 function finExportarEgresos(formato){
   var lista = (typeof _concFiltrarEgresos === 'function' ? _concFiltrarEgresos(S.egresos || []) : (S.egresos || []))
     .filter(function(e){ return e && !e.eliminado; }).slice().sort(function(a, b){ return String(b.fecha || '').localeCompare(String(a.fecha || '')); });
-  var enc = ['Fecha', 'Concepto', 'Categoría', 'Forma de pago', 'Monto ($)', 'Referencia', 'Proveedor', 'RIF', 'N° de factura', 'N° de control'];
-  var filas = lista.map(function(e){ var f = e.fiscal || {};
-    return [e.fecha || '', e.concepto || '', e.categoria || '', e.forma || '', +e.monto || 0, e.referencia || e.notas || '', f.proveedor || '', f.rif || '', f.numero || '', f.control || '']; });
+  // Un gasto registrado en bolívares sale con su monto original y la tasa con la que se pasó a dólares (26-oct-2026)
+  var enc = ['Fecha', 'Concepto', 'Categoría', 'Forma de pago', 'Monto ($)', 'Moneda', 'Monto original', 'Tasa Bs/$', 'Referencia', 'Proveedor', 'RIF', 'N° de factura', 'N° de control'];
+  var filas = lista.map(function(e){ var f = e.fiscal || {}, bs = e.moneda === 'BS';
+    return [e.fecha || '', e.concepto || '', e.categoria || '', e.forma || '', +e.monto || 0, bs ? 'Bs' : 'USD', bs ? (+e.montoBs || 0) : (+e.monto || 0), bs ? (+e.tasaBs || '') : '', e.referencia || e.notas || '', f.proveedor || '', f.rif || '', f.numero || '', f.control || '']; });
   var total = Math.round(filas.reduce(function(a, f){ return a + f[4]; }, 0) * 100) / 100;
   var fecha = (typeof hoyLocalISO === 'function') ? hoyLocalISO() : new Date().toISOString().slice(0, 10);
   if(formato === 'excel'){
-    xlsxEscribir('Egresos_' + fecha + '.xlsx', [{ name: 'Egresos', cols: [11, 46, 14, 20, 14, 18, 30, 14, 14, 14], rows:
+    xlsxEscribir('Egresos_' + fecha + '.xlsx', [{ name: 'Egresos', cols: [11, 46, 14, 20, 14, 9, 16, 12, 18, 30, 14, 14, 14], rows:
       [[{ v: 'Egresos · ' + lista.length + ' registros', s: 'titulo' }], [{ v: 'Generado: ' + new Date().toLocaleString('es-VE'), s: 'nota' }], [],
        enc.map(function(h){ return { v: h, s: 'encabezado' }; })]
-      .concat(filas.map(function(f){ return f.map(function(v, i){ return i === 4 ? { v: v, s: 'monto' } : { v: v, s: 'texto' }; }); }))
+      .concat(filas.map(function(f){ return f.map(function(v, i){ return (i === 4 || i === 6 || i === 7) && typeof v === 'number' ? { v: v, s: 'monto' } : { v: v, s: 'texto' }; }); }))
       .concat([[ '', '', '', { v: 'TOTAL', s: 'totalEtiqueta' }, { v: total, s: 'totalMonto' } ]]) }]);
     return;
   }
   var esc = function(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
   _abrirVentanaImpresion('Egresos', '<h3>Egresos · ' + lista.length + ' registros</h3><table><thead><tr>' + enc.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>'
-    + filas.map(function(f){ return '<tr>' + f.map(function(v, i){ return '<td' + (i === 4 ? ' style="text-align:right;white-space:nowrap"' : '') + '>' + (i === 4 ? fmt(v) : esc(v)) + '</td>'; }).join('') + '</tr>'; }).join('')
-    + '<tr><td colspan="4" style="text-align:right;font-weight:800">TOTAL</td><td style="text-align:right;font-weight:800;white-space:nowrap">' + fmt(total) + '</td><td colspan="5"></td></tr></tbody></table>', { horizontal: true });
+    + filas.map(function(f){ return '<tr>' + f.map(function(v, i){ var num = (i === 4 || i === 6 || i === 7) && typeof v === 'number'; return '<td' + (num ? ' style="text-align:right;white-space:nowrap"' : '') + '>' + (i === 4 ? fmt(v) : (num ? v.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : esc(v))) + '</td>'; }).join('') + '</tr>'; }).join('')
+    + '<tr><td colspan="4" style="text-align:right;font-weight:800">TOTAL</td><td style="text-align:right;font-weight:800;white-space:nowrap">' + fmt(total) + '</td><td colspan="8"></td></tr></tbody></table>', { horizontal: true });
 }
 
 if(typeof module !== 'undefined' && module.exports) module.exports = { xlsxArchivos: xlsxArchivos, _zipStore: _zipStore, _pgCeldaValor: _pgCeldaValor, XLSX_ESTILOS: XLSX_ESTILOS };

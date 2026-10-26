@@ -102,7 +102,9 @@ function lbComprasFilas(docs, periodo, cfg){
       factura: tipo === '01-REG' ? (f.numero || '') : '', control: f.control || '', ndnc: tipo !== '01-REG' ? (f.numero || '') : '',
       tipo: tipo, afectada: f.afectada || '', total: total, exento: exento, base: base, alic: alic, iva: iva, ret: ret,
       comprobante: f.comprobante || '', origen: origen, quincena: _lbNum(f.quincena) !== '' ? +f.quincena : _lbQuincena(fechaDoc),
-      faltan: faltan, concepto: g.concepto, monto: g.monto, categoria: g.categoria
+      faltan: faltan, concepto: g.concepto, monto: g.monto, categoria: g.categoria,
+      // la factura se registró en bolívares: el original y la tasa con la que se pasó a dólares (26-oct-2026)
+      monedaOrig: f.moneda === 'BS' ? 'BS' : 'USD', totalBsOrig: f.moneda === 'BS' ? _lbR2((+f.exentoBs || 0) + (+f.baseBs || 0) + (+f.ivaBs || 0)) : '', tasaOrig: f.moneda === 'BS' ? (+f.tasa || '') : '', tasaFechaOrig: f.moneda === 'BS' ? (f.tasaFecha || '') : '', tasaMonedaOrig: f.moneda === 'BS' ? (f.tasaMoneda || 'usd') : ''
     };
   });
   filas.sort(function(a, b){ return String(a.fechaDoc).localeCompare(String(b.fechaDoc)) || String(a.clave).localeCompare(String(b.clave)); });
@@ -278,6 +280,7 @@ function _lbCuerpoHtml(tipo){
       return '<td style="padding:5px 7px;border:1px solid var(--rim2);font-size:11px;text-align:' + al + ';' + (c[2] === 'm' ? 'font-family:var(--fd);white-space:nowrap' : (['fechaDoc', 'rif', 'factura', 'control', 'ndnc', 'tipo', 'comprobante'].indexOf(c[0]) > -1 ? 'white-space:nowrap' : '')) + '">' + _lbCeldaHtml(f[c[0]], c[2]) + '</td>';
     }).join('') + (tipo === 'compras' ? '<td class="no-export" style="padding:4px 6px;border:1px solid var(--rim2);white-space:nowrap">'
       + (falta ? '<div style="font-size:9.5px;color:var(--amber);font-weight:800;margin-bottom:3px">Falta: ' + _lbEsc(f.faltan.join(', ')) + '</div>' : '')
+      + (f.monedaOrig === 'BS' ? '<div style="font-size:9.5px;color:var(--ink3);margin-bottom:3px">Factura en Bs: ' + _lbEsc(_lbFmtBs(f.totalBsOrig)) + (f.tasaOrig ? ' a ' + _lbEsc(_lbFmtTasa(f.tasaOrig)) + ' Bs/$' + (f.tasaMonedaOrig === 'eur' ? ' (euro)' : '') : '') + (f.tasaFechaOrig ? ' (' + _lbEsc(_lbFechaVE(f.tasaFechaOrig)) + ')' : '') + '</div>' : '')
       + '<button class="btn btn-g btn-sm" style="padding:3px 9px;font-size:11px" onclick="lbCompletar(\'' + f.clave + '\')">' + (falta ? '✎ Completar' : '✎ Editar') + '</button></td>' : '') + '</tr>';
   }).join('');
   var vacio = !D.filas.length ? '<tr><td colspan="' + (C.cols.length + 1) + '" style="padding:22px;text-align:center;color:var(--ink3);font-size:12px">'
@@ -348,11 +351,36 @@ function lbBuscar(tipo, v){ S[tipo === 'compras' ? 'lbQCompras' : 'lbQVentas'] =
 
 // ══════════════ COMPLETAR / EDITAR LOS DATOS DE LA FACTURA DEL PROVEEDOR ══════════════
 // Los mismos campos sirven en "Registrar egreso" (prefijo 'egf') y en el libro (prefijo 'lbf')
-function lbCamposFiscalesHtml(p, f, monto){
+// Moneda de la factura: en dólares (como siempre) o en bolívares. En bolívares los montos se escriben tal como vienen
+// en la factura y el sistema los pasa a dólares con la tasa BCV de la fecha del documento (Adam, 26-oct-2026: "que el
+// sistema, como tiene el tipo de cambio ya cargado, le haga la conversión… los reportes siempre van saliendo dólares").
+// Lo que se guarda y lo que ven el libro, Coromoto y QuickBooks sigue en dólares; el original en Bs, la tasa, su fecha
+// y su fuente quedan guardados en la factura como constancia. La tasa sale del historial (logic/tasas.js); si no hay,
+// el analista la escribe y queda guardada para esa fecha.
+function lbMonedaHtml(p, f){
   f = f || {};
+  var bs = f.moneda === 'BS', sel = f.tasaMoneda === 'eur' ? 'eur' : 'usd';
+  return '<div class="fgr" style="gap:8px;align-items:end">'
+    + '<div class="fg" style="min-width:150px"><label>Moneda de la factura</label><select class="fs" id="' + p + '_mon" data-prev="' + (bs ? 'BS' : 'USD') + '" onchange="lbMonedaCambio(\'' + p + '\')"><option value="USD"' + (bs ? '' : ' selected') + '>Dólares ($)</option><option value="BS"' + (bs ? ' selected' : '') + '>Bolívares (Bs)</option></select></div>'
+    + '<div class="fg" id="' + p + '_tasabox" style="flex:1;min-width:280px;' + (bs ? '' : 'display:none') + '"><label>Tasa BCV de la fecha del documento (Bs por $)</label>'
+    +   '<div style="display:flex;gap:6px;align-items:center"><select class="fs" id="' + p + '_tasasel" style="max-width:120px" onchange="lbTasaBuscar(\'' + p + '\')"><option value="usd"' + (sel === 'usd' ? ' selected' : '') + '>Dólar BCV</option><option value="eur"' + (sel === 'eur' ? ' selected' : '') + '>Euro BCV</option></select>'
+    +   '<input class="fi" type="number" step="0.0001" min="1" id="' + p + '_tasa" value="' + (f.tasa ? +f.tasa : '') + '" placeholder="Ej: 886.23" oninput="lbTasaManual(\'' + p + '\')" style="max-width:140px">'
+    +   '<button type="button" class="btn btn-g btn-sm" onclick="lbTasaBuscar(\'' + p + '\')" title="Buscar la tasa de esa fecha en el historial">↻</button>'
+    +   '<input type="hidden" id="' + p + '_tasafecha" value="' + _lbEsc(f.tasaFecha || '') + '"><input type="hidden" id="' + p + '_tasafuente" value="' + _lbEsc(f.tasaFuente || '') + '"></div>'
+    +   '<div id="' + p + '_tasainfo" style="font-size:10.5px;color:var(--ink3);margin-top:3px;line-height:1.4">' + (bs && f.tasa ? 'Tasa guardada con la factura' + (f.tasaFecha ? ' · del ' + _lbEsc(_lbFechaVE(f.tasaFecha)) : '') + (f.tasaFuente ? ' · ' + _lbEsc(f.tasaFuente) : '') + (f.tasaMoneda === 'eur' ? ' · euro' : '') : '') + '</div>'
+    +   '<div style="font-size:10px;color:var(--ink3);margin-top:2px">Dólar BCV: la tasa oficial del día. Euro BCV: solo si el proveedor cobró los bolívares a la tasa del euro (se divide entre esa tasa).</div></div>'
+    + '</div>';
+}
+var _LB_EQ = 'font-size:10.5px;color:var(--ink3);min-height:13px;margin-top:2px';
+function lbCamposFiscalesHtml(p, f, monto, opts){
+  f = f || {}; opts = opts || {};
+  var bs = f.moneda === 'BS';
   var v = function(k){ return _lbEsc(f[k] == null ? '' : f[k]); };
+  var vm = function(k){ return bs ? v(k + 'Bs') : v(k); };   // en Bs se editan los montos originales
   var alic = _lbNum(f.alicuota) === '' ? '0.16' : String(+f.alicuota);
-  return '<div class="fgr" style="gap:8px">'
+  var sim = bs ? 'Bs' : '$';
+  return (opts.sinMoneda ? '' : lbMonedaHtml(p, f))
+    + '<div class="fgr" style="gap:8px">'
     + '<div class="fg"><label>Proveedor (razón social)</label><input class="fi" id="' + p + '_prov" value="' + v('proveedor') + '" placeholder="Ej: INVERSIONES MOTOS TORO, C.A."></div>'
     + '<div class="fg"><label>RIF del proveedor</label><input class="fi" id="' + p + '_rif" value="' + v('rif') + '" placeholder="J-12345678-9" maxlength="16"></div></div>'
     + '<div class="fgr" style="gap:8px">'
@@ -360,44 +388,154 @@ function lbCamposFiscalesHtml(p, f, monto){
     + '<div class="fg"><label>N° de factura / nota / declaración</label><input class="fi" id="' + p + '_num" value="' + v('numero') + '" placeholder="00001234"></div>'
     + '<div class="fg"><label>N° de control</label><input class="fi" id="' + p + '_ctl" value="' + v('control') + '" placeholder="00-00001234"></div></div>'
     + '<div class="fgr" style="gap:8px">'
-    + '<div class="fg"><label>Fecha del documento</label><input class="fi" type="date" id="' + p + '_fecha" value="' + v('fecha') + '"></div>'
+    + '<div class="fg"><label>Fecha del documento</label><input class="fi" type="date" id="' + p + '_fecha" value="' + v('fecha') + '" onchange="lbTasaBuscar(\'' + p + '\')"></div>'
     + '<div class="fg"><label>Factura afectada (solo notas)</label><input class="fi" id="' + p + '_afe" value="' + v('afectada') + '" placeholder="Opcional"></div>'
     + '<div class="fg"><label>Origen</label><select class="fs" id="' + p + '_ori"><option value="INTERNA"' + (f.origen === 'IMPORTACION' ? '' : ' selected') + '>Interna</option><option value="IMPORTACION"' + (f.origen === 'IMPORTACION' ? ' selected' : '') + '>Importación</option></select></div></div>'
     + '<div class="fgr" style="gap:8px">'
-    + '<div class="fg"><label>Exento ($)</label><input class="fi" type="number" step="0.01" id="' + p + '_exe" value="' + v('exento') + '" oninput="lbFiscalCalc(\'' + p + '\')" placeholder="0.00"></div>'
-    + '<div class="fg"><label>Base imponible ($)</label><input class="fi" type="number" step="0.01" id="' + p + '_base" value="' + v('base') + '" oninput="lbFiscalCalc(\'' + p + '\')" placeholder="0.00"></div>'
+    + '<div class="fg"><label>Exento (<span class="lb-lblmon-' + p + '">' + sim + '</span>)</label><input class="fi" type="number" step="0.01" id="' + p + '_exe" value="' + vm('exento') + '" oninput="lbFiscalCalc(\'' + p + '\')" placeholder="0.00"><div id="' + p + '_exe_eq" style="' + _LB_EQ + '"></div></div>'
+    + '<div class="fg"><label>Base imponible (<span class="lb-lblmon-' + p + '">' + sim + '</span>)</label><input class="fi" type="number" step="0.01" id="' + p + '_base" value="' + vm('base') + '" oninput="lbFiscalCalc(\'' + p + '\')" placeholder="0.00"><div id="' + p + '_base_eq" style="' + _LB_EQ + '"></div></div>'
     + '<div class="fg"><label>Alícuota</label><select class="fs" id="' + p + '_alic" onchange="lbFiscalCalc(\'' + p + '\')">' + [['0.16', '16% general'], ['0.08', '8% reducida'], ['0.31', '31% (16% + 15%)'], ['0', '0%']].map(function(a){ return '<option value="' + a[0] + '"' + (alic === a[0] ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('') + '</select></div></div>'
     + '<div class="fgr" style="gap:8px">'
-    + '<div class="fg"><label>IVA retenido ($)</label><input class="fi" type="number" step="0.01" id="' + p + '_ret" value="' + v('retenido') + '" placeholder="Automático si es contribuyente especial"></div>'
+    + '<div class="fg"><label>IVA retenido (<span class="lb-lblmon-' + p + '">' + sim + '</span>)</label><input class="fi" type="number" step="0.01" id="' + p + '_ret" value="' + vm('retenido') + '" oninput="lbFiscalCalc(\'' + p + '\')" placeholder="Automático si es contribuyente especial"><div id="' + p + '_ret_eq" style="' + _LB_EQ + '"></div></div>'
     + '<div class="fg"><label>N° de comprobante de retención</label><input class="fi" id="' + p + '_comp" value="' + v('comprobante') + '" placeholder="14 dígitos: AAAAMMSSSSSSSS" maxlength="14"></div></div>'
     + '<div id="' + p + '_res" style="font-size:11.5px;color:var(--ink3);margin-top:2px"></div>'
     + (monto > 0 ? '<div style="margin-top:4px"><a href="javascript:void(0)" onclick="lbFiscalDesdeMonto(\'' + p + '\',' + monto + ')" style="font-size:11.5px;font-weight:700;color:var(--p1)">Repartir los ' + fmt(monto) + ' registrados como total con IVA 16% incluido</a></div>' : '')
     + '<label style="display:flex;gap:7px;align-items:center;margin-top:8px;font-size:12px;cursor:pointer"><input type="checkbox" id="' + p + '_noap"' + (f.noAplica ? ' checked' : '') + '> Este gasto no lleva factura (no va al Libro de Compras)</label>';
 }
-function lbFiscalCalc(p){
-  var g = function(k){ return parseFloat((document.getElementById(p + '_' + k) || {}).value) || 0; };
-  var base = g('base'), alic = parseFloat((document.getElementById(p + '_alic') || {}).value) || 0, iva = _lbR2(base * alic), tot = _lbR2(g('exe') + base + iva);
-  var el = document.getElementById(p + '_res'); if(el) el.innerHTML = (base || g('exe')) ? 'IVA (crédito fiscal): <b>' + fmt(iva) + '</b> · Total con IVA: <b>' + fmt(tot) + '</b>' : '';
+var _lbFmtBs = function(n){ return 'Bs ' + (Math.round((parseFloat(n) || 0) * 100) / 100).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+var _lbFmtTasa = function(t){ return (parseFloat(t) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); };
+var _lbEl = function(id){ return document.getElementById(id); };
+var _lbTasaReq = {};        // por formulario: número de la última búsqueda (una respuesta vieja no pisa la nueva)
+var _lbTasaEscrita = {};    // por formulario: el analista tecleó la tasa en ESTE formulario (solo esa se guarda en el historial)
+function lbMonedaEs(p){ var m = _lbEl(p + '_mon'); return !!m && m.value === 'BS'; }
+function lbTasaDe(p){ var t = _lbEl(p + '_tasa'); var n = parseFloat(t && t.value) || 0; return n > 1 ? Math.round(n * 10000) / 10000 : 0; }
+// La fecha cuya tasa se busca: la del documento; en Registrar Egreso, si no la escribieron, la del gasto
+function lbTasaFechaDe(p){
+  var f = (_lbEl(p + '_fecha') || {}).value || (p === 'egf' ? ((_lbEl('eg_fecha') || {}).value || '') : '');
+  return /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : (typeof hoyLocalISO === 'function' ? hoyLocalISO() : new Date().toISOString().slice(0, 10));
 }
+// Al cambiar de moneda, los montos ya escritos se pasan a la otra moneda con la tasa (×tasa a Bs, ÷tasa a $): si no,
+// al guardar se leerían en la moneda nueva tal cual (una base de Bs 8.862 quedaría como $8.862). Sin tasa se vacían y avisa.
+var _LB_CAMPOS_MONTO = ['exe', 'base', 'ret'];
+function _lbCamposConvertir(p, fn){
+  var ids = _LB_CAMPOS_MONTO.map(function(k){ return p + '_' + k; }); if(p === 'egf') ids.push('eg_monto');
+  ids.forEach(function(id){ var el = _lbEl(id); if(!el || el.value === '' || !(parseFloat(el.value) >= 0)) return; var v = fn(parseFloat(el.value)); el.value = v === '' ? '' : String(v); });
+}
+function lbMonedaCambio(p, sinBuscar){
+  var bs = lbMonedaEs(p), box = _lbEl(p + '_tasabox'), sel = _lbEl(p + '_mon');
+  var antes = sel ? (sel.getAttribute('data-prev') || (bs ? 'BS' : 'USD')) : (bs ? 'BS' : 'USD');
+  if(sel) sel.setAttribute('data-prev', bs ? 'BS' : 'USD');
+  if(box) box.style.display = bs ? '' : 'none';
+  var lbls = document.querySelectorAll('.lb-lblmon-' + p); for(var i = 0; i < lbls.length; i++) lbls[i].textContent = bs ? 'Bs' : '$';
+  var lm = _lbEl(p + '_lblmonto'); if(lm) lm.textContent = bs ? 'Bs' : '$';
+  var cambio = antes !== (bs ? 'BS' : 'USD');
+  if(cambio && !bs){   // Bs → $: con la tasa que había
+    var t = lbTasaDe(p);
+    _lbCamposConvertir(p, function(v){ return t ? bsAUsd(v, t) : ''; });
+    if(!t && typeof toast === 'function') toast('Sin tasa no se pueden pasar los montos a dólares: escríbelos de nuevo', 'info');
+    lbFiscalCalc(p); return;
+  }
+  if(bs && !sinBuscar){
+    lbTasaBuscar(p, cambio ? function(t){   // $ → Bs: cuando llegue la tasa
+      _lbCamposConvertir(p, function(v){ return t ? usdABs(v, t) : ''; });
+      if(!t && typeof toast === 'function') toast('Sin tasa no se pueden pasar los montos a bolívares: escríbelos de nuevo', 'info');
+      lbFiscalCalc(p);
+    } : null);
+  } else lbFiscalCalc(p);
+}
+function lbTasaInfo(p, html, color){ var el = _lbEl(p + '_tasainfo'); if(el){ el.innerHTML = html; el.style.color = color || 'var(--ink3)'; } }
+function lbTasaBuscar(p, despues){
+  if(!lbMonedaEs(p)) return;
+  var fecha = lbTasaFechaDe(p), sel = (_lbEl(p + '_tasasel') || {}).value === 'eur' ? 'eur' : 'usd';
+  var ff = _lbEl(p + '_tasafecha'), fu = _lbEl(p + '_tasafuente'), ti = _lbEl(p + '_tasa');
+  var mio = _lbTasaReq[p] = (_lbTasaReq[p] || 0) + 1;
+  _lbTasaEscrita[p] = false;
+  if(typeof tasaParaFecha !== 'function'){ lbTasaInfo(p, 'Escribe la tasa BCV del ' + _lbEsc(_lbFechaVE(fecha)) + ' (Bs por $).'); if(despues) despues(lbTasaDe(p)); return; }
+  lbTasaInfo(p, 'Buscando la tasa del ' + _lbEsc(_lbFechaVE(fecha)) + '…');
+  tasaParaFecha(fecha, sel).then(function(r){
+    if(mio !== _lbTasaReq[p]) return;   // ya se pidió otra (cambió la fecha o la moneda): esta respuesta es vieja
+    if(_lbTasaEscrita[p]){ lbFiscalCalc(p); if(despues) despues(lbTasaDe(p)); return; }   // mientras buscaba, el analista la escribió: esa manda
+    if(r){
+      if(ti) ti.value = r.tasa;
+      if(ff) ff.value = r.fechaTasa; if(fu) fu.value = r.manual ? 'historial-manual' : r.fuente;
+      lbTasaInfo(p, (r.aproximada ? '⚠ ' : '') + (sel === 'eur' ? 'Euro' : 'Dólar') + ' BCV del ' + _lbEsc(_lbFechaVE(r.fechaTasa)) + ': <b>' + _lbFmtTasa(r.tasa) + ' Bs/$</b>' + (r.manual ? ' · puesta a mano' : '') + (r.nota ? '<br>' + _lbEsc(r.nota) : ''), r.aproximada ? 'var(--amber)' : 'var(--ink3)');
+    } else {
+      if(ti) ti.value = '';
+      if(ff) ff.value = fecha; if(fu) fu.value = 'manual';
+      lbTasaInfo(p, 'No hay tasa registrada del ' + _lbEsc(_lbFechaVE(fecha)) + '. Escribe la del BCV de ese día: quedará guardada para esa fecha.', 'var(--amber)');
+    }
+    lbFiscalCalc(p);
+    if(despues) despues(lbTasaDe(p));
+  });
+}
+function lbTasaManual(p){
+  var ff = _lbEl(p + '_tasafecha'), fu = _lbEl(p + '_tasafuente'), fecha = lbTasaFechaDe(p);
+  _lbTasaEscrita[p] = true; _lbTasaReq[p] = (_lbTasaReq[p] || 0) + 1;   // lo que llegue de una búsqueda anterior ya no cuenta
+  if(ff) ff.value = fecha; if(fu) fu.value = 'manual';
+  lbTasaInfo(p, lbTasaDe(p) ? 'Tasa escrita a mano: se guardará para el ' + _lbEsc(_lbFechaVE(fecha)) + ' con tu nombre (si ese día ya tiene la oficial, el historial conserva la oficial).' : 'La tasa tiene que ser mayor que 1.', 'var(--amber)');
+  lbFiscalCalc(p);
+}
+function lbFiscalCalc(p){
+  var g = function(k){ return parseFloat((_lbEl(p + '_' + k) || {}).value) || 0; };
+  var bs = lbMonedaEs(p), tasa = bs ? lbTasaDe(p) : 0, alic = parseFloat((_lbEl(p + '_alic') || {}).value) || 0;
+  var eq = function(k, usd){ var el = _lbEl(p + '_' + k + '_eq'); if(el) el.textContent = (bs && g(k) && tasa) ? '= ' + fmt(usd) : ''; };
+  var exeI = g('exe'), baseI = g('base'), retI = g('ret');
+  var exe = bs ? bsAUsd(exeI, tasa) : exeI, base = bs ? bsAUsd(baseI, tasa) : baseI, ret = bs ? bsAUsd(retI, tasa) : retI;
+  eq('exe', exe); eq('base', base); eq('ret', ret);
+  var iva = _lbR2(base * alic), tot = _lbR2(exe + base + iva), ivaBs = _lbR2(baseI * alic), totBs = _lbR2(exeI + baseI + ivaBs);
+  var el = _lbEl(p + '_res');
+  if(el){
+    if(!(baseI || exeI)) el.innerHTML = '';
+    else if(bs && !tasa) el.innerHTML = '<span style="color:var(--amber)">Escribe la tasa para ver el equivalente en dólares.</span>';
+    else if(bs) el.innerHTML = 'IVA (crédito fiscal): <b>' + _lbFmtBs(ivaBs) + '</b> = ' + fmt(iva) + ' · Total con IVA: <b>' + _lbFmtBs(totBs) + '</b> = <b>' + fmt(tot) + '</b> · a ' + _lbFmtTasa(tasa) + ' Bs/$';
+    else el.innerHTML = 'IVA (crédito fiscal): <b>' + fmt(iva) + '</b> · Total con IVA: <b>' + fmt(tot) + '</b>';
+  }
+  // En Registrar Egreso el monto del gasto va en la misma moneda y con la misma tasa
+  if(p === 'egf'){ var me = _lbEl('eg_monto_eq'), mv = parseFloat((_lbEl('eg_monto') || {}).value) || 0; if(me) me.textContent = (bs && mv && tasa) ? '= ' + fmt(bsAUsd(mv, tasa)) : ''; }
+}
+// Reparte el monto registrado del gasto (en dólares) como total con IVA; en Bs, primero lo pasa a bolívares con la tasa
 function lbFiscalDesdeMonto(p, monto){
-  var alic = parseFloat((document.getElementById(p + '_alic') || {}).value); if(!(alic > 0)) alic = 0.16;
-  var base = _lbR2(monto / (1 + alic));
-  var b = document.getElementById(p + '_base'), e = document.getElementById(p + '_exe');
+  var alic = parseFloat((_lbEl(p + '_alic') || {}).value); if(!(alic > 0)) alic = 0.16;
+  var bs = lbMonedaEs(p), tasa = bs ? lbTasaDe(p) : 0;
+  if(bs && !tasa){ if(typeof toast === 'function') toast('Primero la tasa: sin ella no se puede pasar el monto a bolívares', 'error'); return; }
+  var total = bs ? usdABs(monto, tasa) : monto, base = _lbR2(total / (1 + alic));
+  var b = _lbEl(p + '_base'), e = _lbEl(p + '_exe');
   if(b) b.value = base.toFixed(2); if(e) e.value = '';
   lbFiscalCalc(p);
 }
-// Lee los campos; devuelve null si no se llenó nada
+// Lo que falta para poder guardar ('' si está bien)
+function lbFiscalValidar(p){
+  if(lbMonedaEs(p) && !lbTasaDe(p)) return 'Falta la tasa BCV (Bs por $) para pasar la factura a dólares';
+  return '';
+}
+// Lee los campos; devuelve null si no se llenó nada. En bolívares guarda los montos originales (…Bs) y, convertidos
+// con la tasa, los de siempre en dólares: el libro, Coromoto y QuickBooks siguen leyendo exento/base/iva/retenido.
 function lbLeerCamposFiscales(p){
-  var g = function(k){ return String((document.getElementById(p + '_' + k) || {}).value || '').trim(); };
-  var noap = !!((document.getElementById(p + '_noap') || {}).checked);
+  var g = function(k){ return String((_lbEl(p + '_' + k) || {}).value || '').trim(); };
+  var noap = !!((_lbEl(p + '_noap') || {}).checked);
   var f = { proveedor: g('prov'), rif: g('rif').toUpperCase(), tipo: g('tipo') || '01-REG', numero: g('num'), control: g('ctl'), fecha: g('fecha'), afectada: g('afe'),
     origen: g('ori') === 'IMPORTACION' ? 'IMPORTACION' : 'INTERNA', exento: _lbNum(g('exe')), base: _lbNum(g('base')), alicuota: _lbNum(g('alic')), retenido: _lbNum(g('ret')), comprobante: g('comp') };
   if(noap) return { noAplica: true };
   var algo = f.proveedor || f.rif || f.numero || f.control || f.exento !== '' || f.base !== '' || f.comprobante;
   if(!algo) return null;
   if(f.base === '') f.alicuota = '';
+  if(lbMonedaEs(p)){
+    var tasa = lbTasaDe(p);
+    f.moneda = 'BS'; f.tasa = tasa; f.tasaMoneda = (_lbEl(p + '_tasasel') || {}).value === 'eur' ? 'eur' : 'usd';
+    f.tasaFecha = g('tasafecha') || f.fecha || lbTasaFechaDe(p); f.tasaFuente = g('tasafuente') || 'historial';
+    f.exentoBs = f.exento; f.baseBs = f.base; f.retenidoBs = f.retenido;
+    f.exento = f.exentoBs === '' ? '' : bsAUsd(f.exentoBs, tasa);
+    f.base = f.baseBs === '' ? '' : bsAUsd(f.baseBs, tasa);
+    f.retenido = f.retenidoBs === '' ? '' : bsAUsd(f.retenidoBs, tasa);
+    if(f.baseBs !== '' && f.alicuota !== '') f.ivaBs = _lbR2(f.baseBs * f.alicuota);
+  }
   if(f.base !== '' && f.alicuota !== '') f.iva = _lbR2(f.base * f.alicuota);
   return f;
+}
+// Si la tasa la escribió el analista, queda en el historial para esa fecha (la próxima factura de ese día ya la tiene)
+function lbTasaPersistir(f, p){
+  if(f && f.moneda === 'BS' && f.tasaFuente === 'manual' && f.tasa > 1 && (!p || _lbTasaEscrita[p]) && typeof tasaGuardarManual === 'function') tasaGuardarManual(f.tasaFecha, f.tasaMoneda, f.tasa);
+  if(p) _lbTasaEscrita[p] = false;
 }
 
 function lbCompletar(clave){
@@ -411,10 +549,13 @@ function lbCompletar(clave){
   $('mbd').innerHTML = '<div style="padding:9px 11px;border-radius:8px;background:var(--gs);font-size:12px;margin-bottom:10px"><b>' + _lbEsc(g.concepto) + '</b><br>Registrado el ' + _lbFechaVE(g.fecha) + ' por <b>' + fmt(g.monto) + '</b>'
     + (g.egresos.length > 1 ? ' · pagado de ' + g.egresos.length + ' cuentas (es una sola factura)' : '') + '</div>'
     + '<div class="fgr c1" style="gap:9px">' + lbCamposFiscalesHtml('lbf', f, g.monto) + '</div>';
-  setTimeout(function(){ lbFiscalCalc('lbf'); }, 0);
+  _lbTasaEscrita.lbf = false; _lbTasaReq.lbf = (_lbTasaReq.lbf || 0) + 1;
+  setTimeout(function(){ lbMonedaCambio('lbf', !!f.tasa); }, 0);   // si ya tenía tasa guardada no la pisa buscando otra
   S.saveFn = function(){
+    var err = lbFiscalValidar('lbf'); if(err){ toast(err, 'error'); return false; }
     var fis = lbLeerCamposFiscales('lbf');
     if(!fis){ toast('Llena al menos un dato de la factura, o marca que no lleva factura', 'error'); return false; }
+    lbTasaPersistir(fis, 'lbf');
     fis.actualizado = new Date().toISOString(); fis.actualizadoPor = (S.currentUser && S.currentUser.nombre) || '';
     var guardados = g.egresos.map(function(e){
       var real = (S.egresos || []).find(function(x){ return String(x.id) === String(e.id); }) || e;
@@ -512,4 +653,4 @@ function lbExportar(tipo, formato){
   _abrirVentanaImpresion((tipo === 'compras' ? 'Libro de Compras ' : 'Libro de Ventas ') + _lbPeriodoVE(D.st.periodo), lbHtmlPdf(tipo, D), { horizontal: true });
 }
 
-if(typeof module !== 'undefined' && module.exports) module.exports = { lbComprasDocumentos: lbComprasDocumentos, lbComprasFilas: lbComprasFilas, lbComprasCalculo: lbComprasCalculo, lbVentasFilas: lbVentasFilas, lbVentasCalculo: lbVentasCalculo, lbFiltrar: lbFiltrar, _lbRifCliente: _lbRifCliente };
+if(typeof module !== 'undefined' && module.exports) module.exports = { lbComprasDocumentos: lbComprasDocumentos, lbComprasFilas: lbComprasFilas, lbComprasCalculo: lbComprasCalculo, lbVentasFilas: lbVentasFilas, lbVentasCalculo: lbVentasCalculo, lbFiltrar: lbFiltrar, _lbRifCliente: _lbRifCliente, lbLeerCamposFiscales: lbLeerCamposFiscales, lbFiscalValidar: lbFiscalValidar, lbCamposFiscalesHtml: lbCamposFiscalesHtml, lbMonedaHtml: lbMonedaHtml };

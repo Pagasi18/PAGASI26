@@ -14,6 +14,7 @@ var _binanceEstado = 'inactivo';
 // Tasa Euro oficial BCV (mercado real venezolano)
 var _eurTasa = 0;
 var _eurEstado = 'inactivo';
+var _eurFecha = '';   // de qué día es el euro en memoria (con merge en config/tasa el de ayer sobrevive: no es de hoy)
 
 // Endpoints en orden de preferencia (fallback si uno falla)
 var _BCV_ENDPOINTS = [
@@ -34,6 +35,9 @@ var _BINANCE_ENDPOINTS = [
 // Endpoints para EUR/VES oficial BCV (real del mercado venezolano)
 // Estrategia: scraping directo de bcv.org.ve via proxy CORS + fallback a APIs
 var _EUR_ENDPOINTS = [
+  // 0) ve.dolarapi.com/v1/cotizaciones: dólar y euro oficiales BCV en un JSON, con CORS (26-oct-2026: volvió a
+  //    funcionar; es el mismo servicio que ya da el dólar, así que va primero y el scraping queda de respaldo)
+  'https://ve.dolarapi.com/v1/cotizaciones',
   // 1) Scrape directo de la página oficial del BCV via allorigins
   'https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.bcv.org.ve/'),
   // 2) Proxy alternativo de scraping
@@ -89,16 +93,24 @@ function bcvAutoInit(){
           _binanceTasa = binanceGuardada;
           _binanceEstado = 'ok';
         }
-        if(euroGuardada > 1){
+        // El euro solo cuenta si es de hoy (antes el guardado sin merge lo borraba y por eso se volvía a bajar)
+        var euroEsDeHoy = String(d.fechaEuro||'').slice(0,10) === hoy;
+        if(euroGuardada > 1 && euroEsDeHoy){
           window._tasaEuro = euroGuardada;
           _eurTasa = euroGuardada;
           _eurEstado = 'ok';
+          _eurFecha = hoy;
+        }
+        // Las tasas de hoy van también al historial por fecha (por si las bajó una sesión de antes de que existiera)
+        if(typeof tasasRegistrarOficial === 'function'){
+          tasasRegistrarOficial(hoy, 'usd', tasaGuardada, d.fuenteAuto === false ? 'manual' : 've.dolarapi.com', String(d.fecha||'').slice(0,10));
+          if(euroGuardada > 1 && euroEsDeHoy) tasasRegistrarOficial(hoy, 'eur', euroGuardada, 've.dolarapi.com');
         }
         _bcvActualizarUI();
         console.log('[BCV-Auto] Tasas de hoy ya en Firestore: BCV '+tasaGuardada+' · Binance '+binanceGuardada+' · EUR '+euroGuardada);
         // Si falta alguna, descargarla
         if(!_binanceEsFresca(d)) _binanceFetchTasa(0); // si el workflow la puso hace <30 min, esa manda
-        if(!euroGuardada || euroGuardada <= 1) _eurFetchTasa(0);
+        if(!(euroGuardada > 1) || !euroEsDeHoy) _eurFetchTasa(0);
         return;
       }
     }
@@ -142,6 +154,8 @@ function _eurFetchTasa(endpointIdx){
       window._tasaEuro = tasa;
       _eurTasa = tasa;
       _eurEstado = 'ok';
+      _eurFecha = hoyLocalISO();
+      if(typeof tasasRegistrarOficial === 'function') tasasRegistrarOficial(hoyLocalISO(), 'eur', tasa, url.indexOf('dolarapi') > -1 ? 've.dolarapi.com' : 'bcv.org.ve');
       if(db){
         db.collection('config').doc('tasa').set({
           tasaEuro: tasa,
@@ -310,7 +324,10 @@ function _bcvGuardarTasa(tasa, fechaISO){
   // Actualizar input de configuración si está visible
   if($('cfg_tasa_bs')) $('cfg_tasa_bs').value = tasaRedondeada;
 
-  // Guardar en Firestore
+  // La tasa del día queda también en el historial (tasas/{fecha}), para convertir facturas de otras fechas
+  if(typeof tasasRegistrarOficial === 'function') tasasRegistrarOficial(hoy, 'usd', tasaRedondeada, 've.dolarapi.com', String(fechaISO || '').slice(0, 10));
+
+  // Guardar en Firestore (con merge: antes pisaba el documento entero y borraba el euro y el Binance)
   if(db){
     db.collection('config').doc('tasa').set({
       tasaBs:            tasaRedondeada,
@@ -318,7 +335,7 @@ function _bcvGuardarTasa(tasa, fechaISO){
       fecha:             fechaISO || new Date().toISOString(),
       fuenteAuto:        true,
       api:               _BCV_ENDPOINTS[0]
-    }).then(function(){
+    }, {merge:true}).then(function(){
       console.log('[BCV-Auto] Tasa guardada en Firestore: '+tasaRedondeada+' Bs./$ ('+hoy+')');
       _bcvActualizarUI();
       toast('Tasa BCV actualizada: '+tasaRedondeada+' Bs./$', 'success');

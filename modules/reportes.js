@@ -870,7 +870,7 @@ PG.reportes = function(){
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.concepto}</div>
               <div style="font-size:10.5px;color:var(--ink3);margin-top:2px">
-                <span style="padding:1px 6px;border-radius:4px;background:var(--surf2);margin-right:4px">${e.categoria||'Sin categoría'}</span>${esEgrInicial(e)?'<span style="padding:1px 6px;border-radius:4px;background:var(--gs);color:var(--p1);font-weight:700;margin-right:4px">inicial del cliente · no es salida</span>':''}
+                <span style="padding:1px 6px;border-radius:4px;background:var(--surf2);margin-right:4px">${e.categoria||'Sin categoría'}</span>${esEgrInicial(e)?'<span style="padding:1px 6px;border-radius:4px;background:var(--gs);color:var(--p1);font-weight:700;margin-right:4px">inicial del cliente · no es salida</span>':''}${e.moneda==='BS'?'<span style="padding:1px 6px;border-radius:4px;background:rgba(245,158,11,.12);color:var(--amber);font-weight:700;margin-right:4px">Bs '+(+e.montoBs||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' a '+(+e.tasaBs||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' Bs/$</span>':''}
                 ${e.forma||'—'} · ${e.fecha||'—'}
               </div>
             </div>
@@ -1666,7 +1666,7 @@ function _contGenerarCuerpo(){
     html+='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--ink3)">Sin egresos en el período</td></tr>';
   } else {
     egresosSemana.forEach(function(e){
-      var bs2=(e.monto||0)*tasaBCV; totEgUSD+=(e.monto||0); totEgBs+=bs2;
+      var bs2=(e.moneda==='BS' && +e.montoBs>0) ? +e.montoBs : (e.monto||0)*tasaBCV; totEgUSD+=(e.monto||0); totEgBs+=bs2;   // registrado en Bs: su monto original, no el de hoy
       html+='<tr style="border-bottom:1px solid var(--rim2)">'
         +'<td style="'+tdM+'">'+toISO(e.fecha)+'</td>'
         +'<td style="'+td0+';font-weight:600">'+(e.concepto||e.descripcion||'—')+'</td>'

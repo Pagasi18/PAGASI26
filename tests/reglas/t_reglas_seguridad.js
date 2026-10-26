@@ -7,7 +7,7 @@
 //     comisiones ni la suspension.
 const fs = require('fs'), path = require('path');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, updateDoc, getDocs, collection } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection } = require('firebase/firestore');
 
 let pass = 0, fail = 0;
 async function prueba(nombre, promesa) {
@@ -119,6 +119,13 @@ const lead = (id, cambios) => Object.assign({}, LEAD, { id }, cambios || {});
   await prueba('el admin sí', assertSucceeds(updateDoc(doc(admin, 'config/plan'), { factor: 1.95 })));
   await prueba('un cobrador NO cambia las cuentas bancarias', assertFails(updateDoc(doc(cobrador, 'config/cuentasBanc'), { lista: [] })));
   await prueba('la tasa del día la sigue actualizando cualquier empleado', assertSucceeds(updateDoc(doc(cobrador, 'config/tasa'), { tasaBs: 41 })));
+  // Historial de tasas por día (26-oct-2026): lo escribe cualquier interno con campos válidos, nadie lo borra
+  await prueba('el historial de tasas lo escribe cualquier empleado interno (dólar y euro del día, con merge)', assertSucceeds(setDoc(doc(cobrador, 'tasas/2026-10-23'), { fecha: '2026-10-23', usd: 886.23, fuente: 've.dolarapi.com', guardadoEn: 'x', guardadoPor: 'Cobrador' }, { merge: true })));
+  await prueba('...y la tasa manual del analista también', assertSucceeds(setDoc(doc(cobrador, 'tasas/2026-09-01'), { fecha: '2026-09-01', usd: 850, manual: true, fuente: 'manual', guardadoEn: 'x', guardadoPor: 'Cobrador' }, { merge: true })));
+  await prueba('...pero no con una tasa de 0 ni con campos que no son', assertFails(setDoc(doc(cobrador, 'tasas/2026-10-22'), { fecha: '2026-10-22', usd: 0 })));
+  await prueba('...ni con una fecha distinta al id', assertFails(setDoc(doc(cobrador, 'tasas/2026-10-22'), { fecha: '2026-10-21', usd: 880 })));
+  await prueba('...ni se borra', assertFails(deleteDoc(doc(admin, 'tasas/2026-10-23'))));
+  await prueba('...y un anónimo no lo lee', assertFails(getDoc(doc(nadie, 'tasas/2026-10-23'))));
   await prueba('los ajustes contables los toca quien ve Reportes (gerente)', assertSucceeds(updateDoc(doc(gerente, 'config/coromoto'), { ajustes: [{ id: 'a1' }] })));
   await prueba('...pero un cobrador no', assertFails(updateDoc(doc(cobrador, 'config/coromoto'), { ajustes: [] })));
 

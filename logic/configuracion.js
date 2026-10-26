@@ -117,7 +117,9 @@ function guardarTasaBs(){
   var t = parseFloat(($('cfg_tasa_bs')&&$('cfg_tasa_bs').value)||'');
   if(!t||t<1){ toast('Ingresa una tasa válida (mayor a 1)','error'); return; }
   window._tasaBsGlobal = t;
-  if(db) db.collection('config').doc('tasa').set({tasaBs:t,fecha:new Date().toISOString()})
+  // Queda en el historial del día como manual y con quién la puso; y con merge, para no borrar el euro ni el Binance
+  if(typeof tasaGuardarManual==='function') tasaGuardarManual(hoyLocalISO(), 'usd', t);
+  if(db) db.collection('config').doc('tasa').set({tasaBs:t,fecha:new Date().toISOString(),fechaActualizacion:hoyLocalISO(),fuenteAuto:false,actualizadoPor:(S.currentUser&&S.currentUser.nombre)||''},{merge:true})
     .then(function(){ toast('✓ Tasa actualizada: '+t+' Bs./$','success'); })
     .catch(function(e){ toast('Error guardando tasa: '+e.message,'error'); });
   else { toast('✓ Tasa actualizada: '+t+' Bs./$','success'); }
