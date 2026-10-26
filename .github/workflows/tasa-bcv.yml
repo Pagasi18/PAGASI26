@@ -1,0 +1,35 @@
+name: Tasa BCV del día (dólar y euro)
+
+# Guarda cada día hábil la tasa oficial del BCV (dólar y euro) en data/tasas-bcv.json, bajo su fecha
+# valor, para que el panel convierta a dólares las facturas de proveedor registradas en bolívares con la
+# tasa del día de la factura (Adam, 26-oct-2026). Corre mañana y tarde: el BCV publica cada tarde la tasa
+# del día hábil siguiente. No usa secretos: la tasa es pública. Solo hace commit si hay una tasa nueva.
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'    # 7:00 am en Caracas
+    - cron: '30 22 * * 1-5'   # 6:30 pm en Caracas
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tasa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Leer la tasa del BCV
+        run: node bot/tasa-bcv.js
+      - name: Guardar si hay tasa nueva
+        run: |
+          if git diff --quiet -- data/tasas-bcv.json && [ -z "$(git status --porcelain -- data/tasas-bcv.json)" ]; then echo "Sin cambios"; exit 0; fi
+          git config user.name "Pagasi18"
+          git config user.email "info@pagasi.io"
+          git add data/tasas-bcv.json
+          git commit -m "Tasa BCV del día ($(date -u +%Y-%m-%d))"
+          git pull --rebase -q origin "${GITHUB_REF_NAME}"
+          git push

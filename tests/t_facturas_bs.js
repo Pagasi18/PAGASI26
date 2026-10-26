@@ -105,6 +105,7 @@ ok('mientras escribe ve el equivalente en dólares del monto y de la base', G3.$
 ok('...y el resultado en las dos monedas, como lo va a mostrar el libro', /Bs 2.193,10/.test(G3.$('egf_res').innerHTML) && /\$2,48/.test(G3.$('egf_res').innerHTML) && /Bs 15.900,00/.test(G3.$('egf_res').innerHTML) && /\$17,95/.test(G3.$('egf_res').innerHTML));
 (async()=>{
   const okGuardar=await G3.S.saveFn();
+  await new Promise(r=>setTimeout(r,5));   // la tasa manual se guarda después de consultar el historial (asíncrono)
   const egres=G3.DB.guardados.find(x=>x[0]==='egreso'), mov=G3.DB.guardados.find(x=>x[0]==='mov');
   ok('se guarda', okGuardar===true && !!egres);
   const e=egres && egres[1];

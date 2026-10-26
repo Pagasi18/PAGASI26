@@ -86,15 +86,38 @@ function tasaGuardarManual(fecha, moneda, valor){
   });
 }
 
+// El archivo del robot (data/tasas-bcv.json, bot/tasa-bcv.js): la tasa oficial de cada día hábil, bajo su fecha
+// valor, guardada en el repo de lunes a viernes aunque nadie abra el panel. Se lee una vez por sesión.
+var _tasasArchivo = {}, _tasasArchivoPromesa = null;
+function _tasasDelArchivo(){
+  if(_tasasArchivoPromesa) return _tasasArchivoPromesa;
+  if(typeof fetch !== 'function' || typeof window === 'undefined' || !window.location) return (_tasasArchivoPromesa = Promise.resolve({}));
+  _tasasArchivoPromesa = fetch('data/tasas-bcv.json?nc=' + Date.now(), { cache: 'no-store' })
+    .then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; })
+    .then(function(t){ _tasasArchivo = t && typeof t === 'object' ? t : {}; return _tasasArchivo; });
+  return _tasasArchivoPromesa;
+}
+// Mete el archivo en la caché: la oficial del robot manda sobre una manual de esa misma fecha y moneda
+function _tasasMezclarArchivo(t){
+  Object.keys(t || {}).forEach(function(f){
+    if(!_tasasEsFecha(f)) return;
+    var x = t[f] || {}, c = _tasasCache[f] = Object.assign({ fecha: f }, _tasasCache[f] || {});
+    ['usd', 'eur'].forEach(function(m){
+      var v = _tasasNum(x[m]); if(!v) return;
+      if(!_tasasNum(c[m]) || c[m + 'Manual']){ c[m] = v; c[m + 'Manual'] = false; c.fuente = x.fuente || 'bcv.org.ve'; }
+    });
+  });
+}
+
 // Carga del historial las fechas alrededor de una (7 atrás, 4 adelante) y las deja en caché. Lo de hoy entra solo
 // cuando se baja o se lee del día (bcv-auto lo registra): una tasa vieja que quedó en memoria no se da por la de hoy.
 function _tasasCargar(fecha){
   var desde = _tasasMasDias(fecha, -7), hasta = _tasasMasDias(fecha, 4);
-  if(typeof db === 'undefined' || !db) return Promise.resolve(_tasasCache);
-  return db.collection('tasas').where('fecha', '>=', desde).where('fecha', '<=', hasta).get().then(function(snap){
-    snap.forEach(function(d){ var x = d.data() || {}; if(_tasasEsFecha(d.id)) _tasasCache[d.id] = Object.assign({}, _tasasCache[d.id] || {}, x, { fecha: d.id }); });
-    return _tasasCache;
-  }).catch(function(e){ console.warn('[Tasas] No se pudo leer el historial:', e && e.message); return _tasasCache; });
+  var deFirestore = (typeof db === 'undefined' || !db) ? Promise.resolve() :
+    db.collection('tasas').where('fecha', '>=', desde).where('fecha', '<=', hasta).get().then(function(snap){
+      snap.forEach(function(d){ var x = d.data() || {}; if(_tasasEsFecha(d.id)) _tasasCache[d.id] = Object.assign({}, _tasasCache[d.id] || {}, x, { fecha: d.id }); });
+    }).catch(function(e){ console.warn('[Tasas] No se pudo leer el historial:', e && e.message); });
+  return Promise.all([_tasasDelArchivo(), deFirestore]).then(function(r){ _tasasMezclarArchivo(r[0]); return _tasasCache; });
 }
 
 // La tasa (Bs por $) que rige para una fecha: promesa con { tasa, fechaTasa, fuente, manual, aproximada, nota } o null
@@ -105,4 +128,4 @@ function tasaParaFecha(fecha, moneda){
   return _tasasCargar(fecha).then(function(mapa){ return tasasElegir(fecha, mapa, moneda, hoy); });
 }
 
-if(typeof module !== 'undefined' && module.exports) module.exports = { tasasElegir: tasasElegir, bsAUsd: bsAUsd, usdABs: usdABs, _tasasMasDias: _tasasMasDias, _tasasDiaSemana: _tasasDiaSemana, _tasasEsFinde: _tasasEsFinde };
+if(typeof module !== 'undefined' && module.exports) module.exports = { tasasElegir: tasasElegir, bsAUsd: bsAUsd, usdABs: usdABs, _tasasMasDias: _tasasMasDias, _tasasDiaSemana: _tasasDiaSemana, _tasasEsFinde: _tasasEsFinde, _tasasMezclarArchivo: _tasasMezclarArchivo };

@@ -212,7 +212,7 @@ function _extractEurFromBcvHtml(html){
   // BCV publica el euro en un div#euro con <strong>X,XX</strong>
   // Patrón principal: <div id="euro">...<strong>1.234,56</strong>
   var patterns = [
-    /id=['"]euro['"][^>]*>[\s\S]*?<strong>\s*([0-9.,]+)\s*<\/strong>/i,
+    /id=['"]euro['"][^>]*>[\s\S]*?<strong[^>]*>\s*([0-9.,]+)\s*<\/strong>/i,   // el <strong> del BCV lleva class="strong-tb" (26-oct-2026)
     /<div[^>]*>\s*EUR\s*<\/div>\s*<div[^>]*>\s*<strong>\s*([0-9.,]+)\s*<\/strong>/i,
     /euro[\s\S]{0,500}?<strong>\s*([0-9.,]+)\s*<\/strong>/i
   ];

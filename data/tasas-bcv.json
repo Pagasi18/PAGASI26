@@ -1,0 +1,15 @@
+{
+ "2026-10-26": {
+  "usd": 886.2271,
+  "eur": 993.0884,
+  "fuente": "ve.dolarapi.com",
+  "publicado": "2026-10-26",
+  "aproximada": true
+ },
+ "2026-10-27": {
+  "usd": 887.302,
+  "eur": 994.0356,
+  "fuente": "bcv.org.ve",
+  "publicado": "2026-10-26"
+ }
+}
