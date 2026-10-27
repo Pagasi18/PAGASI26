@@ -83,5 +83,17 @@ G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'
   G3.respuesta=false;
   ok('...y al guardar pregunta', G3.S.saveFn()===false && G3.preguntas.length===1);
   ok('el aviso escapa lo que viene de la base', !/<img/.test(G3._lbRepTextoDe({ egreso:{ id:1, fecha:'2026-10-03', monto:1, concepto:'<img src=x onerror=alert(1)>', fiscal:{} }, motivo:'x' })));
+  // ── "Guardar y registrar otro" (el contador, 27-oct-2026): guarda y deja el modal abierto y limpio ──
+  const G5=entorno(EG); G5.cerrados=0; G5.abiertos=0; G5.navegados=0; G5.closeM=()=>{ G5.cerrados++; }; G5.setMicon=()=>{ G5.abiertos++; }; G5.nav=()=>{ G5.navegados++; };
+  G5.openAddEgreso();
+  ok('el modal tiene los dos botones: "Guardar y registrar otro" y "Guardar Egreso y Cerrar"', /onclick="_egGuardarOtro=true;saveM\(\)">Guardar y registrar otro</.test(G5.$('mft').innerHTML) && /onclick="saveM\(\)">Guardar Egreso y Cerrar</.test(G5.$('mft').innerHTML));
+  G5._dom.el('eg_conc').value='TONER'; G5._dom.el('eg_monto').value='20'; G5._dom.el('eg_forma').value='Binance';
+  G5._egGuardarOtro=true; const r5=await G5.S.saveFn();
+  ok('"Guardar y registrar otro" guarda, refresca la lista y vuelve a armar el modal vacío en vez de cerrarlo', r5===true && G5.DB.guardados.some(x=>x[0]==='egreso' && x[1].concepto==='TONER') && G5.cerrados===0 && G5.navegados===1 && G5.abiertos===2 && G5._egGuardarOtro===false);
+  G5._dom.el('eg_conc').value='PAPEL'; G5._dom.el('eg_monto').value='5';
+  const r6=await G5.S.saveFn();
+  ok('"Guardar Egreso y Cerrar" guarda y cierra, como siempre', r6===true && G5.cerrados===1 && G5.navegados===2 && G5.abiertos===2);
+  G5._dom.el('eg_conc').value=''; G5._egGuardarOtro=true;
+  ok('si la validación falla, la bandera no se queda pegada para el próximo guardado', G5.S.saveFn()===false && G5._egGuardarOtro===false);
   console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas'); if(fail) process.exitCode=1;
 })();

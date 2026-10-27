@@ -1,4 +1,7 @@
 // Logica de egresos. Extraido mecanicamente de assets/pagasi-app.js.
+// "Guardar y registrar otro" (el contador, 27-oct-2026): guarda y deja el modal abierto y limpio para la siguiente
+// factura, en vez de cerrarlo y tener que volver a entrar. El botón pone la bandera y saveFn la lee al guardar.
+var _egGuardarOtro = false;
 function openAddEgreso(){
   setMicon('egreso');$('mtt').textContent='Registrar Egreso';$('msb').textContent='Contabilidad';
   $('modal-box').className='modal';
@@ -33,6 +36,7 @@ function openAddEgreso(){
     if(typeof _lbTasaEscrita!=='undefined'){ _lbTasaEscrita.egf=false; _lbTasaReq.egf=(_lbTasaReq.egf||0)+1; }
     if(typeof _lbRepExcluir!=='undefined') _lbRepExcluir.egf=[];
     S.saveFn=function(){
+    var otro=_egGuardarOtro; _egGuardarOtro=false;
     var conc=(($('eg_conc')&&$('eg_conc').value)||'').trim();
     var montoIn=parseFloat(($('eg_monto')&&$('eg_monto').value))||0;
     if(!conc||montoIn<=0){toast('Concepto y monto son obligatorios','error');return false;}
@@ -84,10 +88,19 @@ function openAddEgreso(){
       DB.saveMovimiento(mov);
     }
 
-    toast('Egreso registrado · '+fmt(monto)+(enBs ? ' (Bs '+montoIn.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' a '+tasaEg+' Bs/$)' : ''),'success');closeM();nav('conta');return true;
+    toast('Egreso registrado · '+fmt(monto)+(enBs ? ' (Bs '+montoIn.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' a '+tasaEg+' Bs/$)' : ''),'success');
+    if(otro){
+      // La lista de atrás se actualiza y el modal se vuelve a armar vacío (fecha de hoy); si la factura del
+      // proveedor estaba desplegada, queda desplegada para la siguiente
+      var fiscalAbierto=!!($('eg_fiscal_box')&&$('eg_fiscal_box').open);
+      nav('conta'); openAddEgreso();
+      if(fiscalAbierto && $('eg_fiscal_box')) $('eg_fiscal_box').open=true;
+      return true;
+    }
+    closeM();nav('conta');return true;
     });
   };
-  $('mft').innerHTML=`<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" onclick="saveM()">Guardar Egreso</button>`;
+  $('mft').innerHTML=`<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-g" onclick="_egGuardarOtro=true;saveM()">Guardar y registrar otro</button><button class="btn btn-p" onclick="saveM()">Guardar Egreso y Cerrar</button>`;
   $('ov').style.display='flex';
 }
 function delEgreso(id){
