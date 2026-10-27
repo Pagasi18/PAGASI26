@@ -340,7 +340,7 @@ function _lbRender(tipo){
     + '</div></div>'
     + '<div id="lb-cuerpo-' + tipo + '">' + _lbCuerpoHtml(tipo) + '</div>';
 }
-function _renderLibroCompras(){ return _lbRender('compras'); }
+function _renderLibroCompras(){ lbAlarmaCerrar(false); return _lbRender('compras'); }
 function _renderLibroVentas(){ return _lbRender('ventas'); }
 function _lbRepintar(tipo){ var el = document.getElementById('lb-cuerpo-' + tipo); if(el) el.innerHTML = _lbCuerpoHtml(tipo); }
 function lbPeriodo(v){ if(/^\d{4}-\d{2}$/.test(v)){ S.lbPeriodo = v; nav('reportes'); } }
@@ -402,21 +402,58 @@ function _lbRepDatos(p){
   return d;
 }
 var _lbRepExcluir = {};   // por formulario: los gastos que son esta misma factura (al editar con ✎)
-var _lbRepT = null;
+var _lbRepT = null, _lbAlarmaClave = {}, _lbAlarmaCerrada = {};
+// La alarma (Adam, 27-oct-2026: "que diga pago duplicado y que sea como rojo brillante y titile tipo en un laboratorio
+// de químicos… un pop-up… y lo puede cerrar"). Se abre una vez por cada coincidencia; cerrada, no vuelve a saltar
+// por lo mismo, y queda una línea roja debajo del campo. Si lo escrito cambia y coincide con otra factura, salta de nuevo.
+function _lbAlarmaEstilo(){
+  if(typeof document === 'undefined' || !document.head || document.getElementById('lb-alarma-css')) return;
+  var st = document.createElement('style'); st.id = 'lb-alarma-css';
+  st.textContent = '@keyframes lbAlarma{0%{background:#ff1e3c;box-shadow:0 0 0 0 rgba(255,30,60,.95),0 0 60px 18px rgba(255,30,60,.7)}100%{background:#9c0016;box-shadow:0 0 0 18px rgba(255,30,60,0),0 0 10px 2px rgba(255,30,60,.3)}}'
+    + '@keyframes lbAlarmaFondo{0%{background:rgba(120,0,16,.35)}100%{background:rgba(120,0,16,.6)}}'
+    + '.lb-alarma{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;animation:lbAlarmaFondo .55s ease-in-out infinite alternate}'
+    + '.lb-alarma-caja{animation:lbAlarma .55s ease-in-out infinite alternate;color:#fff;border-radius:18px;padding:26px 30px 22px;max-width:580px;width:calc(100% - 40px);text-align:center;border:3px solid #fff}'
+    + '.lb-alarma-t{font-size:32px;font-weight:900;letter-spacing:3px;margin:0 0 6px;text-shadow:0 2px 8px rgba(0,0,0,.35)}'
+    + '.lb-alarma-s{font-size:13.5px;font-weight:700;opacity:.95;margin-bottom:12px}'
+    + '.lb-alarma-l{font-size:13px;line-height:1.6;text-align:left;background:rgba(0,0,0,.28);border-radius:10px;padding:10px 14px;margin:0 0 16px}'
+    + '.lb-alarma-b{background:#fff;color:#9c0016;border:0;border-radius:10px;padding:11px 26px;font-weight:900;font-size:14px;cursor:pointer;letter-spacing:.5px}';
+  document.head.appendChild(st);
+}
+function lbAlarmaMostrar(reps, clave){
+  if(typeof document === 'undefined' || !document.body) return;
+  _lbAlarmaEstilo(); lbAlarmaCerrar(false);
+  var ov = document.createElement('div'); ov.id = 'lb-alarma'; ov.className = 'lb-alarma'; ov.setAttribute('data-clave', clave);
+  ov.innerHTML = '<div class="lb-alarma-caja" role="alertdialog" aria-live="assertive"><div class="lb-alarma-t">🚨 PAGO DUPLICADO</div>'
+    + '<div class="lb-alarma-s">Esta factura ya está registrada en el sistema</div>'
+    + '<div class="lb-alarma-l">' + reps.map(_lbRepTextoDe).join('<br>') + '</div>'
+    + '<button type="button" class="lb-alarma-b" onclick="lbAlarmaCerrar(true)">Entendido, cerrar</button></div>';
+  ov.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') lbAlarmaCerrar(true); });
+  document.body.appendChild(ov);
+  var b = ov.querySelector('button'); if(b && b.focus) try { b.focus(); } catch(e){}
+}
+function lbAlarmaCerrar(porElUsuario){
+  if(typeof document === 'undefined' || !document.getElementById) return;
+  var el = document.getElementById('lb-alarma'); if(!el) return;
+  if(porElUsuario) _lbAlarmaCerrada[el.getAttribute('data-clave') || ''] = 1;
+  if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el);
+}
 function lbRepetidaCheck(p){
   clearTimeout(_lbRepT);
   _lbRepT = setTimeout(function(){
     var el = (p === 'egf' && _lbEl('eg_rep_gasto')) || _lbEl(p + '_rep'); if(!el) return;   // en Registrar Egreso va a la vista, no dentro del bloque plegado
     var reps = lbFacturaRepetida(_lbRepDatos(p), S.egresos || [], { excluirIds: _lbRepExcluir[p] || [] });
-    el.innerHTML = reps.length ? '<div style="padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2);line-height:1.5"><b style="color:var(--amber)">⚠ Esta factura parece estar registrada ya:</b><br>' + reps.map(_lbRepTextoDe).join('<br>') + '</div>' : '';
+    var clave = reps.map(function(m){ return m.egreso.id; }).join(',');
+    el.innerHTML = reps.length ? '<div style="padding:8px 11px;border-radius:8px;background:rgba(232,51,90,.10);border:1px solid rgba(232,51,90,.45);font-size:11.5px;color:var(--ink2);line-height:1.5"><b style="color:var(--red)">🚨 PAGO DUPLICADO: esta factura ya está registrada</b><br>' + reps.map(_lbRepTextoDe).join('<br>') + '</div>' : '';
+    if(!reps.length){ lbAlarmaCerrar(false); _lbAlarmaClave[p] = ''; return; }
+    if(clave !== _lbAlarmaClave[p] && !_lbAlarmaCerrada[clave]){ _lbAlarmaClave[p] = clave; lbAlarmaMostrar(reps, clave); }
   }, 150);
 }
-// Al guardar: si parece repetida, pregunta. Devuelve true si se puede seguir.
+// Al guardar: si está duplicada, pregunta. Devuelve true si se puede seguir.
 function lbRepetidaConfirmar(p){
   var reps = lbFacturaRepetida(_lbRepDatos(p), S.egresos || [], { excluirIds: _lbRepExcluir[p] || [] });
   if(!reps.length) return true;
   var lista = reps.map(function(m){ var e = m.egreso; return '• #' + e.id + ' · ' + _lbFechaVE(e.fecha) + ' · ' + fmt(e.monto) + ' · ' + (e.concepto || '') + ' (' + m.motivo + ')'; }).join('\n');
-  return (typeof confirm === 'function') ? confirm('Esta factura parece estar registrada ya:\n' + lista + '\n\n¿Registrarla otra vez de todas formas?') : true;
+  return (typeof confirm === 'function') ? confirm('🚨 PAGO DUPLICADO: esta factura ya está registrada.\n' + lista + '\n\n¿Registrarla otra vez de todas formas?') : true;
 }
 
 // Moneda de la factura: en dólares (como siempre) o en bolívares. En bolívares los montos se escriben tal como vienen

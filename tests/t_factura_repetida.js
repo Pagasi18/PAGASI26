@@ -17,12 +17,13 @@ function entorno(egresos){
     S:{ currentUser:{nombre:'ANALISTA'}, egresos:egresos||[], movimientos:[], motos:[], concesionarios:[] }, PLAN:{},
     fmt:n=>'$'+(parseFloat(n)||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}),
     toast:function(m,t){ G.avisos.push([t,m]); }, avisos:[], nav(){}, closeM(){}, setMicon(){}, logActividad(){}, preguntas:[], respuesta:false,
-    confirm:function(m){ G.preguntas.push(m); return G.respuesta; },
+    confirm:function(m){ G.preguntas.push(m); return G.respuesta; }, alarmas:[],
     hoyLocalISO:()=>'2026-10-27', document:d.document, _cuentasBanc:[{nombre:'Binance',moneda:'USD'}],
     DB:{ guardados:[], saveEgreso(o){ G.DB.guardados.push(['egreso',JSON.parse(JSON.stringify(o))]); return Promise.resolve(); }, saveMovimiento(o){ G.DB.guardados.push(['mov',o]); return Promise.resolve(); } },
     nextEgresoIdAsync:()=>Promise.resolve(900), Blob:function(){}, URL:{createObjectURL:()=>'',revokeObjectURL(){}} };
   G.$=id=>d.document.getElementById(id); G.window=G; vm.createContext(G);
   ['logic/tasas.js','logic/exportar.js','logic/libros-iva.js','logic/egresos.js'].forEach(f=>vm.runInContext(src(f),G));
+  G.lbAlarmaMostrar=(reps,clave)=>{ G.alarmas.push(clave); };   // la alarma de verdad necesita un navegador; aquí se anota
   G._dom=d; return G;
 }
 const EG=[
@@ -56,13 +57,17 @@ ok('Registrar Egreso lo muestra a la vista (no dentro del bloque plegado) y tamb
 G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'; G.lbRepetidaCheck('egf');
 (async()=>{
   await new Promise(r=>setTimeout(r,200));
-  ok('al escribir el N° y el RIF aparece el aviso con el gasto que ya existe', /parece estar registrada ya/.test(G.$('eg_rep_gasto').innerHTML) && /gasto #1/.test(G.$('eg_rep_gasto').innerHTML) && /\$116,00/.test(G.$('eg_rep_gasto').innerHTML) && G.$('egf_rep').innerHTML==='');
+  ok('al escribir el N° y el RIF salta la alarma PAGO DUPLICADO y queda la línea roja con el gasto que ya existe', G.alarmas.length===1 && G.alarmas[0]==='1' && /PAGO DUPLICADO/.test(G.$('eg_rep_gasto').innerHTML) && /gasto #1/.test(G.$('eg_rep_gasto').innerHTML) && /\$116,00/.test(G.$('eg_rep_gasto').innerHTML) && G.$('egf_rep').innerHTML==='');
+  G.lbRepetidaCheck('egf'); await new Promise(r=>setTimeout(r,200));
+  ok('...la alarma no vuelve a saltar por lo mismo mientras se sigue escribiendo', G.alarmas.length===1);
+  G._lbAlarmaCerrada['1']=1; G._lbAlarmaClave.egf=''; G.lbRepetidaCheck('egf'); await new Promise(r=>setTimeout(r,200));
+  ok('...ni después de cerrarla, aunque se vuelva a teclear lo mismo', G.alarmas.length===1 && /PAGO DUPLICADO/.test(G.$('eg_rep_gasto').innerHTML));
   G._dom.el('egf_num').value='99'; G.lbRepetidaCheck('egf'); await new Promise(r=>setTimeout(r,200));
   ok('...y se quita cuando ya no coincide', G.$('eg_rep_gasto').innerHTML==='');
   // Guardar una repetida: pregunta; si dice que no, no guarda
   G._dom.el('eg_conc').value='PAPELERIA'; G._dom.el('eg_monto').value='116'; G._dom.el('eg_forma').value='Binance'; G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'; G._dom.el('egf_prov').value='PAPELERIA SOL, C.A.';
   G.respuesta=false; const r1=G.S.saveFn();
-  ok('al guardar una factura repetida pregunta, y si dice que no, no guarda', r1===false && G.preguntas.length===1 && /registrada ya/.test(G.preguntas[0]) && /#1/.test(G.preguntas[0]) && G.DB.guardados.length===0);
+  ok('al guardar una factura repetida pregunta, y si dice que no, no guarda', r1===false && G.preguntas.length===1 && /PAGO DUPLICADO/.test(G.preguntas[0]) && /#1/.test(G.preguntas[0]) && G.DB.guardados.length===0);
   G.respuesta=true; const r2=await G.S.saveFn();
   ok('...y si dice que sí, la guarda (avisa, no bloquea)', r2===true && G.DB.guardados.some(x=>x[0]==='egreso'));
   // Un gasto sin factura, repetido por doble clic
@@ -73,7 +78,8 @@ G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'
   const G3=entorno(EG); G3.lbCompletar('moto:5'); await new Promise(r=>setTimeout(r,200));
   ok('abrir con ✎ la factura de la moto no la marca como repetida consigo misma', G3.$('lbf_rep').innerHTML==='' && JSON.stringify(G3._lbRepExcluir.lbf)==='[2,3]');
   G3._dom.el('lbf_num').value='00001234'; G3._dom.el('lbf_rif').value='J-11111111-1'; G3.lbRepetidaCheck('lbf'); await new Promise(r=>setTimeout(r,200));
-  ok('...pero si le ponen el N° de otra factura ya registrada, avisa', /gasto #1/.test(G3.$('lbf_rep').innerHTML));
+  ok('...pero si le ponen el N° de otra factura ya registrada, salta la alarma', /gasto #1/.test(G3.$('lbf_rep').innerHTML) && G3.alarmas.length===1);
+  ok('la alarma es roja y titila (animación), con botón para cerrar y dice PAGO DUPLICADO', /@keyframes lbAlarma/.test(src('logic/libros-iva.js')) && /#ff1e3c/.test(src('logic/libros-iva.js')) && /infinite alternate/.test(src('logic/libros-iva.js')) && /PAGO DUPLICADO/.test(src('logic/libros-iva.js')) && /onclick="lbAlarmaCerrar\(true\)"/.test(src('logic/libros-iva.js')));
   G3.respuesta=false;
   ok('...y al guardar pregunta', G3.S.saveFn()===false && G3.preguntas.length===1);
   ok('el aviso escapa lo que viene de la base', !/<img/.test(G3._lbRepTextoDe({ egreso:{ id:1, fecha:'2026-10-03', monto:1, concepto:'<img src=x onerror=alert(1)>', fiscal:{} }, motivo:'x' })));
