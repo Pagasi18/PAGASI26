@@ -21,28 +21,30 @@ const egresos = [
   { id: 6, concepto: 'Devolución papelería', monto: 0, fecha: '2026-10-18', categoria: 'operativo', fiscal: { proveedor: 'PAPELERIA SOL', rif: 'J-1', tipo: '03-ANUL', numero: 'NC-1', control: '00-0002', afectada: '0001', base: 50, alicuota: 0.16 } },
   { id: 7, concepto: 'Septiembre', monto: 10, fecha: '2026-09-30', categoria: 'otros' },
   { id: 8, concepto: 'Borrado', monto: 99, fecha: '2026-10-05', categoria: 'otros', eliminado: true },
+  { id: 9, concepto: 'Repuestos', monto: 1350, fecha: '2026-10-20', categoria: 'otros' },   // sin los datos de la factura
 ];
 ctx.S = { egresos, motos, concesionarios };
-const docs = r('lbComprasDocumentos(S.egresos, { motos: S.motos, concesionarios: S.concesionarios })');
-ok('compras: la moto pagada de 2 cuentas es UNA factura de 1.350; no van la nómina, lo que no lleva factura ni lo borrado',
-  docs.length === 4 && docs.find(d => d.clave === 'moto:5').monto === 1350 && !docs.some(d => /Nómina|Propina|Borrado/.test(d.concepto)));
-ok('compras: la moto sugiere como proveedor a la sede, con su RIF', docs.find(d => d.clave === 'moto:5').sugerido.rif === 'J-12345678-9');
+const docs = r('lbComprasDocumentos(S.egresos)');
+ok('compras: un gasto = un documento; no van la nómina, lo que no lleva factura, lo borrado ni la compra de la moto (la sede no la factura)',
+  docs.length === 4 && docs.every(d => d.egresos.length === 1 && /^eg:/.test(d.clave)) && !docs.some(d => /Nómina|Propina|Borrado|moto/.test(d.concepto)));
+ok('compras: el gasto sin datos entra con su monto y sin proveedor sugerido', docs.find(d => d.clave === 'eg:9').monto === 1350 && !docs.find(d => d.clave === 'eg:9').sugerido);
 let filas = r("lbComprasFilas(" + JSON.stringify(docs) + ", '2026-10', { esSPE: false, pctRet: 0.75 })");
 ok('compras: solo el mes elegido (3 documentos de octubre), en orden de fecha y numerados', filas.length === 3 && filas.map(f => f.oper).join() === '1,2,3' && filas[0].factura === '0001');
 const pap = filas.find(f => f.factura === '0001');
 ok('compras: factura completa → base 100, 16%, IVA 16, total 116, sin faltantes', pap.base === 100 && pap.alic === 0.16 && pap.iva === 16 && pap.total === 116 && pap.faltan.length === 0 && pap.fechaDoc === '2026-10-02');
-const moto = filas.find(f => f.clave === 'moto:5');
-ok('compras: la moto sin datos sale con la sede, el total registrado y lo que falta', moto.nombre === 'MOTOS TORO, C.A.' && moto.rif === 'J-12345678-9' && moto.total === 1350 && moto.base === '' && moto.faltan.join() === 'N° de factura,N° de control,base e IVA');   // el RIF de la sede ya cuenta
+const rep = filas.find(f => f.clave === 'eg:9');
+ok('compras: el gasto sin datos sale con su concepto, el total registrado y lo que falta', rep.nombre === 'Repuestos' && rep.rif === '' && rep.total === 1350 && rep.base === '' && rep.faltan.join() === 'RIF,N° de factura,N° de control,base e IVA');
+ok('compras: la moto no aparece aunque sea un gasto de inventario', !filas.some(f => /moto/i.test(f.concepto)));
 const nc = filas.find(f => f.ndnc === 'NC-1');
 ok('compras: la nota de crédito va en NEGATIVO, con su factura afectada y sin N° de factura', nc.base === -50 && nc.iva === -8 && nc.total === -58 && nc.factura === '' && nc.afectada === '0001' && nc.tipo === '03-ANUL');
 let calc = r("lbComprasCalculo(" + JSON.stringify(filas) + ", '2026-10', 'MES')");
 ok('compras: totales como la fila TOTALES del Excel', calc.totales.total === 1408 && calc.totales.base === 50 && calc.totales.iva === 8);
 const int16 = calc.resumen.find(x => /internas gravadas – Alícuota General 16/.test(x.concepto));
 ok('compras: el resumen separa compras internas al 16% (base 50, crédito 8)', int16.base === 50 && int16.credito === 8 && calc.resumen[calc.resumen.length - 1].concepto === 'TOTAL');
-ok('compras: con la moto sin datos el control dice REVISAR y cuenta lo que falta', calc.controles[0].estado === 'REVISAR' && /1 por completar/.test(calc.controles[5].estado));
+ok('compras: con un gasto sin datos el control dice REVISAR y cuenta lo que falta', calc.controles[0].estado === 'REVISAR' && /1 por completar/.test(calc.controles[5].estado));
 ok('compras: el resumen del mes cuadra con el crédito fiscal', calc.controles[2].estado === 'CUADRA');
-// La moto ya completada
-const docs2 = JSON.parse(JSON.stringify(docs)); docs2.find(d => d.clave === 'moto:5').fiscal = { proveedor: 'MOTOS TORO, C.A.', rif: 'J-12345678-9', numero: '777', control: '00-777', base: 1163.79, alicuota: 0.16 };
+// El gasto ya completado
+const docs2 = JSON.parse(JSON.stringify(docs)); docs2.find(d => d.clave === 'eg:9').fiscal = { proveedor: 'MOTOS TORO, C.A.', rif: 'J-12345678-9', numero: '777', control: '00-777', base: 1163.79, alicuota: 0.16 };
 const filas2 = r("lbComprasFilas(" + JSON.stringify(docs2) + ", '2026-10', { esSPE: true, pctRet: 0.75 })");
 const calc2 = r("lbComprasCalculo(" + JSON.stringify(filas2) + ", '2026-10', 'MES')");
 ok('compras completas: Total = Exentas + Base + IVA → CUADRA', calc2.controles[0].estado === 'CUADRA' && calc2.controles[5].estado === 'OK');

@@ -3,8 +3,8 @@
 // pueda filtrar y buscar… exportar en pdf y en excel"). Las mismas columnas, resumen, controles y notas de los
 // Excel LIBRO_DE_COMPRAS.xlsx y LIBRO_DE_VENTAS.xlsx, en dólares (Adam eligió dólares).
 //  · Ventas: una línea por factura emitida (colección facturas). Reemplaza la pestaña "Libro SENIAT".
-//  · Compras: los gastos (egresos). La compra de una moto, aunque se haya pagado de varias cuentas, es UNA factura
-//    de la sede. Los datos de la factura del proveedor van en egreso.fiscal; si faltan, se completan desde el libro.
+//  · Compras: los gastos (egresos), menos la compra de las motos (la sede no le factura cada moto a PAGASI).
+//    Los datos de la factura del proveedor van en egreso.fiscal; si faltan, se completan desde el libro.
 //  · Contribuyente especial y % de retención: config/libros (antes vivía solo en el navegador).
 
 var LB_NOTAS_COMPRAS = [
@@ -45,39 +45,25 @@ function _lbRifCliente(ci){
 }
 
 // ══════════════ COMPRAS ══════════════
-// Los documentos de compra: un gasto = un documento, salvo la compra de una moto (sus partes pagadas de varias
-// cuentas son una sola factura de la sede). No van la nómina, las comisiones ni lo marcado "no lleva factura".
-function lbComprasDocumentos(egresos, ctx){
-  ctx = ctx || {};
-  var grupos = {}, orden = [];
-  (egresos || []).forEach(function(e){
-    if(!e || e.eliminado || e.anuladoPorMoto) return;
-    if(['nomina', 'comisiones'].indexOf(e.categoria) > -1) return;
-    var esMoto = e.origenAuto === 'compra_moto' && e.motoIdRef != null;
-    var k = esMoto ? 'moto:' + e.motoIdRef : 'eg:' + e.id;
-    if(!grupos[k]){ grupos[k] = { clave: k, egresos: [], monto: 0, fecha: e.fecha || '', concepto: e.concepto || '', categoria: e.categoria || '', motoId: esMoto ? e.motoIdRef : null, fiscal: null }; orden.push(k); }
-    var g = grupos[k];
-    g.egresos.push(e); g.monto = _lbR2(g.monto + (parseFloat(e.monto) || 0));
-    if(e.fecha && (!g.fecha || e.fecha < g.fecha)) g.fecha = e.fecha;
-    if(e.fiscal && (!g.fiscal || (!g.fiscal.numero && e.fiscal.numero))) g.fiscal = e.fiscal;
+// Los documentos de compra: un gasto = un documento. No van la nómina, las comisiones, lo marcado "no lleva
+// factura" ni la compra de las motos: la sede no le factura cada moto a PAGASI (Adam, 27-oct-2026), así que esas
+// compras no son facturas de proveedor y no entran al libro (ni al 06 de QuickBooks).
+function lbComprasDocumentos(egresos){
+  return (egresos || []).filter(function(e){
+    if(!e || e.eliminado || e.anuladoPorMoto) return false;
+    if(['nomina', 'comisiones'].indexOf(e.categoria) > -1) return false;
+    if(e.origenAuto === 'compra_moto') return false;
+    return !(e.fiscal && e.fiscal.noAplica);
+  }).map(function(e){
+    return { clave: 'eg:' + e.id, egresos: [e], monto: _lbR2(e.monto), fecha: e.fecha || '', concepto: e.concepto || '', categoria: e.categoria || '', fiscal: e.fiscal || null };
   });
-  return orden.map(function(k){
-    var g = grupos[k];
-    if(g.motoId != null){
-      var moto = (ctx.motos || []).find(function(m){ return String(m.id) === String(g.motoId); });
-      var cid = (moto && moto.concesionarioId) || (g.egresos.find(function(e){ return e.concesionarioId; }) || {}).concesionarioId;
-      var conc = cid && (ctx.concesionarios || []).find(function(c){ return String(c.id) === String(cid); });
-      if(conc) g.sugerido = { proveedor: conc.nombre || '', rif: conc.rif || '' };
-    }
-    return g;
-  }).filter(function(g){ return !(g.fiscal && g.fiscal.noAplica); });
 }
 
 function lbComprasFilas(docs, periodo, cfg){
   cfg = cfg || {};
   var pctDef = _lbNum(cfg.pctRet) === '' ? 0.75 : +cfg.pctRet;
   var filas = (docs || []).filter(function(g){ return _lbEnPeriodo(g.fecha, periodo); }).map(function(g){
-    var f = g.fiscal || {}, sug = g.sugerido || {};
+    var f = g.fiscal || {};
     var tipo = f.tipo || '01-REG', signo = tipo === '03-ANUL' ? -1 : 1;
     var origen = f.origen === 'IMPORTACION' ? 'IMPORTACION' : 'INTERNA';
     var exento = _lbNum(f.exento) === '' ? '' : signo * _lbR2(f.exento);
@@ -92,13 +78,13 @@ function lbComprasFilas(docs, periodo, cfg){
     }
     var fechaDoc = f.fecha || g.fecha;
     var faltan = [];
-    if(!f.rif && !sug.rif && origen !== 'IMPORTACION') faltan.push('RIF');   // el de la sede cuenta (se guarda al completar)
+    if(!f.rif && origen !== 'IMPORTACION') faltan.push('RIF');
     if(!f.numero) faltan.push(origen === 'IMPORTACION' ? 'N° de declaración' : (tipo === '01-REG' ? 'N° de factura' : 'N° de la nota'));
     if(!f.control && origen !== 'IMPORTACION') faltan.push('N° de control');
     if(!tieneMontos) faltan.push('base e IVA');
     return {
       clave: g.clave, egresoIds: g.egresos.map(function(e){ return e.id; }), fechaDoc: fechaDoc, fechaReg: g.fecha,
-      rif: f.rif || sug.rif || '', nombre: f.proveedor || sug.proveedor || g.concepto || '',
+      rif: f.rif || '', nombre: f.proveedor || g.concepto || '',
       factura: tipo === '01-REG' ? (f.numero || '') : '', control: f.control || '', ndnc: tipo !== '01-REG' ? (f.numero || '') : '',
       tipo: tipo, afectada: f.afectada || '', total: total, exento: exento, base: base, alic: alic, iva: iva, ret: ret,
       comprobante: f.comprobante || '', origen: origen, quincena: _lbNum(f.quincena) !== '' ? +f.quincena : _lbQuincena(fechaDoc),
@@ -224,7 +210,7 @@ function _lbEstado(tipo){
 function _lbDatos(tipo){
   var st = _lbEstado(tipo), filas, calc;
   if(tipo === 'compras'){
-    var docs = lbComprasDocumentos(S.egresos || [], { motos: S.motos || [], concesionarios: S.concesionarios || [] });
+    var docs = lbComprasDocumentos(S.egresos || []);
     var todas = lbComprasFilas(docs, st.periodo, _lbCfg);
     filas = lbFiltrar(todas, st.q, st.filtro); calc = lbComprasCalculo(filas, st.periodo, st.resumenDe);
     calc.faltanMes = todas.filter(function(f){ return f.faltan.length; }).length; calc.totalMes = todas.length;
@@ -284,7 +270,7 @@ function _lbCuerpoHtml(tipo){
       + '<button class="btn btn-g btn-sm" style="padding:3px 9px;font-size:11px" onclick="lbCompletar(\'' + f.clave + '\')">' + (falta ? '✎ Completar' : '✎ Editar') + '</button></td>' : '') + '</tr>';
   }).join('');
   var vacio = !D.filas.length ? '<tr><td colspan="' + (C.cols.length + 1) + '" style="padding:22px;text-align:center;color:var(--ink3);font-size:12px">'
-    + (D.calc.totalMes ? 'Nada coincide con la búsqueda.' : (tipo === 'ventas' ? 'No hay facturas emitidas en ' + _lbPeriodoVE(D.st.periodo) + '. Las facturas se generan desde el detalle de cada pago.' : 'No hay gastos registrados en ' + _lbPeriodoVE(D.st.periodo) + '.')) + '</td></tr>' : '';
+    + (D.calc.totalMes ? 'Nada coincide con la búsqueda.' : (tipo === 'ventas' ? 'No hay facturas emitidas en ' + _lbPeriodoVE(D.st.periodo) + '. Las facturas se generan desde el detalle de cada pago.' : 'No hay facturas de proveedor en ' + _lbPeriodoVE(D.st.periodo) + '. Las compras de motos, la nómina y las comisiones no van al Libro de Compras.')) + '</td></tr>' : '';
   var tot = '<tr>' + C.cols.map(function(c, i){
     var td = 'padding:7px;border:1px solid var(--rim);font-weight:800;background:rgba(16,185,129,.08);font-size:11px;';
     if(i === C.totales.iTxt) return '<td style="' + td + 'text-align:right">TOTALES</td>';
@@ -367,17 +353,14 @@ function lbFacturaRepetida(f, egresos, opts){
   var excluir = {}; (opts.excluirIds || []).forEach(function(id){ excluir[String(id)] = 1; });
   var num = _lbRepNum(f.numero), rif = _lbRepNum(f.rif), prov = _lbRepTxt(f.proveedor);
   if(!num || !(rif || prov)) return [];   // sin N° o sin proveedor no hay con qué comparar
-  var vistos = {}, out = [];
+  var out = [];
   (egresos || []).forEach(function(e){
-    if(!e || e.eliminado || e.anuladoPorMoto || excluir[String(e.id)]) return;
+    if(!e || e.eliminado || e.anuladoPorMoto || e.origenAuto === 'compra_moto' || excluir[String(e.id)]) return;   // la moto no está en el libro: no es factura
     var x = e.fiscal || {}; if(x.noAplica) x = {};
     if(_lbRepNum(x.numero) !== num) return;
     var xrif = _lbRepNum(x.rif), xprov = _lbRepTxt(x.proveedor);
     if(!((rif && xrif && rif === xrif) || (prov && xprov && prov === xprov))) return;   // mismo N° de OTRO proveedor: no es la misma
-    var motivo = 'misma factura: mismo N° y mismo proveedor';
-    var clave = (e.origenAuto === 'compra_moto' && e.motoIdRef != null) ? 'moto:' + e.motoIdRef : 'eg:' + e.id;   // la moto pagada de varias cuentas es UNA factura
-    if(vistos[clave]) return; vistos[clave] = 1;
-    out.push({ egreso: e, motivo: motivo });
+    out.push({ egreso: e, motivo: 'misma factura: mismo N° y mismo proveedor' });
   });
   return out;
 }
@@ -634,15 +617,15 @@ function lbTasaPersistir(f, p){
 }
 
 function lbCompletar(clave){
-  var docs = lbComprasDocumentos(S.egresos || [], { motos: S.motos || [], concesionarios: S.concesionarios || [] });
+  var docs = lbComprasDocumentos(S.egresos || []);
   var g = docs.find(function(d){ return d.clave === clave; });
   if(!g){ toast('No encuentro ese gasto', 'error'); return; }
-  var f = Object.assign({}, g.sugerido || {}, g.fiscal || {});
+  var f = Object.assign({}, g.fiscal || {});
   if(!f.fecha) f.fecha = g.fecha;
   setMicon('egreso'); $('mtt').textContent = 'Datos de la factura del proveedor'; $('msb').textContent = 'Libro de Compras';
   $('modal-box').className = 'modal';
   $('mbd').innerHTML = '<div style="padding:9px 11px;border-radius:8px;background:var(--gs);font-size:12px;margin-bottom:10px"><b>' + _lbEsc(g.concepto) + '</b><br>Registrado el ' + _lbFechaVE(g.fecha) + ' por <b>' + fmt(g.monto) + '</b>'
-    + (g.egresos.length > 1 ? ' · pagado de ' + g.egresos.length + ' cuentas (es una sola factura)' : '') + '</div>'
+    + '</div>'
     + '<div class="fgr c1" style="gap:9px">' + lbCamposFiscalesHtml('lbf', f, g.monto) + '</div>';
   _lbTasaEscrita.lbf = false; _lbTasaReq.lbf = (_lbTasaReq.lbf || 0) + 1;
   _lbRepExcluir.lbf = g.egresos.map(function(e){ return e.id; });   // esta misma factura no cuenta como repetida

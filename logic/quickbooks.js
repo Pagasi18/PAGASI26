@@ -341,15 +341,15 @@ function _qbFilasFactura(d){
 }
 
 // ══════════════ PROVEEDORES Y SUS FACTURAS (los documentos del Libro de Compras) ══════════════
-// Mismos documentos que el Libro de Compras (lbComprasDocumentos): sin nómina, comisiones ni lo que "no lleva
-// factura", y la compra de una moto pagada de varias cuentas es una sola factura de la sede. El proveedor es el de
-// los datos fiscales del gasto o la sede de la moto; si no hay ninguno, el gasto no se inventa un proveedor: queda
-// en la lista para completarlo en el Libro de Compras.
+// Mismos documentos que el Libro de Compras (lbComprasDocumentos): sin nómina, comisiones, lo que "no lleva
+// factura" ni las compras de motos (la sede no le factura cada moto a PAGASI). El proveedor es el de los datos
+// fiscales del gasto; si no hay, el gasto no se inventa un proveedor: queda en la lista para completarlo en el
+// Libro de Compras.
 // Un proveedor es un RIF con un nombre (dos sedes con el mismo RIF y distinto nombre son dos proveedores). Un RIF
 // de relleno ("N/A", "0") no es RIF: no junta a nadie. Un gasto sin RIF va con el proveedor del mismo nombre que sí
 // lo tiene, si existe.
 function _qbRifValido(rif){ var r = String(rif || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return /^[VEJGPC]\d{5,10}$/.test(r) ? r : ''; }
-function _qbProvDeDoc(g){ var f = g.fiscal || {}, s = g.sugerido || {}; return { nombre: _qbTxt(f.proveedor || s.proveedor), rif: _qbTxt(f.rif || s.rif).toUpperCase(), importacion: f.origen === 'IMPORTACION' }; }
+function _qbProvDeDoc(g){ var f = g.fiscal || {}; return { nombre: _qbTxt(f.proveedor), rif: _qbTxt(f.rif).toUpperCase(), importacion: f.origen === 'IMPORTACION' }; }
 
 function qbProveedores(docs, concesionarios){
   var porClave = {}, orden = [], porDoc = {}, rifMalos = [];
@@ -443,7 +443,7 @@ function qbDatos(ctx){
   var F = qbFacturas(ctx);
   var C = qbClientes(Object.assign({}, ctx, { credsFacturados: F.credsFacturados }));
   F.docs.forEach(function(d){ var x = C.porCred[String(d.cred)]; d.cliente = x ? x.nombreQB : ''; });
-  var docsCompra = lbComprasDocumentos(ctx.egresos || [], { motos: ctx.motos || [], concesionarios: ctx.concesionarios || [] });
+  var docsCompra = lbComprasDocumentos(ctx.egresos || []);
   var P = qbProveedores(docsCompra, ctx.concesionarios);
   // En QuickBooks un nombre no puede ser a la vez cliente y proveedor: el proveedor lleva su RIF
   var nombresCli = {};
@@ -472,6 +472,8 @@ function qbDatos(ctx){
   var ivaExacto = F.docs.every(function(d){ return d.lineas.every(function(l){ var s = _qbServicio(l.k); return !s.tasa || _qbR2(l.monto * s.tasa) === l.iva; }); });
   var ivaLibro = _qbR2((ctx.facturas || []).filter(function(f){ return f && !f.anulada && _lbEnPeriodo(f.fechaEmision, ctx.periodo); }).reduce(function(a, f){ return a + (parseFloat(f.iva) || 0); }, 0));
   var ok = function(c){ return c ? 'CUADRA' : 'REVISAR'; }, cuantos = function(n, mal){ return n ? (mal ? 'REVISAR: ' : '') + n : 'OK'; };
+  // Las compras de motos del mes no van (la sede no las factura): se cuentan para que se vea de dónde sale la diferencia con Egresos
+  var motosMes = (ctx.egresos || []).filter(function(e){ return e && !e.eliminado && !e.anuladoPorMoto && e.origenAuto === 'compra_moto' && _lbEnPeriodo(e.fecha, ctx.periodo); });
   var ctl = {
     clientes: [
       { concepto: 'Clientes con crédito', estado: String(C.filas.length) },
@@ -507,6 +509,7 @@ function qbDatos(ctx){
       { concepto: 'Gastos con una categoría sin cuenta de QuickBooks (recategorízalos)', estado: cuantos(B.bills.filter(function(b){ return b.avisos.some(function(a){ return /sin cuenta de QuickBooks/.test(a); }); }).length, true) },
       { concepto: 'Sin N° de factura del proveedor (van con EG- y el N° del gasto)', estado: String(B.bills.filter(function(b){ return b.avisos.indexOf('sin N° de factura del proveedor') > -1; }).length) },
       { concepto: 'Notas de crédito (no van aquí: en QuickBooks son créditos de proveedor)', estado: String(B.notasCredito.length) },
+      { concepto: 'Compras de motos del mes (no van: la sede no le factura cada moto a PAGASI)', estado: motosMes.length + ' · ' + fmt(suma(motosMes, 'monto')) },
       { concepto: 'La nómina y las comisiones no son facturas de proveedor: no van', estado: 'OK' }
     ]
   };
@@ -647,8 +650,8 @@ function _qbCuerpoHtml(D){
     clientes: 'Balance de Apertura = lo que cada cliente debe al ' + _qbDMY(D.st.corte) + ' (fecha de corte): las cuotas que le faltan con los pagos hechos hasta ese día, con el mismo motor contable de Pagos. Un cliente sin saldo va con el balance y la fecha en blanco. Las cuotas que se cobren después del corte ya están dentro de ese saldo: si también se importan sus facturas (03), en QuickBooks se registran como pago de ese saldo.',
     servicios: 'El catálogo del contador tal cual (su 02. Servicios.xlsx): servicios de ingreso y categorías de gasto con su cuenta. Lo marcado en amarillo no estaba en su catálogo. Las facturas (03) usan exactamente estos nombres.',
     facturas: 'Cada cuota cobrada se parte como en la Nueva metodología: Cartera de financiamiento (lo que recupera del precio de la moto), Intereses (12 % anual, sin IVA) y Pagasi Protect, con el IVA del 16 % por dentro. Lo facturado (montos + IVA) es igual a lo cobrado. N° y Fecha Factura = los del cobro · Service Date = el vencimiento de la cuota que pagó.',
-    proveedores: 'Los proveedores salen de los datos fiscales de cada gasto (Libro de Compras) y, en la compra de motos, de la sede. La sede trae su teléfono, dirección y ciudad. Fe. Creación = la de la sede o la del primer gasto.',
-    compras: 'Todos los gastos del mes (por su fecha), como en el Libro de Compras de ' + _lbPeriodoVE(D.st.periodo) + ': la parte exenta va en una línea "' + QB_SIN_IVA + '" y la base en otra con su IVA. La cuenta (*Account) es la de la categoría del gasto en el plan del contador.'
+    proveedores: 'Los proveedores salen de los datos fiscales de cada gasto (Libro de Compras). Las compras de motos no van: la sede no le factura cada moto a PAGASI. Si un gasto trae el RIF o el nombre de una sede, la ficha toma su teléfono, dirección y ciudad. Fe. Creación = la de la sede o la del primer gasto.',
+    compras: 'Los gastos del mes con factura de proveedor (por su fecha), como en el Libro de Compras de ' + _lbPeriodoVE(D.st.periodo) + ': la parte exenta va en una línea "' + QB_SIN_IVA + '" y la base en otra con su IVA. La cuenta (*Account) es la de la categoría del gasto en el plan del contador. Las compras de motos, la nómina y las comisiones no van.'
   }[tipo];
   return (V.filtrado ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)">Filtrado: los totales y lo que se exporta son solo de lo que se ve.</div>' : '')
     + '<div class="ch" style="flex-wrap:wrap;gap:10px;margin-bottom:8px"><div><div class="ct" style="font-size:14px">' + A.n + '. ' + _lbEsc(A.titulo) + '</div><div class="cs">' + _lbEsc(nota) + '</div></div>'

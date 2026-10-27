@@ -124,7 +124,8 @@ const egresos=[
   { id:106, fecha:'2026-10-08', monto:20, concepto:'Devolución', categoria:'operativo', fiscal:{ proveedor:'LIBRERIA EL SOL', rif:'J-30111222-3', numero:'NC-1', tipo:'03-ANUL', base:10, alicuota:0.16 } },
   { id:107, fecha:'2026-10-09', monto:58, concepto:'Tóner', categoria:'operativo', fiscal:{ proveedor:'LIBRERIA EL SOL', rif:'J-30111222-3', numero:'A-77', base:50, alicuota:0.16 } },   // mismo N°
   { id:108, fecha:'2026-09-09', monto:10, concepto:'Agua', categoria:'operativo', fiscal:{ proveedor:'AGUAS C.A.', rif:'J-1' } },            // otro mes: proveedor sí, factura no
-  { id:109, fecha:'2026-10-10', monto:5, concepto:'Borrado', categoria:'operativo', eliminado:true, fiscal:{ proveedor:'FANTASMA', rif:'J-2' } }
+  { id:109, fecha:'2026-10-10', monto:5, concepto:'Borrado', categoria:'operativo', eliminado:true, fiscal:{ proveedor:'FANTASMA', rif:'J-2' } },
+  { id:110, fecha:'2026-10-11', monto:1392, concepto:'Cascos', categoria:'operativo', fiscal:{ proveedor:'MOTOS DEL ESTE', rif:'J-40000000-1', numero:'S-1', base:1200, alicuota:0.16 } }   // lo que la sede SÍ factura
 ];
 const D=G.qbDatos({ creds, pagos, clientes, facturas, egresos, motos, concesionarios, periodo:'2026-10', corte:'2026-09-30' });
 
@@ -175,7 +176,7 @@ ok('...suma de montos + IVA de todo el archivo = ' + totalCobrado, cerca(totalFa
 // 05 Proveedores
 const pv5=D.filas.proveedores;
 ok('05: un proveedor por RIF (mayúsculas y guiones no lo duplican)', pv5.filter(r=>/LIBRERIA EL SOL/.test(r[1])).length===1);
-ok('...la sede de la moto con su teléfono, dirección, ciudad y fecha de creación', (()=>{ const s=pv5.find(r=>r[1]==='MOTOS DEL ESTE'); return s && s[0]==='MOTOS DEL ESTE' && s[3]==='0212-5555555' && s[7]==='AV. FRANCISCO DE MIRANDA' && s[8]==='CARACAS' && s[12]==='2026-08-01' && s[13]==='J-40000000-1' && s[14]==='USD'; })());
+ok('...la sede que factura algo sale con su teléfono, dirección, ciudad y fecha de creación', (()=>{ const s=pv5.find(r=>r[1]==='MOTOS DEL ESTE'); return s && s[0]==='MOTOS DEL ESTE' && s[3]==='0212-5555555' && s[7]==='AV. FRANCISCO DE MIRANDA' && s[8]==='CARACAS' && s[12]==='2026-08-01' && s[13]==='J-40000000-1' && s[14]==='USD'; })());
 ok('...la primera columna (el nombre que QuickBooks exige) lleva el nombre: cada *Supplier del 06 está ahí', pv5.every(r=>r[0]) && D.filas.compras.every(r=>pv5.some(v=>v[0]===r[1])));
 ok('...el de otro mes también está (la ficha es de todos los meses)', pv5.some(r=>r[1]==='AGUAS C.A.'));
 ok('...un gasto sin proveedor no inventa uno, y lo borrado no va', !pv5.some(r=>/Almuerzo|FANTASMA|Nómina/.test(r[1])));
@@ -187,12 +188,13 @@ ok('06: la factura con exento y base va en dos líneas, cada una con su código'
 ok('...fechas como en la plantilla 06 (mm/dd/aaaa) y vencimiento a 15 días', lib[0][2]==='10/02/2026' && lib[0][3]==='10/17/2026' && lib[0][4]==='Net 15');
 ok('...cada línea repite la cabecera, como la plantilla; la categoría vieja "operativo" va con su nombre', lib[1][1]==='LIBRERIA EL SOL' && lib[1][12]==='USD' && lib[1][7]==='OFICINA Y SERVICIOS');
 ok('...el mismo N° del mismo proveedor no se mezcla en una sola factura', cp.some(r=>r[0]==='A-77-2' && r[9]===50));
-const moto=cp.filter(r=>r[1]==='MOTOS DEL ESTE');
-ok('...la moto pagada desde dos cuentas es UNA factura de la sede (500 + 700) a la cuenta 1113 INVENTARIOS del contador', moto.length===1 && moto[0][9]===1200 && moto[0][0]==='EG-102' && moto[0][7]==='1113 INVENTARIOS');
+const sede=cp.filter(r=>r[1]==='MOTOS DEL ESTE');
+ok('...la compra de la moto NO va al 06 (la sede no la factura a PAGASI); lo que la sede sí factura, sí', sede.length===1 && sede[0][0]==='S-1' && sede[0][9]===1200 && !cp.some(r=>/Compra de moto|EG-102|EG-103/.test(r.join(' '))));
 ok('...sin la nómina, la nota de crédito ni lo de otro mes', !cp.some(r=>/Nómina|NC-1|Agua/.test(r.join(' '))));
 ok('...el gasto sin proveedor SÍ va (el contador: que se reflejen todos), como SIN PROVEEDOR', cp.some(r=>r[1]==='SIN PROVEEDOR' && /Almuerzo/.test(r[8]) && r[9]===50) && pv5.some(r=>r[0]==='SIN PROVEEDOR'));
 ok('...un gasto con categoría del contador sale a su cuenta de QuickBooks', (()=>{ const Dc=G.qbDatos({ creds:[], pagos:[], clientes:[], facturas:[], egresos:[{ id:700, fecha:'2026-10-05', monto:50, categoria:'servicios-de-telefonia', concepto:'MOVISTAR', fiscal:{ proveedor:'MOVISTAR', rif:'J-1', numero:'5', base:50, alicuota:0 } }], motos:[], concesionarios:[], periodo:'2026-10', corte:'2026-09-30' }); return Dc.filas.compras[0][7]==='6102001 SERVICIO DE TELEFONIA E INTERNET' && !Dc.compras.bills[0].avisos.some(a=>/sin cuenta/.test(a)); })());
 ok('...y los controles dicen cuántos quedaron así y por qué', D.compras.sinProveedor.length===1 && D.compras.notasCredito.length===1 && D.controles.compras.some(c=>/sin proveedor/.test(c.concepto) && c.estado==='REVISAR: 1'));
+ok('...y cuentan las compras de motos del mes que no van (2 egresos, $1.200), para que se entienda la diferencia con Egresos', D.controles.compras.some(c=>/Compras de motos del mes/.test(c.concepto) && /^2 · /.test(c.estado) && /1.?200/.test(c.estado)));
 
 // ── Los archivos ───────────────────────────────────────────────────────────────────────────────────────────
 const csv=G.qbCsvTexto(G.QB_ARCHIVOS.facturas.enc, fc);
@@ -205,7 +207,7 @@ ok('...Ñ, acentos, € y raya larga a su byte; lo que no existe en 1252 queda "
 ok('...un texto con ";" va entre comillas para no romper las columnas', G.qbCsvTexto(['a','b'], [['x;y','z"w']]).split('\r\n')[1]==='"x;y";"z""w"');
 const csv6=G.qbCsvTexto(G.QB_ARCHIVOS.compras.enc, cp);
 ok('...el 06 con su encabezado exacto', csv6.split('\r\n')[0]==='*BillNo;*Supplier;*BillDate;*DueDate;Terms;Location;Memo;*Account;LineDescription;*LineAmount;*LineTaxCode;LineTaxAmount;Currency');
-ok('...los montos con punto decimal y sin separador de miles', /;1200;No VAT \(0%\);0;USD\r\n/.test(csv6) && /;3\.42;/.test(csv));
+ok('...los montos con punto decimal y sin separador de miles', /;1200;16\.0% S \(16%\);192;USD\r\n/.test(csv6) && /;3\.42;/.test(csv));
 
 const hoja=G.qbHoja('clientes', cli);
 ok('Excel: fila 1 = los encabezados de la plantilla, sin títulos encima (QuickBooks lee la primera fila)', hoja.rows[0].map(c=>c.v).join('|')===G.QB_ARCHIVOS.clientes.enc.join('|') && hoja.name==='02. Importacion de Clientes');
@@ -297,10 +299,14 @@ ok('cliente que también es proveedor: el proveedor lleva su RIF (QuickBooks no 
 
 // Dos sedes con el mismo RIF y distinto nombre
 const sedes=[{ id:'A', nombre:'EMPIRE BELLO MONTE', rif:'J-40000000-1', telefono:'0212-BM' }, { id:'B', nombre:'EMPIRE VALENCIA', rif:'J-40000000-1', telefono:'0241-VA' }];
-const Ds=G.qbDatos(base({ concesionarios:sedes, motos:[{ id:5, concesionarioId:'A' }, { id:6, concesionarioId:'B' }], egresos:[
-  { id:601, fecha:'2026-10-01', monto:900, categoria:'inventario', origenAuto:'compra_moto', motoIdRef:6, concepto:'moto 6' },
-  { id:602, fecha:'2026-10-02', monto:800, categoria:'inventario', origenAuto:'compra_moto', motoIdRef:5, concepto:'moto 5' } ] }));
-ok('dos sedes con el mismo RIF: cada una con su nombre y su teléfono, y cada moto a su sede', Ds.filas.proveedores.length===2 && Ds.filas.proveedores.find(r=>r[0]==='EMPIRE BELLO MONTE')[3]==='0212-BM' && Ds.filas.compras.find(r=>r[8]==='moto 5')[1]==='EMPIRE BELLO MONTE');
+const Ds=G.qbDatos(base({ concesionarios:sedes, egresos:[
+  { id:601, fecha:'2026-10-01', monto:9, categoria:'otros', concepto:'casco', fiscal:{ proveedor:'EMPIRE VALENCIA', rif:'J-40000000-1', numero:'1', base:9, alicuota:0 } },
+  { id:602, fecha:'2026-10-02', monto:8, categoria:'otros', concepto:'guantes', fiscal:{ proveedor:'EMPIRE BELLO MONTE', rif:'J-40000000-1', numero:'2', base:8, alicuota:0 } } ] }));
+ok('dos sedes con el mismo RIF: cada una con su nombre y su teléfono, y cada factura a su sede', Ds.filas.proveedores.length===2 && Ds.filas.proveedores.find(r=>r[0]==='EMPIRE BELLO MONTE')[3]==='0212-BM' && Ds.filas.compras.find(r=>r[8]==='guantes')[1]==='EMPIRE BELLO MONTE');
+const Dm=G.qbDatos(base({ concesionarios:sedes, motos:[{ id:5, concesionarioId:'A' }], egresos:[
+  { id:603, fecha:'2026-10-01', monto:900, categoria:'inventario', origenAuto:'compra_moto', motoIdRef:5, concepto:'moto 5' },
+  { id:604, fecha:'2026-10-01', monto:300, categoria:'inventario', origenAuto:'compra_moto', motoIdRef:5, concepto:'moto 5' } ] }));
+ok('la compra de una moto no va al 06 ni convierte a la sede en proveedor (Adam, 27-oct-2026: la sede no la factura)', Dm.filas.compras.length===0 && Dm.filas.proveedores.length===0 && Dm.compras.sinProveedor.length===0);
 
 // Completado al corte: debe 0 aunque el plan tuviera cuotas sin pagar (como en Pagos)
 ok('crédito cerrado (completado) antes del corte debe 0', G.qbSaldoCredito(Object.assign({}, M154, { estado:'completado', fechaCompletado:'2026-10-01' }), [], '2026-10-31')===0);

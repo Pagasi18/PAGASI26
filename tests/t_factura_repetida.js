@@ -41,11 +41,11 @@ ok('mismo N° y mismo RIF: es la misma factura', rep({numero:'00001234', rif:'J-
 ok('...aunque el N° venga sin ceros, con guiones o en minúsculas, y el RIF sin guiones', rep({numero:'1234', rif:'j111111111'}).length===1 && rep({numero:'00-001234', proveedor:'papeleria sol c.a.'}).length===1);
 ok('mismo N° pero otro proveedor: no es la misma (la factura 1234 de TAXI JUAN es otra)', rep({numero:'1234', rif:'J-99999999-9'}).length===0 && rep({numero:'1234', proveedor:'OTRO'}).length===0);
 ok('mismo N° y todavía sin proveedor: no avisa (el contador: solo el mismo N° del MISMO proveedor)', rep({numero:'1234'}).length===0 && rep({numero:'00001234'}).length===0);
-ok('la moto pagada de dos cuentas es UNA factura: un solo aviso', rep({numero:'A-77', rif:'J-12345678-9'}).length===1);
+ok('la compra de una moto no está en el libro: no cuenta como factura (la sede no la factura)', rep({numero:'A-77', rif:'J-12345678-9'}).length===0);
 ok('un gasto eliminado o marcado "sin factura" no cuenta', rep({numero:'00001234', rif:'J-11111111-1'}).length===1);
 ok('solo el proveedor, sin N°, NO avisa (Movistar manda una factura igual cada mes)', rep({proveedor:'PAPELERIA SOL, C.A.', rif:'J-11111111-1'}).length===0 && rep({rif:'J-11111111-1', fecha:'2026-10-03', monto:116}).length===0);
 ok('mismo día y mismo monto sin N° tampoco', rep({fecha:'2026-10-15', monto:900, concepto:'Nómina octubre'}).length===0);
-ok('al editar con ✎ los gastos de esa misma factura no cuentan', rep({numero:'A-77', rif:'J-12345678-9'}, {excluirIds:[2,3]}).length===0);
+ok('al editar con ✎ el gasto de esa misma factura no cuenta', rep({numero:'00001234', rif:'J-11111111-1'}, {excluirIds:[1]}).length===0);
 ok('con nada escrito no avisa', rep({}).length===0 && rep({numero:'', fecha:'2026-10-03'}).length===0);
 
 // ── En el formulario ───────────────────────────────────────────────────────────────────────────────────────
@@ -75,8 +75,8 @@ G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'
   ok('un gasto igual a otro del mismo día, sin N° de factura, se guarda sin preguntar', r3===true && G2.preguntas.length===0);
   ok('elegir solo el proveedor no dispara la alarma', (()=>{ const G4=entorno(EG); G4.openAddEgreso(); G4._dom.el('egf_prov').value='PAPELERIA SOL, C.A.'; G4._dom.el('egf_rif').value='J-11111111-1'; G4.lbRepetidaCheck('egf'); return new Promise(r=>setTimeout(()=>r(G4.alarmas.length===0 && G4.$('eg_rep_gasto').innerHTML===''),200)); })());
   // El ✎ del libro no se avisa a sí mismo
-  const G3=entorno(EG); G3.lbCompletar('moto:5'); await new Promise(r=>setTimeout(r,200));
-  ok('abrir con ✎ la factura de la moto no la marca como repetida consigo misma', G3.$('lbf_rep').innerHTML==='' && JSON.stringify(G3._lbRepExcluir.lbf)==='[2,3]');
+  const G3=entorno(EG); G3.lbCompletar('eg:6'); await new Promise(r=>setTimeout(r,200));
+  ok('abrir con ✎ una factura no la marca como repetida consigo misma', G3.$('lbf_rep').innerHTML==='' && JSON.stringify(G3._lbRepExcluir.lbf)==='[6]');
   G3._dom.el('lbf_num').value='00001234'; G3._dom.el('lbf_rif').value='J-11111111-1'; G3.lbRepetidaCheck('lbf'); await new Promise(r=>setTimeout(r,200));
   ok('...pero si le ponen el N° de otra factura ya registrada, salta la alarma', /gasto #1/.test(G3.$('lbf_rep').innerHTML) && G3.alarmas.length===1);
   ok('la alarma es roja y titila (animación), con botón para cerrar y dice PAGO DUPLICADO', /@keyframes lbAlarma/.test(src('logic/libros-iva.js')) && /#ff1e3c/.test(src('logic/libros-iva.js')) && /infinite alternate/.test(src('logic/libros-iva.js')) && /PAGO DUPLICADO/.test(src('logic/libros-iva.js')) && /onclick="lbAlarmaCerrar\(true\)"/.test(src('logic/libros-iva.js')));
