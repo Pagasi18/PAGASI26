@@ -925,7 +925,7 @@ function renderPagar(ocultarCero){
   }).join('');
 
   var rows=grupos.map(function(g,idx){
-    var catLabel={inventario:'Inventario',equipos:'Equipos',operativo:'Operativo',nomina:'Nómina',otros:'Otros'}[g.cat]||g.cat;
+    var catLabel=(typeof egresoCategoriaNombre==='function') ? egresoCategoriaNombre(g.cat) : ({inventario:'Inventario',equipos:'Equipos',operativo:'Operativo',nomina:'Nómina',otros:'Otros'}[g.cat]||g.cat);
     return '<tr>'
       +'<td><span style="cursor:pointer;font-size:11px;color:var(--p1)" onclick="togglePagarRow('+idx+')">▶</span> '+catLabel+'</td>'
       +'<td style="text-align:center;font-weight:700">'+g.items.length+'</td>'

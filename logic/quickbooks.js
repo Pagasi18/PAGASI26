@@ -18,40 +18,36 @@ var QB_TERMINOS = 'Net 15', QB_DIAS_TERMINOS = 15;   // los términos de las dos
 var QB_MONEDA = 'USD';                               // créditos, pagos y gastos están en dólares
 var QB_PAIS = 'Venezuela';
 
-// El catálogo del contador (02. Servicios.xlsx) tal cual, con los cambios que la pantalla muestra:
-//  · Intereses de Financiamiento va SIN IVA y aparece Pagasi Protect con el 16 % por dentro. Es la regla de Adam del
-//    23-sep-2026 ("de Pagasi Protect hay que pagar el IVA"; ver logic/metodologia.js). El contador tenía el 16 % en
-//    los intereses y no tenía Protect. Adam (23-oct): "Lo hablo con el contador". Si deciden otra cosa se cambia
-//    AQUÍ (la tasa y el código de cada servicio, y en QB_PARTES qué parte de la cuota va a cada uno) y todo lo
-//    demás lo sigue: el 02, las facturas, los totales y los controles.
-//  · Otros servicios: solo en la PAGASI 18 (contratos hasta el CRED-498, sin interés ni Protect).
-//  · IGTF percibido: solo si alguna factura fiscal se emitió con IGTF (ese dinero es del SENIAT, no es ingreso).
-// fila = las 19 columnas del 02; linea = la descripción en la factura (las dos primeras, como el 03 del contador).
+// El catálogo del contador: las 42 filas de su "02. Servicios.xlsx" del 28-oct-2026 (QB_PLAN_SERVICIOS, en
+// logic/categorias-egreso.js). Ya trae la regla de Adam del 23-sep: INTERESES DE FINANCIAMIENTO sin IVA e INGRESOS POR
+// PAGASI PROTEC con el 16 %. Las facturas (03) usan exactamente esos nombres. Lo que no está en su catálogo y el sistema
+// necesita (solo si aparece): OTROS SERVICIOS (PAGASI 18, contratos hasta el CRED-498) e IGTF PERCIBIDO.
+// fila = las 19 columnas del 02; linea = la descripción en la factura; la tasa sale del código de IVA de ventas.
+function _qbFilaPlan(nombre){ var r = (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS : []).find(function(x){ return x[0] === nombre; }); return r ? r.slice() : [nombre, 'Ingresos', 'Sin Inventario', '', nombre, '', '', '', '', '', '', '', '', QB_SIN_IVA, '', '', '', '', '']; }
+function _qbTasaDe(codigo){ var m = /^([0-9.]+)%/.exec(String(codigo || '')); return m ? Math.round(parseFloat(m[1])) / 100 : 0; }
 var QB_SERVICIOS = [
-  { k: 'cartera', tasa: 0, linea: 'Amortizacion de Financiamiento',
-    fila: ['Cartera de financiamiento', 'Ingresos', 'Sin Inventario', 'N/A', 'Financiamiento de Moto Con Cliente', 'N/A', 'CARTERA DE FINANCIAMIENTO', 'Amortizacion de Financiamiento', '', 'CARTERA DE FINANCIAMIENTO', 'N/A', 'N/A', 'N/A', QB_SIN_IVA, 'N/A', QB_SIN_IVA, 'N/A', '', 'N/A'] },
-  { k: 'intereses', tasa: 0, linea: 'Intereses por Financiamiento',
-    cambio: 'El contador lo tenía con 16.0% S (16%). Va sin IVA por la regla del 23-sep: el IVA se paga del Pagasi Protect.',
-    fila: ['Intereses de Financiamiento', 'Ingresos', 'Sin Inventario', 'N/A', 'Intereses por Financiamiento', 'N/A', 'INGRESOS POR INTERESES DE FINANCIAMIENTO', '', '', '', 'N/A', 'N/A', 'N/A', QB_SIN_IVA, 'N/A', '', 'N/A', '', 'N/A'] },
-  { k: 'mora', tasa: 0.16, linea: 'Cobro de Comision por pago extemporaneo',
-    fila: ['Comision por Morosidad', 'Ingresos', 'Sin Inventario', 'N/A', 'Cobro de Comision por pago extemporaneo', 'N/A', 'INGRESOS POR MORA EN FINANCIAMIENTO', '', '', '', 'N/A', 'N/A', 'N/A', QB_IVA_GENERAL, 'N/A', '', 'N/A', '', 'N/A'] },
-  { k: 'honorarios',
-    fila: ['Honorarios Profesionales', 'Servicios', 'Sin Inventario', 'N/A', '', 'N/A', '', 'Honorarios profesionales varios', '', 'HONORARIOS PROFESIONALES', '', '', '', '', 'N/A', QB_IVA_GENERAL, 'N/A', 'Jesus Galarraga', 'N/A'] },
-  { k: 'protect', tasa: 0.16, linea: 'Servicio Pagasi Protect', nuevo: true,
-    cambio: 'Nuevo: no estaba en la plantilla del contador. Lleva el IVA de cada cuota (16 % por dentro del Protect).',
-    fila: ['Pagasi Protect', 'Ingresos', 'Sin Inventario', 'N/A', 'Servicio Pagasi Protect', 'N/A', 'INGRESOS POR PAGASI PROTECT', '', '', '', 'N/A', 'N/A', 'N/A', QB_IVA_GENERAL, 'N/A', '', 'N/A', '', 'N/A'] },
-  { k: 'servicios', tasa: 0, linea: 'Otros servicios del contrato', nuevo: true, soloSiHay: 'servicios',
-    cambio: 'Nuevo, solo PAGASI 18: en los contratos hasta el CRED-498 lo cobrado por encima de la moto es "otros servicios", sin IVA (como en Dashboard Finanzas).',
-    fila: ['Otros servicios', 'Ingresos', 'Sin Inventario', 'N/A', 'Otros servicios del contrato (hasta el CRED-498)', 'N/A', 'INGRESOS POR OTROS SERVICIOS', '', '', '', 'N/A', 'N/A', 'N/A', QB_SIN_IVA, 'N/A', '', 'N/A', '', 'N/A'] },
-  { k: 'igtf', tasa: 0, linea: 'IGTF percibido', nuevo: true, soloSiHay: 'igtf',
-    cambio: 'Nuevo: el IGTF (3 %) que llevan algunas facturas fiscales no es ingreso, es del SENIAT. Va en su propia línea; la cuenta la confirma el contador.',
-    fila: ['IGTF percibido', 'Impuestos', 'Sin Inventario', 'N/A', 'IGTF percibido en cobros en divisas', 'N/A', 'IGTF POR PAGAR', '', '', '', 'N/A', 'N/A', 'N/A', QB_SIN_IVA, 'N/A', '', 'N/A', '', 'N/A'] }
+  { k: 'cartera', fila: _qbFilaPlan('CARTERA DE FINANCIAMIENTO'), linea: 'AMORTIZACION DE FINANCIAMIENTO' },
+  { k: 'intereses', fila: _qbFilaPlan('INTERESES DE FINANCIAMIENTO'), linea: 'INTERESES POR FINANCIAMIENTO' },
+  { k: 'mora', fila: _qbFilaPlan('COMISION POR MOROSIDAD'), linea: 'INGRESOS POR PAGO MOROSO' },
+  { k: 'protect', fila: _qbFilaPlan('INGRESOS POR PAGASI PROTEC'), linea: 'INGRESOS POR PAGASI PROTEC' },
+  { k: 'servicios', linea: 'OTROS SERVICIOS DEL CONTRATO', nuevo: true, soloSiHay: 'servicios',
+    cambio: 'No está en el catálogo del contador. Solo PAGASI 18: en los contratos hasta el CRED-498 lo cobrado por encima de la moto es "otros servicios", sin IVA (como en Dashboard Finanzas).',
+    fila: ['OTROS SERVICIOS', 'Ingresos', 'Sin Inventario', '', 'OTROS SERVICIOS DEL CONTRATO (HASTA EL CRED-498)', '', '4201001 INGRESOS POR MORA EN FINANCIAMIENTO', '', '', '', '', '', '', QB_SIN_IVA, '', '', '', '', ''] },
+  { k: 'igtf', linea: 'IGTF PERCIBIDO', nuevo: true, soloSiHay: 'igtf',
+    cambio: 'No está en el catálogo del contador. El IGTF (3 %) que llevan algunas facturas fiscales no es ingreso: va en su línea, a la cuenta 2106008 de su plan.',
+    fila: ['IGTF PERCIBIDO', 'Impuestos', 'Sin Inventario', '', 'IGTF PERCIBIDO EN COBROS EN DIVISAS', '', '2106008 CUENTAS POR PAGAR IGTF PERCIBIDO POR ENTERAR', '', '', '', '', '', '', QB_SIN_IVA, '', '', '', '', ''] }
 ];
+QB_SERVICIOS.forEach(function(s){ s.tasa = _qbTasaDe(s.fila[13]); });
 // Qué parte de cada cobro va a qué servicio (las partes salen de qbPartirPago; el IGTF, de la factura fiscal)
 var QB_PARTES = [['amortizacion', 'cartera'], ['intereses', 'intereses'], ['protect', 'protect'], ['servicios', 'servicios'], ['igtf', 'igtf']];
-// QuickBooks pide la cuenta de cada gasto por su nombre. Mientras el contador no pase las suyas, van las categorías
-// de Registrar egreso.
-var QB_CUENTAS_GASTO = { inventario: 'INVENTARIO / MOTOS', equipos: 'EQUIPOS (GPS)', operativo: 'OFICINA Y SERVICIOS', otros: 'OTROS' };
+// La cuenta de cada gasto en QuickBooks (*Account del 06) sale de la categoría (logic/categorias-egreso.js, la columna
+// "Cuenta de gastos" del contador). Una categoría sin cuenta va con su nombre y el 06 lo avisa.
+function _qbCuentaGasto(categoria){
+  var c = (typeof egresoCuentaQB === 'function') ? egresoCuentaQB(categoria) : '';
+  if(c) return { cuenta: c, ok: true };
+  var n = (typeof egresoCategoriaNombre === 'function') ? egresoCategoriaNombre(categoria) : String(categoria || '');
+  return { cuenta: _qbTxt(n).toUpperCase() || 'OTROS', ok: false };
+}
 // Código de IVA de cada alícuota de compra. El 16 % y el 0 % son los del 02 del contador; 8 % y 31 % siguen el mismo
 // formato y están por confirmar (la factura sale marcada).
 var QB_CODIGO_COMPRA = { '0.16': QB_IVA_GENERAL, '0.08': '8.0% R (8%)', '0.31': '31.0% (31%)' };
@@ -372,10 +368,10 @@ function qbProveedores(docs, concesionarios){
     if(!x.primera || o < x.primera) x.primera = o;
     porDoc[g.clave] = k;
   };
-  var sinRif = [];
+  var sinRif = [], sinProv = [];
   (docs || []).forEach(function(g){
     var p = _qbProvDeDoc(g);
-    if(!p.nombre) return;
+    if(!p.nombre){ sinProv.push(g); return; }
     var rv = _qbRifValido(p.rif);
     if(p.rif && !rv && !p.importacion) rifMalos.push(p.nombre + ' (RIF "' + p.rif + '")');
     if(rv) agregar('R:' + rv + '|' + _qbClaveNombre(p.nombre), g, p, rv); else sinRif.push([g, p]);
@@ -386,6 +382,13 @@ function qbProveedores(docs, concesionarios){
   });
   var filas = orden.map(function(k){ return porClave[k]; });
   _qbNombresQB(filas, function(x){ return x.rif || 'SIN RIF'; });
+  // Los gastos sin proveedor no se quedan por fuera (el contador, 28-oct-2026: "se deberían reflejar los egresos
+  // registrados"): van a un proveedor de relleno, SIN PROVEEDOR, hasta que se complete la factura en el Libro de Compras
+  if(sinProv.length){
+    var k0 = 'N:SIN PROVEEDOR', x0 = { clave: k0, nombre: 'SIN PROVEEDOR', nombreClave: 'SIN PROVEEDOR', nombreQB: 'SIN PROVEEDOR', rif: '', conc: null, desde: '', importacion: false, docs: 0, primera: '', relleno: true };
+    sinProv.forEach(function(g){ x0.docs++; var f = _qbISO(g.fecha); if(f && (!x0.desde || f < x0.desde)) x0.desde = f; porDoc[g.clave] = k0; });
+    porClave[k0] = x0; filas.push(x0);
+  }
   filas.sort(function(a, b){ return a.nombreQB.localeCompare(b.nombreQB); });
   return { filas: filas, porClave: porClave, porDoc: porDoc, rifMalos: rifMalos };
 }
@@ -406,12 +409,14 @@ function qbCompras(docs, periodo, provs){
     var g = porClaveDoc[f.clave] || {}, fi = g.fiscal || {};
     if(typeof f.total === 'number' && f.total < 0){ notasCredito.push(f); return; }
     var prov = provs.porClave[provs.porDoc[f.clave]];
-    if(!prov){ sinProveedor.push(f); return; }
+    if(!prov) return;
     var numero = _qbTxt(fi.numero) || ('EG-' + f.egresoIds[0]), avisos = [];
+    if(prov.relleno){ sinProveedor.push(f); avisos.push('sin proveedor: va como SIN PROVEEDOR'); }
     if(!_qbTxt(fi.numero)) avisos.push('sin N° de factura del proveedor');
     var u = prov.clave + '|' + numero.toUpperCase();
     if(usados[u]){ numero = numero + '-' + (++usados[u]); avisos.push('N° de factura repetido'); } else usados[u] = 1;
-    var cuenta = QB_CUENTAS_GASTO[g.categoria] || (_qbTxt(g.categoria).toUpperCase() || 'OTROS'), lineas = [];
+    var cg = _qbCuentaGasto(g.categoria), cuenta = cg.cuenta, lineas = [];
+    if(!cg.ok) avisos.push('categoría "' + cuenta + '" sin cuenta de QuickBooks: recategorízalo o que el contador diga la cuenta');
     if(typeof f.exento === 'number' && f.exento) lineas.push({ monto: f.exento, codigo: QB_SIN_IVA, iva: 0 });
     if(typeof f.base === 'number' && f.base){
       var cod = QB_CODIGO_COMPRA[String(f.alic)];
@@ -452,10 +457,11 @@ function qbDatos(ctx){
     igtf: (ctx.facturas || []).some(function(f){ return f && !f.anulada && _qbR2(f.igtf) > 0; })
   };
   var servicios = QB_SERVICIOS.filter(function(s){ return !s.soloSiHay || hay[s.soloSiHay]; });
+  var extras = servicios.filter(function(s){ return s.nuevo; });
 
   var filas = {
     clientes: C.filas.map(function(x){ return _qbFilaCliente(x, ctx.corte); }),
-    servicios: servicios.map(function(s){ return s.fila.slice(); }),
+    servicios: (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS.map(function(r){ return r.slice(); }) : servicios.filter(function(s){ return !s.nuevo; }).map(function(s){ return s.fila.slice(); })).concat(extras.map(function(s){ return s.fila.slice(); })),
     facturas: [].concat.apply([], F.docs.map(_qbFilasFactura)),
     proveedores: P.filas.map(_qbFilaProveedor),
     compras: [].concat.apply([], B.bills.map(_qbFilasCompra))
@@ -475,7 +481,8 @@ function qbDatos(ctx){
       { concepto: 'Créditos sin cuota o sin número de cuotas (su saldo es total − cobrado, como en Pagos)', estado: cuantos(C.sinCuota.length, true) },
       { concepto: 'Créditos sin cliente y con el nombre de dos personas distintas (ponles el cliente)', estado: cuantos(C.ambiguos.length, true) }
     ],
-    servicios: servicios.filter(function(s){ return s.cambio; }).map(function(s){ return { concepto: s.fila[0] + ': ' + s.cambio, estado: 'AVISO' }; }),
+    servicios: [{ concepto: 'El catálogo del contador tal cual (02. Servicios.xlsx del 28-oct-2026): ' + (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS.length : 0) + ' servicios y categorías de gasto con su cuenta', estado: 'OK' }]
+      .concat(extras.map(function(s){ return { concepto: s.fila[0] + ': ' + s.cambio, estado: 'AVISO' }; })),
     facturas: [
       { concepto: 'Cuotas cobradas y confirmadas del mes (una factura por cada una)', estado: F.docs.length + ' · ' + fmt(cobrado) },
       { concepto: 'Lo facturado (montos + IVA) es igual a lo cobrado', estado: ok(Math.abs(cobrado - facturado) < 0.005) },
@@ -496,7 +503,8 @@ function qbDatos(ctx){
     ],
     compras: [
       { concepto: 'Facturas de proveedor del mes', estado: B.bills.length + ' · ' + fmt(_qbR2(suma(B.bills, 'monto') + suma(B.bills, 'iva'))) },
-      { concepto: 'Gastos del mes sin proveedor (no entran: complétalos en el Libro de Compras)', estado: cuantos(B.sinProveedor.length, true) },
+      { concepto: 'Gastos del mes sin proveedor (van como SIN PROVEEDOR: complétalos en el Libro de Compras)', estado: cuantos(B.sinProveedor.length, true) },
+      { concepto: 'Gastos con una categoría sin cuenta de QuickBooks (recategorízalos)', estado: cuantos(B.bills.filter(function(b){ return b.avisos.some(function(a){ return /sin cuenta de QuickBooks/.test(a); }); }).length, true) },
       { concepto: 'Sin N° de factura del proveedor (van con EG- y el N° del gasto)', estado: String(B.bills.filter(function(b){ return b.avisos.indexOf('sin N° de factura del proveedor') > -1; }).length) },
       { concepto: 'Notas de crédito (no van aquí: en QuickBooks son créditos de proveedor)', estado: String(B.notasCredito.length) },
       { concepto: 'La nómina y las comisiones no son facturas de proveedor: no van', estado: 'OK' }
@@ -631,16 +639,16 @@ function _qbCuerpoHtml(D){
   }
   if(tipo === 'proveedores') listas += _qbListaHtml('RIF que no es RIF', D.proveedores.rifMalos);
   if(tipo === 'compras'){
-    listas += _qbListaHtml('Gastos sin proveedor', D.compras.sinProveedor.map(function(f){ return _qbDMY(f.fechaDoc) + ' · ' + (f.concepto || '') + ' · ' + fmt(f.total); }));
+    listas += _qbListaHtml('Gastos sin proveedor (van como SIN PROVEEDOR)', D.compras.sinProveedor.map(function(f){ return _qbDMY(f.fechaDoc) + ' · ' + (f.concepto || '') + ' · ' + fmt(f.total); }));
     listas += _qbListaHtml('Notas de crédito', D.compras.notasCredito.map(function(f){ return _qbDMY(f.fechaDoc) + ' · ' + f.nombre + ' · ' + (f.ndnc || '') + ' · ' + fmt(f.total); }));
     listas += _qbListaHtml('Facturas con algo por revisar', D.compras.bills.filter(function(b){ return b.avisos.length; }).map(function(b){ return b.numero + ' · ' + b.proveedor + ': ' + b.avisos.join('; '); }));
   }
   var nota = {
     clientes: 'Balance de Apertura = lo que cada cliente debe al ' + _qbDMY(D.st.corte) + ' (fecha de corte): las cuotas que le faltan con los pagos hechos hasta ese día, con el mismo motor contable de Pagos. Un cliente sin saldo va con el balance y la fecha en blanco. Las cuotas que se cobren después del corte ya están dentro de ese saldo: si también se importan sus facturas (03), en QuickBooks se registran como pago de ese saldo.',
-    servicios: 'El catálogo del contador tal cual. Lo marcado en amarillo cambió o es nuevo; el aviso de abajo dice por qué. Las facturas (03) usan exactamente estos nombres.',
+    servicios: 'El catálogo del contador tal cual (su 02. Servicios.xlsx): servicios de ingreso y categorías de gasto con su cuenta. Lo marcado en amarillo no estaba en su catálogo. Las facturas (03) usan exactamente estos nombres.',
     facturas: 'Cada cuota cobrada se parte como en la Nueva metodología: Cartera de financiamiento (lo que recupera del precio de la moto), Intereses (12 % anual, sin IVA) y Pagasi Protect, con el IVA del 16 % por dentro. Lo facturado (montos + IVA) es igual a lo cobrado. N° y Fecha Factura = los del cobro · Service Date = el vencimiento de la cuota que pagó.',
     proveedores: 'Los proveedores salen de los datos fiscales de cada gasto (Libro de Compras) y, en la compra de motos, de la sede. La sede trae su teléfono, dirección y ciudad. Fe. Creación = la de la sede o la del primer gasto.',
-    compras: 'Las mismas facturas del Libro de Compras de ' + _lbPeriodoVE(D.st.periodo) + ': la parte exenta va en una línea "' + QB_SIN_IVA + '" y la base en otra con su IVA. La cuenta es la categoría del gasto mientras el contador no pase sus cuentas de QuickBooks.'
+    compras: 'Todos los gastos del mes (por su fecha), como en el Libro de Compras de ' + _lbPeriodoVE(D.st.periodo) + ': la parte exenta va en una línea "' + QB_SIN_IVA + '" y la base en otra con su IVA. La cuenta (*Account) es la de la categoría del gasto en el plan del contador.'
   }[tipo];
   return (V.filtrado ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)">Filtrado: los totales y lo que se exporta son solo de lo que se ve.</div>' : '')
     + '<div class="ch" style="flex-wrap:wrap;gap:10px;margin-bottom:8px"><div><div class="ct" style="font-size:14px">' + A.n + '. ' + _lbEsc(A.titulo) + '</div><div class="cs">' + _lbEsc(nota) + '</div></div>'

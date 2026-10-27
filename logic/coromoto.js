@@ -854,7 +854,8 @@ function coroMapeoAbrir(){
       +'</select>';
   };
   var deudoras=_coroCatalogo().filter(function(x){return x.nat==='D'&&x.k!=='EFECTIVO'&&x.k!=='CXC';});
-  var CATS=[['inventario','Inventario / Motos'],['equipos','Equipos (GPS)'],['operativo','Oficina y servicios'],['nomina','Salarios / Nómina'],['otros','Otros']];
+  // Todas las categorías de gasto (logic/categorias-egreso.js): las nuevas del contador caen en 7151039 hasta que se mapeen aquí
+  var CATS=(typeof EGRESO_CATEGORIAS!=='undefined') ? EGRESO_CATEGORIAS.map(function(c){ return [c.id, c.nombre]; }) : [['inventario','Inventario / Motos'],['equipos','Equipos (GPS)'],['operativo','Oficina y servicios'],['nomina','Salarios / Nómina'],['otros','Otros']];
   var selCat=function(cat){
     var cur=cfg.mapCategorias[cat];
     return '<select class="fs coro-map-cat" data-cat="'+cat+'">'

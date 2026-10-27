@@ -13,6 +13,7 @@ function entorno(){
     TextEncoder, Uint8Array, Uint32Array, S:{}, PLAN:{factor:2, plazo:12},
     fmt:n=>'$'+(parseFloat(n)||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}), toast(){}, nav(){} };
   G.window=G; G.globalThis=G; vm.createContext(G);
+  vm.runInContext(src('logic/categorias-egreso.js'), G);   // el catálogo y las categorías del contador
   vm.runInContext(src('logic/exportar.js'), G);
   vm.runInContext(src('logic/libros-iva.js'), G);
   const pro=src('logic/contratos-protect.js');
@@ -39,7 +40,7 @@ const R=G._metoRepartir(G._metoDeCredito(M154), 53);
 ok('las partes son las mismas que muestra la pestaña Nueva metodología', cerca(p.amortizacion, R.recuperacion) && cerca(p.intereses, R.intereses) && Math.abs(p.protect-R.protect)<=0.011);
 
 const L=G.qbLineas(p);
-ok('la factura tiene 3 líneas: Cartera, Intereses y Pagasi Protect', L.length===3 && L[0].servicio==='Cartera de financiamiento' && L[1].servicio==='Intereses de Financiamiento' && L[2].servicio==='Pagasi Protect');
+ok('la factura tiene 3 líneas con los nombres del catálogo del contador: CARTERA, INTERESES e INGRESOS POR PAGASI PROTEC', L.length===3 && L[0].servicio==='CARTERA DE FINANCIAMIENTO' && L[1].servicio==='INTERESES DE FINANCIAMIENTO' && L[2].servicio==='INGRESOS POR PAGASI PROTEC');
 ok('Cartera e Intereses van sin IVA', L[0].codigo==='No VAT (0%)' && L[0].iva===0 && L[1].codigo==='No VAT (0%)' && L[1].iva===0);
 ok('el IVA va en el Protect, por dentro: el IVA de la metodología (3,42) sobre una base de 21,40', L[2].codigo==='16.0% S (16%)' && cerca(L[2].monto, 21.40) && cerca(L[2].iva, 3.42));
 ok('...y el 16 % de esa base da exactamente ese IVA (si QuickBooks lo recalcula, no cambia)', r2(L[2].monto*0.16)===L[2].iva);
@@ -61,7 +62,7 @@ const VIEJO={ id:'CRED-100', cli:'Y', fecha:'2026-03-01', estado:'activo', preci
 const pv=G.qbPartirPago(VIEJO, 100);
 ok('PAGASI 18 hasta el CRED-498: el resto es "otros servicios", sin Protect ni interés', pv.como==='servicios' && cerca(pv.amortizacion, 50) && cerca(pv.servicios, 50) && pv.protect===0 && pv.intereses===0);
 const lv=G.qbLineas(pv);
-ok('...y en la factura va como "Otros servicios", sin IVA', lv.length===2 && lv[1].servicio==='Otros servicios' && lv[1].iva===0);
+ok('...y en la factura va como "OTROS SERVICIOS", sin IVA', lv.length===2 && lv[1].servicio==='OTROS SERVICIOS' && lv[1].iva===0);
 const BAJA={ id:'M-201', cli:'Z', fecha:'2026-09-01', estado:'activo', precio:1350, ini:750, cuotaQ:26, totalCuotas:24, total:624 };
 const pb=G.qbPartirPago(BAJA, 26);
 ok('cuota que no llega al 12 % (sin Protect): no inventa Protect y suma lo cobrado', pb.protect===0 && cerca(pb.amortizacion+pb.intereses, 26));
@@ -142,14 +143,14 @@ ok('...y el "Estado" es la región (estado_ubi), no el estatus del cliente', jg[
 
 // 02 Servicios: la plantilla del contador, con los cambios a la vista
 const sv=D.filas.servicios;
-ok('02: las 19 columnas de la plantilla', G.QB_ARCHIVOS.servicios.enc.length===19 && sv.every(r=>r.length===19));
-ok('...Cartera de financiamiento tal cual la del contador', sv[0].join('|')==='Cartera de financiamiento|Ingresos|Sin Inventario|N/A|Financiamiento de Moto Con Cliente|N/A|CARTERA DE FINANCIAMIENTO|Amortizacion de Financiamiento||CARTERA DE FINANCIAMIENTO|N/A|N/A|N/A|No VAT (0%)|N/A|No VAT (0%)|N/A||N/A');
-ok('...Intereses sin IVA (la regla de Adam: el IVA va en el Protect)', sv[1][0]==='Intereses de Financiamiento' && sv[1][13]==='No VAT (0%)' && sv[1][6]==='INGRESOS POR INTERESES DE FINANCIAMIENTO');
-ok('...Comisión por Morosidad y Honorarios como los tenía el contador', sv[2][0]==='Comision por Morosidad' && sv[2][13]==='16.0% S (16%)' && sv[3][0]==='Honorarios Profesionales' && sv[3][15]==='16.0% S (16%)' && sv[3][17]==='Jesus Galarraga');
-ok('...Pagasi Protect nuevo, con el 16 %', sv.some(r=>r[0]==='Pagasi Protect' && r[13]==='16.0% S (16%)' && r[1]==='Ingresos'));
-ok('..."Otros servicios" no sale donde no hay contratos viejos (PAGASI 26)', !sv.some(r=>r[0]==='Otros servicios'));
+ok('02: las 19 columnas de la plantilla y las 42 filas del contador (28-oct)', G.QB_ARCHIVOS.servicios.enc.length===19 && sv.length===42 && sv.every(r=>r.length===19));
+ok('...CARTERA DE FINANCIAMIENTO tal cual la del contador, con su cuenta', sv[0].join('|')==='CARTERA DE FINANCIAMIENTO|Ingresos|Sin Inventario||FINANCIAMIENTO DE MOTO||1108001 CARTERA DE FINANCIAMIENTO|AMORTIZACION DE FINANCIAMIENTO||1108001 CARTERA DE FINANCIAMIENTO||||No VAT (0%)||No VAT (0%)|||');
+ok('...INTERESES sin IVA (el contador ya adoptó la regla de Adam)', sv[1][0]==='INTERESES DE FINANCIAMIENTO' && sv[1][13]==='No VAT (0%)' && sv[1][6]==='4101001 INGRESOS POR INTERESES DE FINANCIAMIENTO');
+ok('...COMISION POR MOROSIDAD e INGRESOS POR PAGASI PROTEC con el 16 %, y los gastos con su cuenta', sv[2][0]==='COMISION POR MOROSIDAD' && sv[2][13]==='16.0% S (16%)' && sv[3][0]==='INGRESOS POR PAGASI PROTEC' && sv[3][13]==='16.0% S (16%)' && sv[4][0]==='HONORARIOS PROFESIONALES' && sv[4][9]==='6101002 HONORARIOS PROFESIONALES' && sv[4][15]==='16.0% S (16%)');
+ok('...ninguna fila trae el "N/A" de la plantilla vieja: es el archivo del contador tal cual', !sv.some(r=>r.indexOf('N/A')>-1));
+ok('..."OTROS SERVICIOS" no sale donde no hay contratos viejos (PAGASI 26)', !sv.some(r=>r[0]==='OTROS SERVICIOS'));
 const D18=G.qbDatos({ creds:[VIEJO], pagos:[], clientes:[], facturas:[], egresos:[], periodo:'2026-10', corte:'2026-09-30' });
-ok('...y sí sale donde los hay (PAGASI 18)', D18.filas.servicios.some(r=>r[0]==='Otros servicios'));
+ok('...y sí sale donde los hay (PAGASI 18), como fila 43', D18.filas.servicios.length===43 && D18.filas.servicios.some(r=>r[0]==='OTROS SERVICIOS'));
 ok('...las facturas usan exactamente los nombres del 02', D.filas.facturas.every(r=>sv.some(s=>s[0]===r[5])));
 
 // 03 Facturas
@@ -158,8 +159,8 @@ ok('03: una factura por cuota cobrada y confirmada del mes, con el N° del pago'
 ok('...sin la inicial, el pendiente, el eliminado, el de otro mes ni el que no tiene crédito', !fc.some(r=>/PAG-(INI|4|7|8|9)$/.test(r[0])));
 ok('...el N° de la factura fiscal, si se emitió, va en la nota (la anulada no cuenta)', fc.find(r=>r[0]==='PAG-2')[14]==='CONTRATO Nº M-154 · FACTURA FISCAL Nº 00000202' && fc.find(r=>r[0]==='PAG-3')[14]==='CONTRATO Nº M-154');
 const f1=fc.filter(r=>r[0]==='PAG-1');
-ok('...la primera línea con todo: cliente, fechas dd/mm/aaaa, términos, moneda, Service Date y nota', f1[0].join(';')==='PAG-1;JESUS GALARRAGA;08/10/2026;23/10/2026;Net 15;Cartera de financiamiento;Amortizacion de Financiamiento;1;25.01;25.01;No VAT (0%);0;USD;08/10/2026;CONTRATO Nº M-154');
-ok('...las siguientes solo con el N° y la línea, como la plantilla', f1[1].join(';')==='PAG-1;;;;;Intereses de Financiamiento;Intereses por Financiamiento;1;3.17;3.17;No VAT (0%);0;;;' && f1[2].join(';')==='PAG-1;;;;;Pagasi Protect;Servicio Pagasi Protect;1;21.4;21.4;16.0% S (16%);3.42;;;');
+ok('...la primera línea con todo: cliente, fechas dd/mm/aaaa, términos, moneda, Service Date y nota', f1[0].join(';')==='PAG-1;JESUS GALARRAGA;08/10/2026;23/10/2026;Net 15;CARTERA DE FINANCIAMIENTO;AMORTIZACION DE FINANCIAMIENTO;1;25.01;25.01;No VAT (0%);0;USD;08/10/2026;CONTRATO Nº M-154');
+ok('...las siguientes solo con el N° y la línea, como la plantilla', f1[1].join(';')==='PAG-1;;;;;INTERESES DE FINANCIAMIENTO;INTERESES POR FINANCIAMIENTO;1;3.17;3.17;No VAT (0%);0;;;' && f1[2].join(';')==='PAG-1;;;;;INGRESOS POR PAGASI PROTEC;INGRESOS POR PAGASI PROTEC;1;21.4;21.4;16.0% S (16%);3.42;;;');
 const f2=fc.find(r=>r[0]==='PAG-2');
 ok('...la fecha es la del cobro aunque tenga factura fiscal (el mismo cobro sale igual en cualquier exportación)', f2[2]==='20/10/2026' && f2[3]==='04/11/2026');
 ok('...Service Date = vencimiento de la cuota que pagó (el abono de 30 es de la cuota 2)', f2[13]==='23/10/2026');
@@ -184,12 +185,14 @@ const cp=D.filas.compras;
 const lib=cp.filter(r=>r[0]==='A-77');
 ok('06: la factura con exento y base va en dos líneas, cada una con su código', lib.length===2 && lib[0][9]===10 && lib[0][10]==='No VAT (0%)' && lib[0][11]===0 && lib[1][9]===100 && lib[1][10]==='16.0% S (16%)' && lib[1][11]===16);
 ok('...fechas como en la plantilla 06 (mm/dd/aaaa) y vencimiento a 15 días', lib[0][2]==='10/02/2026' && lib[0][3]==='10/17/2026' && lib[0][4]==='Net 15');
-ok('...cada línea repite la cabecera, como la plantilla', lib[1][1]==='LIBRERIA EL SOL' && lib[1][12]==='USD' && lib[1][7]==='OFICINA Y SERVICIOS');
+ok('...cada línea repite la cabecera, como la plantilla; la categoría vieja "operativo" va con su nombre', lib[1][1]==='LIBRERIA EL SOL' && lib[1][12]==='USD' && lib[1][7]==='OFICINA Y SERVICIOS');
 ok('...el mismo N° del mismo proveedor no se mezcla en una sola factura', cp.some(r=>r[0]==='A-77-2' && r[9]===50));
 const moto=cp.filter(r=>r[1]==='MOTOS DEL ESTE');
-ok('...la moto pagada desde dos cuentas es UNA factura de la sede (500 + 700)', moto.length===1 && moto[0][9]===1200 && moto[0][0]==='EG-102' && moto[0][7]==='INVENTARIO / MOTOS');
-ok('...sin la nómina, el gasto sin proveedor, la nota de crédito ni lo de otro mes', !cp.some(r=>/Nómina|Almuerzo|NC-1|Agua/.test(r.join(' '))));
-ok('...y los controles dicen cuántos quedaron fuera y por qué', D.compras.sinProveedor.length===1 && D.compras.notasCredito.length===1 && D.controles.compras.some(c=>/sin proveedor/.test(c.concepto) && c.estado==='REVISAR: 1'));
+ok('...la moto pagada desde dos cuentas es UNA factura de la sede (500 + 700) a la cuenta 1113 INVENTARIOS del contador', moto.length===1 && moto[0][9]===1200 && moto[0][0]==='EG-102' && moto[0][7]==='1113 INVENTARIOS');
+ok('...sin la nómina, la nota de crédito ni lo de otro mes', !cp.some(r=>/Nómina|NC-1|Agua/.test(r.join(' '))));
+ok('...el gasto sin proveedor SÍ va (el contador: que se reflejen todos), como SIN PROVEEDOR', cp.some(r=>r[1]==='SIN PROVEEDOR' && /Almuerzo/.test(r[8]) && r[9]===50) && pv5.some(r=>r[0]==='SIN PROVEEDOR'));
+ok('...un gasto con categoría del contador sale a su cuenta de QuickBooks', (()=>{ const Dc=G.qbDatos({ creds:[], pagos:[], clientes:[], facturas:[], egresos:[{ id:700, fecha:'2026-10-05', monto:50, categoria:'servicios-de-telefonia', concepto:'MOVISTAR', fiscal:{ proveedor:'MOVISTAR', rif:'J-1', numero:'5', base:50, alicuota:0 } }], motos:[], concesionarios:[], periodo:'2026-10', corte:'2026-09-30' }); return Dc.filas.compras[0][7]==='6102001 SERVICIO DE TELEFONIA E INTERNET' && !Dc.compras.bills[0].avisos.some(a=>/sin cuenta/.test(a)); })());
+ok('...y los controles dicen cuántos quedaron así y por qué', D.compras.sinProveedor.length===1 && D.compras.notasCredito.length===1 && D.controles.compras.some(c=>/sin proveedor/.test(c.concepto) && c.estado==='REVISAR: 1'));
 
 // ── Los archivos ───────────────────────────────────────────────────────────────────────────────────────────
 const csv=G.qbCsvTexto(G.QB_ARCHIVOS.facturas.enc, fc);
@@ -252,9 +255,9 @@ ok('precio vacío o menor que la inicial: ninguna línea negativa y el Protect n
 const facIg={ id:'FAC-9', numero:'00000300', pagoId:'PAG-1', fechaEmision:'2026-10-08', subtotal:44.36, iva:7.10, igtf:1.54, total:53, anulada:false };
 const Dig=G.qbDatos(base({ creds:[M154], clientes, pagos:pagos154, facturas:[facIg] }));
 const lig=Dig.filas.facturas.filter(r=>r[0]==='PAG-1');
-ok('IGTF: va en su propia línea "IGTF percibido", sin IVA', lig.some(r=>r[5]==='IGTF percibido' && r[9]===1.54 && r[11]===0));
+ok('IGTF: va en su propia línea "IGTF PERCIBIDO", sin IVA', lig.some(r=>r[5]==='IGTF PERCIBIDO' && r[9]===1.54 && r[11]===0));
 ok('...lo demás se reparte sobre lo cobrado menos el IGTF, y todo suma lo cobrado', cerca(lig.reduce((a,r)=>a+r[9]+r[11],0), 53));
-ok('...el 02 trae el servicio IGTF solo cuando hay facturas con IGTF', Dig.filas.servicios.some(r=>r[0]==='IGTF percibido') && !D.filas.servicios.some(r=>r[0]==='IGTF percibido'));
+ok('...el 02 trae el servicio IGTF solo cuando hay facturas con IGTF', Dig.filas.servicios.some(r=>r[0]==='IGTF PERCIBIDO') && !D.filas.servicios.some(r=>r[0]==='IGTF PERCIBIDO'));
 
 // El mismo cobro sale igual aunque su factura fiscal se emita después de exportar
 const antes=G.qbDatos(base({ creds:[M154], clientes, pagos:pagos154 })).filas.facturas.filter(r=>r[0]==='PAG-1')[0];

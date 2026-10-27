@@ -6,12 +6,10 @@ function openAddEgreso(){
   $('mbd').innerHTML = '<div class="fgr c1" style="gap:9px">'
     +'<div class="fg"><label>Concepto *</label><input class="fi" id="eg_conc" placeholder="Ej: Compra de motos, GPS..."></div>'
     +'<div class="fgr" style="gap:8px">'
+    // Las categorías son las del contador (logic/categorias-egreso.js, 28-oct-2026), por grupos
     +'<div class="fg"><label>Categoría</label><select class="fs" id="eg_cat">'
-    +'<option value="inventario">Inventario / Motos</option>'
-    +'<option value="equipos">Equipos (GPS)</option>'
-    +'<option value="operativo">Oficina y servicios</option>'
-    +'<option value="nomina">Salarios / Nómina</option>'
-    +'<option value="otros">Otros</option>'
+    +(typeof egresoCategoriasOpciones==='function' ? egresoCategoriasOpciones('operativo')
+      : '<option value="inventario">Inventario / Motos</option><option value="equipos">Equipos (GPS)</option><option value="operativo" selected>Oficina y servicios</option><option value="nomina">Salarios / Nómina</option><option value="otros">Otros</option>')
     +'</select></div>'
     +'<div class="fg"><label>Monto (<span id="egf_lblmonto">$</span>) *</label><input class="fi" id="eg_monto" type="number" step="0.01" placeholder="0.00" oninput="if(typeof lbFiscalCalc===\'function\')lbFiscalCalc(\'egf\')"><div id="eg_monto_eq" style="font-size:10.5px;color:var(--ink3);min-height:13px;margin-top:2px"></div></div>'
     +'</div>'

@@ -163,7 +163,7 @@ PG.reportes = function(){
   // Egresos por categoría
   const egresosCat={};
   egresos.forEach(e=>{
-    const cat=e.categoria||e.forma||'Otros';
+    const cat=(typeof egresoCategoriaNombre==='function' && e.categoria) ? egresoCategoriaNombre(e.categoria) : (e.categoria||e.forma||'Otros');
     egresosCat[cat]=(egresosCat[cat]||0)+(e.monto||0);
   });
   const catSorted = Object.entries(egresosCat).sort((a,b)=>b[1]-a[1]);
@@ -483,7 +483,7 @@ PG.reportes = function(){
       ${(function(){
         var cats={};
         _SEGR.filter(function(e){return !e.eliminado&&e.monto;}).forEach(function(e){
-          var k=e.categoria||e.tipo||'Sin categoría';
+          var k=(typeof egresoCategoriaNombre==='function' && e.categoria) ? egresoCategoriaNombre(e.categoria) : (e.categoria||e.tipo||'Sin categoría');
           cats[k]=(cats[k]||0)+(e.monto||0);
         });
         var arr=Object.keys(cats).map(function(k){return {k:k,v:cats[k]};}).sort(function(a,b){return b.v-a.v;});
@@ -866,11 +866,11 @@ PG.reportes = function(){
       <div style="max-height:360px;overflow-y:auto;margin:0 -4px;padding:0 4px">
         ${egresosTodos.length?egresosTodos.slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')).map(e=>`
           <div style="display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:1px solid var(--rim2)">
-            <div style="width:36px;height:36px;border-radius:8px;background:var(--reds);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--red);flex-shrink:0">${(e.categoria||'$').substring(0,3).toUpperCase()}</div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--reds);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--red);flex-shrink:0">${((typeof egresoCategoriaNombre==='function' && e.categoria) ? egresoCategoriaNombre(e.categoria) : (e.categoria||'$')).substring(0,3).toUpperCase()}</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.concepto}</div>
               <div style="font-size:10.5px;color:var(--ink3);margin-top:2px">
-                <span style="padding:1px 6px;border-radius:4px;background:var(--surf2);margin-right:4px">${e.categoria||'Sin categoría'}</span>${esEgrInicial(e)?'<span style="padding:1px 6px;border-radius:4px;background:var(--gs);color:var(--p1);font-weight:700;margin-right:4px">inicial del cliente · no es salida</span>':''}${e.moneda==='BS'?'<span style="padding:1px 6px;border-radius:4px;background:rgba(245,158,11,.12);color:var(--amber);font-weight:700;margin-right:4px">Bs '+(+e.montoBs||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' a '+(+e.tasaBs||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' Bs/$</span>':''}
+                <span style="padding:1px 6px;border-radius:4px;background:var(--surf2);margin-right:4px">${(typeof egresoCategoriaNombre==='function' && e.categoria) ? egresoCategoriaNombre(e.categoria) : (e.categoria||'Sin categoría')}</span>${esEgrInicial(e)?'<span style="padding:1px 6px;border-radius:4px;background:var(--gs);color:var(--p1);font-weight:700;margin-right:4px">inicial del cliente · no es salida</span>':''}${e.moneda==='BS'?'<span style="padding:1px 6px;border-radius:4px;background:rgba(245,158,11,.12);color:var(--amber);font-weight:700;margin-right:4px">Bs '+(+e.montoBs||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' a '+(+e.tasaBs||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' Bs/$</span>':''}
                 ${e.forma||'—'} · ${e.fecha||'—'}
               </div>
             </div>
@@ -1670,7 +1670,7 @@ function _contGenerarCuerpo(){
       html+='<tr style="border-bottom:1px solid var(--rim2)">'
         +'<td style="'+tdM+'">'+toISO(e.fecha)+'</td>'
         +'<td style="'+td0+';font-weight:600">'+(e.concepto||e.descripcion||'—')+'</td>'
-        +'<td style="'+td0+'"><span style="background:var(--surf2);color:var(--ink3);padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">'+(e.categoria||e.tipo||'Otros')+'</span></td>'
+        +'<td style="'+td0+'"><span style="background:var(--surf2);color:var(--ink3);padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">'+((typeof egresoCategoriaNombre==='function' && e.categoria) ? egresoCategoriaNombre(e.categoria) : (e.categoria||e.tipo||'Otros'))+'</span></td>'
         +'<td style="'+tdR+';font-weight:700">'+fmt(e.monto||0)+'</td>'
         +'<td style="'+tdR+'">'+fmtBs(bs2)+'</td>'
         +'<td style="'+tdM+';font-size:10.5px">'+(e.referencia||e.comprobante||'—')+'</td>'
