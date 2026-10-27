@@ -4,7 +4,7 @@ function openAddEgreso(){
   $('modal-box').className='modal';
   var _metodosOpts = (_cuentasBanc||[]).map(function(c){return '<option>'+c.nombre+'</option>';}).join('');
   $('mbd').innerHTML = '<div class="fgr c1" style="gap:9px">'
-    +'<div class="fg"><label>Concepto *</label><input class="fi" id="eg_conc" placeholder="Ej: Compra de motos, GPS..." oninput="if(typeof lbRepetidaCheck===\'function\')lbRepetidaCheck(\'egf\')"></div>'
+    +'<div class="fg"><label>Concepto *</label><input class="fi" id="eg_conc" placeholder="Ej: Compra de motos, GPS..."></div>'
     +'<div class="fgr" style="gap:8px">'
     +'<div class="fg"><label>Categoría</label><select class="fs" id="eg_cat">'
     +'<option value="inventario">Inventario / Motos</option>'
@@ -13,7 +13,7 @@ function openAddEgreso(){
     +'<option value="nomina">Salarios / Nómina</option>'
     +'<option value="otros">Otros</option>'
     +'</select></div>'
-    +'<div class="fg"><label>Monto (<span id="egf_lblmonto">$</span>) *</label><input class="fi" id="eg_monto" type="number" step="0.01" placeholder="0.00" oninput="if(typeof lbFiscalCalc===\'function\')lbFiscalCalc(\'egf\');if(typeof lbRepetidaCheck===\'function\')lbRepetidaCheck(\'egf\')"><div id="eg_monto_eq" style="font-size:10.5px;color:var(--ink3);min-height:13px;margin-top:2px"></div></div>'
+    +'<div class="fg"><label>Monto (<span id="egf_lblmonto">$</span>) *</label><input class="fi" id="eg_monto" type="number" step="0.01" placeholder="0.00" oninput="if(typeof lbFiscalCalc===\'function\')lbFiscalCalc(\'egf\')"><div id="eg_monto_eq" style="font-size:10.5px;color:var(--ink3);min-height:13px;margin-top:2px"></div></div>'
     +'</div>'
     // Moneda del gasto: en bolívares el monto y la factura se escriben en Bs y el sistema los pasa a dólares con la
     // tasa BCV de la fecha de la factura (Adam, 26-oct-2026). Lo que se guarda sigue en dólares.
@@ -22,7 +22,7 @@ function openAddEgreso(){
     +'<div class="fg"><label>Forma de pago</label><select class="fs" id="eg_forma">'+_metodosOpts+'</select></div>'
     +'</div>'
     +'<div class="fgr" style="gap:8px">'
-    +'<div class="fg"><label>Fecha</label><input class="fi" id="eg_fecha" type="date" value="'+hoyLocalISO()+'" onchange="if(typeof lbTasaBuscar===\'function\')lbTasaBuscar(\'egf\');if(typeof lbRepetidaCheck===\'function\')lbRepetidaCheck(\'egf\')"></div>'
+    +'<div class="fg"><label>Fecha</label><input class="fi" id="eg_fecha" type="date" value="'+hoyLocalISO()+'" onchange="if(typeof lbTasaBuscar===\'function\')lbTasaBuscar(\'egf\')"></div>'
     +'<div class="fg"><label>Referencia</label><input class="fi" id="eg_notas" placeholder="Opcional"></div>'
     +'</div>'
     +'<div id="eg_rep_gasto"></div>'
@@ -44,7 +44,7 @@ function openAddEgreso(){
     if(enBs && !(tasaEg>1)){ toast('Falta la tasa BCV (Bs por $) para pasar el monto a dólares','error'); return false; }
     var monto = enBs ? bsAUsd(montoIn, tasaEg) : montoIn;
     if(monto<=0){toast('El monto en dólares queda en cero: revisa la tasa','error');return false;}
-    // Factura o gasto repetido: avisa y pregunta (Adam, 27-oct-2026); no bloquea
+    // Factura repetida (mismo N° del mismo proveedor): avisa y pregunta (Adam, 27-oct-2026); no bloquea
     if(typeof lbRepetidaConfirmar==='function' && !lbRepetidaConfirmar('egf')) return false;
     // El numero lo da el contador de Firestore, no el maximo en memoria: con dos
     // personas guardando a la vez, el segundo gasto borraba al primero (punto 30).

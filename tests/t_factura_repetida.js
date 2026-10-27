@@ -40,12 +40,11 @@ const rep=(f,o)=>G.lbFacturaRepetida(f, EG, o);
 ok('mismo N° y mismo RIF: es la misma factura', rep({numero:'00001234', rif:'J-11111111-1'}).length===1 && rep({numero:'00001234', rif:'J-11111111-1'})[0].egreso.id===1 && /mismo N° y mismo proveedor/.test(rep({numero:'00001234', rif:'J-11111111-1'})[0].motivo));
 ok('...aunque el N° venga sin ceros, con guiones o en minúsculas, y el RIF sin guiones', rep({numero:'1234', rif:'j111111111'}).length===1 && rep({numero:'00-001234', proveedor:'papeleria sol c.a.'}).length===1);
 ok('mismo N° pero otro proveedor: no es la misma (la factura 1234 de TAXI JUAN es otra)', rep({numero:'1234', rif:'J-99999999-9'}).length===0 && rep({numero:'1234', proveedor:'OTRO'}).length===0);
-ok('mismo N° y todavía sin proveedor: avisa como posible', rep({numero:'1234'}).length===2 && rep({numero:'1234'}).every(m=>/mismo N°/.test(m.motivo)));
+ok('mismo N° y todavía sin proveedor: no avisa (el contador: solo el mismo N° del MISMO proveedor)', rep({numero:'1234'}).length===0 && rep({numero:'00001234'}).length===0);
 ok('la moto pagada de dos cuentas es UNA factura: un solo aviso', rep({numero:'A-77', rif:'J-12345678-9'}).length===1);
-ok('un gasto eliminado o marcado "sin factura" no cuenta', rep({numero:'00001234', rif:'J-11111111-1'}).length===1 && rep({numero:'', proveedor:'', fecha:'2026-10-12', monto:30, concepto:'SIN FACTURA'}).length===1);
-ok('sin factura: mismo día, mismo monto y mismo concepto parece el mismo gasto (el doble clic)', (()=>{ const r=rep({fecha:'2026-10-15', monto:900, concepto:'nomina octubre'}); return r.length===1 && r[0].egreso.id===4 && /mismo concepto/.test(r[0].motivo); })());
-ok('...pero el mismo monto otro día, o el mismo día con otro concepto, no', rep({fecha:'2026-10-16', monto:900, concepto:'NOMINA OCTUBRE'}).length===0 && rep({fecha:'2026-10-15', monto:900, concepto:'ALQUILER'}).length===0);
-ok('mismo día, mismo monto y mismo proveedor (por RIF) también avisa', rep({fecha:'2026-10-03', monto:116, rif:'J-11111111-1'}).length===1);
+ok('un gasto eliminado o marcado "sin factura" no cuenta', rep({numero:'00001234', rif:'J-11111111-1'}).length===1);
+ok('solo el proveedor, sin N°, NO avisa (Movistar manda una factura igual cada mes)', rep({proveedor:'PAPELERIA SOL, C.A.', rif:'J-11111111-1'}).length===0 && rep({rif:'J-11111111-1', fecha:'2026-10-03', monto:116}).length===0);
+ok('mismo día y mismo monto sin N° tampoco', rep({fecha:'2026-10-15', monto:900, concepto:'Nómina octubre'}).length===0);
 ok('al editar con ✎ los gastos de esa misma factura no cuentan', rep({numero:'A-77', rif:'J-12345678-9'}, {excluirIds:[2,3]}).length===0);
 ok('con nada escrito no avisa', rep({}).length===0 && rep({numero:'', fecha:'2026-10-03'}).length===0);
 
@@ -53,7 +52,7 @@ ok('con nada escrito no avisa', rep({}).length===0 && rep({numero:'', fecha:'202
 ok('el bloque fiscal tiene el aviso y los campos lo disparan', /id="lbf_rep"/.test(G.lbCamposFiscalesHtml('lbf',{},0)) && (G.lbCamposFiscalesHtml('lbf',{},0).match(/lbRepetidaCheck\('lbf'\)/g)||[]).length===3);
 G.openAddEgreso();
 const html=G.$('mbd').innerHTML;
-ok('Registrar Egreso lo muestra a la vista (no dentro del bloque plegado) y también al escribir concepto, monto y fecha', /id="eg_rep_gasto"/.test(html) && (html.match(/lbRepetidaCheck\('egf'\)/g)||[]).length>=5);
+ok('Registrar Egreso lo muestra a la vista (no dentro del bloque plegado); solo el N°, el RIF y el proveedor lo disparan', /id="eg_rep_gasto"/.test(html) && (html.match(/lbRepetidaCheck\('egf'\)/g)||[]).length===3);
 G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'; G.lbRepetidaCheck('egf');
 (async()=>{
   await new Promise(r=>setTimeout(r,200));
@@ -70,10 +69,11 @@ G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'
   ok('al guardar una factura repetida pregunta, y si dice que no, no guarda', r1===false && G.preguntas.length===1 && /PAGO DUPLICADO/.test(G.preguntas[0]) && /#1/.test(G.preguntas[0]) && G.DB.guardados.length===0);
   G.respuesta=true; const r2=await G.S.saveFn();
   ok('...y si dice que sí, la guarda (avisa, no bloquea)', r2===true && G.DB.guardados.some(x=>x[0]==='egreso'));
-  // Un gasto sin factura, repetido por doble clic
+  // Un gasto igual a otro del mismo día pero sin N° de factura: no pregunta nada (ya no es criterio)
   const G2=entorno(EG); G2.openAddEgreso(); G2._dom.el('eg_conc').value='Nómina octubre'; G2._dom.el('eg_monto').value='900'; G2._dom.el('eg_fecha').value='2026-10-15'; G2._dom.el('eg_cat').value='nomina'; G2._dom.el('eg_forma').value='Binance';
-  G2.respuesta=false; const r3=G2.S.saveFn();
-  ok('un gasto igual a otro del mismo día (doble clic) también pregunta', r3===false && G2.preguntas.length===1 && /mismo concepto/.test(G2.preguntas[0]));
+  G2.respuesta=false; const r3=await G2.S.saveFn();
+  ok('un gasto igual a otro del mismo día, sin N° de factura, se guarda sin preguntar', r3===true && G2.preguntas.length===0);
+  ok('elegir solo el proveedor no dispara la alarma', (()=>{ const G4=entorno(EG); G4.openAddEgreso(); G4._dom.el('egf_prov').value='PAPELERIA SOL, C.A.'; G4._dom.el('egf_rif').value='J-11111111-1'; G4.lbRepetidaCheck('egf'); return new Promise(r=>setTimeout(()=>r(G4.alarmas.length===0 && G4.$('eg_rep_gasto').innerHTML===''),200)); })());
   // El ✎ del libro no se avisa a sí mismo
   const G3=entorno(EG); G3.lbCompletar('moto:5'); await new Promise(r=>setTimeout(r,200));
   ok('abrir con ✎ la factura de la moto no la marca como repetida consigo misma', G3.$('lbf_rep').innerHTML==='' && JSON.stringify(G3._lbRepExcluir.lbf)==='[2,3]');
