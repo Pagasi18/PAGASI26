@@ -351,6 +351,74 @@ function lbBuscar(tipo, v){ S[tipo === 'compras' ? 'lbQCompras' : 'lbQVentas'] =
 
 // ══════════════ COMPLETAR / EDITAR LOS DATOS DE LA FACTURA DEL PROVEEDOR ══════════════
 // Los mismos campos sirven en "Registrar egreso" (prefijo 'egf') y en el libro (prefijo 'lbf')
+// ══════════════ FACTURA REPETIDA ══════════════
+// Adam, 27-oct-2026: "el sistema no filtra que la factura esté repetida… una especie de notificación previa de
+// advertencia, y que la gente evite registrar dos veces la misma factura". Avisa, no bloquea: al escribir el N° y el
+// proveedor sale el aviso con el gasto que ya existe, y al guardar pide confirmar. Mismo criterio para un gasto sin
+// factura que se parece a otro (mismo día, mismo monto y mismo concepto o proveedor): el doble clic de siempre.
+function _lbRepNum(s){ return String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+(?=[A-Z0-9])/, ''); }
+function _lbRepTxt(s){ return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+// f = { numero, rif, proveedor, fecha, monto, concepto }; devuelve los gastos que parecen la misma factura, con el motivo
+function lbFacturaRepetida(f, egresos, opts){
+  f = f || {}; opts = opts || {};
+  var excluir = {}; (opts.excluirIds || []).forEach(function(id){ excluir[String(id)] = 1; });
+  var num = _lbRepNum(f.numero), rif = _lbRepNum(f.rif), prov = _lbRepTxt(f.proveedor), conc = _lbRepTxt(f.concepto);
+  var fecha = String(f.fecha || '').slice(0, 10), monto = Math.round((parseFloat(f.monto) || 0) * 100) / 100;
+  var vistos = {}, out = [];
+  (egresos || []).forEach(function(e){
+    if(!e || e.eliminado || e.anuladoPorMoto || excluir[String(e.id)]) return;
+    var x = e.fiscal || {}; if(x.noAplica) x = {};
+    var xnum = _lbRepNum(x.numero), xrif = _lbRepNum(x.rif), xprov = _lbRepTxt(x.proveedor);
+    var motivo = '';
+    if(num && xnum === num){
+      var mismoProv = (rif && xrif && rif === xrif) || (prov && xprov && prov === xprov);
+      var sinProv = !(rif || prov) || !(xrif || xprov);
+      if(mismoProv) motivo = 'misma factura (mismo N° y mismo proveedor)';
+      else if(sinProv) motivo = 'mismo N° de factura';
+    }
+    if(!motivo && fecha && monto > 0 && String(e.fecha || '').slice(0, 10) === fecha && Math.abs((parseFloat(e.monto) || 0) - monto) < 0.005){
+      var mismoNombre = (prov && (xprov === prov || _lbRepTxt(e.concepto) === prov)) || (conc && _lbRepTxt(e.concepto) === conc) || (rif && xrif === rif);
+      if(mismoNombre) motivo = 'mismo día, mismo monto y mismo ' + (conc && _lbRepTxt(e.concepto) === conc ? 'concepto' : 'proveedor');
+    }
+    if(!motivo) return;
+    var clave = (e.origenAuto === 'compra_moto' && e.motoIdRef != null) ? 'moto:' + e.motoIdRef : 'eg:' + e.id;   // la moto pagada de varias cuentas es UNA factura
+    if(vistos[clave]) return; vistos[clave] = 1;
+    out.push({ egreso: e, motivo: motivo });
+  });
+  return out;
+}
+function _lbRepTextoDe(m){
+  var e = m.egreso, x = e.fiscal || {};
+  return 'gasto #' + _lbEsc(e.id) + ' · ' + _lbEsc(_lbFechaVE(e.fecha)) + ' · ' + fmt(e.monto) + ' · ' + _lbEsc(e.concepto || '') + (x.numero ? ' · factura ' + _lbEsc(x.numero) : '') + (x.proveedor ? ' · ' + _lbEsc(x.proveedor) : '') + ' (' + _lbEsc(m.motivo) + ')';
+}
+// Lo que hay en el formulario, para buscar repetidas (en Registrar Egreso también el monto, la fecha y el concepto del gasto)
+function _lbRepDatos(p){
+  var g = function(id){ return String((_lbEl(id) || {}).value || '').trim(); };
+  var d = { numero: g(p + '_num'), rif: g(p + '_rif'), proveedor: g(p + '_prov'), fecha: g(p + '_fecha') };
+  if(p === 'egf'){
+    d.concepto = g('eg_conc'); d.fecha = d.fecha || g('eg_fecha');
+    var m = parseFloat(g('eg_monto')) || 0; d.monto = lbMonedaEs(p) && lbTasaDe(p) ? bsAUsd(m, lbTasaDe(p)) : m;
+  }
+  return d;
+}
+var _lbRepExcluir = {};   // por formulario: los gastos que son esta misma factura (al editar con ✎)
+var _lbRepT = null;
+function lbRepetidaCheck(p){
+  clearTimeout(_lbRepT);
+  _lbRepT = setTimeout(function(){
+    var el = (p === 'egf' && _lbEl('eg_rep_gasto')) || _lbEl(p + '_rep'); if(!el) return;   // en Registrar Egreso va a la vista, no dentro del bloque plegado
+    var reps = lbFacturaRepetida(_lbRepDatos(p), S.egresos || [], { excluirIds: _lbRepExcluir[p] || [] });
+    el.innerHTML = reps.length ? '<div style="padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2);line-height:1.5"><b style="color:var(--amber)">⚠ Esta factura parece estar registrada ya:</b><br>' + reps.map(_lbRepTextoDe).join('<br>') + '</div>' : '';
+  }, 150);
+}
+// Al guardar: si parece repetida, pregunta. Devuelve true si se puede seguir.
+function lbRepetidaConfirmar(p){
+  var reps = lbFacturaRepetida(_lbRepDatos(p), S.egresos || [], { excluirIds: _lbRepExcluir[p] || [] });
+  if(!reps.length) return true;
+  var lista = reps.map(function(m){ var e = m.egreso; return '• #' + e.id + ' · ' + _lbFechaVE(e.fecha) + ' · ' + fmt(e.monto) + ' · ' + (e.concepto || '') + ' (' + m.motivo + ')'; }).join('\n');
+  return (typeof confirm === 'function') ? confirm('Esta factura parece estar registrada ya:\n' + lista + '\n\n¿Registrarla otra vez de todas formas?') : true;
+}
+
 // Moneda de la factura: en dólares (como siempre) o en bolívares. En bolívares los montos se escriben tal como vienen
 // en la factura y el sistema los pasa a dólares con la tasa BCV de la fecha del documento (Adam, 26-oct-2026: "que el
 // sistema, como tiene el tipo de cambio ya cargado, le haga la conversión… los reportes siempre van saliendo dólares").
@@ -381,12 +449,13 @@ function lbCamposFiscalesHtml(p, f, monto, opts){
   var sim = bs ? 'Bs' : '$';
   return (opts.sinMoneda ? '' : lbMonedaHtml(p, f))
     + '<div class="fgr" style="gap:8px">'
-    + '<div class="fg"><label>Proveedor (razón social)</label><input class="fi" id="' + p + '_prov" value="' + v('proveedor') + '" placeholder="Ej: INVERSIONES MOTOS TORO, C.A."></div>'
-    + '<div class="fg"><label>RIF del proveedor</label><input class="fi" id="' + p + '_rif" value="' + v('rif') + '" placeholder="J-12345678-9" maxlength="16"></div></div>'
+    + '<div class="fg"><label>Proveedor (razón social)</label><input class="fi" id="' + p + '_prov" value="' + v('proveedor') + '" placeholder="Ej: INVERSIONES MOTOS TORO, C.A." oninput="lbRepetidaCheck(\'' + p + '\')"></div>'
+    + '<div class="fg"><label>RIF del proveedor</label><input class="fi" id="' + p + '_rif" value="' + v('rif') + '" placeholder="J-12345678-9" maxlength="16" oninput="lbRepetidaCheck(\'' + p + '\')"></div></div>'
     + '<div class="fgr" style="gap:8px">'
     + '<div class="fg"><label>Documento</label><select class="fs" id="' + p + '_tipo">' + LB_TIPOS.map(function(t){ return '<option value="' + t[0] + '"' + ((f.tipo || '01-REG') === t[0] ? ' selected' : '') + '>' + t[1] + ' (' + t[0] + ')</option>'; }).join('') + '</select></div>'
-    + '<div class="fg"><label>N° de factura / nota / declaración</label><input class="fi" id="' + p + '_num" value="' + v('numero') + '" placeholder="00001234"></div>'
+    + '<div class="fg"><label>N° de factura / nota / declaración</label><input class="fi" id="' + p + '_num" value="' + v('numero') + '" placeholder="00001234" oninput="lbRepetidaCheck(\'' + p + '\')"></div>'
     + '<div class="fg"><label>N° de control</label><input class="fi" id="' + p + '_ctl" value="' + v('control') + '" placeholder="00-00001234"></div></div>'
+    + '<div id="' + p + '_rep"></div>'
     + '<div class="fgr" style="gap:8px">'
     + '<div class="fg"><label>Fecha del documento</label><input class="fi" type="date" id="' + p + '_fecha" value="' + v('fecha') + '" onchange="lbTasaBuscar(\'' + p + '\')"></div>'
     + '<div class="fg"><label>Factura afectada (solo notas)</label><input class="fi" id="' + p + '_afe" value="' + v('afectada') + '" placeholder="Opcional"></div>'
@@ -550,9 +619,11 @@ function lbCompletar(clave){
     + (g.egresos.length > 1 ? ' · pagado de ' + g.egresos.length + ' cuentas (es una sola factura)' : '') + '</div>'
     + '<div class="fgr c1" style="gap:9px">' + lbCamposFiscalesHtml('lbf', f, g.monto) + '</div>';
   _lbTasaEscrita.lbf = false; _lbTasaReq.lbf = (_lbTasaReq.lbf || 0) + 1;
-  setTimeout(function(){ lbMonedaCambio('lbf', !!f.tasa); }, 0);   // si ya tenía tasa guardada no la pisa buscando otra
+  _lbRepExcluir.lbf = g.egresos.map(function(e){ return e.id; });   // esta misma factura no cuenta como repetida
+  setTimeout(function(){ lbMonedaCambio('lbf', !!f.tasa); lbRepetidaCheck('lbf'); }, 0);   // si ya tenía tasa guardada no la pisa buscando otra
   S.saveFn = function(){
     var err = lbFiscalValidar('lbf'); if(err){ toast(err, 'error'); return false; }
+    if(!lbRepetidaConfirmar('lbf')) return false;
     var fis = lbLeerCamposFiscales('lbf');
     if(!fis){ toast('Llena al menos un dato de la factura, o marca que no lleva factura', 'error'); return false; }
     lbTasaPersistir(fis, 'lbf');
@@ -653,4 +724,4 @@ function lbExportar(tipo, formato){
   _abrirVentanaImpresion((tipo === 'compras' ? 'Libro de Compras ' : 'Libro de Ventas ') + _lbPeriodoVE(D.st.periodo), lbHtmlPdf(tipo, D), { horizontal: true });
 }
 
-if(typeof module !== 'undefined' && module.exports) module.exports = { lbComprasDocumentos: lbComprasDocumentos, lbComprasFilas: lbComprasFilas, lbComprasCalculo: lbComprasCalculo, lbVentasFilas: lbVentasFilas, lbVentasCalculo: lbVentasCalculo, lbFiltrar: lbFiltrar, _lbRifCliente: _lbRifCliente, lbLeerCamposFiscales: lbLeerCamposFiscales, lbFiscalValidar: lbFiscalValidar, lbCamposFiscalesHtml: lbCamposFiscalesHtml, lbMonedaHtml: lbMonedaHtml };
+if(typeof module !== 'undefined' && module.exports) module.exports = { lbComprasDocumentos: lbComprasDocumentos, lbComprasFilas: lbComprasFilas, lbComprasCalculo: lbComprasCalculo, lbVentasFilas: lbVentasFilas, lbVentasCalculo: lbVentasCalculo, lbFiltrar: lbFiltrar, _lbRifCliente: _lbRifCliente, lbLeerCamposFiscales: lbLeerCamposFiscales, lbFiscalValidar: lbFiscalValidar, lbCamposFiscalesHtml: lbCamposFiscalesHtml, lbMonedaHtml: lbMonedaHtml, lbFacturaRepetida: lbFacturaRepetida };
