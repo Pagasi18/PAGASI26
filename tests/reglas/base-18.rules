@@ -237,6 +237,21 @@ service cloud.firestore {
       return request.resource.data.get('eliminado', false) != resource.data.get('eliminado', false);
     }
 
+    // == Tasas de cambio por dia ==
+    // Historial BCV (dolar y euro) por fecha, para pasar a dolares las facturas de proveedor
+    // registradas en bolivares con la tasa de SU fecha (Adam, 26-oct-2026). Lo escribe la
+    // pantalla al bajar la tasa del dia, o el analista cuando la pone a mano. Nunca se borra.
+    match /tasas/{fecha} {
+      allow read: if esStaff();
+      allow create, update: if esInterno()
+        && request.resource.data.keys().hasOnly(['fecha', 'usd', 'eur', 'usdManual', 'eurManual', 'fechaValor', 'fuente', 'manual', 'guardadoEn', 'guardadoPor'])
+        && request.resource.data.fecha == fecha
+        && fecha.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && (!('usd' in request.resource.data) || (request.resource.data.usd is number && request.resource.data.usd > 1))
+        && (!('eur' in request.resource.data) || (request.resource.data.eur is number && request.resource.data.eur > 1));
+      allow delete: if false;
+    }
+
     // == Configuracion ==
     // La tasa del dia la actualiza sola la pantalla (cualquier empleado). Los ajustes
     // contables de Coromoto, quien ve Reportes. Lo demas (plan, factor, dias de gracia,
