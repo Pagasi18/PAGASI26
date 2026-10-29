@@ -1,6 +1,7 @@
 // Presentación móvil: no cambia validaciones, cálculos, permisos ni persistencia.
 var _pgMobileObserver=null,_pgMobileFrame=0,_pgWizardHistory=false;
 function pgMobilePrepare(){
+  if(typeof pgMobileNavigationRefresh==='function')pgMobileNavigationRefresh();
   var cnt=document.getElementById('cnt');
   if(cnt && typeof S!=='undefined'){
     cnt.setAttribute('data-page',S.page||'');

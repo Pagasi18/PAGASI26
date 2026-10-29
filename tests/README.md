@@ -33,6 +33,9 @@ Verifica el perfil por bloques, la apertura automática del campo pendiente,
 la conservación de datos al editar y cambiar de tamaño, la revisión del plan y
 la confirmación del guardado con acceso a la solicitud. Comprueba también que las
 estadísticas del inicio sigan disponibles al desplegarlas.
+La navegación móvil se prueba tocando la barra y el menú de herramientas:
+búsqueda, retorno con Atrás, cierre con Escape, foco, tamaños táctiles, permisos
+actualizados, acceso de administrador y cierre de sesión.
 También revisa la ausencia de desbordes y el tamaño de los campos. Guarda capturas
 y un informe en `../output/movil-ventas/despues` (configurable con
 `PAGASI_MOBILE_OUTPUT`). Usa exclusivamente Firebase ficticio en memoria y bloquea

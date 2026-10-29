@@ -2094,6 +2094,7 @@ function scheduleRealtimeRender(){
 function flushRealtimeRender(){
   if(!_rtRenderPending || !S || !S.currentUser || !S.page || typeof nav!=='function') return;
   if(document.hidden) return;
+  if(typeof _pgMenu!=='undefined'&&_pgMenu.open)return;
   if(_rtTimer){ clearTimeout(_rtTimer); _rtTimer = null; }
   try{ if(typeof updateBadge==='function') updateBadge(); }catch(e){}
   _rtRedibujar();
@@ -3497,6 +3498,7 @@ window._navFromPop = false; // flag: evita push cuando venimos de popstate
 
 function _isModalOpen(){
   try {
+    if(typeof _pgMenu!=='undefined'&&_pgMenu.open)return true;
     var ov = document.getElementById('ov');
     if(!ov) return false;
     var d = ov.style.display;
@@ -3517,6 +3519,7 @@ function _replaceNavState(p){
 }
 
 window.addEventListener('popstate', function(ev){
+  if(typeof pgMobileMenuBack==='function' && pgMobileMenuBack()) return;
   if(typeof pgMobileWizardBack==='function' && pgMobileWizardBack()) return;
   // Si hay un modal abierto, ciérralo y vuelve a poner el estado
   // (no dejamos que el back "navegue" cuando hay un diálogo).
@@ -4512,6 +4515,7 @@ function cambiarPasswordPerfil() {
 }
 
 function doLogout() {
+  if(typeof pgMobileMenuClose==='function')pgMobileMenuClose({navigation:true});
   // Log antes de cerrar (mientras S.currentUser aún existe)
   try { if(typeof logActividad === 'function') logActividad('logout','auth',(S.currentUser&&S.currentUser.uid)||'',null); } catch(e){}
   // Cerrar perfil overlay si está abierto
@@ -4528,6 +4532,7 @@ function doLogout() {
 
 // ── Mobile Menu ──────────────────────────
 function openMobileMenu(){
+  if(window.innerWidth<=1024 && typeof pgMobileMenuOpen==='function'){pgMobileMenuOpen();return;}
   var sidebarEl = document.querySelector('.sb') || document.querySelector('.sidebar');
   var ov = $('sb-overlay');
   if(sidebarEl) { sidebarEl.classList.add('mob-open'); sidebarEl.classList.add('open'); }
@@ -4535,6 +4540,7 @@ function openMobileMenu(){
   document.body.style.overflow = 'hidden';
 }
 function closeMobileMenu(){
+  if(typeof pgMobileMenuClose==='function' && pgMobileMenuClose({navigation:true}))return;
   var sidebarEl = document.querySelector('.sb') || document.querySelector('.sidebar');
   var ov = $('sb-overlay');
   if(sidebarEl) { sidebarEl.classList.remove('mob-open'); sidebarEl.classList.remove('open'); }
@@ -4557,28 +4563,36 @@ function closeMobileMenu(){
 // MOBILE BOTTOM NAV & SEARCH
 // ══════════════════════════════════════════
 function mbbSelect(page){
-  document.querySelectorAll('.mbb-btn').forEach(function(b){ b.classList.remove('on'); });
-  var btn = $('mbb-'+page);
-  if(btn) btn.classList.add('on');
+  var btn=$('mbb-'+page)||$('mbb-more');
+  document.querySelectorAll('.mbb-btn').forEach(function(b){
+    b.classList.toggle('on',b===btn);
+    if(b===btn)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+  });
 }
 
 function updateMobileNav(){
   var mbb=$('mob-bottom-bar');if(!mbb)return;
+  if(!S.currentUser){mbb.innerHTML='';mbb.setAttribute('data-ready','false');return;}
   var page=S.page, items=[];
   var first=['dash','motos','clientes','creditos','pagos'].filter(function(k){return hasModuleAccess(k);})[0];
   if(first)items.push({key:first,label:first==='dash'?'Inicio':first==='motos'?'Motos':PGL[first],icon:first});
   if(first!=='clientes' && hasModuleAccess('clientes'))items.push({key:'clientes',label:'Clientes',icon:'clientes'});
-  if(typeof _puedeVender==='function' && _puedeVender() && hasModuleAccess('creditos'))items.push({key:'nueva',label:'Nueva venta',add:true});
-  if(first!=='creditos' && hasModuleAccess('creditos'))items.push({key:'creditos',label:'Solicitudes',icon:'creditos'});
+  if(typeof _puedeVender==='function' && _puedeVender() && hasModuleAccess('creditos'))items.push({key:'nueva',label:'Vender',add:true});
+  if(first!=='creditos' && hasModuleAccess('creditos'))items.push({key:'creditos',label:typeof _puedeVender==='function'&&!_puedeVender()?'Créditos':'Ventas',icon:'creditos'});
   if(items.length<4 && first!=='pagos' && hasModuleAccess('pagos'))items.push({key:'pagos',label:'Cobrar',icon:'pagos'});
   items=items.slice(0,4);
   items.push({key:'more',label:'Más',more:true});
-  mbb.innerHTML=items.map(function(it){
+  mbb.setAttribute('role','navigation');mbb.setAttribute('aria-label','Navegación principal');mbb.setAttribute('data-ready','true');
+  mbb.style.setProperty('--pg-nav-count',String(items.length));
+  var signature=JSON.stringify([page,items]);
+  if(mbb.dataset.signature!==signature){mbb.dataset.signature=signature;mbb.innerHTML=items.map(function(it){
     var active=it.key===page || (it.more && !items.some(function(x){return x.key===page;}));
     var action=it.add?'openAddCred()':it.more?'openMobileMenu()':"nav('"+it.key+"')";
-    var image=it.add?'＋':it.more?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>':pgNavIcon(it.icon);
-    return '<button type="button" id="mbb-'+it.key+'" class="mbb-btn'+(active?' on':'')+(it.add?' mbb-new':'')+'" onclick="'+action+'" aria-label="'+it.label+'"'+(active?' aria-current="page"':'')+'><span class="mbb-ic" aria-hidden="true">'+image+'</span><span>'+it.label+'</span></button>';
-  }).join('');
+    var image=it.add?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>':it.more?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="6" height="6" rx="2"/><rect x="14" y="4" width="6" height="6" rx="2"/><rect x="4" y="14" width="6" height="6" rx="2"/><rect x="14" y="14" width="6" height="6" rx="2"/></svg>':pgNavIcon(it.icon);
+    var label=it.add?'Comenzar nueva venta':it.key==='creditos'?'Consultar ventas y solicitudes':it.more?'Más herramientas':it.label;
+    return '<button type="button" id="mbb-'+it.key+'" class="mbb-btn'+(active?' on':'')+(it.add?' mbb-new':'')+'" onclick="'+action+'" aria-label="'+label+'"'+(it.more?' aria-haspopup="dialog" aria-controls="pg-mobile-menu" aria-expanded="false"':'')+(active?' aria-current="page"':'')+'><span class="mbb-ic" aria-hidden="true">'+image+'</span><span>'+it.label+'</span></button>';
+  }).join('');}
+  if(typeof pgMobileNavigationRefresh==='function')pgMobileNavigationRefresh();
 }
 
 function openMobSearch(){
