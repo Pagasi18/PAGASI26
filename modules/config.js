@@ -15,6 +15,8 @@ PG.config = function(){
       if($('cfg_rep_ci')) $('cfg_rep_ci').value=d.repCI||'';
       if($('cfg_rep_cargo')) $('cfg_rep_cargo').value=d.repCargo||'';
       if($('cfg_rep_doc')) $('cfg_rep_doc').value=d.repDoc||'';
+      if(typeof _empresa==='object' && _empresa) _empresa.firmaRep = d.firmaRep||'';
+      if(typeof cfgFirmaPintar==='function') cfgFirmaPintar(d.firmaRep||'');
       if($('cfg_rm')) $('cfg_rm').value=d.rm||'';
       if($('cfg_rm_estado')) $('cfg_rm_estado').value=d.rmEstado||'';
       if($('cfg_rm_fecha')) $('cfg_rm_fecha').value=d.rmFecha||'';
@@ -149,6 +151,14 @@ PG.config = function(){
             <div class="fg"><label>Cargo</label><input class="fi" id="cfg_rep_cargo" placeholder="Ej: Director"></div>
           </div>
           <div class="fg"><label>Facultad según consta en</label><input class="fi" id="cfg_rep_doc" placeholder="Ej: Acta de Asamblea del 12/03/2024"></div>
+          <div class="fg"><label>Firma del representante (imagen)</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <div style="width:180px;height:66px;border:1px dashed var(--rim2);border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden"><img id="cfg_firma_prev" alt="" style="max-height:60px;max-width:170px;object-fit:contain;display:none"><span id="cfg_firma_vacia" style="font-size:11px;color:var(--ink3)">Sin firma cargada</span></div>
+              <label class="btn btn-g btn-sm" style="cursor:pointer">Subir firma<input type="file" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="cfgFirmaElegir(this)"></label>
+              <button class="btn btn-g btn-sm" id="cfg_firma_quitar" onclick="cfgFirmaQuitar()" style="display:none">Quitar</button>
+            </div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:4px;line-height:1.5">Una foto o escaneo de la firma sobre papel blanco sirve: el fondo se quita solo. Sale en los contratos (donde firma Pagasi) y en la carta de finiquito. Después de subirla, "Guardar representante".</div>
+          </div>
           <div style="background:var(--gs);border-radius:9px;padding:11px 13px;font-size:11.5px;color:var(--ink2);line-height:1.55">
             <b style="color:var(--p1)">Tip:</b> Estos datos se insertan automáticamente en los contratos de venta en cuotas y documentos notariales.
           </div>

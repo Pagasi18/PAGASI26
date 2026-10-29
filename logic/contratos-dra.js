@@ -549,7 +549,10 @@ function _draFirma(rol, nombre, ci, n){
   // altura aunque un nombre ocupe dos lineas y otro una.
   return '<div style="flex:0 0 '+ancho+';font-size:9.8px">'
     + '<div style="height:24px;text-align:center;font-weight:900;color:#1D4ED8;font-size:10px;line-height:1.2">'+rol+'</div>'
-    + '<div style="height:40px"></div>'
+    // Donde firma Pagasi va la firma del representante (si está en la ficha); el hueco mide igual con o sin ella
+    + '<div style="height:40px;display:flex;align-items:flex-end;justify-content:center">'
+    +   (rol === 'Por Pagasi' && typeof _firmaRepImg === 'function' ? _firmaRepImg('max-height:50px;max-width:88%;object-fit:contain;margin-bottom:-6px') : '')
+    + '</div>'
     + '<div style="border-top:1px solid #333;padding-top:4px;line-height:1.5;text-align:center">'
     + '<div style="font-weight:800">'+nombre+'</div>'
     + (ci ? '<div>'+ci+'</div>' : '')

@@ -18,21 +18,26 @@ function _finiquitoDatos(credId){
   var cl = S.clientes.find(function(x){ return String(x.id)===String(c.clienteId); })
         || S.clientes.find(function(x){ return x.nombre===c.cli; }) || {};
   var moto = S.motos.find(function(m){ return String(m.id)===String(c.motoId); }) || {};
-  var e = (typeof _empCtr==='function') ? _empCtr() : { nom:'', rif:'', dir:'', ciudad:'', tel:'', email:'' };
-  // El representante legal no vive en el respaldo: o esta en la ficha o sale la raya.
-  var ficha = (typeof _empresa==='object' && _empresa) ? _empresa : {};
+  var e = (typeof _empCtr==='function') ? _empCtr() : { nom:'', rif:'', dir:'', ciudad:'', tel:'', email:'', sinLlenar:true };
+  // El representante legal y su firma salen de la ficha de la compañía (Configuración). Si la ficha no se
+  // pudo leer, no se toma nada de ella: ni un nombre ni una firma que puedan ser de la otra compañía.
+  var ficha = (!e.sinLlenar && typeof _empresa==='object' && _empresa) ? _empresa : {};
   var real = (typeof _datoReal==='function') ? _datoReal : function(v){ return (v==null?'':String(v)).trim(); };
   var ced = (typeof _draCedulaTxt==='function') ? _draCedulaTxt : function(v){ return real(v); };
   var version = (typeof _contratoVersionDe==='function') ? _contratoVersionDe(c) : 'dra';
+  var marca = real(c.marca)||real(moto.marca), modelo = real(c.modelo)||real(moto.modelo);
   return {
-    c:c, cli:cl, moto:moto, emp:e, version:version, venta:(version==='protect'),
+    c:c, cli:cl, moto:moto, emp:e, version:version,
+    rep: real(ficha.representante), repCI: ced(ficha.repCI), repCargo: real(ficha.repCargo) || 'Representante Legal',
+    firma: (e.sinLlenar || typeof _firmaRepSrc!=='function') ? '' : _firmaRepSrc(),
     cliNom: c.cli || cl.nombre || '',
     cliCed: ced(cl.cedula || cl.ci || ''),
-    modelo: [real(c.marca)||real(moto.marca), real(c.modelo)||real(moto.modelo)].filter(Boolean).join(' '),
+    marca: marca, modeloSolo: modelo, modelo: [marca, modelo].filter(Boolean).join(' '),
     color: real(c.color) || real(moto.color),
     anio: real(c.anio) || real(moto.anio),
     placa: real(c.placa) || real(moto.placa),
     serial: real(c.serialChasis) || real(moto.serialChasis) || real(c.vin) || real(moto.vin),
+    serialMotor: real(c.serialMotor) || real(moto.serialMotor),
     cuotas: c.totalCuotas || (c.plazo ? c.plazo*2 : 0),
     pagado: (typeof getCreditoPagosConfirmados==='function') ? getCreditoPagosConfirmados(c) : 0,
     total: (parseFloat(c.ini)||0) + (parseFloat(c.total)||0),
@@ -40,119 +45,86 @@ function _finiquitoDatos(credId){
   };
 }
 
+// 29-oct-2026: Adam mandó la foto de la carta que la oficina escribía a mano en Word para el INTT y pidió "que
+// tenga esta info, pero que salga más bonito". Es la carta que el cliente lleva al registro para liberar la
+// reserva de dominio: quién la firma (el representante legal, con su firma), quién pagó, el vehículo con su placa
+// y su serial, la autorización expresa, y el sello de la compañía. Mismas reglas de siempre: la identidad del
+// sistema, los datos de LA COMPAÑÍA QUE FIRMA y N/A donde falte un dato (22-sep). Sirve para cualquier contrato:
+// todos son ventas con reserva de dominio a favor de Pagasi. La variante de arrendamiento con opción a compra por
+// US$ 1 se retiró: no era lo que el INTT pide, y la oficina terminaba escribiendo la carta a mano.
 function _htmlFiniquito(credId){
   var D = _finiquitoDatos(credId); if(!D) return '';
-  var c = D.c, e = D.emp, venta = D.venta;
+  var c = D.c, e = D.emp;
   var az='#2563EB', azD='#1D4ED8', azL='#EFF6FF';
   var logo = (typeof _PAGASI_LOGO_BLUE!=='undefined' && _PAGASI_LOGO_BLUE)
     || ((document.querySelector('.sb-logo img')||{}).src||'');
   var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
-  // 22-sep-2026, Adam: "no quiero que me dejes vacios en el contrato, si no hay un dato
-  // ponme N/A". Un renglon en blanco en un papel que se firma se lee como un descuido y
-  // nadie sabe si falta por error o porque no aplica. N/A lo dice. Nunca, en ningun caso,
-  // el dato de la otra compania.
-  var V = function(v, ancho){ var t=String(v==null?'':v).trim(); return t ? esc(t) : 'N/A'; };
+  var V = function(v){ var t=String(v==null?'':v).trim(); return t ? esc(t) : 'N/A'; };
   var dinero = function(n){ return 'US$ '+(parseFloat(n)||0).toFixed(2); };
   var fechaLarga = function(iso){
     if(!iso) return '';
     var d = new Date(String(iso).slice(0,10)+'T12:00:00');
     return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('es-VE',{day:'2-digit',month:'long',year:'numeric'});
   };
-  var hoy = new Date().toLocaleDateString('es-VE',{day:'2-digit',month:'long',year:'numeric'});
+  var hoyLargo = fechaLarga(typeof hoyLocalISO==='function' ? hoyLocalISO() : new Date().toISOString());
+  var ciudad = String(e.ciudad||'').trim();
+  var empRif = e.rif ? 'RIF '+esc(e.rif) : 'RIF N/A';
 
-  var p = 'font-size:11.5px;line-height:1.6;color:#222;margin:10px 0;text-align:justify';
-  var h3 = 'color:'+az+';font-weight:900;font-size:12.5px;text-transform:uppercase;letter-spacing:.3px;margin:18px 0 8px;padding-bottom:4px;border-bottom:2px solid '+az;
-  var lbl = 'background:'+azL+';color:'+azD+';font-weight:700;font-size:11.5px;padding:7px 10px';
-  var val = 'padding:7px 10px;font-size:11.5px;border-bottom:1px solid #DBEAFE';
-  var fila = function(a,b){ return '<tr><td style="'+lbl+';width:55%">'+a+'</td><td style="'+val+';text-align:right;font-weight:700">'+b+'</td></tr>'; };
+  var p = 'font-size:11.8px;line-height:1.65;color:#1f2937;margin:9px 0;text-align:justify';
+  var lbl = 'background:'+azL+';color:'+azD+';font-weight:700;font-size:11.3px;padding:6px 10px;border-bottom:1px solid #DBEAFE';
+  var val = 'padding:6px 10px;font-size:11.3px;font-weight:700;color:#111827;border-bottom:1px solid #DBEAFE';
+  var fila = function(a,b){ return '<tr><td style="'+lbl+';width:36%">'+a+'</td><td style="'+val+'">'+b+'</td></tr>'; };
 
-  // ── El titulo y el texto: cada contrato con el suyo ──────────────────────
-  var titulo = venta ? 'CONSTANCIA DE CANCELACIÓN TOTAL Y FINIQUITO'
-                     : 'CONSTANCIA DE FINALIZACIÓN Y TRANSFERENCIA DE PROPIEDAD';
-  var bajada = venta ? 'Cláusula 5.1 del Contrato de Financiamiento N° '+esc(c.id)
-                     : 'Ejercicio de la Opción a Compra — Cláusula Séptima del Contrato';
-  var relato = venta
-    ? ('Por medio del presente documento, <strong>'+V(e.nom,160)+'</strong>, inscrita en el Registro de Información Fiscal bajo el N° <strong>'+V(e.rif,110)+'</strong>, con domicilio en <strong>'+V(e.dir,220)+'</strong> (en lo sucesivo, <strong>«Pagasi»</strong>), deja formal constancia de que el(la) ciudadano(a) <strong>'+V(D.cliNom,150)+'</strong>, titular de la cédula de identidad N° <strong>'+V(D.cliCed,90)+'</strong>, en su condición de <strong>Comprador</strong> bajo el Contrato de Financiamiento para la Adquisición de Vehículo Automotor N° <strong>'+esc(c.id)+'</strong>, ha pagado íntegramente el <strong>Monto Total Adeudado</strong>, comprendiendo la totalidad de las <strong>'+esc(D.cuotas)+' Cuotas Quincenales</strong>, los Intereses Financieros y cualesquiera otros montos a su cargo, sin que quede saldo pendiente alguno a favor de Pagasi.')
-    : ('Por medio del presente documento, <strong>'+V(e.nom,160)+'</strong>, inscrita bajo el RIF <strong>'+V(e.rif,110)+'</strong>, con domicilio en <strong>'+V(e.dir,220)+'</strong>, en su condición de <strong>EL ARRENDADOR</strong>, deja formal constancia de que el(la) ciudadano(a) <strong>'+V(D.cliNom,150)+'</strong>, titular de la cédula de identidad N° <strong>'+V(D.cliCed,90)+'</strong>, en su condición de <strong>EL ARRENDATARIO</strong> del contrato de arrendamiento con opción a compra N° <strong>'+esc(c.id)+'</strong>, ha cancelado satisfactoriamente la totalidad de los <strong>'+esc(D.cuotas)+' cánones quincenales</strong> acordados, así como el pago simbólico de la opción a compra por US$ 1,00.');
+  var quien = 'Quien suscribe, <strong>'+V(D.rep)+'</strong>, titular de la cédula de identidad N° <strong>'+V(D.repCI)+'</strong>, actuando en su carácter de <strong>'+esc(D.repCargo)+'</strong> de la sociedad mercantil <strong>'+V(e.nom)+'</strong> ('+empRif+'), con domicilio en <strong>'+V(e.dir)+'</strong>, certifico por medio de la presente que:';
+  var pago = 'El ciudadano <strong>'+V(D.cliNom)+'</strong>, titular de la cédula de identidad N° <strong>'+V(D.cliCed)+'</strong>, ha cancelado a entera satisfacción la <strong>totalidad</strong> de las obligaciones económicas derivadas del crédito <strong>N° '+esc(c.id)+'</strong>'
+    + (c.fecha ? ', celebrado el '+esc(fechaLarga(c.fecha)) : '')
+    + ', manteniendo a la fecha un saldo de <strong>CERO DÓLARES (USD 0,00)</strong>. Dicho financiamiento gravaba el vehículo que se identifica a continuación:';
+  var vehiculo = fila('Marca / Modelo:', V(D.modelo)) + fila('Año:', V(D.anio)) + fila('Color:', V(D.color))
+    + fila('Clase / Tipo:', 'Motocicleta') + fila('Placa:', V(D.placa)) + fila('Serial de carrocería / NIV:', V(D.serial))
+    + (D.serialMotor ? fila('Serial de motor:', esc(D.serialMotor)) : '')
+    + fila('Reserva de dominio a favor de:', V(e.nom)+' ('+empRif+')');
+  var celda = function(t, v){ return '<div style="flex:1;min-width:120px;background:#fff;border:1px solid #DBEAFE;border-radius:6px;padding:7px 10px"><div style="font-size:9.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px">'+t+'</div><div style="font-size:12px;font-weight:800;color:'+azD+';margin-top:2px">'+v+'</div></div>'; };
+  var resumen = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px">'
+    + celda('Inicial pagada', dinero(c.ini)) + celda('Cuotas canceladas', esc(D.cuotas)+' de '+esc(D.cuotas))
+    + celda('Total pagado en cuotas', dinero(D.pagado)) + celda('Cancelación total', V(fechaLarga(D.fechaFin))) + '</div>';
+  var declaracion = 'En virtud de la extinción total de la deuda, <strong>'+V(e.nom)+'</strong> declara no tener reclamo alguno contra el ciudadano antes identificado y le otorga formal <strong>FINIQUITO DE CUENTA</strong>, <strong>libera la reserva de dominio</strong> constituida a su favor sobre el vehículo descrito y presta su consentimiento expreso para que realice ante el INTT el trámite de <strong>LIBERACIÓN DE RESERVA DE DOMINIO</strong> y le sea emitido su Certificado de Registro de Vehículo libre de gravamen.';
+  var cierre = 'Constancia que se expide a solicitud de la parte interesada, en '+V(ciudad)+', a la fecha de su presentación.';
 
-  var declaracion = venta
-    ? ('En virtud del pago íntegro del Monto Total Adeudado, Pagasi declara <strong>extinguidas todas las obligaciones</strong> del Comprador derivadas del Contrato N° '+esc(c.id)+', <strong>libera la reserva de dominio</strong> y cualesquiera garantías constituidas a su favor sobre el vehículo, y deja sin efecto la fianza y demás garantías personales otorgadas. El vehículo queda en plena propiedad del Comprador, libre de gravámenes frente a Pagasi, y los dispositivos telemáticos instalados pasan en propiedad al Comprador sin contraprestación adicional. Pagasi otorgará los documentos y prestará la colaboración necesaria para el traspaso ante el Instituto Nacional de Transporte Terrestre (INTT), dentro de los <strong>treinta (30) días hábiles</strong> siguientes a la emisión de esta constancia.')
-    : ('En virtud del cumplimiento íntegro de las obligaciones derivadas del contrato, y en ejercicio de la opción a compra prevista en la <strong>Cláusula Séptima</strong> del mismo, <strong>'+V(e.nom,160)+'</strong> declara resuelto el vínculo arrendaticio y procederá a realizar el <strong>traspaso legal de la propiedad</strong> del vehículo descrito a favor de <strong>'+V(D.cliNom,150)+'</strong>, dentro de los <strong>treinta (30) días hábiles</strong> siguientes a la emisión del presente documento, previo cumplimiento de los trámites correspondientes ante el Instituto Nacional de Transporte Terrestre (INTT).');
+  // La firma del representante (si está en la ficha) se posa sobre la raya; sin ella queda el hueco para firmar a mano
+  var firmaImg = D.firma ? '<img src="'+D.firma+'" alt="" style="height:62px;max-width:240px;object-fit:contain;display:block;margin:0 auto -16px">' : '<div style="height:46px"></div>';
+  var bloqueFirma = '<div style="text-align:center">'+firmaImg
+    + '<div style="border-top:1px solid #333;margin:0 auto;max-width:270px;padding-top:6px;font-size:11px;line-height:1.6">'
+    +   '<strong>'+V(D.rep)+'</strong><br>'+esc(D.repCargo)+'<br>C.I. '+V(D.repCI)+'</div></div>';
+  var sello = '<div style="display:inline-block;text-align:center;border:1.5px dashed '+az+';border-radius:10px;padding:10px 16px;min-width:210px">'
+    + (logo ? '<img src="'+logo+'" style="height:30px;object-fit:contain">' : '')
+    + '<div style="font-size:11px;font-weight:800;color:'+azD+';margin-top:4px">'+V(e.nom)+'</div>'
+    + '<div style="font-size:10.5px;color:#334155">'+empRif+'</div></div>';
 
-  var cierre = venta
-    ? ('En consecuencia, <strong>'+V(D.cliNom,150)+'</strong> nada queda a deber a Pagasi por concepto alguno derivado del Contrato N° '+esc(c.id)+', sirviendo el presente documento como el más amplio y eficaz finiquito entre las partes.')
-    : ('En consecuencia, una vez perfeccionado el traspaso, <strong>'+V(D.cliNom,150)+'</strong> quedará como <strong>único y legítimo propietario</strong> del vehículo, sin que subsistan obligaciones económicas o contractuales pendientes entre las partes derivadas del contrato N° '+esc(c.id)+'.');
-
-  var resumen = venta
-    ? fila('Inicial pagada:', dinero(c.ini))
-      + fila('Cuotas quincenales canceladas:', esc(D.cuotas)+' de '+esc(D.cuotas))
-      + fila('Total abonado en cuotas:', dinero(D.pagado))
-      + fila('Monto total del crédito:', dinero(D.total))
-      + fila('Fecha de celebración:', V(fechaLarga(c.fecha),120))
-      + '<tr style="background:'+azL+'"><td style="padding:9px 10px;font-size:11.5px;font-weight:800;color:'+azD+'">Fecha de cancelación total:</td>'
-      + '<td style="padding:9px 10px;text-align:right;font-weight:900;color:'+azD+'">'+V(fechaLarga(D.fechaFin),120)+'</td></tr>'
-    : fila('Depósito inicial pagado:', dinero(c.ini))
-      + fila('Cánones quincenales cancelados:', esc(D.cuotas)+' de '+esc(D.cuotas))
-      + fila('Total abonado en cánones:', dinero(D.pagado))
-      + fila('Monto total del contrato:', dinero(D.total))
-      + fila('Fecha de inicio del contrato:', V(fechaLarga(c.fecha),120))
-      + fila('Fecha de cancelación total:', V(fechaLarga(D.fechaFin),120))
-      + '<tr style="background:'+azL+'"><td style="padding:9px 10px;font-size:11.5px;font-weight:800;color:'+azD+'">Pago de opción a compra (Cláusula Séptima):</td>'
-      + '<td style="padding:9px 10px;text-align:right;font-weight:900;color:'+azD+'">US$ 1,00</td></tr>';
-
-  var firmaPagasi = '<div style="background:'+azL+';padding:14px 10px;border-radius:4px">'
-    + '<div style="background:'+az+';color:#fff;font-weight:800;font-size:11.5px;padding:5px 8px;border-radius:3px;margin-bottom:56px;text-align:center">'
-    +   (venta ? 'POR PAGASI' : 'POR EL ARRENDADOR') + '</div>'
-    + '<div style="border-top:1px solid #333;padding-top:6px;font-size:10.5px;text-align:center;line-height:1.6">'
-    +   '<strong>'+V(e.nom,140)+'</strong><br>RIF '+V(e.rif,90)+'</div></div>';
-  var firmaCliente = '<div style="background:'+azL+';padding:14px 10px;border-radius:4px">'
-    + '<div style="background:'+az+';color:#fff;font-weight:800;font-size:11.5px;padding:5px 8px;border-radius:3px;margin-bottom:10px;text-align:center">'
-    +   (venta ? 'EL COMPRADOR' : 'EL EX-ARRENDATARIO / NUEVO PROPIETARIO') + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 60px;gap:8px;align-items:end">'
-    +   '<div style="text-align:center;padding-top:46px"><div style="border-top:1px solid #333;padding-top:6px;font-size:10px;line-height:1.5">'
-    +     'Firma<br>Nombre: '+V(D.cliNom,110)+'<br>C.I.: '+V(D.cliCed,80)+'</div></div>'
-    +   '<div><div style="border:1px dashed #666;background:#fff;height:70px;border-radius:3px"></div>'
-    +   '<div style="text-align:center;font-size:9px;color:#555;margin-top:3px;font-weight:700">HUELLA</div></div></div></div>';
-
-  var pie = [V(e.nom,120), e.rif ? 'RIF '+esc(e.rif) : '', esc(e.dir||''), esc(e.tel||''), esc(e.email||'')]
+  var pie = [V(e.nom), e.rif ? 'RIF '+esc(e.rif) : '', esc(e.dir||''), esc(e.tel||''), esc(e.email||'')]
     .filter(function(x){ return x; }).join(' · ');
 
-  return '<div id="finiquito-doc" style="font-family:\'Nunito Sans\',\'Segoe UI\',Roboto,Arial,sans-serif;color:#1f2937;background:#fff;max-width:820px;margin:0 auto;padding:22px 26px 18px">'
+  return '<div id="finiquito-doc" style="font-family:\'Nunito Sans\',\'Segoe UI\',Roboto,Arial,sans-serif;color:#1f2937;background:#fff;max-width:820px;margin:0 auto;padding:22px 28px 18px">'
     // Membrete: logo a la izquierda, referencia a la derecha (igual que el contrato)
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-    +   (logo ? '<img src="'+logo+'" style="height:40px;object-fit:contain">' : '<div style="font-size:20px;font-weight:900;color:'+az+'">'+V(e.nom,120)+'</div>')
+    +   (logo ? '<img src="'+logo+'" style="height:40px;object-fit:contain">' : '<div style="font-size:20px;font-weight:900;color:'+az+'">'+V(e.nom)+'</div>')
     +   '<div style="font-size:10.5px;color:#555;text-align:right;line-height:1.7">'
-    +     '<strong>Documento N°:</strong> FIN-'+esc(c.id)+'<br><strong>Fecha de emisión:</strong> <strong>'+hoy+'</strong></div></div>'
-    + '<div style="background:'+az+';color:#fff;text-align:center;padding:10px 14px;border-radius:4px;border-bottom:3px solid '+azD+'">'
-    +   '<div style="font-size:14px;font-weight:900;letter-spacing:.3px">'+titulo+'</div>'
-    +   '<div style="font-size:10.5px;margin-top:3px;opacity:.9">'+bajada+'</div></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0 10px;font-size:11.5px">'
-    +   '<div><strong style="color:'+az+'">Ciudad / Estado:</strong> '+V(e.ciudad,90)+'</div>'
-    +   '<div style="text-align:right"><strong style="color:'+az+'">Ref. Contrato:</strong> '+esc(c.id)+'</div></div>'
-    + '<div style="border-bottom:1px solid #DBEAFE;margin-bottom:6px"></div>'
-    + '<p style="'+p+'">'+relato+'</p>'
-
-    + '<h3 style="'+h3+'">Vehículo objeto del contrato</h3>'
-    + '<table style="width:100%;border-collapse:collapse;margin-top:6px;border:1px solid #DBEAFE">'
-    +   '<tr><td style="'+lbl+';width:22%">Modelo:</td><td style="'+val+';width:28%">'+V(D.modelo,120)+'</td>'
-    +       '<td style="'+lbl+';width:22%">Color:</td><td style="'+val+'">'+V(D.color,90)+'</td></tr>'
-    +   '<tr><td style="'+lbl+'">Año:</td><td style="'+val+'">'+V(D.anio,60)+'</td>'
-    +       '<td style="'+lbl+'">Placa:</td><td style="'+val+'">'+V(D.placa,90)+'</td></tr>'
-    +   '<tr><td style="'+lbl+'">Serial de chasis / VIN:</td><td colspan="3" style="'+val+'">'+V(D.serial,180)+'</td></tr>'
-    + '</table>'
-
-    + '<h3 style="'+h3+'">'+(venta ? 'Resumen del crédito cancelado' : 'Resumen del arrendamiento cancelado')+'</h3>'
-    + '<table style="width:100%;border-collapse:collapse;margin-top:6px;border:1px solid #DBEAFE">'+resumen+'</table>'
-
-    + '<h3 style="'+h3+'">'+(venta ? 'Declaración de cancelación total' : 'Declaración de finalización')+'</h3>'
-    + '<div style="background:#F0FFF4;border:1px solid #4CAF50;border-left:4px solid #2E7D32;border-radius:4px;padding:12px 14px;margin-top:6px">'
+    +     '<strong>Documento N°:</strong> FIN-'+esc(c.id)+'<br><strong>Crédito N°:</strong> '+esc(c.id)+'</div></div>'
+    + '<div style="font-size:11.8px;margin:12px 0 10px">'+(ciudad ? esc(ciudad)+', ' : '')+esc(hoyLargo)+'</div>'
+    + '<div style="font-size:11.4px;font-weight:800;line-height:1.75;color:#111827">CIUDADANOS:<br>INSTITUTO NACIONAL DE TRANSPORTE TERRESTRE (INTT)<br>OFICINA REGIONAL / GERENCIA DE REGISTRO DE VEHÍCULOS<br>SU DESPACHO.-</div>'
+    + '<div style="background:'+az+';color:#fff;padding:9px 14px;border-radius:4px;border-bottom:3px solid '+azD+';margin:14px 0 6px">'
+    +   '<div style="font-size:9.5px;font-weight:700;opacity:.9;letter-spacing:.5px">ASUNTO</div>'
+    +   '<div style="font-size:13.5px;font-weight:900;letter-spacing:.3px">CARTA DE FINIQUITO Y AUTORIZACIÓN DE LIBERACIÓN DE RESERVA DE DOMINIO</div></div>'
+    + '<p style="'+p+'">'+quien+'</p>'
+    + '<p style="'+p+'">'+pago+'</p>'
+    + '<table style="width:100%;border-collapse:collapse;margin-top:4px;border:1px solid #DBEAFE">'+vehiculo+'</table>'
+    + resumen
+    + '<div style="background:#F0FFF4;border:1px solid #4CAF50;border-left:4px solid #2E7D32;border-radius:4px;padding:10px 14px;margin-top:10px">'
     +   '<p style="'+p+';margin:0">'+declaracion+'</p></div>'
     + '<p style="'+p+'">'+cierre+'</p>'
-
-    + '<div style="margin-top:24px;border-top:2px solid '+az+';padding-top:18px;page-break-inside:avoid">'
-    +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'+firmaPagasi+firmaCliente+'</div></div>'
+    + '<div style="margin-top:26px;page-break-inside:avoid;display:grid;grid-template-columns:1.2fr 1fr;gap:18px;align-items:end">'
+    +   bloqueFirma + '<div style="text-align:center">'+sello+'</div></div>'
     + '<div style="margin-top:20px;padding-top:10px;border-top:1px solid #DBEAFE;text-align:center;font-size:9.5px;color:#64748b;line-height:1.6">'
-    +   pie + '<br>' + titulo + ' · Documento N° FIN-'+esc(c.id)+'</div>'
+    +   pie + '<br>Carta de finiquito · Documento N° FIN-'+esc(c.id)+'</div>'
     + '</div>';
 }
 
@@ -162,13 +134,13 @@ function abrirFiniquito(credId){
   // pudo leer, este papel sale sin nombre ni RIF y no se puede entregar.
   if(typeof _avisarEmpresaContrato==='function') _avisarEmpresaContrato();
   setMicon('detalle');
-  $('mtt').textContent = D.venta ? '¡Crédito cancelado!' : '¡Contrato Finalizado!';
-  $('msb').textContent = D.cliNom + (D.venta ? ' pagó la totalidad de su crédito' : ' completó su arrendamiento');
+  $('mtt').textContent = '¡Crédito cancelado!';
+  $('msb').textContent = D.cliNom + ' pagó la totalidad de su crédito';
   $('modal-box').className='modal modal-lg';
   $('mbd').innerHTML = '<div style="text-align:center;padding:14px 0 18px">'
     + '<div style="font-size:18px;font-weight:900;color:var(--p1);margin-bottom:4px">'+D.cliNom+'</div>'
-    + '<div style="font-size:13px;color:var(--ink3)">'
-    +   (D.venta ? 'ha pagado íntegramente el Monto Total Adeudado' : 'ha cancelado la totalidad de los cánones del arrendamiento')
+    + '<div style="font-size:13px;color:var(--ink3)">Carta de finiquito y autorización de liberación de reserva de dominio para el INTT'
+    + (D.firma ? '' : ' · <span style="color:var(--amber)">sin la firma del representante: cárgala en Configuración → Representante Legal</span>')
     + '</div></div>'
     + _htmlFiniquito(D.c.id);
   $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>'
@@ -180,7 +152,7 @@ function imprimirFiniquito(){
   var doc=$('finiquito-doc');
   if(!doc){window.print();return;}
   // Usa la ventana unificada Pagasi (Nunito + azul); el doc trae su propio membrete
-  _abrirVentanaImpresion('Constancia de Finalización', doc.outerHTML, {sinHeader:true});
+  _abrirVentanaImpresion('Carta de finiquito', doc.outerHTML, {sinHeader:true});
 }
 
 // ══════════════════════════════════════════

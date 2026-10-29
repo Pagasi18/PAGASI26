@@ -3430,7 +3430,7 @@ function getCobradoresList(){
 window.getCobradoresList = getCobradoresList;
 // Datos de la empresa (nombre, RIF, ciudad, tel, email) — se usan en contratos y reportes
 // Fuente única de verdad que NO depende del DOM (Config solo existe cuando estás en esa página)
-var _empresa = { nombre:'Pagasi', rif:'J-00000000-0', ciudad:'Caracas', tel:'', email:'', direccion:'', representante:'', repCI:'' };
+var _empresa = { nombre:'Pagasi', rif:'J-00000000-0', ciudad:'Caracas', tel:'', email:'', direccion:'', representante:'', repCI:'', firmaRep:'' };
 
 // Helper global para leer empresa de forma consistente.
 // Primero intenta el DOM (por si está en Config editándose), si no usa la variable cacheada.
@@ -3450,7 +3450,7 @@ function getEmpresa(){
            direccion:direccion.trim(), representante:representante.trim(), repCI:repCI.trim(),
            repCargo:E('cfg_rep_cargo','repCargo'), repDoc:E('cfg_rep_doc','repDoc'),
            rm:E('cfg_rm','rm'), rmEstado:E('cfg_rm_estado','rmEstado'), rmFecha:E('cfg_rm_fecha','rmFecha'),
-           rmNum:E('cfg_rm_num','rmNum'), rmTomo:E('cfg_rm_tomo','rmTomo') };
+           rmNum:E('cfg_rm_num','rmNum'), rmTomo:E('cfg_rm_tomo','rmTomo'), firmaRep:_empresa.firmaRep||'' };
 }
 
 // Cargar datos de empresa desde Firebase al iniciar
@@ -3929,7 +3929,9 @@ function recargarDesdeFirebase(){
           repCargo: d.repCargo || '', repDoc: d.repDoc || '',
           rm: d.rm || '', rmEstado: d.rmEstado || '', rmFecha: d.rmFecha || '', rmNum: d.rmNum || '', rmTomo: d.rmTomo || '',
           // cuentas que nombra el contrato (22-sep-2026)
-          bancoUsd: d.bancoUsd || '', cuentaUsd: d.cuentaUsd || '', billetera: d.billetera || '', billeteraCuenta: d.billeteraCuenta || ''
+          bancoUsd: d.bancoUsd || '', cuentaUsd: d.cuentaUsd || '', billetera: d.billetera || '', billeteraCuenta: d.billeteraCuenta || '',
+          // la firma del representante legal, como imagen (29-oct-2026): la imprimen los contratos y el finiquito
+          firmaRep: d.firmaRep || ''
         };
       }
     })

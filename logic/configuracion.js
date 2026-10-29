@@ -159,12 +159,14 @@ function guardarEmpresa(){
   var cuentaBs = (($('cfg_cuenta_bs')&&$('cfg_cuenta_bs').value)||'').trim();
   var pagoMovil = (($('cfg_pago_movil')&&$('cfg_pago_movil').value)||'').trim();
   if(!nombre){ toast('Escribe el nombre de la empresa','error'); return; }
+  // La firma del representante ya quedó en _empresa.firmaRep al elegir el archivo (cfgFirmaElegir); aquí solo viaja
+  var firmaRep = (typeof _empresa==='object' && _empresa && _empresa.firmaRep) || '';
   // Actualizar la variable global también (para que contratos/reportes la lean aun sin estar en Config)
-  _empresa = { nombre:nombre, rif:rif, ciudad:ciudad, tel:tel, email:email, direccion:direccion,
+  _empresa = { nombre:nombre, rif:rif, ciudad:ciudad, tel:tel, email:email, direccion:direccion, firmaRep:firmaRep,
                representante:representante, repCI:repCI, repCargo:repCargo, repDoc:repDoc,
                rm:rm, rmEstado:rmEstado, rmFecha:rmFecha, rmNum:rmNum, rmTomo:rmTomo,
                bancoUsd:bancoUsd, cuentaUsd:cuentaUsd, billetera:billetera, billeteraCuenta:billeteraCuenta, cuentaBs:cuentaBs, pagoMovil:pagoMovil };
-  var data = {nombre, rif, ciudad, tel, email, direccion, representante, repCI,
+  var data = {nombre, rif, ciudad, tel, email, direccion, representante, repCI, firmaRep,
               repCargo, repDoc, rm, rmEstado, rmFecha, rmNum, rmTomo,
               bancoUsd, cuentaUsd, billetera, billeteraCuenta, cuentaBs, pagoMovil, updated: new Date().toISOString()};
   if(db){
@@ -414,3 +416,50 @@ function openAddPlan(){
 
 // ══════════════════════════════════════════
 // ══════════════════════════════════════════
+
+// ── La firma del representante legal (29-oct-2026, Adam: "los contratos no están saliendo con la firma") ──
+// Una imagen PNG pequeña que se guarda DENTRO de la ficha de la compañía (config/empresa), nunca en el código:
+// hasta hoy la firma real estaba pegada en logic/contratos.js, que es público (auditoría del 24-oct). La imprimen
+// los contratos (donde firma Pagasi) y el finiquito. Se achica a 600 px, se le quita el fondo blanco y se exige
+// que pese poco, porque la ficha se lee en cada arranque del sistema.
+function cfgFirmaPintar(src){
+  var img=$('cfg_firma_prev'), vac=$('cfg_firma_vacia'), q=$('cfg_firma_quitar');
+  if(!img) return;
+  var hay=!!src;
+  img.src = hay ? src : ''; img.style.display = hay ? 'block' : 'none';
+  if(vac) vac.style.display = hay ? 'none' : '';
+  if(q) q.style.display = hay ? '' : 'none';
+}
+function _cfgFirmaProcesar(im){
+  var k = Math.min(1, 600/im.width, 260/im.height), w=Math.max(1,Math.round(im.width*k)), h=Math.max(1,Math.round(im.height*k));
+  var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  var x=cv.getContext('2d'); x.drawImage(im,0,0,w,h);
+  // El papel blanco de una foto o un escaneo se vuelve transparente: así la firma se posa sobre la raya
+  try{
+    var d=x.getImageData(0,0,w,h), p=d.data;
+    for(var i=0;i<p.length;i+=4){ if(p[i]>225 && p[i+1]>225 && p[i+2]>225) p[i+3]=0; }
+    x.putImageData(d,0,0);
+  }catch(e){}
+  return cv.toDataURL('image/png');
+}
+function cfgFirmaElegir(input){
+  var f = input && input.files && input.files[0]; if(!f) return;
+  if(!/^image\/(png|jpeg|webp)$/.test(f.type)){ toast('La firma tiene que ser una imagen PNG o JPG','error'); input.value=''; return; }
+  var r = new FileReader();
+  r.onload = function(){
+    var im = new Image();
+    im.onload = function(){
+      var data = _cfgFirmaProcesar(im);
+      if(data.length > 220000){ toast('La imagen pesa demasiado: recórtala a la firma sola e inténtalo otra vez','error'); return; }
+      _empresa.firmaRep = data; cfgFirmaPintar(data);
+      toast('Firma lista. Dale a "Guardar representante" para que quede en la ficha','info');
+    };
+    im.onerror = function(){ toast('No se pudo leer la imagen','error'); };
+    im.src = r.result;
+  };
+  r.readAsDataURL(f); input.value='';
+}
+function cfgFirmaQuitar(){
+  _empresa.firmaRep=''; cfgFirmaPintar('');
+  toast('Firma quitada. Dale a "Guardar representante" para confirmarlo','info');
+}

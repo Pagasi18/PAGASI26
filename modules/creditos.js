@@ -352,6 +352,7 @@ PG.creditos = function(){
         <button class="btn btn-p btn-xs" onclick="${!c.contratoFirmado ? `editarCredSinFirma('${c.id}')` : `openEditCred('${c.id}')`}" title="Editar">Editar</button>
         ${c.estado!=="completado"&&c.estado!=="cancelado"&&c.estado!=="recuperado"&&c.estado!=="recuperada"?`<button class="btn btn-s btn-xs" onclick="openLiquidarAnticipado('${c.id}')" title="Liquidar">Liq.</button><button class="btn btn-d btn-xs" onclick="cancelarCred('${c.id}')" title="Cancelar crédito" style="padding:4px 7px">✕</button>`:''}
         ${(c.estado==='cancelado'||c.estado==='recuperado'||c.estado==='recuperada')?`<button class="btn btn-p btn-xs" onclick="restaurarCred('${c.id}')" title="Restaurar crédito">↺</button>`:''}
+        ${c.estado==='completado'?`<button class="btn btn-s btn-xs" onclick="abrirFiniquito('${c.id}')" title="Carta de finiquito y liberación de reserva de dominio (INTT)">Finiquito</button>`:''}
         </div>
       </td>
     </tr>`;}).join('')})()}
