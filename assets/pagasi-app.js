@@ -4588,7 +4588,7 @@ function updateMobileNav(){
   if(mbb.dataset.signature!==signature){mbb.dataset.signature=signature;mbb.innerHTML=items.map(function(it){
     var active=it.key===page || (it.more && !items.some(function(x){return x.key===page;}));
     var action=it.add?'openAddCred()':it.more?'openMobileMenu()':"nav('"+it.key+"')";
-    var image=it.add?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>':it.more?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="6" height="6" rx="2"/><rect x="14" y="4" width="6" height="6" rx="2"/><rect x="4" y="14" width="6" height="6" rx="2"/><rect x="14" y="14" width="6" height="6" rx="2"/></svg>':pgNavIcon(it.icon);
+    var image=it.add?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>':it.more?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>':pgNavIcon(it.icon);
     var label=it.add?'Comenzar nueva venta':it.key==='creditos'?'Consultar ventas y solicitudes':it.more?'Más herramientas':it.label;
     return '<button type="button" id="mbb-'+it.key+'" class="mbb-btn'+(active?' on':'')+(it.add?' mbb-new':'')+'" onclick="'+action+'" aria-label="'+label+'"'+(it.more?' aria-haspopup="dialog" aria-controls="pg-mobile-menu" aria-expanded="false"':'')+(active?' aria-current="page"':'')+'><span class="mbb-ic" aria-hidden="true">'+image+'</span><span>'+it.label+'</span></button>';
   }).join('');}
