@@ -125,6 +125,7 @@ PG.motos = function(){
     </div>
   </div>
 
+  <div class="pg-inventory-charts">
   <!-- ═══ BARRA OCUPACIÓN + MODELOS TOP + DISTRIBUCIONES ═══ -->
   <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;margin-bottom:14px">
 
@@ -216,6 +217,7 @@ PG.motos = function(){
     </div>
   </div>
 
+  </div>
   <!-- ═══ TOOLBAR + FILTROS ═══ -->
   <div class="card" style="padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">

@@ -1384,31 +1384,18 @@ function empleadoDashHTML(){
 // Todos los banners usan el mismo gradiente morado para unidad visual.
 // actions: array de objetos { label, onclick, primary?:bool } (opcional)
 function pageBanner(tagline, title, subtitle, actions){
-  var actionsHTML = '';
-  // Una accion marcada soloSiVende no se ofrece en la compania que ya no vende
-  // (PAGASI 18 desde el 23-sep-2026, que se queda cobrando lo que ya tiene).
-  if(actions && actions.length) actions = actions.filter(function(a){
+  if(actions && actions.length)actions=actions.filter(function(a){
     return !(a && a.soloSiVende) || (typeof _puedeVender!=='function' || _puedeVender());
   });
-  if(actions && actions.length){
-    actionsHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap">' + actions.map(function(a){
-      var st = a.primary
-        ? 'background:var(--surf);color:var(--p1);font-weight:800'
-        : 'background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(4px)';
-      return '<button class="btn btn-sm" onclick="'+(a.onclick||'')+'" style="'+st+'">'+a.label+'</button>';
-    }).join('') + '</div>';
-  }
-  return '<div style="background:var(--grad);border-radius:var(--r16);padding:20px 24px;margin-bottom:14px;color:#fff;position:relative;overflow:hidden">'
-    +'<div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08)"></div>'
-    +'<div style="position:absolute;bottom:-60px;right:60px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.06)"></div>'
-    +'<div style="position:relative;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">'
-    +'<div>'
-    +(tagline?'<div style="font-size:11px;font-weight:800;opacity:.85;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">'+tagline+'</div>':'')
-    +'<div style="font-size:24px;font-weight:900;letter-spacing:-.5px;margin-bottom:3px">'+title+'</div>'
-    +(subtitle?'<div style="font-size:12.5px;opacity:.85;max-width:640px;line-height:1.5">'+subtitle+'</div>':'')
-    +'</div>'
-    + actionsHTML
-    +'</div></div>';
+  var buttons=(actions||[]).map(function(a){
+    var style=a.primary?'background:var(--surf);color:var(--p1);font-weight:800':'background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3)';
+    return '<button type="button" class="btn btn-sm '+(a.primary?'pg-banner-primary':'pg-banner-secondary')+'" onclick="'+(a.onclick||'')+'" style="'+style+'">'+a.label+'</button>';
+  }).join('');
+  return '<div class="pg-banner"><div class="pg-banner-inner"><div>'
+    +(tagline?'<div class="pg-banner-kicker">'+tagline+'</div>':'')
+    +'<div class="pg-banner-title">'+title+'</div>'
+    +(subtitle?'<div class="pg-banner-sub">'+subtitle+'</div>':'')
+    +'</div>'+(buttons?'<div class="pg-banner-actions">'+buttons+'<button type="button" class="btn btn-sm pg-banner-toggle" aria-expanded="false" aria-label="Mostrar más acciones" onclick="var open=this.parentNode.classList.toggle(\'is-open\');this.setAttribute(\'aria-expanded\',String(open))">Más ⌄</button></div>':'')+'</div></div>';
 }
 
 
@@ -1802,14 +1789,14 @@ function _cliCollectStep(step){
 function _cliValidar(step){
   _cliCollectStep(step);
   if(step===1){
-    if(!WZ.nom){ toast('El nombre es obligatorio','error'); return false; }
-    if(!WZ.ci){ toast('La cédula es obligatoria','error'); return false; }
-    if(!WZ.tel){ toast('El teléfono es obligatorio','error'); return false; }
+    if(!WZ.nom){ return _wzFieldError('wz_nom','El nombre es obligatorio'); }
+    if(!WZ.ci){ return _wzFieldError('wz_ci','La cédula es obligatoria'); }
+    if(!WZ.tel){ return _wzFieldError('wz_tel','El teléfono es obligatorio'); }
   }
   // empleo e ingreso ya no estan en el paso 1: se exigen en el 2, como siempre (24-sep-2026)
   if(step===2){
-    if(!WZ.emp){ toast('Selecciona el tipo de empleo','error'); return false; }
-    if((parseFloat(WZ.ing)||0)<=0){ toast('El ingreso mensual es obligatorio','error'); return false; }
+    if(!WZ.emp){ return _wzFieldError('wz_emp_g','Selecciona el tipo de empleo'); }
+    if((parseFloat(WZ.ing)||0)<=0){ return _wzFieldError('wz_ing','El ingreso mensual es obligatorio'); }
   }
   _wzScore();
   return true;
@@ -1833,21 +1820,17 @@ function _cliRender(){
   var btnNext = WZ.step<2
     ? '<button onclick="_cliNext()" style="padding:11px 24px;border-radius:12px;background:var(--p1);color:#fff;font-family:var(--f);font-weight:700;font-size:13px;border:none;cursor:pointer;box-shadow:0 2px 10px rgba(37,99,235,.25)">Siguiente →</button>'
     : '<button onclick="_cliGuardar()" style="padding:11px 24px;border-radius:12px;background:var(--green);color:#fff;font-family:var(--f);font-weight:700;font-size:13px;border:none;cursor:pointer"> Guardar Cliente</button>';
-  overlay.innerHTML = '<div style="max-width:1180px;margin:0 auto;padding:26px 20px 34px">'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:14px;flex-wrap:wrap">'
-    + '<div style="display:flex;align-items:center;gap:12px">'
-    + '<button onclick="_wzClose()" style="width:40px;height:40px;border-radius:12px;border:1.5px solid var(--rim);background:var(--surf2);cursor:pointer;font-size:18px">←</button>'
-    + '<div style="flex:1"><div style="font-size:15px;font-weight:800;letter-spacing:-.3px">'+(WZ.clienteEditId?'Editar Cliente':'Nuevo Cliente')+'</div><div style="font-size:11px;color:var(--ink3)">Paso '+WZ.step+' de 2</div></div>'
-    + '</div>'
-    + '<div data-wz-header style="display:flex;align-items:center;justify-content:flex-end;min-height:44px">'+_cliScorePill()+'</div>'
-    + '</div>'
-    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">'+stepsTpl+'</div>'
-    + '<div style="background:var(--surf);border:1.5px solid var(--rim);border-radius:20px;padding:20px 18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
-    + '<div style="font-size:12px;color:var(--ink3);margin-bottom:18px">'+['Información personal y laboral','Perfil crediticio y CrediScore'][WZ.step-1]+'</div>'
-    + current
-    + '<div style="display:flex;justify-content:space-between;gap:10px;margin-top:22px">'+btnBack+btnNext+'</div>'
-    + '</div></div>';
+  overlay.innerHTML = '<div class="wz-head"><div class="wz-head-in">'
+    + '<button type="button" class="wz-x" onclick="_wzClose()" aria-label="Cerrar ficha del cliente">✕</button>'
+    + '<div style="min-width:0"><div class="wz-title">'+(WZ.clienteEditId?'Editar cliente':'Nuevo cliente')+'</div><div class="wz-sub">Paso '+WZ.step+' de 2</div></div>'
+    + '<div data-wz-header>'+_cliScorePill()+'</div></div><div class="wz-steps">'+stepsTpl+'</div></div>'
+    + '<div class="wz-body"><div class="wz-h1">'+['Identidad y contacto','Perfil del cliente'][WZ.step-1]+'</div>'
+    + '<div class="wz-h2">'+['Confirma los datos con la persona que atiendes.','Completa su información y comprueba los respaldos.'][WZ.step-1]+'</div>'
+    + '<div class="wz-card">'+current+'</div></div>'
+    + '<div class="wz-foot"><div class="wz-foot-in">'+btnBack.replace('<button ','<button class="wz-btn wz-btn-g" ')+btnNext.replace('<button ','<button class="wz-btn '+(WZ.step<2?'wz-btn-p':'wz-btn-ok')+'" ')+'</div></div>';
+
   _cliHydrate();
+  if(typeof pgMobileWizardOpened==='function')pgMobileWizardOpened('cliente');
 }
 
 function _cliNext(){ if(!_cliValidar(WZ.step)) return; WZ.step=Math.min(2,WZ.step+1); _cliRender(); }

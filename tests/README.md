@@ -16,3 +16,20 @@ node tests/t_cobranza.js   # una sola
 - `t_auditoria.js` — Auditoría de Datos (nombres normalizados, acción segura "usar el nombre del crédito")
 
 Una prueba que falla imprime `FALLA ...` y el corredor termina con código 1.
+
+## Ventas móviles en un navegador real
+
+Con Playwright instalado y Google Chrome disponible:
+
+```bash
+node tests/mobile-ventas.cjs
+```
+
+Prueba teléfonos de 320 y 390 px, teléfono horizontal, tablet y escritorio.
+Completa la solicitud con un empleado y un vendedor de concesionario; comprueba
+el estado final, la inicial sin duplicados, permisos del menú, validación,
+navegación Atrás, captura de documentos y posición del botón con teclado simulado.
+También revisa la ausencia de desbordes y el tamaño de los campos. Guarda capturas
+y un informe en `../output/movil-ventas/despues` (configurable con
+`PAGASI_MOBILE_OUTPUT`). Usa exclusivamente Firebase ficticio en memoria y bloquea
+las conexiones a las bases reales. `--audit` permite registrar una versión anterior.

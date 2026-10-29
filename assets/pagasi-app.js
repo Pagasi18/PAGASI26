@@ -3040,9 +3040,9 @@ function hasModuleAccess(key){
   if(isAdminUser()) return true;
   // Recursos: repositorio de material disponible para TODOS los usuarios logueados
   if(key === 'recursos') return true;
-  // Vendedor Concesionario: solo 3 módulos permitidos + recursos
+  // Vendedor Concesionario: motos, clientes, solicitudes y calculadora + recursos
   if(isVendedorConcesionarioRole()){
-    return key === 'motos' || key === 'clientes' || key === 'creditos';
+    return key === 'motos' || key === 'clientes' || key === 'creditos' || key === 'calculadora';
   }
   // 24-sep-2026, Adam: las solicitudes las aprueba "todos". Quien trabaja con creditos ve
   // Aprobaciones sin permiso aparte (la salvaguarda de no aprobar la propia esta en el modulo).
@@ -3259,7 +3259,7 @@ function renderSidebar(){
     return;
   }
 
-  // Vendedor Concesionario: sidebar MUY reducido (solo 3 módulos esenciales)
+  // Vendedor Concesionario: módulos de venta, sin administración ni finanzas
   // No ve admin, finanzas, GPS, otros concesionarios — nada de eso
   if(isVendedorConcesionarioRole()){
     var sidebarVC = '<div style="padding:10px 8px">'
@@ -3517,6 +3517,7 @@ function _replaceNavState(p){
 }
 
 window.addEventListener('popstate', function(ev){
+  if(typeof pgMobileWizardBack==='function' && pgMobileWizardBack()) return;
   // Si hay un modal abierto, ciérralo y vuelve a poner el estado
   // (no dejamos que el back "navegue" cuando hay un diálogo).
   if(_isModalOpen()){
@@ -3572,7 +3573,7 @@ function nav(p){
   $('pgT').textContent=PGL[p]||p; if($('pgT-mob')) $('pgT-mob').textContent=PGL[p]||p;
   updateTopbar();
   if(typeof _renderConcSwitcher === 'function') _renderConcSwitcher();
-  if(window.innerWidth<=820) updateMobileNav();
+  if(window.innerWidth<=1024) updateMobileNav();
   const fn=PG[p];
   if(fn){
     if(p==='dash'){
@@ -4063,7 +4064,7 @@ function init() {
     iniciarListenerSolicitudes();
     // BCV Auto — actualizar tasa diariamente si es necesario
     if(typeof bcvAutoInit === 'function') setTimeout(bcvAutoInit, 1500);
-    var isMob = window.innerWidth <= 820;
+    var isMob = window.innerWidth <= 1024;
     var mobBar = $('mobile-topbar');
     var deskBar = $('desktop-topbar');
     if (mobBar) mobBar.style.display = isMob ? 'flex' : 'none';
@@ -4547,7 +4548,7 @@ function closeMobileMenu(){
   var _origNav = window.nav;
   window.nav = function(){
     var r = _origNav.apply(this, arguments);
-    if(window.innerWidth <= 820) closeMobileMenu();
+    if(window.innerWidth <= 1024) closeMobileMenu();
     return r;
   };
 })();
@@ -4562,27 +4563,22 @@ function mbbSelect(page){
 }
 
 function updateMobileNav(){
-  var page = S.page;
-
-  // Empleado (incluye legacy Cobrador/Vendedor): bottom nav especializado
-  var mbb = $('mob-bottom-bar');
-  if(mbb){
-    if(isEmpleadoRole()){
-      mbb.innerHTML = ''
-        +'<button class="mbb-btn'+(page==='dash'?' on':'')+'" onclick="nav(\'dash\');mbbSelect(\'dash\')">'
-        +'<span class="mbb-ic">DB</span><span>Inicio</span></button>'
-        +'<button class="mbb-btn'+(page==='pagos'?' on':'')+'" onclick="nav(\'pagos\');mbbSelect(\'pagos\')">'
-        +'<span class="mbb-ic">PAG</span><span>Cobrar</span></button>'
-        +'<button class="mbb-btn" onclick="openAddCred()" style="color:var(--p1)">'
-        +'<span class="mbb-ic" style="background:var(--p1);color:#fff">＋</span><span>Solicitud</span></button>'
-        +'<button class="mbb-btn'+(page==='creditos'?' on':'')+'" onclick="nav(\'creditos\');mbbSelect(\'creditos\')">'
-        +'<span class="mbb-ic">SOL</span><span>Solicitudes</span></button>';
-      return;
-    }
-  }
-
-  var mapped = {dash:'dash', clientes:'clientes', creditos:'creditos'};
-  mbbSelect(mapped[page] || 'more');
+  var mbb=$('mob-bottom-bar');if(!mbb)return;
+  var page=S.page, items=[];
+  var first=['dash','motos','clientes','creditos','pagos'].filter(function(k){return hasModuleAccess(k);})[0];
+  if(first)items.push({key:first,label:first==='dash'?'Inicio':first==='motos'?'Motos':PGL[first],icon:first});
+  if(first!=='clientes' && hasModuleAccess('clientes'))items.push({key:'clientes',label:'Clientes',icon:'clientes'});
+  if(typeof _puedeVender==='function' && _puedeVender() && hasModuleAccess('creditos'))items.push({key:'nueva',label:'Nueva venta',add:true});
+  if(first!=='creditos' && hasModuleAccess('creditos'))items.push({key:'creditos',label:'Solicitudes',icon:'creditos'});
+  if(items.length<4 && first!=='pagos' && hasModuleAccess('pagos'))items.push({key:'pagos',label:'Cobrar',icon:'pagos'});
+  items=items.slice(0,4);
+  items.push({key:'more',label:'Más',more:true});
+  mbb.innerHTML=items.map(function(it){
+    var active=it.key===page || (it.more && !items.some(function(x){return x.key===page;}));
+    var action=it.add?'openAddCred()':it.more?'openMobileMenu()':"nav('"+it.key+"')";
+    var image=it.add?'＋':it.more?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>':pgNavIcon(it.icon);
+    return '<button type="button" id="mbb-'+it.key+'" class="mbb-btn'+(active?' on':'')+(it.add?' mbb-new':'')+'" onclick="'+action+'" aria-label="'+it.label+'"'+(active?' aria-current="page"':'')+'><span class="mbb-ic" aria-hidden="true">'+image+'</span><span>'+it.label+'</span></button>';
+  }).join('');
 }
 
 function openMobSearch(){
@@ -4644,7 +4640,7 @@ function mobSearch(q){
 // Responsive: ajustar topbars en resize
 window.addEventListener('resize', function(){
   if (!$('app-root') || $('app-root').style.display === 'none') return;
-  var isMob = window.innerWidth <= 820;
+  var isMob = window.innerWidth <= 1024;
   var mobBar = $('mobile-topbar');
   var deskBar = $('desktop-topbar');
   if (mobBar) mobBar.style.display = isMob ? 'flex' : 'none';

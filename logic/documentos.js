@@ -274,13 +274,14 @@ function _docLibreWizardHtml(){
     + '<div style="font-size:12px;font-weight:800;color:var(--ink);margin-bottom:8px">📋 Documentos del expediente</div>'
     + _expedienteHtml(existentes)
     + listaHtml
-    + '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end">'
+    + '<div class="pg-doc-fields" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end">'
     + '<div><label style="font-size:10.5px;font-weight:700;color:var(--ink3);display:block;margin-bottom:4px">Nombre del documento</label>'
     + '<input class="fi" id="wz_doc_libre_nombre" type="text" placeholder="Ej: Cédula, Contrato, Recibo..." style="width:100%"></div>'
     + '<div style="padding-bottom:1px"><label class="btn btn-p btn-sm" style="cursor:pointer;white-space:nowrap">'
     + '📎 Agregar'
     + '<input type="file" accept="image/*,.pdf,.doc,.docx" multiple style="display:none" onchange="_docLibreWizardSubir(this)"></label></div>'
     + '</div>'
+    + '<label class="btn btn-g pg-mobile-camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h-4L8 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-4z"/><circle cx="12" cy="13" r="4"/></svg>Tomar foto del documento<input type="file" accept="image/*" capture="environment" aria-label="Tomar foto del documento" style="display:none" onchange="_docLibreWizardSubir(this)"></label>'
     + '<div id="wz_doc_libre_status" style="font-size:11px;color:var(--ink3);margin-top:6px;min-height:16px"></div>'
     + '</div>';
 }

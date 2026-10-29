@@ -441,6 +441,7 @@ function _wzClose(){
   if(ov) ov.style.display = 'none';
   document.body.style.overflow = '';
   window._wzEditando = null; // limpiar modo edición al cerrar
+  if(typeof pgMobileWizardClosed==='function')pgMobileWizardClosed();
 }
 
 function _wzRender(motoId){
@@ -474,7 +475,7 @@ function _wzRender(motoId){
         +'<div style="font-size:9px;color:var(--ink3)">Score Indexa /850</div></div>'
         +(WZ.cuota>0?'<div style="width:1px;height:28px;background:var(--rim);margin:0 4px"></div><div><div style="font-size:13px;font-weight:800;color:var(--p1)">$'+WZ.cuota.toFixed(2)+'</div><div style="font-size:9px;color:var(--ink3)">cuota quincenal</div></div>':'')
         +'</div>'
-    : '<div style="font-size:12px;color:var(--ink3);padding:7px 16px;background:var(--surf2);border-radius:50px;border:1px solid var(--rim)">Score aparece al completar datos</div>';
+    : '<div class="wz-score-empty" style="font-size:12px;color:var(--ink3);padding:7px 16px;background:var(--surf2);border-radius:50px;border:1px solid var(--rim)">Score aparece al completar datos</div>';
 
   // ── PASO 1: Datos del cliente ──
   var step1 = '<div class="fg" style="margin-bottom:10px"><label class="fsec" style="display:block;margin-bottom:5px">Cliente registrado</label>'
@@ -834,18 +835,18 @@ function _wzRender(motoId){
     : '<button class="wz-btn wz-btn-g" onclick="_wzClose()">Cancelar</button>';
 
   var btnNext = WZ.step < 4
-    ? '<button class="wz-btn wz-btn-p" onclick="_wzNext()">'+(WZ.step===3?'Calcular score →':'Siguiente →')+'</button>'
+    ? '<button class="wz-btn wz-btn-p" onclick="_wzNext()">'+(['Continuar a Perfil →','Elegir moto →','Revisar solicitud →'][WZ.step-1])+'</button>'
     : '<button class="wz-btn wz-btn-ok" onclick="_wzGuardar()">'+(window._wzEditando ? 'Guardar cambios' : (_wzVaAAprobaciones() ? 'Enviar a aprobación' : 'Guardar solicitud'))+'</button>';
 
   ov.innerHTML =
     '<div class="wz-head"><div class="wz-head-in">'
-    + '<button class="wz-x" onclick="_wzClose()" title="Cerrar">✕</button>'
+    + '<button class="wz-x" onclick="_wzClose()" title="Cerrar" aria-label="Cerrar solicitud">✕</button>'
     + '<div style="flex:1;min-width:0"><div class="wz-title">'+(window._wzEditando ? 'Editar solicitud' : 'Nueva solicitud')+'</div><div class="wz-sub">Paso '+WZ.step+' de 4 · '+['Datos del cliente','Perfil crediticio','Motocicleta','Resultado'][WZ.step-1]+'</div></div>'
     + '<div data-wz-header>'+scorePill+'</div>'
     + '</div><div class="wz-steps">'+stepsTpl+'</div></div>'
     + '<div class="wz-body">'
     + '<div class="wz-h1">'+['Datos del cliente','Perfil crediticio','Motocicleta','Resultado'][WZ.step-1]+'</div>'
-    + '<div class="wz-h2">'+['Información personal y laboral','Historial y capacidad de pago','¿Qué moto quiere financiar?','Score Indexa y resumen'][WZ.step-1]+'</div>'
+    + '<div class="wz-h2">'+['Identidad, contacto y datos personales','Historial y capacidad de pago','¿Qué moto quiere financiar?','Score Indexa y resumen'][WZ.step-1]+'</div>'
     + current
     + '</div>'
     + '<div class="wz-foot"><div class="wz-foot-in">'
@@ -854,6 +855,7 @@ function _wzRender(motoId){
     + btnNext
     + '</div></div>';
 
+  if(typeof pgMobileWizardOpened==='function')pgMobileWizardOpened('solicitud');
   setTimeout(function(){ _wzHydrate(); _wzHydrateDocsUI(); }, 0);
   // Inicializar preview financiero si hay precio (ahora en paso 3 = moto)
   if(WZ.step===3 && WZ.precio>0){
@@ -2279,6 +2281,10 @@ function _wzActualizarPill(){
   }
 }
 
+function _wzFieldError(id,message){
+  if(typeof pgMobileFieldError==='function')return pgMobileFieldError(id,message);
+  toast(message,'error');return false;
+}
 // ── Validaciones por paso ──
 function _wzValidar(){
   _wzCollectVisibleValues();
@@ -2287,9 +2293,9 @@ function _wzValidar(){
   // En modo edición sin firma, las validaciones de paso 1 y precio son opcionales
   var _modoEdicion = !!window._wzEditando;
   if(s===1 && !_modoEdicion){
-    if(!g('wz_nom')){ toast('El nombre es obligatorio','error'); return false; }
-    if(!g('wz_ci')){ toast('La cédula es obligatoria','error'); return false; }
-    if(!g('wz_tel')){ toast('El teléfono es obligatorio','error'); return false; }
+    if(!g('wz_nom')){ return _wzFieldError('wz_nom','El nombre es obligatorio'); }
+    if(!g('wz_ci')){ return _wzFieldError('wz_ci','La cédula es obligatoria'); }
+    if(!g('wz_tel')){ return _wzFieldError('wz_tel','El teléfono es obligatorio'); }
     // Cliente que ya tiene credito: se avisa UNA vez y se sigue si el operario acepta (7-oct-2026)
     var _rc=_wzClienteLista();
     if(_rc.length && WZ._cliCredOk!==_riesgoClave(_rc)){
@@ -2300,9 +2306,9 @@ function _wzValidar(){
   // Empleo e ingreso eran obligatorios en el paso 1; ahora viven solo en el paso 2 y se
   // exigen ahi, igual que antes (24-sep-2026). No se agrego ningun obligatorio nuevo.
   if(s===2 && !_modoEdicion){
-    if(!_wzChipVal('wz_emp_g')){ toast('Selecciona el tipo de empleo','error'); return false; }
+    if(!_wzChipVal('wz_emp_g')){ return _wzFieldError('wz_emp_g','Selecciona el tipo de empleo'); }
     var ing2 = parseFloat((document.getElementById('wz_ing')||{}).value)||0;
-    if(ing2<=0){ toast('El ingreso mensual es obligatorio','error'); return false; }
+    if(ing2<=0){ return _wzFieldError('wz_ing','El ingreso mensual es obligatorio'); }
   }
   if(s===2){
     // La cifra que confirmo el empleado ya es la exacta (ver _wzIngresoConfirmado)
@@ -2345,7 +2351,7 @@ function _wzValidar(){
     // "Uso de la moto *" ya era obligatorio, pero siempre salia "Personal" puesto. Ahora que
     // empieza en "—" si el cliente no lo dijo, se pide (revision del 27-sep-2026).
     var _usoEl = document.getElementById('wz_uso');
-    if(_usoEl && !_usoEl.value && !_modoEdicion){ toast('Elige el uso de la moto','error'); if(_usoEl.focus) _usoEl.focus(); return false; }
+    if(_usoEl && !_usoEl.value && !_modoEdicion){ return _wzFieldError('wz_uso','Elige el uso de la moto'); }
     // Sin moto no hay solicitud: ni del inventario, ni del catalogo, ni una nueva que se
     // este agregando. Antes se guardaba el credito con el modelo vacio y sin moto, y la
     // forma de pago declarada se tiraba (revisado el 22-sep-2026).

@@ -186,7 +186,10 @@ PG.creditos = function(){
   <!-- ══════════════════════════════════════════════════════════════ -->
   <!-- BANNER: Salud del portafolio -->
   <!-- ══════════════════════════════════════════════════════════════ -->
-  <div style="background:${tasaMora<=10?'linear-gradient(135deg,var(--greens),rgba(6,176,106,.04))':tasaMora<=25?'linear-gradient(135deg,var(--ambers),rgba(244,180,44,.04))':'linear-gradient(135deg,var(--reds),rgba(217,59,90,.04))'};border:1px solid ${tasaMora<=10?'rgba(6,176,106,.25)':tasaMora<=25?'rgba(244,180,44,.3)':'rgba(217,59,90,.25)'};border-radius:14px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:1fr auto auto;gap:16px;align-items:center">
+  <div class="pg-credit-overview">
+    <button type="button" class="btn btn-g pg-credit-toggle" aria-expanded="false" onclick="var open=this.parentNode.classList.toggle('is-open');this.setAttribute('aria-expanded',String(open))">Resumen de créditos <span aria-hidden="true">⌄</span></button>
+    <div class="pg-credit-metrics">
+  <div class="pg-credit-health" style="background:${tasaMora<=10?'linear-gradient(135deg,var(--greens),rgba(6,176,106,.04))':tasaMora<=25?'linear-gradient(135deg,var(--ambers),rgba(244,180,44,.04))':'linear-gradient(135deg,var(--reds),rgba(217,59,90,.04))'};border:1px solid ${tasaMora<=10?'rgba(6,176,106,.25)':tasaMora<=25?'rgba(244,180,44,.3)':'rgba(217,59,90,.25)'};border-radius:14px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:1fr auto auto;gap:16px;align-items:center">
     <div>
       <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:${tasaMora<=10?'var(--green)':tasaMora<=25?'var(--amber)':'var(--red)'};margin-bottom:4px">${tasaMora<=10?'✓ Cartera sana':tasaMora<=25?' Atención — mora elevada':' Cartera estresada'}</div>
       <div style="font-size:14px;font-weight:700;line-height:1.45">
@@ -273,6 +276,8 @@ PG.creditos = function(){
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════ -->
+    </div>
+  </div>
   <!-- Filter tabs -->
   <!-- ══════════════════════════════════════════════════════════════ -->
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
