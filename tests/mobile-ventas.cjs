@@ -53,7 +53,17 @@ async function snapshot(page,name){
    await page.goto(origin+'/admin.html?rol='+encodeURIComponent(role));
    await page.waitForFunction(()=>typeof S!=='undefined'&&S.currentUser&&S.motos.length>0);
    await page.waitForTimeout(500);
+   await page.evaluate(r=>nav(r==='Vendedor Concesionario'?'motos':'dash'),role);
+   await snapshot(page,prefix+'-inicio');
    if(width===390&&!scenario.role&&!AUDIT){
+    await page.locator('.pg-dashboard-more>summary').click();
+    assert(await page.locator('.pg-dashboard-more').evaluate(e=>e.open),'estadísticas del inicio accesibles');
+    await snapshot(page,prefix+'-estadisticas');
+    await page.locator('.pg-dashboard-more>summary').click();
+    await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(120);
+    assert.equal(await page.locator('.pg-dashboard-more').count(),0,'escritorio conserva el dashboard completo');
+    assert(!await page.locator('.pg-sales-home').isVisible(),'inicio de ventas reservado al móvil');
+    await page.setViewportSize({width,height:900});await page.waitForTimeout(120);
     const login=await ctx.newPage();await login.goto(origin+'/admin.html?anonimo=1');await login.locator('#l_user').waitFor({state:'visible'});
     assert.equal(await login.locator('#l_user').evaluate(e=>getComputedStyle(e).fontSize),'16px');
     await login.screenshot({path:path.join(OUT,'390-acceso.png')});await login.close();
@@ -91,8 +101,36 @@ async function snapshot(page,name){
     if(width===390&&!scenario.role){await page.evaluate(()=>toggleDark());await snapshot(page,prefix+'-perfil-oscuro');await page.evaluate(()=>toggleDark());}
     assert.equal(await page.locator('input[capture="environment"]').count(),1,'cámara trasera para documentos');
     assert.equal(await page.locator('input[capture="environment"]').getAttribute('accept'),'image/*');
+    if(width===390&&!scenario.role){
+     await page.locator('details[data-section="empleo"]>summary').click();
+     await page.locator('[onclick="_wzNext()"]').click();
+     assert.equal(await page.evaluate(()=>WZ.step),2,'el bloque requerido sigue validando');
+     assert(await page.locator('details[data-section="empleo"]').evaluate(e=>e.open),'el error abre el bloque que falta');
+    }
    }
    await page.locator('#wz_emp_g').locator('label').first().click();await page.locator('#wz_ing').fill('900');
+   if(!AUDIT&&width<=1024){
+    await page.waitForFunction(()=>document.querySelector('details[data-section="empleo"]').classList.contains('is-complete'));
+    assert.equal(await page.locator('#wz_emp_g').getAttribute('aria-invalid'),null,'la elección corregida limpia su aviso');
+    assert(await page.locator('details.pg-form-section').count()>=7,'perfil organizado por bloques');
+    await page.locator('details[data-section="referencias"]>summary').click();
+    await page.locator('#wz_r1n').fill('REFERENCIA DEMO');await page.locator('#wz_r1t').fill('04120000009');
+    await page.locator('details[data-section="empleo"]>summary').click();
+    assert.equal(await page.locator('#wz_ing').inputValue(),'900','cerrar bloques conserva el ingreso');
+    assert.equal(await page.locator('#wz_r1n').inputValue(),'REFERENCIA DEMO','referencia oculta conservada');
+    if(width===390&&!scenario.role){
+     assert(!await page.locator('details[data-section="residencia"]').evaluate(e=>e.classList.contains('is-complete')),'un valor de fábrica no marca la residencia como respondida');
+     await page.locator('.pg-profile-overview').click();await snapshot(page,prefix+'-perfil-bloques');
+     await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(120);
+     assert.equal(await page.locator('.pg-form-section').count(),0,'escritorio conserva las tarjetas originales');
+     assert.equal(await page.locator('.pg-profile-overview').count(),0,'el control móvil no se duplica al cambiar de tamaño');
+     assert.equal(await page.locator('[id^="wz-sec-"]').first().getAttribute('id'),'wz-sec-1','orden de escritorio conservado');
+     assert.equal(await page.locator('#wz_ing').inputValue(),'900','el cambio de tamaño conserva los campos');
+     await page.setViewportSize({width,height:900});await page.waitForTimeout(120);
+     assert.equal(await page.locator('.pg-profile-overview').count(),1,'un solo control al volver al móvil');
+     assert.equal(await page.locator('#wz_r1n').inputValue(),'REFERENCIA DEMO','referencias conservadas al volver al móvil');
+    }
+   }
    await page.locator('[onclick="_wzNext()"]').click();await page.waitForTimeout(250);
    assert.equal(await page.evaluate(()=>WZ.step),3);
    await snapshot(page,prefix+'-paso3');
@@ -106,6 +144,25 @@ async function snapshot(page,name){
     await page.locator('[onclick="_wzNext()"]').click();await page.waitForTimeout(180);
     assert.equal(await page.evaluate(()=>WZ.step),4,'llega a Resultado: '+await page.evaluate(()=>document.getElementById('toasts')?.innerText||''));
     await snapshot(page,prefix+'-resultado');
+    if(width<=1024){
+     assert.equal(await page.locator('.pg-review-score').getAttribute('open'),null,'score disponible en un desglose');
+     assert(await page.locator('.wz-plan-summary').evaluate(el=>Array.from(el.parentNode.children).indexOf(el)<Array.from(el.parentNode.children).indexOf(el.parentNode.querySelector('.wz-client-summary'))),'plan antes del detalle del cliente');
+     if(width===390&&!scenario.role){
+      await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(120);
+      assert.equal(await page.locator('.pg-review-score').count(),0,'escritorio muestra el resultado original');
+      await page.setViewportSize({width,height:900});await page.waitForTimeout(120);
+      assert.equal(await page.locator('.pg-review-score').count(),1,'desglose móvil único después de cambiar de tamaño');
+      await page.locator('[aria-label="Editar moto y plan"]').click();await page.waitForFunction(()=>WZ.step===3);await page.waitForTimeout(100);
+      assert.equal(await page.locator('#wz_ini_real').inputValue(),'700','editar conserva el plan');
+      await page.locator('[onclick="_wzNext()"]').click();await page.waitForFunction(()=>WZ.step===4);await page.waitForTimeout(100);
+      await page.locator('.wz-step[aria-label="Volver al paso 1"]').click();await page.waitForFunction(()=>WZ.step===1);await page.waitForTimeout(100);
+      assert.equal(await page.locator('#wz_nom').inputValue(),'VALERIA EJEMPLO','volver al cliente conserva sus datos');
+      await page.locator('[onclick="_wzNext()"]').click();await page.waitForFunction(()=>WZ.step===2);await page.waitForTimeout(100);
+      assert.equal(await page.locator('#wz_r1n').inputValue(),'REFERENCIA DEMO','revisión no borra referencias');
+      await page.locator('[onclick="_wzNext()"]').click();await page.waitForFunction(()=>WZ.step===3);await page.waitForTimeout(150);
+      await page.locator('[onclick="_wzNext()"]').click();await page.waitForFunction(()=>WZ.step===4);
+     }
+    }
     if(width<=1024){
      await page.evaluate(()=>history.back());await page.waitForFunction(()=>WZ.step===3);
      assert.equal(await page.locator('#wz_ini_real').inputValue(),'700','atrás del teléfono conserva la inicial');
@@ -121,6 +178,11 @@ async function snapshot(page,name){
     if(saved.payments.length)assert.equal(saved.payments[0].monto,700);
     await snapshot(page,prefix+'-venta-guardada');
     if(width<=1024){
+     assert(await page.locator('.pg-sale-success').isVisible(),'confirmación permanente después del guardado');
+     assert((await page.locator('.pg-sale-success').innerText()).includes(saved.credits[0].id),'confirmación con el número correcto');
+     await page.locator('.pg-sale-actions .btn-p').click();await page.locator('#modal-box').waitFor({state:'visible'});
+     assert(await page.locator('#modal-box').evaluate(e=>e.getBoundingClientRect().width<=innerWidth+1),'detalle de la venta cabe en pantalla');
+     await page.evaluate(()=>closeM());
      const metrics=page.locator('.pg-credit-toggle');
      if(await metrics.count()){
       await metrics.click();assert.equal(await metrics.getAttribute('aria-expanded'),'true','métricas disponibles al desplegar');

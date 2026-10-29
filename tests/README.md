@@ -29,6 +29,10 @@ Prueba teléfonos de 320 y 390 px, teléfono horizontal, tablet y escritorio.
 Completa la solicitud con un empleado y un vendedor de concesionario; comprueba
 el estado final, la inicial sin duplicados, permisos del menú, validación,
 navegación Atrás, captura de documentos y posición del botón con teclado simulado.
+Verifica el perfil por bloques, la apertura automática del campo pendiente,
+la conservación de datos al editar y cambiar de tamaño, la revisión del plan y
+la confirmación del guardado con acceso a la solicitud. Comprueba también que las
+estadísticas del inicio sigan disponibles al desplegarlas.
 También revisa la ausencia de desbordes y el tamaño de los campos. Guarda capturas
 y un informe en `../output/movil-ventas/despues` (configurable con
 `PAGASI_MOBILE_OUTPUT`). Usa exclusivamente Firebase ficticio en memoria y bloquea

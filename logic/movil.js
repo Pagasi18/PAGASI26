@@ -19,10 +19,12 @@ function pgMobilePrepare(){
     }
     if((S.page==='dash'||S.page==='motos') && typeof _puedeVender==='function' && _puedeVender() && hasModuleAccess('creditos')){
       var page=cnt.querySelector('.page');
-      if(page && !page.querySelector('.pg-mobile-quickstart')){
+      if(page && typeof pgSalesHome==='function')pgSalesHome(page);
+      else if(page && !page.querySelector('.pg-mobile-quickstart')){
         page.insertAdjacentHTML('afterbegin','<div class="pg-mobile-quickstart"><div><b>Tu próxima venta</b><p>Cliente · Perfil · Moto · Revisión</p></div><button type="button" class="btn btn-p" onclick="openAddCred()">＋ Nueva solicitud</button></div>');
       }
     }
+    if(typeof pgMobileSalesPanel==='function')pgMobileSalesPanel(cnt);
   }
   var ov=document.getElementById('wz-overlay');
   var scope=ov&&ov.style.display!=='none'?ov:cnt;
@@ -47,6 +49,7 @@ function pgMobileFieldError(id,message){
   if(typeof toast==='function')toast(message,'error');
   var el=document.getElementById(id);
   if(!el)return false;
+  if(typeof pgMobileOpenField==='function')pgMobileOpenField(el);
   if(el.focus){try{el.focus({preventScroll:true});}catch(e){el.focus();}}
   if(typeof el.insertAdjacentElement!=='function')return false;
   el.setAttribute('aria-invalid','true');
@@ -59,16 +62,20 @@ function pgMobileFieldError(id,message){
 function pgMobileWizardOpened(kind){
   var ov=document.getElementById('wz-overlay');if(!ov||!ov.style||typeof ov.style.setProperty!=='function')return;
   ov.setAttribute('data-wizard',kind);ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+  ov.setAttribute('data-step',String(WZ.step));
   ov.setAttribute('aria-label',kind==='cliente'?'Ficha del cliente':'Solicitud de venta');
   document.documentElement.classList.add('pg-wizard-open');
   if(window.innerWidth<=1024 && !_pgWizardHistory){
     try{history.pushState({app:'pagasi',page:S.page,wizard:kind},'',location.href);_pgWizardHistory=true;}catch(e){}
   }
   ov.scrollTop=0;
+  if(typeof pgMobileGuidedProfile==='function')pgMobileGuidedProfile(ov);
+  if(typeof pgMobileStepLinks==='function')pgMobileStepLinks(ov);
   pgMobilePrepare();
 }
 function pgMobileWizardClosed(){
   document.documentElement.classList.remove('pg-wizard-open');
+  if(typeof _pgProfileOpen!=='undefined')_pgProfileOpen='';
   var ov=document.getElementById('wz-overlay');if(ov&&ov.removeAttribute)ov.removeAttribute('data-wizard');
   if(_pgWizardHistory){_pgWizardHistory=false;try{history.replaceState({app:'pagasi',page:S.page},'',location.href);}catch(e){}}
 }

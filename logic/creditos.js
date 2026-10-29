@@ -2535,6 +2535,7 @@ function _wzNext(){
 // El indice del paso 2: lleva a la tarjeta y la marca (24-sep-2026)
 function _wzIrSeccion(n, chip){
   var el = document.getElementById('wz-sec-'+n);
+  if(el && el.tagName==='DETAILS')el.open=true;
   if(el && el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' });
   var nav = chip && chip.parentNode; if(nav) Array.prototype.forEach.call(nav.children, function(a){ a.classList.toggle('is-on', a===chip); });
 }
@@ -2612,7 +2613,7 @@ function _wzRenderResultado(){
     }).join('')
     +'</div></div>'
     // Resumen del cliente
-    +'<div class="wz-card">'
+    +'<div class="wz-card wz-client-summary">'
     +'<div class="wz-card-h"><span>Resumen del solicitante</span></div>'
     +[
       ['Cliente', WZ.nom||'—'],
@@ -2627,7 +2628,7 @@ function _wzRenderResultado(){
     +'</div>'
     // Plan de financiamiento
     +(WZ.precio>0?
-      '<div class="wz-card">'
+      '<div class="wz-card wz-plan-summary">'
       +'<div class="wz-card-h"><span>Plan de crédito · Pagasi</span></div>'
       // Lo que el cliente va a pagar, grande, como en la pagina
       +'<div style="display:grid;grid-template-columns:1.15fr 1fr;gap:14px;padding:14px 16px;border-radius:14px;background:var(--gs);border:1px solid var(--rim2);margin-bottom:12px">'
@@ -2659,6 +2660,7 @@ function _wzRenderResultado(){
     // Aqui ya no se pregunta nada: antes la inicial se pedia otra vez y la sede venia
     // puesta en la primera de la lista (23-sep-2026).
     + _wzResumenDineroHTML(r);
+  if(typeof pgMobileReviewPrepare==='function')pgMobileReviewPrepare();
 }
 
 // Fila del plan del catalogo en el resumen (credito nuevo): si la cuota se escribio a mano. Al editar no salen: el credito viejo ya tiene lo suyo.
@@ -3533,6 +3535,7 @@ function _wzGuardar(){
   // Si el crédito quedó como pendiente_revision (Vendedor Concesionario),
   // NO crear pago de inicial ni movimientos — eso se hará al aprobar
   if(newCred.estado === 'pendiente_revision'){
+    if(typeof pgMobileSalesComplete==='function')pgMobileSalesComplete(newCred);
     _wzClose();
     toast('Solicitud '+credId+' enviada a aprobación','success');
     if(typeof _sidebarSyncAprobaciones==='function') try{ _sidebarSyncAprobaciones(); }catch(_e){}
@@ -3590,6 +3593,7 @@ function _wzGuardar(){
   DB.saveMovimiento(movIni);
   });
 
+  if(typeof pgMobileSalesComplete==='function')pgMobileSalesComplete(newCred);
   _wzClose();
   nav('creditos');
   toast(' Solicitud creada · '+credId+' · Inicial '+fmt(r.ini)+' → '+_partesIni.map(function(p){ return _partesIni.length > 1 ? fmt(p.monto)+' '+p.cuenta : p.cuenta; }).join(' + '),'success');
