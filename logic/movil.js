@@ -5,7 +5,7 @@ function pgMobilePrepare(){
   var cnt=document.getElementById('cnt');
   if(cnt && typeof S!=='undefined'){
     cnt.setAttribute('data-page',S.page||'');
-    if(['clientes','motos','creditos'].indexOf(S.page)>=0){
+    if(['clientes','motos','creditos','pagos','contratos'].indexOf(S.page)>=0){   // 30-oct-2026: Cobranza y Contratos también en fichas (la tabla de 1.200 px era inusable en el teléfono)
       Array.prototype.forEach.call(cnt.querySelectorAll('.tw'),function(wrap){
         var heads=wrap.querySelectorAll('thead th');
         if(!heads.length)return;

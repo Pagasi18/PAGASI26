@@ -328,3 +328,23 @@
 }
 @keyframes pgMenuIn{from{transform:translateY(28px);opacity:.6}to{transform:translateY(0);opacity:1}}
 @media (prefers-reduced-motion:reduce){.pg-menu-panel{animation:none}#mob-bottom-bar .mbb-btn{transition:none}}
+
+/* 30-oct-2026 · Adam: "la experiencia móvil es muy mala". Cobranza en fichas, pestañas que se
+   deslizan en vez de partirse, y las ventanas de detalle a una columna. */
+@media (max-width:1024px){
+  #cnt[data-page=pagos] .pg-mobile-table td[data-label="Notas"],#cnt[data-page=pagos] .pg-mobile-table td[data-label="Gestión de cobro"],#cnt[data-page=pagos] .pg-mobile-table td[data-label="Concesionario"],#cnt[data-page=contratos] .pg-mobile-table td[data-label="Documentos"]{grid-column:1/-1}
+  #cnt[data-page=pagos] .pg-mobile-table td[data-label="Gestión de cobro"]>div,#cnt[data-page=pagos] .pg-mobile-table td[data-label="Notas"]>div{flex-wrap:wrap;gap:8px}
+  #cnt[data-page=pagos] .pg-mobile-table td input,#cnt[data-page=pagos] .pg-mobile-table td select{width:100%;max-width:100%}
+  #cnt .pg-mobile-table td:last-child .btn{white-space:nowrap;min-height:44px}
+  #cnt .pg-mobile-table td:last-child>div,#cnt .pg-mobile-table td:last-child>span{display:flex;flex-wrap:wrap;gap:8px;justify-content:stretch}
+  #cnt [style*="border-bottom:2px solid var(--rim)"][style*="display:flex"]{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin-left:-4px;margin-right:-4px;padding:0 4px}
+  #cnt [style*="border-bottom:2px solid var(--rim)"][style*="display:flex"]::-webkit-scrollbar{display:none}
+  #cnt [style*="border-bottom:2px solid var(--rim)"][style*="display:flex"]>button{white-space:nowrap;flex:0 0 auto;min-height:44px}
+}
+@media (max-width:600px){
+  #modal-box [style*="grid-template-columns:1fr 1fr"],#modal-box [style*="grid-template-columns: 1fr 1fr"],#modal-box [style*="grid-template-columns:repeat(2"]{grid-template-columns:minmax(0,1fr)!important}
+  #modal-box [style*="grid-template-columns:repeat(3"],#modal-box [style*="grid-template-columns:repeat(4"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #modal-box .m-ft{flex-wrap:wrap}
+  #modal-box .m-ft .btn{flex:1 1 44%;justify-content:center;white-space:normal}
+  #modal-box .m-bd>div{min-width:0}
+}

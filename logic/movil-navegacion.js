@@ -40,12 +40,18 @@ function pgMobileNavigationRefresh(){
   if(title.textContent!==label)title.textContent=label;
 }
 function pgMobileMenuEntries(){
-  var seen={},groups=[];
+  var seen={},labels={},groups=[];
+  // 30-oct-2026: dos módulos con el mismo nombre (pagos/cobranza = "Cobranza", reportes/conta = "Finanzas")
+  // salían repetidos en el menú del teléfono; se muestra solo el primero de cada nombre.
+  function entra(key){
+    if(!hasModuleAccess(key)||!sidebarMuestra(key))return false;
+    var l=pgMobileModuleLabel(key);if(labels[l])return false;labels[l]=true;return true;
+  }
   PG_MENU_GROUPS.forEach(function(group){
-    var keys=group.keys.filter(function(key){seen[key]=true;return hasModuleAccess(key)&&sidebarMuestra(key);});
+    var keys=group.keys.filter(function(key){seen[key]=true;return entra(key);});
     if(keys.length)groups.push({label:group.label,keys:keys});
   });
-  var others=Object.keys(PGL).filter(function(key){return !seen[key]&&key!=='whatsapp'&&key!=='instagram'&&hasModuleAccess(key)&&sidebarMuestra(key);});
+  var others=Object.keys(PGL).filter(function(key){return !seen[key]&&key!=='whatsapp'&&key!=='instagram'&&entra(key);});
   if(others.length)groups.push({label:'Otros accesos',keys:others});
   return groups;
 }

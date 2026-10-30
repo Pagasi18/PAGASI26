@@ -4128,10 +4128,11 @@ async function doLogin() {
     return;
   }
   showLoader('Iniciando sesión...', '');
+  _loginBusy(true);
   auth.signInWithEmailAndPassword(email, pass)
-    .then(function() { hideLoader(); _doLoginInProgress = false; })
+    .then(function() { hideLoader(); _loginBusy(false); _doLoginInProgress = false; })
     .catch(function(e) {
-      hideLoader();
+      hideLoader(); _loginBusy(false);
       _doLoginInProgress = false;
       if (errEl) {
         if (e.code === 'auth/network-request-failed') {
@@ -4156,6 +4157,15 @@ async function doLogin() {
     });
 }
 window.doLogin = doLogin;
+// Entrada (30-oct-2026): el botón muestra que está trabajando y la contraseña se puede ver.
+function _loginBusy(on){ var b=$('login-btn'); if(!b) return; b.classList.toggle('is-busy', !!on); b.setAttribute('aria-busy', on ? 'true' : 'false'); }
+function toggleLoginPass(){
+  var i=$('l_pass'), b=$('login-eye'); if(!i) return;
+  var ver = i.type === 'password'; i.type = ver ? 'text' : 'password';
+  if(b){ b.classList.toggle('on', ver); b.setAttribute('aria-label', ver ? 'Ocultar contraseña' : 'Mostrar contraseña'); }
+  i.focus();
+}
+window.toggleLoginPass = toggleLoginPass;
 
 // Restablecer contraseña desde la pantalla de login (envía email de reset).
 // Clave para recuperar cuentas "huérfanas": al resetear y entrar, el doc de
