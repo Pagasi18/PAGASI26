@@ -66,7 +66,8 @@ async function arrancar(preparar, hostname){
   fb.initializeApp = function(cfg, nombre){ const app = origFb.call(fb, cfg, nombre); if (preparar) preparar(bases, app.name); return app; };
   const els = {};
   const doc = { getElementById(id){ return els[id] || (els[id] = elemento()); }, querySelector(){ return null; }, querySelectorAll(){ return []; }, createElement(){ return elemento(); }, body: elemento(), documentElement: elemento(), addEventListener(){}, removeEventListener(){}, visibilityState: 'visible' };
-  const ctx = { console: { log(){}, warn(){}, error(){} }, setTimeout, clearTimeout, setInterval(){ return 0; }, clearInterval(){}, requestAnimationFrame(){ return 0; },
+  const ctx = { MICUENTA_CERRADA_PRUEBA: false,   // estas pruebas son del portal abierto; el cierre tiene su propia suite
+    console: { log(){}, warn(){}, error(){} }, setTimeout, clearTimeout, setInterval(){ return 0; }, clearInterval(){}, requestAnimationFrame(){ return 0; },
     document: doc, navigator: { userAgent: 'node', language: 'es' }, location: { hostname: hostname || 'pagasi.io', origin: 'https://' + (hostname || 'pagasi.io'), href: 'https://' + (hostname || 'pagasi.io') + '/micuenta.html', search: '', hash: '', pathname: '/micuenta.html' },
     localStorage: { getItem(){ return null; }, setItem(){}, removeItem(){} }, sessionStorage: { getItem(){ return null; }, setItem(){}, removeItem(){} },
     URLSearchParams, fetch(){ return Promise.reject(new Error('sin red en la prueba')); }, alert(){}, firebase: fb, history: { replaceState(){}, pushState(){} }, matchMedia(){ return { matches: false, addEventListener(){} }; }, Image: function(){}, scrollTo(){}, innerWidth: 390, innerHeight: 800 };

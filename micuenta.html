@@ -369,7 +369,7 @@ details summary::-webkit-details-marker{display:none}
 .gps-meta{font-size:13.5px;font-weight:700;color:var(--ink-2);margin-bottom:12px;line-height:1.45}
 .gps-meta small{display:block;font-size:12px;font-weight:600;color:var(--ink-4);margin-top:2px}
 </style>
-<link rel="stylesheet" href="assets/public/site.css?v=26-20261029-1805"><link rel="stylesheet" href="assets/public/account.css?v=26-20261029-1805"><link rel="stylesheet" href="assets/public/hero-motion.css?v=26-20261029-1805">
+<link rel="stylesheet" href="assets/public/site.css?v=26-20261030-1810"><link rel="stylesheet" href="assets/public/account.css?v=26-20261030-1810"><link rel="stylesheet" href="assets/public/hero-motion.css?v=26-20261030-1810">
 <style>
 /* ══ Mi cuenta como el panel de aliados (15-oct-2026) ══ */
 :root{--azul:#065cff;--azul-2:#0048dc;--azul-claro:#e8f0ff;--cielo:#00b4ff;--fg:#101a35;--fg-2:#4b5875;--fg-3:#7c88a6;--linea:#dfe7f3;--bien:#0e9f6e;--bien-bg:#e6f7f0;--ojo:#d97706;--ojo-bg:#fff4e0;--mal:#dc2626;--mal-bg:#fdecec;--bronce:#c2733a;--plata:#8d9bb5;--oro:#e0a200;--platino:#2fc0ff}
@@ -732,9 +732,9 @@ details summary::-webkit-details-marker{display:none}
 <script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <!-- Mismo motor de calculo que usa el admin: el cliente ve exactamente las
      mismas cifras que el cobrador, sin posibilidad de divergencia. -->
-<script src="assets/public/catalog.js?v=26-20261029-1805"></script>
-<script src="logic/credito-ledger.js?v=26-20261029-1805"></script>
-<script src="logic/gamificacion.js?v=26-20261029-1805"></script>
+<script src="assets/public/catalog.js?v=26-20261030-1810"></script>
+<script src="logic/credito-ledger.js?v=26-20261030-1810"></script>
+<script src="logic/gamificacion.js?v=26-20261030-1810"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
    PORTAL DEL CLIENTE — Pagasi
@@ -915,6 +915,32 @@ function _enlaceHermano(){
   }catch(e){ return ''; }
 }
 
+/* ── Interruptor: entrada de clientes CERRADA (30-oct-2026) ─────────────────
+   Adam: "apágame para que los clientes no puedan entrar a Mi cuenta desde pagasi.io".
+   true  = los clientes no entran: la página muestra un aviso y no conecta con Firebase
+           (ni SMS, ni enlace ?t=, ni sesión guardada en el navegador).
+           El equipo sigue entrando con micuenta.html?equipo=1 (correo y clave del panel).
+   false = Mi cuenta abierta como siempre. Para reabrir: cambiar este valor y publicar.
+   MICUENTA_CERRADA_PRUEBA solo lo usan las pruebas para ejercitar el portal abierto.
+   ------------------------------------------------------------------------- */
+var MICUENTA_CERRADA = (typeof MICUENTA_CERRADA_PRUEBA === 'boolean') ? MICUENTA_CERRADA_PRUEBA : true;
+function mostrarCerrado(){
+  $('scApp').classList.add('hide'); $('mBar').classList.add('hide');
+  $('scLogin').classList.remove('hide');
+  ['stepTel','stepCod','stepCed','stepStaff','lgStaff','recaptcha-container'].forEach(function(id){ var e=$(id); if(e) e.classList.add('hide'); });
+  hideErr('lgErr');
+  $('lgT').textContent = 'Mi cuenta no está disponible por ahora';
+  $('lgSub').textContent = 'Estamos haciendo mejoras. Para consultar tu crédito o reportar un pago, escríbenos por WhatsApp y te atendemos.';
+  var wa = $('lgWa');
+  if(wa){
+    wa.textContent = 'Escribir por WhatsApp';
+    wa.href = 'https://wa.me/' + WA_PAGASI + '?text=' + encodeURIComponent('Hola, quiero consultar mi crédito Pagasi');
+    wa.classList.remove('lnk'); wa.classList.add('btn','btn-p');
+    wa.style.color='#fff'; wa.style.textDecoration='none'; wa.style.display='flex'; wa.style.justifyContent='center';
+  }
+  var nota = document.querySelector('.pg-motion-note'); if(nota) nota.textContent = 'Gracias por tu paciencia.';
+}
+
 (function boot(){
   $('lgLogo').src = LOGO; $('apLogo').src = LOGO_BLANCO;
   $('pFecha').value = hoyISO();
@@ -924,6 +950,7 @@ function _enlaceHermano(){
   // micuenta.html?equipo=1 -> entrada directa del equipo. Sirve para cuando el
   // navegador tiene guardada la sesion de un cliente (soporte, pruebas).
   S.equipo = qs.get('equipo') === '1' || location.hash === '#equipo';
+  if(MICUENTA_CERRADA && !S.equipo){ mostrarCerrado(); return; }
 
   $('cod').addEventListener('keydown', function(e){ if(e.key==='Enter') verificarCodigo(); });
   $('tel').addEventListener('keydown', function(e){ if(e.key==='Enter') pedirCodigo(); });
@@ -1034,6 +1061,7 @@ function volverATel(){
 var _confirm = null, _verifier = null, _verifierBase = '', _telPend = '';
 
 function pedirCodigo(){
+  if(MICUENTA_CERRADA && !S.equipo) return;   // Mi cuenta cerrada a clientes
   hideErr('lgErr');
   var e164 = telE164($('tel').value || _telPend);
   if(!e164){ showErr('lgErr','Escribe tu número de celular completo (por ejemplo 04143081617).'); return; }
@@ -1084,6 +1112,7 @@ function pedirCodigo(){
 }
 
 function verificarCodigo(){
+  if(MICUENTA_CERRADA && !S.equipo) return;   // Mi cuenta cerrada a clientes
   hideErr('lgErr');
   var c = soloDigitos($('cod').value);
   if(c.length < 4){ showErr('lgErr','Escribe el código completo que te llegó.'); return; }
@@ -1140,6 +1169,7 @@ function abrirSesionPorTelefono(phone){
 
 /* ── Entrar con enlace personal (respaldo si el SMS no llega) ─────────── */
 function entrarConEnlace(){
+  if(MICUENTA_CERRADA && !S.equipo) return;   // Mi cuenta cerrada a clientes
   hideErr('lgErr');
   var ced = soloDigitos($('ced').value);
   if(ced.length < 5){ showErr('lgErr','Escribe tu cédula completa, solo los números.'); return; }
@@ -2284,6 +2314,6 @@ function enviarCodigoWhatsApp(cedula){
   return Promise.reject(new Error('pendiente-aprobacion-meta'));
 }
 </script>
-<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a><a href="privacidad.html">Privacidad</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20con%20mi%20cuenta%20Pagasi">+58 422-2285526</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer><script src="assets/public/site.js?v=26-20261029-1805"></script>
-<script src="assets/public/hero-motion.js?v=26-20261029-1805"></script></body>
+<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a><a href="privacidad.html">Privacidad</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20con%20mi%20cuenta%20Pagasi">+58 422-2285526</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer><script src="assets/public/site.js?v=26-20261030-1810"></script>
+<script src="assets/public/hero-motion.js?v=26-20261030-1810"></script></body>
 </html>
