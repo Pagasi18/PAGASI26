@@ -1,5 +1,5 @@
 // Exportar a QuickBooks (Adam, 23-oct-2026): las plantillas de importación del nuevo contador (01 Ficha de Clientes,
-// 02 Servicios, 03 Factura de Servicios a clientes, 05 Ficha de Proveedores y 06 Factura de Proveedor QB), llenas con
+// 02 Servicios, 03 Factura de Servicios a clientes · Crédito, 04 · Contado (29-oct), 05 Ficha de Proveedores y 06 Factura de Proveedor QB), llenas con
 // lo que el sistema YA calcula: el reparto de la Nueva metodología, el motor contable y el Libro de Compras.
 // "Tiene que ser perfecto y dar los datos perfectos y tomar, no hacer cálculos nuevos… agarrar lo que ya tenemos".
 const fs=require('fs'), path=require('path'), vm=require('vm');
@@ -69,7 +69,7 @@ ok('cuota que no llega al 12 % (sin Protect): no inventa Protect y suma lo cobra
 
 // ── Saldo por cobrar a la fecha de corte (motor contable) ─────────────────────────────────────────────────
 const pagos154=[
-  { id:'PAG-1', cred:'M-154', fecha:'2026-10-08', monto:53, estado:'confirmado' },
+  { id:'PAG-1', cred:'M-154', fecha:'2026-10-08', monto:53, estado:'confirmado', metodo:'100% Banco 26' },
   { id:'PAG-2', cred:'M-154', fecha:'2026-10-20', monto:30, estado:'confirmado' },
   { id:'PAG-3', cred:'M-154', fecha:'2026-10-22', monto:76, estado:'confirmado' },
   { id:'PAG-4', cred:'M-154', fecha:'2026-10-25', monto:53, estado:'pendiente' },
@@ -103,8 +103,9 @@ const creds=[
   { id:'M-160', cli:'BORRADO', fecha:'2026-09-15', estado:'activo', eliminado:true, precio:1, ini:0, cuotaQ:1, totalCuotas:2 }
 ];
 const pagos=pagos154.concat([
-  { id:'PAG-5', cred:'M-157', fecha:'2026-10-05', monto:53, estado:'confirmado' },
-  { id:'PAG-6', cred:'M-158', fecha:'2026-10-09', monto:53, estado:'confirmado' },
+  { id:'PAG-5', cred:'M-157', fecha:'2026-10-05', monto:53, estado:'confirmado', metodo:'Binance 26' },
+  { id:'PAG-6', cred:'M-158', fecha:'2026-10-09', monto:53, estado:'confirmado', metodo:'Zelle Pagasi' },      // cuenta que QuickBooks no conoce
+  { id:'PAG-10', cred:'M-157', fecha:'2026-10-19', monto:106, estado:'confirmado', metodo:'Efectivo USD' },   // dos cuotas completas de una vez
   { id:'PAG-7', cred:'M-158', fecha:'2026-09-30', monto:53, estado:'confirmado' },                       // otro mes
   { id:'PAG-8', cred:'M-159', fecha:'2026-10-11', monto:53, estado:'confirmado', eliminado:true },      // eliminado
   { id:'PAG-9', cred:'M-999', fecha:'2026-10-12', monto:40, estado:'confirmado' }                       // sin crédito
@@ -152,26 +153,58 @@ ok('...ninguna fila trae el "N/A" de la plantilla vieja: es el archivo del conta
 ok('..."OTROS SERVICIOS" no sale donde no hay contratos viejos (PAGASI 26)', !sv.some(r=>r[0]==='OTROS SERVICIOS'));
 const D18=G.qbDatos({ creds:[VIEJO], pagos:[], clientes:[], facturas:[], egresos:[], periodo:'2026-10', corte:'2026-09-30' });
 ok('...y sí sale donde los hay (PAGASI 18), como fila 43', D18.filas.servicios.length===43 && D18.filas.servicios.some(r=>r[0]==='OTROS SERVICIOS'));
-ok('...las facturas usan exactamente los nombres del 02', D.filas.facturas.every(r=>sv.some(s=>s[0]===r[5])));
+ok('...las facturas (03) y los recibos (04) usan exactamente los nombres del 02', D.filas.facturas.every(r=>sv.some(s=>s[0]===r[5])) && D.filas.contado.every(r=>sv.some(s=>s[0]===r[6])));
 
 // 03 Facturas
+// 03 Facturas a crédito (los abonos) y 04 Recibos de contado (cuotas completas de una vez), el contador 29-oct-2026
 const fc=D.filas.facturas, nums=[...new Set(fc.map(r=>r[0]))];
-ok('03: una factura por cuota cobrada y confirmada del mes, con el N° del pago', nums.length===5 && nums.join(',')==='PAG-5,PAG-1,PAG-6,PAG-2,PAG-3');
-ok('...sin la inicial, el pendiente, el eliminado, el de otro mes ni el que no tiene crédito', !fc.some(r=>/PAG-(INI|4|7|8|9)$/.test(r[0])));
+const ct=D.filas.contado, numsC=[...new Set(ct.map(r=>r[0]))];
+ok('03: a crédito van los abonos: el de 30 a la cuota 2 y el de 76 que la completa y paga la 3 (varios pagos a una cuota)', nums.length===2 && nums.join(',')==='PAG-2,PAG-3');
+ok('04: de contado van los que pagan cuotas completas de una vez, en orden de fecha y con el N° del pago', numsC.length===4 && numsC.join(',')==='PAG-5,PAG-1,PAG-6,PAG-10');
+ok('...ningún cobro está en los dos archivos, y entre los dos están todos', nums.every(n=>numsC.indexOf(n)<0) && nums.length+numsC.length===6);
+ok('...sin la inicial, el pendiente, el eliminado, el de otro mes ni el que no tiene crédito', !fc.concat(ct).some(r=>/PAG-(INI|4|7|8|9)$/.test(r[0])));
 ok('...el N° de la factura fiscal, si se emitió, va en la nota (la anulada no cuenta)', fc.find(r=>r[0]==='PAG-2')[14]==='CONTRATO Nº M-154 · FACTURA FISCAL Nº 00000202' && fc.find(r=>r[0]==='PAG-3')[14]==='CONTRATO Nº M-154');
-const f1=fc.filter(r=>r[0]==='PAG-1');
-ok('...la primera línea con todo: cliente, fechas dd/mm/aaaa, términos, moneda, Service Date y nota', f1[0].join(';')==='PAG-1;JESUS GALARRAGA;08/10/2026;23/10/2026;Net 15;CARTERA DE FINANCIAMIENTO;AMORTIZACION DE FINANCIAMIENTO;1;25.01;25.01;No VAT (0%);0;USD;08/10/2026;CONTRATO Nº M-154');
-ok('...las siguientes solo con el N° y la línea, como la plantilla', f1[1].join(';')==='PAG-1;;;;;INTERESES DE FINANCIAMIENTO;INTERESES POR FINANCIAMIENTO;1;3.17;3.17;No VAT (0%);0;;;' && f1[2].join(';')==='PAG-1;;;;;INGRESOS POR PAGASI PROTEC;INGRESOS POR PAGASI PROTEC;1;21.4;21.4;16.0% S (16%);3.42;;;');
 const f2=fc.find(r=>r[0]==='PAG-2');
-ok('...la fecha es la del cobro aunque tenga factura fiscal (el mismo cobro sale igual en cualquier exportación)', f2[2]==='20/10/2026' && f2[3]==='04/11/2026');
-ok('...Service Date = vencimiento de la cuota que pagó (el abono de 30 es de la cuota 2)', f2[13]==='23/10/2026');
-ok('...el cliente de la factura es el mismo nombre de la Ficha de Clientes', fc.filter(r=>r[1]).every(r=>cli.some(c=>c[0]===r[1])));
-ok('...la de la otra MARIA PEREZ va a su propia ficha', fc.find(r=>r[0]==='PAG-6')[1]==='MARIA PEREZ (V-8888888)');
-const C3=D.controles.facturas;
-ok('...control: lo facturado cuadra con lo cobrado', C3.some(c=>/igual a lo cobrado/.test(c.concepto) && c.estado==='CUADRA'));
+ok('...03: la fecha es la del cobro aunque tenga factura fiscal, con vencimiento a 15 días y Net 15', f2[2]==='20/10/2026' && f2[3]==='04/11/2026' && f2[4]==='Net 15');
+ok('...03: Service Date = vencimiento de la cuota que pagó (el abono de 30 es de la cuota 2)', f2[13]==='23/10/2026');
+const f1=ct.filter(r=>r[0]==='PAG-1');
+ok('04: la primera línea con todo: cliente, fecha dd/mm/aaaa, cuenta de depósito, Memo, moneda y Service Date', f1[0].join(';')==='PAG-1;JESUS GALARRAGA;08/10/2026;1103001 100% BANCO CTA. CTE Nº 68129;;CONTRATO Nº M-154;CARTERA DE FINANCIAMIENTO;AMORTIZACION DE FINANCIAMIENTO;1;25.01;25.01;No VAT (0%);0;USD;08/10/2026');
+ok('...las siguientes con el N°, la cuenta de depósito (como la plantilla) y la línea', f1[1].join(';')==='PAG-1;;;1103001 100% BANCO CTA. CTE Nº 68129;;;INTERESES DE FINANCIAMIENTO;INTERESES POR FINANCIAMIENTO;1;3.17;3.17;No VAT (0%);0;;' && f1[2].join(';')==='PAG-1;;;1103001 100% BANCO CTA. CTE Nº 68129;;;INGRESOS POR PAGASI PROTEC;INGRESOS POR PAGASI PROTEC;1;21.4;21.4;16.0% S (16%);3.42;;');
+ok('...la cuenta de depósito sale del "Recibido en" del pago: Binance → 1105001, Efectivo → 1102001', ct.find(r=>r[0]==='PAG-5')[3]==='1105001 BINANCE' && ct.find(r=>r[0]==='PAG-10')[3]==='1102001 CAJA EN MONEDA EXTRANJERA USD');
+ok('...un "Recibido en" que QuickBooks no conoce sale con su nombre y el control lo avisa', ct.find(r=>r[0]==='PAG-6')[3]==='ZELLE PAGASI' && D.controles.contado.some(c=>/Cuenta de depósito/.test(c.concepto) && c.estado==='REVISAR: 1 sin cuenta'));
+const f10=ct.filter(r=>r[0]==='PAG-10');
+ok('...dos cuotas completas en un solo pago: un solo recibo que suma lo cobrado, con el primer vencimiento', cerca(f10.reduce((a,r)=>a+r[10]+r[12],0), 106) && f10[0][14]==='10/10/2026' && D.controles.contado.some(c=>/varias cuotas/.test(c.concepto) && c.estado==='1'));
+ok('...el cliente de cada archivo es el mismo nombre de la Ficha de Clientes', fc.concat(ct).filter(r=>r[1]).every(r=>cli.some(c=>c[0]===r[1])));
+ok('...la de la otra MARIA PEREZ va a su propia ficha', ct.find(r=>r[0]==='PAG-6')[1]==='MARIA PEREZ (V-8888888)');
+const C3=D.controles.facturas, C4=D.controles.contado;
+ok('...control: lo facturado cuadra con lo cobrado en los dos archivos', C3.some(c=>/igual a lo cobrado/.test(c.concepto) && c.estado==='CUADRA') && C4.some(c=>/igual a lo cobrado/.test(c.concepto) && c.estado==='CUADRA'));
+ok('...control: 2 abonos ($106) + 4 de contado ($265) = los 6 cobros del mes', C3.some(c=>/^Abonos del mes/.test(c.concepto) && /^2 · /.test(c.estado) && /106/.test(c.estado)) && C3.some(c=>/Crédito \(03\) \+ Contado \(04\)/.test(c.concepto) && /^6 · /.test(c.estado) && /371/.test(c.estado)) && C4.some(c=>/^Cobros de contado/.test(c.concepto) && /^4 · /.test(c.estado) && /265/.test(c.estado)));
+ok('...control: el de 76 (más de una cuota sin ser cuotas completas) queda contado aparte', C3.some(c=>/más de una cuota sin ser cuotas completas/.test(c.concepto) && c.estado==='1'));
+ok('...control: ningún cobro de octubre se anotó después de cerrar el mes', C3.some(c=>/después de que terminó el mes/.test(c.concepto) && c.estado==='OK') && C4.some(c=>/después de que terminó el mes/.test(c.concepto) && c.estado==='OK'));
 ok('...control: cuenta las iniciales que no van y el cobro sin crédito', C3.some(c=>/Iniciales/.test(c.concepto) && /^0 /.test(c.estado)) && C3.some(c=>/sin su crédito/.test(c.concepto) && c.estado==='REVISAR: 1'));
-const totalCobrado=53+53+53+30+76, totalFacturado=r2(fc.reduce((a,r)=>a+r[9]+r[11],0));
-ok('...suma de montos + IVA de todo el archivo = ' + totalCobrado, cerca(totalFacturado, totalCobrado));
+ok('...suma de montos + IVA del 03 = 106 y del 04 = 265', cerca(r2(fc.reduce((a,r)=>a+r[9]+r[11],0)), 106) && cerca(r2(ct.reduce((a,r)=>a+r[10]+r[12],0)), 265));
+ok('...el 04 con el encabezado exacto de la plantilla del contador', G.qbCsvTexto(G.QB_ARCHIVOS.contado.enc, ct).split('\r\n')[0]==='*SalesReceiptNo;Customer;*SalesReceiptDate;*DepositAccount;Location;Memo;Item(Product/Service);ItemDescription;ItemQuantity;ItemRate;*ItemAmount;*ItemTaxCode;ItemTaxAmount;Currency;Service Date');
+ok('...y el "Nº" de la cuenta del banco sale en Windows-1252 como el byte BA, igual que en su archivo', (()=>{ const b=G.qbWin1252(G.QB_CUENTAS_DEPOSITO[0].cuenta); return b.length===G.QB_CUENTAS_DEPOSITO[0].cuenta.length && Array.from(b).indexOf(0xBA)>-1; })());
+
+// La regla de contado mira el MONTO contra la cuota, no el reparto del motor (lo que encontró la revisión del 29-oct-2026)
+const baseQ=(extra)=>Object.assign({ creds:[], pagos:[], clientes, facturas:[], egresos:[], motos:[], concesionarios:[], periodo:'2026-10', corte:'2026-09-30' }, extra);
+const R1={ id:'M-R', cli:'JESUS GALARRAGA', clienteId:7, fecha:'2026-09-01', estado:'activo', precio:1350, ini:750, cuotaQ:71.51, totalCuotas:24, total:1716.24 };
+const pagosR=[71.51, 72, 71.51, 71.50, 60, 143.02].map((m,i)=>({ id:'PAG-R'+(i+1), cred:'M-R', fecha:'2026-10-'+String(1+i*4).padStart(2,'0'), monto:m, estado:'confirmado', metodo:'Efectivo' }));
+const DR=G.qbDatos(baseQ({ creds:[R1], pagos:pagosR }));
+const idsC=[...new Set(DR.filas.contado.map(r=>r[0]))], idsF=[...new Set(DR.filas.facturas.map(r=>r[0]))];
+ok('redondeo: 72 o 71,50 por una cuota de 71,51 es la cuota completa (contado), y no vuelve "abono" a los pagos exactos que siguen', idsC.join(',')==='PAG-R1,PAG-R2,PAG-R3,PAG-R4,PAG-R6' && idsF.join(',')==='PAG-R5');
+ok('...60 por una cuota de 71,51 es un abono (crédito); 143,02 son dos cuotas completas (un recibo); los dos redondeos se cuentan', DR.controles.contado.some(c=>/varias cuotas/.test(c.concepto) && c.estado==='1') && DR.controles.contado.some(c=>/redonde/.test(c.concepto) && c.estado==='2') && cerca(DR.filas.contado.filter(r=>r[0]==='PAG-R6').reduce((a,r)=>a+r[10]+r[12],0), 143.02));
+const PX={ id:'PAG-X', cred:'M-154', fecha:'2026-10-20', monto:53, estado:'confirmado', metodo:'Binance 26' };
+const DA=G.qbDatos(baseQ({ creds:[M154], pagos:[PX] }));
+const DB=G.qbDatos(baseQ({ creds:[M154], pagos:[PX, { id:'PAG-Y', cred:'M-154', fecha:'2026-10-15', monto:30, estado:'confirmado', creadoEn:'2026-11-05T14:00:00.000Z' }] }));
+ok('un abono anotado en noviembre con fecha de octubre no cambia de archivo al cobro ya exportado: PAG-X sigue en el 04', DA.filas.contado.some(r=>r[0]==='PAG-X') && DB.filas.contado.some(r=>r[0]==='PAG-X') && DB.filas.facturas.some(r=>r[0]==='PAG-Y'));
+ok('...pero el control del 03 avisa que ese abono se registró después de cerrar el mes', DB.controles.facturas.some(c=>/después de que terminó el mes/.test(c.concepto) && c.estado==='REVISAR: 1') && DA.controles.facturas.some(c=>/después de que terminó el mes/.test(c.concepto) && c.estado==='OK'));
+const DL=G.qbDatos(baseQ({ creds:[LIQ], pagos:pagosLiq }));
+ok('la liquidación anticipada es un solo cobro que salda el crédito: va de contado, y el control la cuenta', DL.filas.contado.some(r=>r[0]==='P-LIQ-1') && !DL.filas.facturas.length && DL.controles.contado.some(c=>/Liquidaciones anticipadas/.test(c.concepto) && c.estado==='1'));
+const DN=G.qbDatos(baseQ({ creds:[M154], pagos:[{ id:'PAG-N', cred:'M-154', fecha:'2026-10-02', monto:53, estado:'confirmado', metodo:'', cuenta:'—' }] }));
+ok('un pago guardado sin cuenta ("—") sale como SIN CUENTA, no con la raya', DN.filas.contado[0][3]==='SIN CUENTA' && DN.controles.contado.some(c=>/Cuenta de depósito/.test(c.concepto) && c.estado==='REVISAR: 1 sin cuenta'));
+const DS=G.qbDatos(baseQ({ creds:[Object.assign({}, M154, { id:'M-S', estado:'completado' })], pagos:[{ id:'PAG-S', cred:'M-S', fecha:'2026-10-02', monto:1272, estado:'confirmado' }, { id:'PAG-S2', cred:'M-S', fecha:'2026-10-09', monto:53, estado:'confirmado' }] }));
+ok('un cobro que el motor no aplica a ninguna cuota (el crédito ya estaba saldado) va a crédito y el control lo avisa', DS.filas.facturas.some(r=>r[0]==='PAG-S2') && DS.controles.facturas.some(c=>/no aplica a ninguna cuota/.test(c.concepto) && c.estado==='REVISAR: 1'));
 
 // 05 Proveedores
 const pv5=D.filas.proveedores;
@@ -207,7 +240,7 @@ ok('...Ñ, acentos, € y raya larga a su byte; lo que no existe en 1252 queda "
 ok('...un texto con ";" va entre comillas para no romper las columnas', G.qbCsvTexto(['a','b'], [['x;y','z"w']]).split('\r\n')[1]==='"x;y";"z""w"');
 const csv6=G.qbCsvTexto(G.QB_ARCHIVOS.compras.enc, cp);
 ok('...el 06 con su encabezado exacto', csv6.split('\r\n')[0]==='*BillNo;*Supplier;*BillDate;*DueDate;Terms;Location;Memo;*Account;LineDescription;*LineAmount;*LineTaxCode;LineTaxAmount;Currency');
-ok('...los montos con punto decimal y sin separador de miles', /;1200;16\.0% S \(16%\);192;USD\r\n/.test(csv6) && /;3\.42;/.test(csv));
+ok('...los montos con punto decimal y sin separador de miles', /;1200;16\.0% S \(16%\);192;USD\r\n/.test(csv6) && /;3\.42;/.test(G.qbCsvTexto(G.QB_ARCHIVOS.contado.enc, ct)));
 
 const hoja=G.qbHoja('clientes', cli);
 ok('Excel: fila 1 = los encabezados de la plantilla, sin títulos encima (QuickBooks lee la primera fila)', hoja.rows[0].map(c=>c.v).join('|')===G.QB_ARCHIVOS.clientes.enc.join('|') && hoja.name==='02. Importacion de Clientes');
@@ -219,7 +252,9 @@ ok('...cada archivo con la hoja de su plantilla', G.qbHoja('servicios',[]).name=
 
 // ── La búsqueda elige facturas enteras ─────────────────────────────────────────────────────────────────────
 const V=G._qbVer(Object.assign({}, D, { st:{ q:'M-154' } }), 'facturas');
-ok('buscar un contrato trae sus facturas con todas sus líneas', V.filtrado && V.filas.length===9 && V.filas.every(r=>/^(PAG-1|PAG-2|PAG-3)$/.test(r[0])));
+ok('buscar un contrato trae sus facturas con todas sus líneas', V.filtrado && V.filas.length===6 && V.filas.every(r=>/^(PAG-2|PAG-3)$/.test(r[0])));
+const VC=G._qbVer(Object.assign({}, D, { st:{ q:'M-154' } }), 'contado');
+ok('...y en el 04 sus recibos enteros', VC.filtrado && VC.filas.length===3 && VC.filas.every(r=>r[0]==='PAG-1'));
 const V6=G._qbVer(Object.assign({}, D, { st:{ q:'papeleria' } }), 'compras');
 ok('...y en el 06 también (ignorando acentos)', V6.filas.length===2 && V6.filas.every(r=>r[0]==='A-77'));
 
@@ -234,7 +269,7 @@ const cB={ id:'M-9', cli:'Maria Perez', clienteId:2, fecha:'2026-11-05', estado:
 const pA={ id:'PAG-A', cred:'M-1', fecha:'2026-12-01', monto:53, estado:'confirmado' };
 const oct=G.qbDatos(base({ creds:[cA], clientes:[A1] }));
 const dic=G.qbDatos(base({ creds:[cA,cB], clientes:[A1,A2], pagos:[pA], periodo:'2026-12' }));
-ok('nombre estable: la que ya estaba sigue llamándose igual cuando llega otra con el mismo nombre', oct.filas.clientes[0][0]==='MARIA PEREZ' && !!fila01(dic,'MARIA PEREZ') && dic.filas.facturas[0][1]==='MARIA PEREZ');
+ok('nombre estable: la que ya estaba sigue llamándose igual cuando llega otra con el mismo nombre', oct.filas.clientes[0][0]==='MARIA PEREZ' && !!fila01(dic,'MARIA PEREZ') && dic.filas.contado[0][1]==='MARIA PEREZ');
 ok('...la que llega después lleva su cédula, aunque esté escrita en minúsculas (QuickBooks no distingue)', !!fila01(dic,'Maria Perez (V-2)'));
 
 // Créditos sin cuota: el motor no arma el plan → total − cobrado, como en Pagos, y queda marcado
@@ -256,21 +291,21 @@ ok('precio vacío o menor que la inicial: ninguna línea negativa y el Protect n
 // IGTF de la factura fiscal: no es ingreso, va en su línea
 const facIg={ id:'FAC-9', numero:'00000300', pagoId:'PAG-1', fechaEmision:'2026-10-08', subtotal:44.36, iva:7.10, igtf:1.54, total:53, anulada:false };
 const Dig=G.qbDatos(base({ creds:[M154], clientes, pagos:pagos154, facturas:[facIg] }));
-const lig=Dig.filas.facturas.filter(r=>r[0]==='PAG-1');
-ok('IGTF: va en su propia línea "IGTF PERCIBIDO", sin IVA', lig.some(r=>r[5]==='IGTF PERCIBIDO' && r[9]===1.54 && r[11]===0));
-ok('...lo demás se reparte sobre lo cobrado menos el IGTF, y todo suma lo cobrado', cerca(lig.reduce((a,r)=>a+r[9]+r[11],0), 53));
+const lig=Dig.filas.contado.filter(r=>r[0]==='PAG-1');   // PAG-1 paga la cuota completa: va en el 04
+ok('IGTF: va en su propia línea "IGTF PERCIBIDO", sin IVA', lig.some(r=>r[6]==='IGTF PERCIBIDO' && r[10]===1.54 && r[12]===0));
+ok('...lo demás se reparte sobre lo cobrado menos el IGTF, y todo suma lo cobrado', cerca(lig.reduce((a,r)=>a+r[10]+r[12],0), 53));
 ok('...el 02 trae el servicio IGTF solo cuando hay facturas con IGTF', Dig.filas.servicios.some(r=>r[0]==='IGTF PERCIBIDO') && !D.filas.servicios.some(r=>r[0]==='IGTF PERCIBIDO'));
 
 // El mismo cobro sale igual aunque su factura fiscal se emita después de exportar
-const antes=G.qbDatos(base({ creds:[M154], clientes, pagos:pagos154 })).filas.facturas.filter(r=>r[0]==='PAG-1')[0];
-const despues=G.qbDatos(base({ creds:[M154], clientes, pagos:pagos154, facturas:[{ id:'F', numero:'00000999', pagoId:'PAG-1', fechaEmision:'2026-11-02', anulada:false }] })).filas.facturas.filter(r=>r[0]==='PAG-1')[0];
-ok('mismo N° y misma fecha antes y después de emitir la factura fiscal (reimportar no la duplica)', antes[0]===despues[0] && antes[2]===despues[2] && /00000999/.test(despues[14]));
+const antes=G.qbDatos(base({ creds:[M154], clientes, pagos:pagos154 })).filas.contado.filter(r=>r[0]==='PAG-1')[0];
+const despues=G.qbDatos(base({ creds:[M154], clientes, pagos:pagos154, facturas:[{ id:'F', numero:'00000999', pagoId:'PAG-1', fechaEmision:'2026-11-02', anulada:false }] })).filas.contado.filter(r=>r[0]==='PAG-1')[0];
+ok('mismo N° y misma fecha antes y después de emitir la factura fiscal (reimportar no la duplica)', antes[0]===despues[0] && antes[2]===despues[2] && /00000999/.test(despues[5]));
 
-// Mismo texto en los 5 archivos: invisibles, acentos descompuestos y letras fuera de Windows-1252
+// Mismo texto en los 6 archivos: invisibles, acentos descompuestos y letras fuera de Windows-1252
 const raros=[{ id:5, nombre:'JOSÉ PEREZ', cedula:'V-5' }, { id:6, nombre:'ANA​LOPEZ', cedula:'V-6' }];
 const cR=[{ id:'M-5', cli:'x', clienteId:5, fecha:'2026-09-01', estado:'activo', precio:1350, ini:750, cuotaQ:53, totalCuotas:24, total:1272 }, { id:'M-6', cli:'y', clienteId:6, fecha:'2026-09-01', estado:'activo', precio:1350, ini:750, cuotaQ:53, totalCuotas:24, total:1272 }];
 const Dr=G.qbDatos(base({ creds:cR, clientes:raros, pagos:[{ id:'PAG-R', cred:'M-5', fecha:'2026-10-02', monto:53, estado:'confirmado' }], egresos:[{ id:300, fecha:'2026-10-02', monto:10, categoria:'otros', concepto:'x', fiscal:{ proveedor:'FERRETERÍA ŞAHİN', rif:'J-30000000-1', numero:'1', base:10, alicuota:0 } }] }));
-ok('el nombre sale igual en el 01 (Excel) y en el 03 (CSV): acento compuesto, sin invisibles', fila01(Dr,'JOSÉ PEREZ') && fila01(Dr,'ANALOPEZ') && Dr.filas.facturas[0][1]==='JOSÉ PEREZ');
+ok('el nombre sale igual en el 01 (Excel) y en el 04 (CSV): acento compuesto, sin invisibles', fila01(Dr,'JOSÉ PEREZ') && fila01(Dr,'ANALOPEZ') && Dr.filas.contado[0][1]==='JOSÉ PEREZ');
 ok('...y lo que Windows-1252 no tiene se cambia por su letra base en todos los archivos', Dr.filas.proveedores[0][0]==='FERRETERÍA SAHIN' && Dr.filas.compras[0][1]==='FERRETERÍA SAHIN');
 
 // RIF de relleno: no junta proveedores distintos

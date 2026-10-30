@@ -2,15 +2,19 @@
 // QuickBooks… una nueva pestaña en finanzas… estudies profundamente estas Excel… dupliques esto… que se pueda
 // imprimir igual que todo. En Excel, en PDF… para que le entre a QuickBooks… no hacer cálculos nuevos, sino
 // agarrar lo que ya tenemos").
-// Las plantillas de importación del contador (llegaron 5: no hay 04), llenas con los datos del sistema:
+// Las plantillas de importación del contador, llenas con los datos del sistema:
 //  01 Ficha de Clientes (.xlsx)              los clientes con crédito y lo que deben a la fecha de corte (motor contable)
 //  02 Servicios (.xlsx)                      el catálogo del contador, con lo que se factura de verdad
-//  03 Factura de Servicios a clientes (.csv) una factura por cuota cobrada, partida como la Nueva metodología
+//  03 Factura a clientes · Crédito (.csv)    una factura por cada abono: los cobros que no pagan una cuota completa
+//                                            ellos solos (convenios, mora: varios pagos a una cuota)
+//  04 Factura a clientes · Contado (.csv)    un recibo de venta por cada cobro que paga cuotas completas de una sola
+//                                            vez, con la cuenta donde entró el dinero (el contador, 29-oct-2026: así
+//                                            el cobro y la forma de pago quedan en un solo movimiento en QuickBooks)
 //  05 Ficha de Proveedores (.xlsx)           los proveedores de los gastos (los del Libro de Compras)
 //  06 Factura de Proveedor QB (.csv)         las facturas de proveedor del mes (las del Libro de Compras)
 // Los CSV salen como los del contador: separados por ';', en Windows-1252 y con fin de línea CRLF.
 // QuickBooks enlaza las facturas con el cliente y el proveedor por el NOMBRE: el mismo texto tiene que salir igual
-// en los 5 archivos y en todos los meses (ver _qbNombresQB).
+// en los 6 archivos y en todos los meses (ver _qbNombresQB).
 // Nada se guarda: la pestaña solo lee y exporta.
 
 var QB_IVA_GENERAL = '16.0% S (16%)', QB_SIN_IVA = 'No VAT (0%)';
@@ -20,7 +24,7 @@ var QB_PAIS = 'Venezuela';
 
 // El catálogo del contador: las 42 filas de su "02. Servicios.xlsx" del 28-oct-2026 (QB_PLAN_SERVICIOS, en
 // logic/categorias-egreso.js). Ya trae la regla de Adam del 23-sep: INTERESES DE FINANCIAMIENTO sin IVA e INGRESOS POR
-// PAGASI PROTEC con el 16 %. Las facturas (03) usan exactamente esos nombres. Lo que no está en su catálogo y el sistema
+// PAGASI PROTEC con el 16 %. Las facturas (03) y los recibos (04) usan exactamente esos nombres. Lo que no está en su catálogo y el sistema
 // necesita (solo si aparece): OTROS SERVICIOS (PAGASI 18, contratos hasta el CRED-498) e IGTF PERCIBIDO.
 // fila = las 19 columnas del 02; linea = la descripción en la factura; la tasa sale del código de IVA de ventas.
 function _qbFilaPlan(nombre){ var r = (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS : []).find(function(x){ return x[0] === nombre; }); return r ? r.slice() : [nombre, 'Ingresos', 'Sin Inventario', '', nombre, '', '', '', '', '', '', '', '', QB_SIN_IVA, '', '', '', '', '']; }
@@ -59,9 +63,14 @@ var QB_ARCHIVOS = {
   servicios:   { n: '02', titulo: 'Servicios', archivo: '02. Servicios', hoja: 'sample-products', fmt: 'xlsx',
     enc: ['Nombre del Servicio', 'Categoria', 'Tipo de Servicio', 'Unidad en stock', 'Descripcion de Ventas', 'Tarifa', 'Cuenta de ingresos', 'Descripcion en Compras', 'Costo de compra', 'Cuenta de gastos', 'Existencias', 'Cantidad a la fecha', 'Punto de reabastecimiento', 'Codigo IVA Ventas', 'La tasa de ventas incluye impuestos', 'Codigo IVA Compra', 'La tasa de compra incluye impuestos', 'Proveedor preferido', 'Cuenta de activos de inventario'],
     anchos: [26.33, 11.55, 19.11, 11.55, 38.55, 11.55, 46.22, 29, 15.44, 46.22, 11.55, 17.66, 24.11, 16.55, 32.11, 17.44, 33.22, 17.89, 27.89], montos: [] },
-  facturas:    { n: '03', titulo: 'Factura de Servicios a clientes', archivo: '03. Factura de Servicios a clientes', hoja: '03. Factura de Servicios', fmt: 'csv',
+  facturas:    { n: '03', titulo: 'Factura de Servicios a clientes · Crédito', archivo: '03. Factura de Servicios a clientes Credito', hoja: '03. Facturas a Credito', fmt: 'csv',
     enc: ['Nº Factura', 'Cliente', 'Fecha Factura', 'Fecha Vcmto.', 'Terminos', 'Producto / Servicio', 'Descripcion', 'ItemQuantity', 'ItemRate', '*ItemAmount', '*ItemTaxCode', 'ItemTaxAmount', 'Currency', 'Service Date', 'Note to customer'],
     anchos: [19, 34, 12, 12, 9, 26, 30, 8, 10, 11, 15, 11, 9, 12, 40], montos: [8, 9, 11] },
+  // La plantilla "03. Factura de Servicios a clientes Contado.csv" del contador (29-oct-2026): un recibo de venta
+  // (Sales Receipt) lleva el cobro y la cuenta donde entró el dinero en un solo movimiento
+  contado:     { n: '04', titulo: 'Factura de Servicios a clientes · Contado', archivo: '04. Factura de Servicios a clientes Contado', hoja: '04. Facturas de Contado', fmt: 'csv',
+    enc: ['*SalesReceiptNo', 'Customer', '*SalesReceiptDate', '*DepositAccount', 'Location', 'Memo', 'Item(Product/Service)', 'ItemDescription', 'ItemQuantity', 'ItemRate', '*ItemAmount', '*ItemTaxCode', 'ItemTaxAmount', 'Currency', 'Service Date'],
+    anchos: [19, 34, 12, 36, 9, 40, 26, 30, 8, 10, 11, 15, 11, 9, 12], montos: [9, 10, 12] },
   proveedores: { n: '05', titulo: 'Ficha de Proveedores', archivo: '05. Ficha de Proveedores', hoja: '05. Ficha de Proveedores', fmt: 'xlsx',
     enc: ['Persona Contacto', 'Nombre de la empresa', 'Correo', 'Telefono', 'Celular', 'Fax', 'Pagina Web', 'Calle', 'Ciudad', 'Estado', 'Codigo Postal', 'Pais', 'Fe. Creacion', 'RIF', 'Moneda'],
     anchos: [34, 34, 18, 14, 12, 10, 12, 34, 14, 12, 12, 12, 12, 15, 9], montos: [] },
@@ -69,7 +78,26 @@ var QB_ARCHIVOS = {
     enc: ['*BillNo', '*Supplier', '*BillDate', '*DueDate', 'Terms', 'Location', 'Memo', '*Account', 'LineDescription', '*LineAmount', '*LineTaxCode', 'LineTaxAmount', 'Currency'],
     anchos: [16, 32, 11, 11, 8, 9, 9, 22, 40, 11, 15, 12, 9], montos: [9, 11] }
 };
-var QB_ORDEN = ['clientes', 'servicios', 'facturas', 'proveedores', 'compras'];
+var QB_ORDEN = ['clientes', 'servicios', 'facturas', 'contado', 'proveedores', 'compras'];
+// Los archivos que van por mes (los demás son fichas o catálogo)
+function _qbPorMes(tipo){ return tipo === 'facturas' || tipo === 'contado' || tipo === 'compras'; }
+
+// La cuenta de QuickBooks donde entra cada cobro de contado (*DepositAccount del 04). Son las tres de la plantilla del
+// contador, una por cada "Recibido en" del selector de pagos (_ORDEN_PAGO en logic/pagos.js), buscadas en el nombre de la
+// cuenta del sistema tal como quedó en el pago (p.metodo). Un cobro en una cuenta que no esté aquí sale con el nombre
+// de su cuenta y el 04 lo avisa: el contador la agrega a esta lista.
+var QB_CUENTAS_DEPOSITO = [
+  { match: '100% banco', cuenta: '1103001 100% BANCO CTA. CTE Nº 68129' },
+  { match: 'binance',    cuenta: '1105001 BINANCE' },
+  { match: 'efectivo',   cuenta: '1102001 CAJA EN MONEDA EXTRANJERA USD' }
+];
+function _qbCuentaDeposito(metodo){
+  var norm = function(x){ return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim(); }, n = norm(metodo);
+  if(!/[a-z0-9]/.test(n)) return { cuenta: 'SIN CUENTA', ok: false };   // sin cuenta elegida el pago guarda '—'
+  var m = QB_CUENTAS_DEPOSITO.find(function(x){ return n.indexOf(norm(x.match)) > -1; });
+  if(m) return { cuenta: m.cuenta, ok: true };
+  return { cuenta: _qbTxt(metodo).toUpperCase(), ok: false };
+}
 
 // ── Utilidades ──
 var _QB_CP1252 = { 0x20AC: 0x80, 0x201A: 0x82, 0x0192: 0x83, 0x201E: 0x84, 0x2026: 0x85, 0x2020: 0x86, 0x2021: 0x87, 0x02C6: 0x88, 0x2030: 0x89, 0x0160: 0x8A, 0x2039: 0x8B,
@@ -82,6 +110,7 @@ function _qbDMY(iso){ var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''))
 function _qbMDY(iso){ var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[2] + '/' + m[3] + '/' + m[1] : ''; }   // 06: 10/13/2026
 function _qbSerial(iso){ var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 + 25569 : ''; }   // fecha de Excel
 function _qbFinMesAnterior(periodo){ var m = /^(\d{4})-(\d{2})$/.exec(String(periodo || '')); return m ? new Date(Date.UTC(+m[1], +m[2] - 1, 0)).toISOString().slice(0, 10) : ''; }
+function _qbFinMes(periodo){ var m = /^(\d{4})-(\d{2})$/.exec(String(periodo || '')); return m ? new Date(Date.UTC(+m[1], +m[2], 0)).toISOString().slice(0, 10) : ''; }
 function _qbEn1252(c){ return c < 0x80 || (c >= 0xA0 && c <= 0xFF) || !!_QB_CP1252[c]; }
 // El texto tal como va a QuickBooks, igual en los Excel y en los CSV: sin caracteres invisibles (los que deja pegar
 // desde WhatsApp), con los acentos compuestos, y sin nada que Windows-1252 no tenga (Ş → S; lo que no tiene letra
@@ -287,22 +316,43 @@ function _qbFilaCliente(x, corte){
     x.saldo > 0 ? x.saldo : '', x.saldo > 0 ? corte : '', x.registro, QB_MONEDA];
 }
 
-// ══════════════ FACTURAS A CLIENTES (una por cuota cobrada) ══════════════
+// ══════════════ COBROS A CLIENTES: FACTURAS A CRÉDITO (03) Y RECIBOS DE CONTADO (04) ══════════════
 // Las cuotas confirmadas del mes, con el mismo filtro de Dashboard Finanzas y la Nueva metodología. La inicial no
 // va: no la financia Pagasi y no lleva Protect. El N° y la fecha son los del pago: no cambian aunque después se
-// emita su factura fiscal (si se reimporta un mes, QuickBooks reconoce las mismas facturas). El N° de la factura
-// fiscal, si se emitió, va en la nota; y si esa factura cobró IGTF, el IGTF va en su propia línea.
+// emita su factura fiscal, y cada cobro está en uno solo de los dos archivos. El N° de la factura fiscal, si se
+// emitió, va en la nota; y si esa factura cobró IGTF, el IGTF va en su propia línea.
+// Reimportar un mes: QuickBooks reconoce el mismo N° dentro del mismo archivo, pero un cobro registrado o editado
+// después de cerrar el mes ya no está en lo que el contador importó: los controles los cuentan para que los revise.
+// Por cada pago: las cuotas que tocó (según el motor contable) y el primer vencimiento, para el Service Date; y la
+// cuota del crédito, para saber si el cobro es de contado.
 function _qbVencimientos(c, pagos){
   var L = (typeof CreditoLedger !== 'undefined') ? CreditoLedger : null, m = {};
-  if(!L) return m;
-  L.generarEstadoCredito(c, pagos, {}).cuotas.forEach(function(cu){
+  if(!L) return { pagos: m, cuota: 0 };
+  var est = L.generarEstadoCredito(c, pagos, {});
+  est.cuotas.forEach(function(cu){
     (cu.aplicaciones || []).forEach(function(a){
       var x = m[a.pagoId] || (m[a.pagoId] = { cuotas: [], fechaVence: '' });
       if(x.cuotas.indexOf(cu.numero) === -1) x.cuotas.push(cu.numero);
       if(cu.fechaVence && (!x.fechaVence || cu.fechaVence < x.fechaVence)) x.fechaVence = cu.fechaVence;
     });
   });
-  return m;
+  return { pagos: m, cuota: _qbR2(est.cuotaBase) };
+}
+// Contado o crédito (el contador, 29-oct-2026): contado es "un solo pago por el total de la cuota". Se mira el MONTO del
+// cobro contra la cuota del crédito: es de contado si paga una o varias cuotas completas (k × cuota, con hasta
+// QB_TOLERANCIA_CONTADO de diferencia: quien paga 72 por una cuota de 71,51, o 58 por una de 58,33, pagó la cuota), y
+// también la liquidación anticipada (un solo cobro que salda el crédito). Lo demás es crédito: el abono a una cuota y el
+// cobro que paga más de una cuota sin ser cuotas completas. Se decide con el monto y no con el reparto del motor contable
+// porque ese reparto cambia si después se registra un pago con fecha anterior, y un cobro ya importado en QuickBooks no
+// puede cambiar de archivo; además, con el reparto, un solo pago redondeado volvía "abono" a todos los pagos siguientes.
+var QB_TOLERANCIA_CONTADO = 1;   // dólares de diferencia con k × cuota que todavía cuentan como cuota completa
+function _qbEsLiquidacion(p){ return !!(p && (p.tipo === 'liquidacion' || p.referencia === 'LIQ-ANT')); }
+function _qbTipoCobro(p, cobrado, cuota, tocadas){
+  if(!(tocadas > 0)) return { contado: false, mixto: false, liquidacion: false, sinAplicar: true, cuotasPagadas: 0, redondeo: 0 };   // el motor no lo aplicó a ninguna cuota (crédito ya saldado)
+  if(_qbEsLiquidacion(p)) return { contado: true, mixto: false, liquidacion: true, sinAplicar: false, cuotasPagadas: tocadas, redondeo: 0 };
+  if(!(cuota > 0)) return { contado: false, mixto: false, liquidacion: false, sinAplicar: false, cuotasPagadas: 0, redondeo: 0 };
+  var k = Math.round(cobrado / cuota), dif = _qbR2(cobrado - k * cuota), entero = k >= 1 && Math.abs(dif) <= QB_TOLERANCIA_CONTADO + 0.0001;
+  return { contado: entero, mixto: !entero && cobrado > cuota + QB_TOLERANCIA_CONTADO, liquidacion: false, sinAplicar: false, cuotasPagadas: entero ? k : 0, redondeo: entero ? dif : 0 };
 }
 
 function qbFacturas(ctx){
@@ -313,7 +363,7 @@ function qbFacturas(ctx){
   var iniciales = delMes.filter(_qbEsInicial);
   var cuotas = delMes.filter(function(p){ return !_qbEsInicial(p); })
     .sort(function(a, b){ return String(a.fecha).localeCompare(String(b.fecha)) || String(a.id).localeCompare(String(b.id)); });
-  var docs = [], sinCredito = [], credsFacturados = [];
+  var docs = [], contado = [], sinCredito = [], credsFacturados = [];
   cuotas.forEach(function(p){
     var c = credPorId[String(p.cred || p.creditoId)];
     if(!c){ sinCredito.push(p); return; }
@@ -323,13 +373,18 @@ function qbFacturas(ctx){
     if(!(igtf > 0 && igtf < cobrado)) igtf = 0;
     var partes = qbPartirPago(c, _qbR2(cobrado - igtf));
     if(igtf) partes.igtf = igtf;
-    var lineas = qbLineas(partes), v = venc[c.id][p.id] || {}, fecha = _qbISO(p.fecha);
-    docs.push({ numero: String(p.id), pagoId: p.id, factura: fac ? String(fac.numero) : '', cred: c.id, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS),
+    var lineas = qbLineas(partes), v = venc[c.id].pagos[p.id] || {}, fecha = _qbISO(p.fecha);
+    var tipo = _qbTipoCobro(p, cobrado, venc[c.id].cuota, (v.cuotas || []).length);
+    var d = { numero: String(p.id), pagoId: p.id, factura: fac ? String(fac.numero) : '', cred: c.id, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS),
       servicio: v.fechaVence || fecha, cuotas: v.cuotas || [], nota: 'CONTRATO Nº ' + c.id + (fac ? ' · FACTURA FISCAL Nº ' + fac.numero : ''),
       cobrado: cobrado, igtf: igtf, como: partes.como, lineas: lineas,
-      monto: _qbR2(lineas.reduce(function(a, l){ return a + l.monto; }, 0)), iva: _qbR2(lineas.reduce(function(a, l){ return a + l.iva; }, 0)) });
+      monto: _qbR2(lineas.reduce(function(a, l){ return a + l.monto; }, 0)), iva: _qbR2(lineas.reduce(function(a, l){ return a + l.iva; }, 0)),
+      contado: tipo.contado, mixto: tipo.mixto, liquidacion: tipo.liquidacion, sinAplicar: tipo.sinAplicar, cuotasPagadas: tipo.cuotasPagadas, redondeo: tipo.redondeo,
+      deposito: _qbCuentaDeposito(p.metodo || p.cuenta),
+      registrado: _qbISO(p.creadoEn), editado: _qbISO(p.editadoEn) };   // cuándo se anotó o se editó (la fecha de arriba es la del cliente)
+    (tipo.contado ? contado : docs).push(d);
   });
-  return { docs: docs, iniciales: iniciales, sinCredito: sinCredito, credsFacturados: credsFacturados };
+  return { docs: docs, contado: contado, iniciales: iniciales, sinCredito: sinCredito, credsFacturados: credsFacturados };
 }
 
 function _qbFilasFactura(d){
@@ -337,6 +392,15 @@ function _qbFilasFactura(d){
     var cab = i === 0;
     return [d.numero, cab ? d.cliente : '', cab ? _qbDMY(d.fecha) : '', cab ? _qbDMY(d.vence) : '', cab ? QB_TERMINOS : '', l.servicio, l.desc, 1, l.monto, l.monto, l.codigo, l.iva,
       cab ? QB_MONEDA : '', cab ? _qbDMY(d.servicio) : '', cab ? d.nota : ''];
+  });
+}
+// El recibo de venta (04): como la factura, pero sin términos ni vencimiento y con la cuenta de depósito en cada línea
+// (así viene en la plantilla del contador). N° = el del pago; fecha = la del cobro; Memo = contrato y factura fiscal.
+function _qbFilasContado(d){
+  return d.lineas.map(function(l, i){
+    var cab = i === 0;
+    return [d.numero, cab ? d.cliente : '', cab ? _qbDMY(d.fecha) : '', d.deposito.cuenta, '', cab ? d.nota : '', l.servicio, l.desc, 1, l.monto, l.monto, l.codigo, l.iva,
+      cab ? QB_MONEDA : '', cab ? _qbDMY(d.servicio) : ''];
   });
 }
 
@@ -442,7 +506,7 @@ function qbDatos(ctx){
   _qbPagosDe(ctx, '');   // el índice de pagos por crédito, una sola vez para todo
   var F = qbFacturas(ctx);
   var C = qbClientes(Object.assign({}, ctx, { credsFacturados: F.credsFacturados }));
-  F.docs.forEach(function(d){ var x = C.porCred[String(d.cred)]; d.cliente = x ? x.nombreQB : ''; });
+  F.docs.concat(F.contado).forEach(function(d){ var x = C.porCred[String(d.cred)]; d.cliente = x ? x.nombreQB : ''; });
   var docsCompra = lbComprasDocumentos(ctx.egresos || []);
   var P = qbProveedores(docsCompra, ctx.concesionarios);
   // En QuickBooks un nombre no puede ser a la vez cliente y proveedor: el proveedor lleva su RIF
@@ -463,13 +527,20 @@ function qbDatos(ctx){
     clientes: C.filas.map(function(x){ return _qbFilaCliente(x, ctx.corte); }),
     servicios: (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS.map(function(r){ return r.slice(); }) : servicios.filter(function(s){ return !s.nuevo; }).map(function(s){ return s.fila.slice(); })).concat(extras.map(function(s){ return s.fila.slice(); })),
     facturas: [].concat.apply([], F.docs.map(_qbFilasFactura)),
+    contado: [].concat.apply([], F.contado.map(_qbFilasContado)),
     proveedores: P.filas.map(_qbFilaProveedor),
     compras: [].concat.apply([], B.bills.map(_qbFilasCompra))
   };
 
   var suma = function(arr, k){ return _qbR2((arr || []).reduce(function(a, x){ return a + (parseFloat(x[k]) || 0); }, 0)); };
   var cobrado = suma(F.docs, 'cobrado'), facturado = _qbR2(suma(F.docs, 'monto') + suma(F.docs, 'iva'));
-  var ivaExacto = F.docs.every(function(d){ return d.lineas.every(function(l){ var s = _qbServicio(l.k); return !s.tasa || _qbR2(l.monto * s.tasa) === l.iva; }); });
+  var cobradoCont = suma(F.contado, 'cobrado'), facturadoCont = _qbR2(suma(F.contado, 'monto') + suma(F.contado, 'iva'));
+  var ivaExactoDe = function(docs){ return docs.every(function(d){ return d.lineas.every(function(l){ var s = _qbServicio(l.k); return !s.tasa || _qbR2(l.monto * s.tasa) === l.iva; }); }); };
+  var ivaExacto = ivaExactoDe(F.docs), ivaExactoCont = ivaExactoDe(F.contado);
+  var sinDeposito = F.contado.filter(function(d){ return !d.deposito.ok; });
+  // Cobros del mes anotados o editados cuando el mes ya había terminado: si el contador ya importó ese mes, no los tiene
+  var finMes = _qbFinMes(ctx.periodo), tardios = function(docs){ return docs.filter(function(d){ return (d.registrado && d.registrado > finMes) || (d.editado && d.editado > finMes); }); };
+  var tardiosCred = tardios(F.docs), tardiosCont = tardios(F.contado);
   var ivaLibro = _qbR2((ctx.facturas || []).filter(function(f){ return f && !f.anulada && _lbEnPeriodo(f.fechaEmision, ctx.periodo); }).reduce(function(a, f){ return a + (parseFloat(f.iva) || 0); }, 0));
   var ok = function(c){ return c ? 'CUADRA' : 'REVISAR'; }, cuantos = function(n, mal){ return n ? (mal ? 'REVISAR: ' : '') + n : 'OK'; };
   // Las compras de motos del mes no van (la sede no las factura): se cuentan para que se vea de dónde sale la diferencia con Egresos
@@ -486,16 +557,35 @@ function qbDatos(ctx){
     servicios: [{ concepto: 'El catálogo del contador tal cual (02. Servicios.xlsx del 28-oct-2026): ' + (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS.length : 0) + ' servicios y categorías de gasto con su cuenta', estado: 'OK' }]
       .concat(extras.map(function(s){ return { concepto: s.fila[0] + ': ' + s.cambio, estado: 'AVISO' }; })),
     facturas: [
-      { concepto: 'Cuotas cobradas y confirmadas del mes (una factura por cada una)', estado: F.docs.length + ' · ' + fmt(cobrado) },
+      { concepto: 'Abonos del mes: cobros que no pagan cuotas completas (una factura por cada abono)', estado: F.docs.length + ' · ' + fmt(cobrado) },
+      { concepto: 'Cobros de contado del mes (van en el 04, no aquí)', estado: F.contado.length + ' · ' + fmt(cobradoCont) },
+      { concepto: 'Crédito (03) + Contado (04) = todos los cobros de cuotas del mes', estado: (F.docs.length + F.contado.length) + ' · ' + fmt(_qbR2(cobrado + cobradoCont)) },
       { concepto: 'Lo facturado (montos + IVA) es igual a lo cobrado', estado: ok(Math.abs(cobrado - facturado) < 0.005) },
       { concepto: 'El IVA de cada línea es el 16 % de su monto (si QuickBooks lo recalcula, da lo mismo)', estado: ok(ivaExacto) },
       { concepto: 'IVA del mes: 16 % del Pagasi Protect, por dentro de la cuota', estado: fmt(suma(F.docs, 'iva')) },
       { concepto: 'Con factura fiscal emitida (su N° va en la nota; el N° de la factura es el del pago)', estado: F.docs.filter(function(d){ return d.factura; }).length + ' de ' + F.docs.length },
-      { concepto: 'IVA del mes en el Libro de Ventas (las facturas fiscales lo sacan del pago entero)', estado: fmt(ivaLibro) },
+      { concepto: 'IVA del mes en el Libro de Ventas (las facturas fiscales lo sacan del pago entero; incluye el contado)', estado: fmt(ivaLibro) },
       { concepto: 'IGTF de las facturas fiscales (va en su propia línea: no es ingreso)', estado: fmt(suma(F.docs, 'igtf')) },
+      { concepto: 'Cobros que pagan más de una cuota sin ser cuotas completas (van aquí, a crédito)', estado: String(F.docs.filter(function(d){ return d.mixto; }).length) },
+      { concepto: 'Cobros que el motor contable no aplica a ninguna cuota (el crédito ya estaba saldado): van aquí', estado: cuantos(F.docs.filter(function(d){ return d.sinAplicar; }).length, true) },
+      { concepto: 'Cobros de este mes registrados o editados después de que terminó el mes (si ya lo importaste, revísalos en QuickBooks)', estado: cuantos(tardiosCred.length, true) },
       { concepto: 'Iniciales del mes (no van: no las financia Pagasi ni llevan Protect)', estado: F.iniciales.length + ' · ' + fmt(suma(F.iniciales, 'monto')) },
       { concepto: 'Cobros sin su crédito en el sistema (no se pueden facturar)', estado: cuantos(F.sinCredito.length, true) },
       { concepto: 'Repartidas sin la Nueva metodología (sin cuota, cuota bajo el 12 % o precio menor que la inicial)', estado: String(F.docs.filter(function(d){ return d.como === 'sin-protect'; }).length) }
+    ],
+    contado: [
+      { concepto: 'Cobros de contado del mes: cuotas completas pagadas de una sola vez (un recibo de venta por cobro)', estado: F.contado.length + ' · ' + fmt(cobradoCont) },
+      { concepto: 'Abonos del mes (van en el 03, a crédito)', estado: F.docs.length + ' · ' + fmt(cobrado) },
+      { concepto: 'Lo facturado (montos + IVA) es igual a lo cobrado', estado: ok(Math.abs(cobradoCont - facturadoCont) < 0.005) },
+      { concepto: 'El IVA de cada línea es el 16 % de su monto (si QuickBooks lo recalcula, da lo mismo)', estado: ok(ivaExactoCont) },
+      { concepto: 'IVA del mes: 16 % del Pagasi Protect, por dentro de la cuota', estado: fmt(suma(F.contado, 'iva')) },
+      { concepto: 'Cuenta de depósito de QuickBooks según "Recibido en" (100% Banco, Binance, Efectivo)', estado: cuantos(sinDeposito.length, true) + (sinDeposito.length ? ' sin cuenta' : '') },
+      { concepto: 'Cobros que pagan varias cuotas completas de una vez (un solo recibo con todo)', estado: String(F.contado.filter(function(d){ return d.cuotasPagadas > 1; }).length) },
+      { concepto: 'Cobros con hasta ' + fmt(QB_TOLERANCIA_CONTADO) + ' de diferencia con la cuota (el cliente redondeó): cuentan como cuota completa', estado: String(F.contado.filter(function(d){ return Math.abs(d.redondeo) > 0.004; }).length) },
+      { concepto: 'Liquidaciones anticipadas (un solo cobro que salda el crédito: van de contado)', estado: String(F.contado.filter(function(d){ return d.liquidacion; }).length) },
+      { concepto: 'Cobros de este mes registrados o editados después de que terminó el mes (si ya lo importaste, revísalos en QuickBooks)', estado: cuantos(tardiosCont.length, true) },
+      { concepto: 'Con factura fiscal emitida (su N° va en el Memo; el N° del recibo es el del pago)', estado: F.contado.filter(function(d){ return d.factura; }).length + ' de ' + F.contado.length },
+      { concepto: 'IGTF de las facturas fiscales (va en su propia línea: no es ingreso)', estado: fmt(suma(F.contado, 'igtf')) }
     ],
     proveedores: [
       { concepto: 'Proveedores de los gastos (todos los meses)', estado: String(P.filas.length) },
@@ -578,13 +668,13 @@ function _qbCalcular(){
   return D;
 }
 // Lo de la vista elegida, con la búsqueda aplicada: lo que se ve es lo que se exporta (como en los libros). En las
-// facturas (03 y 06) la búsqueda elige facturas enteras: si algo de una factura coincide, van todas sus líneas.
+// facturas (03, 04 y 06) la búsqueda elige facturas enteras: si algo de una factura coincide, van todas sus líneas.
 function _qbVer(D, tipo){
   var filas = D.filas[tipo], q = String(D.st.q || '').trim();
   if(!q) return { filas: filas, filtrado: false };
   var norm = function(s){ return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }, Q = norm(q);
-  if(tipo !== 'facturas' && tipo !== 'compras') return { filas: filas.filter(function(r){ return norm(r.join(' ')).indexOf(Q) > -1; }), filtrado: true };
-  var docs = [], clave = function(r){ return tipo === 'facturas' ? r[0] : r[0] + '|' + r[1]; };
+  if(!_qbPorMes(tipo)) return { filas: filas.filter(function(r){ return norm(r.join(' ')).indexOf(Q) > -1; }), filtrado: true };
+  var docs = [], clave = function(r){ return tipo === 'compras' ? r[0] + '|' + r[1] : r[0]; };
   filas.forEach(function(r){ var u = docs[docs.length - 1]; if(u && u.k === clave(r)) u.filas.push(r); else docs.push({ k: clave(r), filas: [r] }); });
   return { filas: [].concat.apply([], docs.filter(function(d){ return norm(d.filas.map(function(r){ return r.join(' '); }).join(' ')).indexOf(Q) > -1; }).map(function(d){ return d.filas; })), filtrado: true };
 }
@@ -599,14 +689,14 @@ function _qbTablaHtml(D, tipo, V){
   };
   var marcado = tipo === 'servicios' ? D.servicios.reduce(function(m, s){ m[s.fila[0]] = !!(s.nuevo || s.cambio); return m; }, {}) : {};
   var cuerpo = V.filas.map(function(r){
-    var estilo = (tipo === 'servicios' && marcado[r[0]]) ? 'background:rgba(245,158,11,.08)' : ((tipo === 'facturas' && r[1]) || tipo === 'compras' ? 'border-top:2px solid var(--rim)' : '');
+    var estilo = (tipo === 'servicios' && marcado[r[0]]) ? 'background:rgba(245,158,11,.08)' : (((tipo === 'facturas' || tipo === 'contado') && r[1]) || tipo === 'compras' ? 'border-top:2px solid var(--rim)' : '');
     return '<tr style="' + estilo + '">' + r.map(celda).join('') + '</tr>';
   }).join('');
   var vacio = !V.filas.length ? '<tr><td colspan="' + A.enc.length + '" style="padding:22px;text-align:center;color:var(--ink3);font-size:12px">'
-    + (V.filtrado ? 'Nada coincide con la búsqueda.' : { clientes: 'No hay clientes con crédito.', servicios: '', facturas: 'No hay cuotas cobradas y confirmadas en ' + _lbPeriodoVE(D.st.periodo) + '.', proveedores: 'Ningún gasto tiene proveedor todavía. Se completan en el Libro de Compras.', compras: 'No hay facturas de proveedor en ' + _lbPeriodoVE(D.st.periodo) + '.' }[tipo]) + '</td></tr>' : '';
+    + (V.filtrado ? 'Nada coincide con la búsqueda.' : { clientes: 'No hay clientes con crédito.', servicios: '', facturas: 'No hay abonos (cobros a crédito) en ' + _lbPeriodoVE(D.st.periodo) + '.', contado: 'No hay cobros de contado (cuotas completas pagadas de una vez) en ' + _lbPeriodoVE(D.st.periodo) + '.', proveedores: 'Ningún gasto tiene proveedor todavía. Se completan en el Libro de Compras.', compras: 'No hay facturas de proveedor en ' + _lbPeriodoVE(D.st.periodo) + '.' }[tipo]) + '</td></tr>' : '';
   var tot = '';
   var sumCol = function(i){ return _qbR2(V.filas.reduce(function(a, r){ return a + (typeof r[i] === 'number' ? r[i] : 0); }, 0)); };
-  var cols = { facturas: [9, 11], compras: [9, 11], clientes: [11] }[tipo];
+  var cols = { facturas: [9, 11], contado: [10, 12], compras: [9, 11], clientes: [11] }[tipo];
   if(cols){
     tot = '<tr>' + A.enc.map(function(h, i){
       var td = 'padding:7px;border:1px solid var(--rim);font-weight:800;background:rgba(16,185,129,.08);font-size:11px;';
@@ -619,6 +709,12 @@ function _qbTablaHtml(D, tipo, V){
     + A.enc.map(function(h){ return '<th style="' + th + '">' + _lbEsc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' + (vacio || cuerpo) + tot + '</tbody></table></div>';
 }
 
+// Los cobros del período anotados o editados cuando el mes ya había cerrado (los mismos que cuenta el control)
+function _qbTardios(D, docs){
+  var fin = _qbFinMes(D.st.periodo);
+  return docs.filter(function(d){ return (d.registrado && d.registrado > fin) || (d.editado && d.editado > fin); })
+    .map(function(d){ return _qbDMY(d.fecha) + ' · ' + d.numero + ' · ' + d.cred + ' · ' + fmt(d.cobrado) + (d.registrado > fin ? ' · registrado el ' + _qbDMY(d.registrado) : ' · editado el ' + _qbDMY(d.editado)); });
+}
 function _qbListaHtml(titulo, items){
   if(!items.length) return '';
   return '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;font-weight:800;color:var(--amber)">' + _lbEsc(titulo) + ' (' + items.length + ')</summary>'
@@ -639,6 +735,12 @@ function _qbCuerpoHtml(D){
   }
   if(tipo === 'facturas'){
     listas += _qbListaHtml('Cobros sin su crédito', D.facturas.sinCredito.map(function(p){ return _qbDMY(p.fecha) + ' · ' + p.id + ' · crédito ' + (p.cred || '—') + ' · ' + fmt(p.monto); }));
+    listas += _qbListaHtml('Cobros que pagan más de una cuota sin ser cuotas completas', D.facturas.docs.filter(function(d){ return d.mixto; }).map(function(d){ return _qbDMY(d.fecha) + ' · ' + d.numero + ' · ' + d.cred + ' · cuotas ' + d.cuotas.join(', ') + ' · ' + fmt(d.cobrado); }));
+    listas += _qbListaHtml('Cobros registrados o editados después de que terminó el mes', _qbTardios(D, D.facturas.docs));
+  }
+  if(tipo === 'contado'){
+    listas += _qbListaHtml('Cobros sin cuenta de QuickBooks para el depósito (su "Recibido en" no es 100% Banco, Binance ni Efectivo)', D.facturas.contado.filter(function(d){ return !d.deposito.ok; }).map(function(d){ return _qbDMY(d.fecha) + ' · ' + d.numero + ' · ' + d.cred + ' · recibido en "' + d.deposito.cuenta + '" · ' + fmt(d.cobrado); }));
+    listas += _qbListaHtml('Cobros registrados o editados después de que terminó el mes', _qbTardios(D, D.facturas.contado));
   }
   if(tipo === 'proveedores') listas += _qbListaHtml('RIF que no es RIF', D.proveedores.rifMalos);
   if(tipo === 'compras'){
@@ -647,9 +749,10 @@ function _qbCuerpoHtml(D){
     listas += _qbListaHtml('Facturas con algo por revisar', D.compras.bills.filter(function(b){ return b.avisos.length; }).map(function(b){ return b.numero + ' · ' + b.proveedor + ': ' + b.avisos.join('; '); }));
   }
   var nota = {
-    clientes: 'Balance de Apertura = lo que cada cliente debe al ' + _qbDMY(D.st.corte) + ' (fecha de corte): las cuotas que le faltan con los pagos hechos hasta ese día, con el mismo motor contable de Pagos. Un cliente sin saldo va con el balance y la fecha en blanco. Las cuotas que se cobren después del corte ya están dentro de ese saldo: si también se importan sus facturas (03), en QuickBooks se registran como pago de ese saldo.',
-    servicios: 'El catálogo del contador tal cual (su 02. Servicios.xlsx): servicios de ingreso y categorías de gasto con su cuenta. Lo marcado en amarillo no estaba en su catálogo. Las facturas (03) usan exactamente estos nombres.',
-    facturas: 'Cada cuota cobrada se parte como en la Nueva metodología: Cartera de financiamiento (lo que recupera del precio de la moto), Intereses (12 % anual, sin IVA) y Pagasi Protect, con el IVA del 16 % por dentro. Lo facturado (montos + IVA) es igual a lo cobrado. N° y Fecha Factura = los del cobro · Service Date = el vencimiento de la cuota que pagó.',
+    clientes: 'Balance de Apertura = lo que cada cliente debe al ' + _qbDMY(D.st.corte) + ' (fecha de corte): las cuotas que le faltan con los pagos hechos hasta ese día, con el mismo motor contable de Pagos. Un cliente sin saldo va con el balance y la fecha en blanco. Las cuotas que se cobren después del corte ya están dentro de ese saldo: si también se importan los cobros de después del corte (03 y 04), en QuickBooks hay que aplicarlos contra ese saldo (las facturas del 03 como pago del saldo; los recibos del 04 no lo rebajan por sí solos).',
+    servicios: 'El catálogo del contador tal cual (su 02. Servicios.xlsx): servicios de ingreso y categorías de gasto con su cuenta. Lo marcado en amarillo no estaba en su catálogo. Las facturas (03) y los recibos (04) usan exactamente estos nombres.',
+    facturas: 'A crédito van los abonos: los cobros que no pagan cuotas completas (convenios, mora: varios pagos a una cuota). Una factura por cada abono, partida como en la Nueva metodología: Cartera de financiamiento (lo que recupera del precio de la moto), Intereses (12 % anual, sin IVA) y Pagasi Protect, con el IVA del 16 % por dentro. Lo facturado (montos + IVA) es igual a lo cobrado. N° y Fecha Factura = los del cobro · Service Date = el vencimiento de la cuota que pagó. El pago de estas facturas se registra aparte en QuickBooks. Si un mes ya se importó y después se registró o editó un cobro de ese mes, el control de abajo lo cuenta: revísalo allá antes de volver a importar.',
+    contado: 'De contado van los cobros que pagan una o varias cuotas completas de una sola vez (la mayoría; con hasta ' + fmt(QB_TOLERANCIA_CONTADO) + ' de diferencia por redondeo) y las liquidaciones anticipadas. Un recibo de venta por cobro, con las mismas líneas de la factura y la cuenta de QuickBooks donde entró el dinero según el "Recibido en" del pago (100% Banco, Binance o Efectivo): el cobro y su depósito quedan en un solo movimiento. N° y fecha = los del cobro · Memo = contrato y factura fiscal · Service Date = el vencimiento de la cuota que pagó. Si un mes ya se importó y después se registró o editó un cobro de ese mes, el control de abajo lo cuenta.',
     proveedores: 'Los proveedores salen de los datos fiscales de cada gasto (Libro de Compras). Las compras de motos no van: la sede no le factura cada moto a PAGASI. Si un gasto trae el RIF o el nombre de una sede, la ficha toma su teléfono, dirección y ciudad. Fe. Creación = la de la sede o la del primer gasto.',
     compras: 'Los gastos del mes con factura de proveedor (por su fecha), como en el Libro de Compras de ' + _lbPeriodoVE(D.st.periodo) + ': la parte exenta va en una línea "' + QB_SIN_IVA + '" y la base en otra con su IVA. La cuenta (*Account) es la de la categoría del gasto en el plan del contador. Las compras de motos, la nómina y las comisiones no van.'
   }[tipo];
@@ -667,17 +770,17 @@ function _renderQuickBooks(){
   var st = _qbEstado(), emp = (typeof getEmpresa === 'function' ? getEmpresa() : {}) || {};
   var D = _qbCalcular();
   var chips = QB_ORDEN.map(function(t){
-    var A = QB_ARCHIVOS[t], n = t === 'facturas' ? D.facturas.docs.length : (t === 'compras' ? D.compras.bills.length : D.filas[t].length), act = st.vista === t;
+    var A = QB_ARCHIVOS[t], n = t === 'facturas' ? D.facturas.docs.length : (t === 'contado' ? D.facturas.contado.length : (t === 'compras' ? D.compras.bills.length : D.filas[t].length)), act = st.vista === t;
     return '<button class="btn ' + (act ? 'btn-p' : 'btn-g') + ' btn-sm" style="padding:6px 11px" onclick="qbVista(\'' + t + '\')">' + A.n + ' · ' + _lbEsc(A.titulo) + ' <span style="opacity:.75">(' + n + ')</span></button>';
   }).join('');
   return '<div class="card" style="margin-bottom:14px">'
     + '<div class="ch" style="flex-wrap:wrap;gap:10px"><div><div class="ct">Exportar a QuickBooks</div><div class="cs">Las plantillas de importación del contador, llenas con los datos del sistema · cifras en dólares (USD)</div></div>'
-    +   '<div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-p btn-sm" onclick="qbDescargarTodo()">⬇ Descargar los 5</button></div></div>'
+    +   '<div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-p btn-sm" onclick="qbDescargarTodo()">⬇ Descargar los 6</button></div></div>'
     + '<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:12px;margin:2px 0 12px;padding:10px 12px;background:var(--gs);border-radius:9px">'
     +   '<span style="color:var(--ink3)">Empresa</span><b>' + _lbEsc(emp.nombre || '') + '</b>'
     +   '<span style="color:var(--ink3)">RIF</span><b>' + _lbEsc(emp.rif || '—') + '</b></div>'
     + '<div class="fgr" style="gap:10px;align-items:end;flex-wrap:wrap">'
-    +   '<div class="fg" style="min-width:150px"><label>Período de las facturas (03 y 06)</label><input class="fi" id="qb-periodo" type="month" value="' + st.periodo + '" onchange="qbPeriodo(this.value)"></div>'
+    +   '<div class="fg" style="min-width:150px"><label>Período de las facturas (03, 04 y 06)</label><input class="fi" id="qb-periodo" type="month" value="' + st.periodo + '" onchange="qbPeriodo(this.value)"></div>'
     +   '<div class="fg" style="min-width:150px"><label>Corte del saldo de clientes (01)</label><input class="fi" id="qb-corte" type="date" value="' + st.corte + '" onchange="qbCorte(this.value)"></div>'
     +   '<div class="fg" style="flex:1;min-width:200px"><label>Buscar</label><input class="fi" id="qb-buscar" placeholder="Buscar por cliente, proveedor, RIF, N° de factura o contrato…" value="' + _lbEsc(st.q) + '" oninput="qbBuscar(this.value)"></div>'
     + '</div>'
@@ -702,7 +805,7 @@ function qbHtmlPdf(D, tipo, V){
   var th = 'border:1px solid #9ca3af;padding:3px 3px;font-size:6.6px;font-weight:800;text-align:center;vertical-align:middle;background:#f2f2f2;color:#111;text-transform:none;letter-spacing:0';
   var td = 'border:1px solid #cbd5e1;padding:2px 3px;font-size:7px;color:#111';
   var h = '<div style="font-size:10.5px;line-height:1.5;margin-bottom:8px"><b style="font-size:12.5px">' + _lbEsc(emp.nombre || '') + '</b><br>RIF: ' + _lbEsc(emp.rif || '') + '<br><b>QUICKBOOKS · ' + A.n + '. ' + _lbEsc(A.titulo.toUpperCase()) + '</b><br>'
-    + (tipo === 'clientes' ? 'Balance de apertura al <b>' + _qbDMY(D.st.corte) + '</b>' : (tipo === 'facturas' || tipo === 'compras' ? 'Período: <b>' + _lbPeriodoVE(D.st.periodo) + '</b>' : 'Catálogo'))
+    + (tipo === 'clientes' ? 'Balance de apertura al <b>' + _qbDMY(D.st.corte) + '</b>' : (_qbPorMes(tipo) ? 'Período: <b>' + _lbPeriodoVE(D.st.periodo) + '</b>' : 'Catálogo'))
     + ' · Cifras en dólares (USD)' + (V.filtrado ? '<br><i>Filtrado por: ' + _lbEsc(D.st.q) + '</i>' : '') + '</div>';
   h += '<table style="border-collapse:collapse;width:100%;table-layout:auto"><thead><tr>' + A.enc.map(function(x){ return '<th style="' + th + '">' + _lbEsc(x) + '</th>'; }).join('') + '</tr></thead><tbody>'
     + V.filas.map(function(r){ return '<tr>' + r.map(function(v, i){
@@ -720,14 +823,14 @@ function qbExportar(tipo, formato, D){
   var A = QB_ARCHIVOS[tipo], V = _qbVer(D, tipo), nombre = _qbNombreArchivo(tipo, D.st);
   if(formato === 'csv') return _qbDescargar(nombre + '.csv', qbWin1252(qbCsvTexto(A.enc, V.filas)), 'text/csv;charset=windows-1252');
   if(formato === 'excel') return xlsxEscribir(nombre + '.xlsx', [qbHoja(tipo, V.filas)]);
-  _abrirVentanaImpresion('QuickBooks · ' + A.n + '. ' + A.titulo + (tipo === 'facturas' || tipo === 'compras' ? ' ' + _lbPeriodoVE(D.st.periodo) : ''), qbHtmlPdf(D, tipo, V), { horizontal: true });
+  _abrirVentanaImpresion('QuickBooks · ' + A.n + '. ' + A.titulo + (_qbPorMes(tipo) ? ' ' + _lbPeriodoVE(D.st.periodo) : ''), qbHtmlPdf(D, tipo, V), { horizontal: true });
 }
-// Los 5 en el formato de cada plantilla (el navegador puede pedir permiso para bajar varios archivos)
+// Los 6 en el formato de cada plantilla (el navegador puede pedir permiso para bajar varios archivos)
 function qbDescargarTodo(){
   var D = _qbCalcular();
-  D.st = Object.assign({}, D.st, { q: '' });   // los 5 completos, aunque haya una búsqueda puesta
+  D.st = Object.assign({}, D.st, { q: '' });   // los 6 completos, aunque haya una búsqueda puesta
   QB_ORDEN.forEach(function(t, i){ setTimeout(function(){ qbExportar(t, QB_ARCHIVOS[t].fmt === 'csv' ? 'csv' : 'excel', D); }, i * 700); });
-  if(typeof toast === 'function') toast('Bajando los 5 archivos…', 'success');
+  if(typeof toast === 'function') toast('Bajando los 6 archivos…', 'success');
 }
 
 if(typeof module !== 'undefined' && module.exports) module.exports = { qbPartirPago: qbPartirPago, qbLineas: qbLineas, qbSaldoCredito: qbSaldoCredito, qbClientes: qbClientes, qbFacturas: qbFacturas,
