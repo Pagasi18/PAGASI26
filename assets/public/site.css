@@ -1134,3 +1134,8 @@ body.pg-site{font-weight:500}
 .pg-partners{align-items:center}
 .pg-partners .pg-partner-veloz{justify-self:center;color:#065cff;padding:5px 14px;border-radius:999px;background:#fff;box-shadow:0 0 0 2px #2f7bff,0 0 22px rgba(0,150,255,.4);animation:pg-brillo-azul 2.8s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.pg-partners .pg-partner-veloz{animation:none}}
+
+/* Barra con todas las sedes (31-oct-2026) */
+.pg-partners{justify-content:center;gap:14px 32px}
+.pg-partners span{white-space:nowrap}
+@media(max-width:760px){.pg-partners{display:flex;gap:12px 20px;font-size:11px;letter-spacing:.04em;padding:22px 0}}
