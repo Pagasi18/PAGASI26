@@ -665,5 +665,11 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     ok('con cuota vencida también le da la fecha de la siguiente', /La siguiente cuota vence el/.test(briefing.armar({ cliente: { nombre: 'ANA' }, creditos: [e], hoy: HOY })));
   }
 
+  { // Paola con el mismo tono (Adam, 1-nov-2026)
+    const pv = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'lib', 'procesar.js'), 'utf8');
+    ok('Paola también quita el nombre si ya escribió en las últimas 12 horas', /yaHablaron\(historial, ahora\) \? briefing\.sinNombre\(r\.reply, nombreSabido\)/.test(pv));
+    ok('sin nombre conocido, la respuesta de Paola queda igual', briefing.sinNombre('Con gusto, esa moto está en Caracas.', '') === 'Con gusto, esa moto está en Caracas.');
+  }
+
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });

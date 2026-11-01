@@ -284,7 +284,7 @@ async function ultimosMensajes(convRef, n, desde) {
   return s.filter(m => !desde || String(m.hora || '') >= desde).sort((a, b) => String(a.hora || '').localeCompare(String(b.hora || '')));
 }
 
-// Patricia ya le escribió en las últimas 12 horas: el nombre y el saludo solo van al empezar (Adam, 1-nov-2026)
+// Patricia o Paola ya le escribió en las últimas 12 horas: el nombre y el saludo solo van al empezar (Adam, 1-nov-2026)
 function yaHablaron(historial, ahora) {
   const desde = new Date(new Date(ahora).getTime() - 12 * 3600000).toISOString();
   return (historial || []).some(m => m.direccion === 'saliente' && String(m.hora || '') >= desde);
@@ -356,7 +356,8 @@ async function responderVentas(deps, x) {
   if (cambios.atencion && !(conv && conv.atencion)) cambios.atencionDesde = ahora;   // desde cuándo espera a una persona
   const asignado = cambios.atencion ? await repartir(deps, conv, cambios.atencion) : '';
   if (asignado) { cambios.vendedor = asignado; cambios.asignadoEn = ahora; deps.log('reparto', { canal, area: 'ventas' }); }
-  await responder(deps, convRef, base, r.reply, ahora, cambios);
+  const nombreSabido = (conv && conv.borrador && conv.borrador.nombre) || x.nombrePerfil;
+  await responder(deps, convRef, base, yaHablaron(historial, ahora) ? briefing.sinNombre(r.reply, nombreSabido) : r.reply, ahora, cambios);
   return { empresa: x.empresa, canal, area: 'ventas', respondido: true, handoff: !!r.handoff || !!(r.draft && r.draft.tipo === 'lead'), draft: r.draft || null };
 }
 
