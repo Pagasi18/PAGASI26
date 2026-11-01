@@ -85,7 +85,7 @@ function parsearWebhook(cuerpo) {
         const medio = ['image', 'document', 'audio', 'video', 'sticker'].includes(tipo) && m[tipo] ? { id: m[tipo].id, mime: m[tipo].mime_type || '', nombre: m[tipo].filename || '' } : null;
         const ventana = tipo === 'interactive' && m.interactive && m.interactive.nfm_reply ? leerVentana(m.interactive.nfm_reply) : null;
         mensajes.push({ canal: 'whatsapp', metaId: m.id, de: m.from, nombre: perfil[m.from] || '', tipo: ventana && ventana.medio ? 'imagen' : tipo === 'text' || tipo === 'button' || tipo === 'interactive' ? 'texto' : tipo === 'image' ? 'imagen' : tipo === 'document' ? 'documento' : tipo === 'audio' ? 'audio' : tipo, texto: ventana ? ventana.texto : texto, medio: ventana ? ventana.medio : medio, montoDicho: ventana ? ventana.monto : '',
-          hora: m.timestamp ? new Date(parseInt(m.timestamp, 10) * 1000).toISOString() : new Date().toISOString(), telefonoNegocio: (v.metadata && v.metadata.display_phone_number) || '' });
+          hora: m.timestamp ? new Date(parseInt(m.timestamp, 10) * 1000).toISOString() : new Date().toISOString(), telefonoNegocio: (v.metadata && v.metadata.display_phone_number) || '', numeroId: (v.metadata && v.metadata.phone_number_id) || '' });
       });
       (v.statuses || []).forEach(s => {
         if (!s || !s.id) return;

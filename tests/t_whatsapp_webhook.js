@@ -185,9 +185,19 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   const antes = A.enviados.length;
   r = await procesar.procesarMensaje(A.deps, msgTexto('584141234567', 'gracias', 'wamid.a4'));
   ok('con una persona atendiendo, el mensaje se guarda pero el asistente no responde', r.callado && A.enviados.length === antes && A.db26._store.get('conversaciones/wa:+584141234567/mensajes/wamid.a4').texto === 'gracias');
+  // Dos números: el de ventas responde Paola por su propio número; el de cobranza, Patricia por el suyo
   const As = armar();
-  const rVentas = await procesar.procesarMensaje(As.deps, Object.assign(msgTexto('584141234567', 'hola, quiero una moto', 'wamid.ventas'), { telefonoNegocio: '+58 414-2719914' }));
-  ok('lo que llega al número de ventas se guarda y espera a una persona, sin respuesta automática', rVentas.soloPersona && As.enviados.length === 0 && As.cerebroFalso.ultimo === null && As.db26._store.get('conversaciones/wa:+584141234567').atencion === 'pide_persona' && As.db26._store.get('conversaciones/wa:+584141234567/mensajes/wamid.ventas').texto === 'hola, quiero una moto');
+  const porVentas = [], leidosVentas = [];
+  As.deps.metaPara = id => id === '1415108271676379' ? Object.assign({}, As.deps.meta, { enviarTexto: async (a, t) => { porVentas.push({ a, t }); return 'wamid.v' + porVentas.length; }, marcarLeido: async x => { leidosVentas.push(x); return ''; } }) : As.deps.meta;
+  As.deps.cfg = Object.assign({}, As.deps.cfg);
+  await procesar.procesarMensaje(As.deps, Object.assign(msgTexto('584149990000', 'hola, quiero una moto', 'wamid.ventas'), { telefonoNegocio: '584142719914', numeroId: '1415108271676379' }));
+  const cV = As.db26._store.get('conversaciones/wa:+584149990000') || As.db18._store.get('conversaciones/wa:+584149990000');
+  ok('...la conversación queda en ventas con su número', cV && cV.area === 'ventas' && cV.numeroId === '1415108271676379');
+  ok('...y la respuesta sale por el número de ventas, no por el de cobranza', porVentas.length === 1 && As.enviados.length === 0 && leidosVentas[0] === 'wamid.ventas');
+  const Ac2 = armar(); const porV2 = [];
+  Ac2.deps.metaPara = id => id === '1415108271676379' ? Object.assign({}, Ac2.deps.meta, { enviarTexto: async (a, t) => { porV2.push({ a, t }); return 'x'; } }) : Ac2.deps.meta;
+  await procesar.procesarMensaje(Ac2.deps, Object.assign(msgTexto('584141234567', 'cuánto debo', 'wamid.cob'), { telefonoNegocio: '584146401617', numeroId: '1424568607402146' }));
+  ok('lo que llega al número nuevo lo atiende Patricia, por el número de cobranza', porV2.length === 0 && Ac2.enviados.length === 1 && Ac2.db26._store.get('conversaciones/wa:+584141234567').area === 'cobranza');
   // comprobante
   A = armar();
   r = await procesar.procesarMensaje(A.deps, { metaId: 'wamid.img', de: '584141234567', nombre: 'María', tipo: 'imagen', texto: '', medio: { id: 'media9', mime: 'image/jpeg' }, hora: AHORA });

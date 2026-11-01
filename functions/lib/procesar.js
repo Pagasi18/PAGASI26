@@ -91,19 +91,26 @@ async function contexto(deps, empresa, clienteId, hoy) {
   return { cliente, creditos: estados, credActivo: vivos[0] || null, comprobantesPendientes: comp };
 }
 
+// Dos numeros de WhatsApp (Adam, 1-nov-2026): el 0414-2719914 es de ventas y responde Paola; el de cobranza, Patricia.
+// Cada conversacion contesta por el numero al que escribio el cliente.
+const NUMERO_VENTAS = '4142719914', NUMERO_VENTAS_ID = '1415108271676379';
 // El area por WhatsApp: ventas si escribio al numero de ventas (config/asistente.numeros) o si no
 // es cliente; cobranza si es cliente. Una sola conversacion por telefono: el area es la del ultimo mensaje.
 function areaDe(deps, m, clienteId) {
   const d = v => String(v || '').replace(/\D/g, '').replace(/^(58|0)/, '');   // 0412-555… y 58412555… son el mismo número
   const nums = (deps.cfg && deps.cfg.numeros) || {};
   const neg = d(m.telefonoNegocio);
-  if (neg && d(nums.ventas) && neg === d(nums.ventas)) return 'ventas';
+  if (neg && (neg === NUMERO_VENTAS || (d(nums.ventas) && neg === d(nums.ventas)))) return 'ventas';
   // El WhatsApp es solo de cobranza (Adam, 21-oct-2026): quien no es cliente tambien lo atiende Patricia
   return 'cobranza';
 }
 // El canal decide por donde se manda y a quien
 function canalDe(conv) { return (conv && conv.canal) || 'whatsapp'; }
-function emisor(deps, canal) { return canal === 'instagram' ? deps.metaIG : deps.meta; }
+function emisor(deps, canal, conv) {
+  if (canal === 'instagram') return deps.metaIG;
+  const id = (conv && conv.numeroId) || (conv && conv.area === 'ventas' ? NUMERO_VENTAS_ID : '');
+  return (id && deps.metaPara && deps.metaPara(id)) || deps.meta;
+}
 function destino(conv) { return canalDe(conv) === 'instagram' ? conv.igsid : conv.telE164; }
 
 // Redes sociales (22-oct-2026): cada asistente se puede apagar por canal. Apagada, el mensaje igual
@@ -111,8 +118,6 @@ function destino(conv) { return canalDe(conv) === 'instagram' ? conv.igsid : con
 function responde(deps, donde) { const r = deps.cfg && deps.cfg.responde; return !r || r[donde] !== false; }
 function calidadDe(deps, area) { const c = deps.cfg && deps.cfg.calidad; return (c && c[area]) || 'normal'; }
 
-// El 0414-2719914 es de ventas y lo atiende una persona (Adam, 30-oct y 1-nov-2026): lo que llegue ahi se guarda y espera a alguien, sin respuesta automatica
-const NUMEROS_SOLO_PERSONA = ['584142719914'];
 async function procesarMensaje(deps, m) {
   if ((m.canal || 'whatsapp') === 'instagram') return procesarInstagram(deps, m);
   const tel = telDe(m.de); if (!tel) return { saltado: 'sin-telefono' };
@@ -131,11 +136,12 @@ async function procesarMensaje(deps, m) {
   const area = areaDe(deps, m, (ctx.creditos && ctx.creditos.length) ? u.clienteId : '');
   const base = { canal: 'whatsapp', area, telE164: tel, nombre: (conv && conv.nombre) || m.nombre || (ctx.cliente && ctx.cliente.nombre) || tel, clienteId: u.clienteId || (conv && conv.clienteId) || '', clienteNombre: (ctx.cliente && ctx.cliente.nombre) || (conv && conv.clienteNombre) || '',
     cred: ctx.credActivo ? ctx.credActivo.id : ((conv && conv.cred) || ''), modo: (conv && conv.modo) || 'bot', noLeidos: ((conv && conv.noLeidos) || 0) + 1, ultimoMensaje: textoLista(m), ultimoMensajeHora: entrante.hora, ultimoEntranteHora: entrante.hora, ultimoEntranteId: m.metaId, ultimoAutor: 'cliente', actualizado: ahora, empresa: u.empresa };
+  if (m.numeroId) base.numeroId = m.numeroId;
   if (!conv) base.creado = ahora;
   await convRef.set(base, { merge: true });
   deps.log('entrante', { canal: 'whatsapp', area, empresa: u.empresa, tipo: m.tipo, cliente: !!u.clienteId });
-  if (NUMEROS_SOLO_PERSONA.includes(String(m.telefonoNegocio || '').replace(/\D/g, ''))) { await convRef.set({ atencion: 'pide_persona', actualizado: ahora }, { merge: true }); return { empresa: u.empresa, soloPersona: true }; }
-  if (deps.meta.marcarLeido) deps.meta.marcarLeido(m.metaId).catch(() => {});
+  const emWa = emisor(deps, 'whatsapp', base);
+  if (emWa.marcarLeido) emWa.marcarLeido(m.metaId).catch(() => {});
 
   // VENTAS por WhatsApp: el mismo asistente que en Instagram, ya con el telefono de la persona
   if (area === 'ventas') {
@@ -402,7 +408,7 @@ async function seguimientoVentas(deps) {
       && responde(deps, canal === 'instagram' ? 'instagram' : 'whatsappVentas');
     if (!ok) { saltados++; continue; }
     if (enviados >= 30) break;   // tope por corrida
-    const em = emisor(deps, canal); if (!em) { saltados++; continue; }
+    const em = emisor(deps, canal, c); if (!em) { saltados++; continue; }
     const texto = textoSeguimiento(S.texto, c);
     try {
       const metaId = await em.enviarTexto(destino(c), texto);
@@ -500,7 +506,7 @@ async function clienteDesdeLead(deps, db, o) {
 // Manda el texto por el canal que toque, lo guarda como mensaje del asistente y actualiza la conversacion
 async function responder(deps, convRef, conv, texto, ahora, cambios) {
   let metaId = '', estado = 'enviado', error = '';
-  try { metaId = await emisor(deps, canalDe(conv)).enviarTexto(destino(conv), texto); } catch (e) { estado = 'fallo'; error = String(e && e.message || e).slice(0, 160); deps.log('envio-fallo', { canal: canalDe(conv), error }); }
+  try { metaId = await emisor(deps, canalDe(conv), conv).enviarTexto(destino(conv), texto); } catch (e) { estado = 'fallo'; error = String(e && e.message || e).slice(0, 160); deps.log('envio-fallo', { canal: canalDe(conv), error }); }
   const msg = { metaId, direccion: 'saliente', autor: 'asistente', tipo: 'texto', texto, estado, error, hora: ahora };
   if (metaId) await convRef.collection('mensajes').doc(metaId).set(msg); else await convRef.collection('mensajes').add(msg);
   await convRef.set(Object.assign({ ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'asistente', actualizado: ahora }, cambios || {}), { merge: true });
@@ -704,7 +710,7 @@ async function enviarEquipo(deps, { empresa, convId, texto, por, quien, imagen }
   const desde = conv.ultimoEntranteHora ? Date.parse(ahora) - Date.parse(conv.ultimoEntranteHora) : Infinity;
   const limite = canal === 'instagram' ? 7 * 24 : 24;
   if (desde >= limite * 3600 * 1000) throw Object.assign(new Error(canal === 'instagram' ? 'Pasaron más de 7 días desde el último mensaje de la persona: hay que esperar a que vuelva a escribir.' : 'La ventana de 24 horas está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.'), { codigo: 'ventana' });
-  const em = emisor(deps, canal); if (!em) throw Object.assign(new Error('Ese canal no está configurado'), { codigo: 'canal' });
+  const em = emisor(deps, canal, conv); if (!em) throw Object.assign(new Error('Ese canal no está configurado'), { codigo: 'canal' });
   const humano = canal === 'instagram' && desde >= 24 * 3600 * 1000;
   let metaId;
   if (imagen) {
