@@ -61,14 +61,16 @@ function armarPlantilla(nombre, it) {
 
 async function docs(q) { const s = await q.get(); return (s.docs || []).map(d => Object.assign({ id: d.id }, d.data())); }
 
-async function correrEmpresa(deps, empresa, plantillas, hoy) {
+// lista: si viene, solo se escribe a esos creditos, como 'empresa:credito' (arranque por grupos, Adam 1-nov-2026)
+async function correrEmpresa(deps, empresa, plantillas, hoy, lista) {
   const db = deps.bases[empresa];
   const [creds, pagos, clientes] = await Promise.all([docs(db.collection('creditos')), docs(db.collection('pagos')), docs(db.collection('clientes'))]);
   const cola = W.waColaHoy(creds, pagos, clientes, hoy);
-  const r = { empresa, candidatos: 0, enviados: 0, repetidos: 0, sinTelefono: 0, sinPlantilla: 0, fallos: 0 };
+  const r = { empresa, candidatos: 0, enviados: 0, repetidos: 0, sinTelefono: 0, sinPlantilla: 0, fallos: 0, fueraDeLista: 0 };
   for (const grupo of Object.keys(CUANDO)) {
     const items = (cola.grupos[grupo] || []).filter(CUANDO[grupo]);
     for (const it of items) {
+      if (Array.isArray(lista) && !lista.includes(empresa + ':' + it.cred)) { r.fueraDeLista++; continue; }
       r.candidatos++;
       if (!it.tel) { r.sinTelefono++; continue; }
       const plantilla = plantillaDe(grupo, it, plantillas);
@@ -95,7 +97,7 @@ async function correr(deps, opciones) {
   const hoy = (opciones && opciones.hoy) || deps.hoy();
   const plantillas = (opciones && opciones.plantillas) || {};
   const res = [];
-  for (const emp of Object.keys(deps.bases)) { try { res.push(await correrEmpresa(deps, emp, plantillas, hoy)); } catch (e) { res.push({ empresa: emp, error: String(e && e.message || e).slice(0, 160) }); } }
+  for (const emp of Object.keys(deps.bases)) { try { res.push(await correrEmpresa(deps, emp, plantillas, hoy, opciones && opciones.lista)); } catch (e) { res.push({ empresa: emp, error: String(e && e.message || e).slice(0, 160) }); } }
   return res;
 }
 

@@ -134,19 +134,19 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   A.deps.cfg.numeros = { ventas: '0412-5550000' };
   const msgVentas = (de, texto, id) => Object.assign(msgTexto(de, texto, id), { telefonoNegocio: '584125550000' });
   r = await procesar.procesarMensaje(A.deps, msgVentas('584160000000', 'quiero una moto', 'wamid.c1'));
-  ok('al número de VENTAS (si se configura) quien no es cliente → Paola: en la 26, área ventas, briefing del catálogo y sin cifras de crédito', r.empresa === '26' && r.area === 'ventas' && r.respondido && A.db26._store.get('conversaciones/wa:+584160000000').area === 'ventas' && /CATÁLOGO VIGENTE/.test(A.cerebroFalso.ultimo.sistema) && /Paola, la asesora comercial online de Pagasi, y atiendes por WhatsApp/.test(A.cerebroFalso.ultimo.sistema) && /\+584160000000/.test(A.cerebroFalso.ultimo.sistema) && /NO se lo pidas/.test(A.cerebroFalso.ultimo.sistema) && !/CRÉDITO/.test(A.cerebroFalso.ultimo.sistema));
+  ok('al número de VENTAS (si se configura) quien no es cliente → Paola: en la 26, área ventas, briefing del catálogo y sin cifras de crédito', r.empresa === '26' && r.area === 'ventas' && r.respondido && A.db26._store.get('conversaciones/wav:+584160000000').area === 'ventas' && /CATÁLOGO VIGENTE/.test(A.cerebroFalso.ultimo.sistema) && /Paola, la asesora comercial online de Pagasi, y atiendes por WhatsApp/.test(A.cerebroFalso.ultimo.sistema) && /\+584160000000/.test(A.cerebroFalso.ultimo.sistema) && /NO se lo pidas/.test(A.cerebroFalso.ultimo.sistema) && !/CRÉDITO/.test(A.cerebroFalso.ultimo.sistema));
   A.cerebroFalso.respuesta = { reply: 'Listo, Ana. Un asesor te escribe por aquí.', draft: { tipo: 'lead', nombre: 'Ana Torres', ciudad: 'Valencia', modelo: 'Kavak 250' }, summary: 'Quiere la Kavak 250, Valencia.', handoff: true, handoffReason: 'lead' };
   r = await procesar.procesarMensaje(A.deps, msgVentas('584160000000', 'soy Ana Torres, de Valencia', 'wamid.c2'));
   const cliWa = A.db26._store.get('clientes/WA-04160000000');
-  ok('el lead de WhatsApp entra a Clientes como Lead WhatsApp con su teléfono, moto y conversación (nombre en mayúsculas y sin tildes)', cliWa && cliWa.origen === 'whatsapp' && cliWa.estado === 'lead' && cliWa.nombre === 'ANA TORRES' && cliWa.tel === '04160000000' && cliWa.conversacion === 'wa:+584160000000' && A.db26._store.get('conversaciones/wa:+584160000000').clienteLead === 'WA-04160000000');
+  ok('el lead de WhatsApp entra a Clientes como Lead WhatsApp con su teléfono, moto y conversación (nombre en mayúsculas y sin tildes)', cliWa && cliWa.origen === 'whatsapp' && cliWa.estado === 'lead' && cliWa.nombre === 'ANA TORRES' && cliWa.tel === '04160000000' && cliWa.conversacion === 'wav:+584160000000' && A.db26._store.get('conversaciones/wav:+584160000000').clienteLead === 'WA-04160000000');
   await A.db26.collection('clientes').doc('77').set({ nombre: 'Pedro Gómez', tel: '04170000000', cedula: 'V-5555555', estado: 'activo' });
   A.cerebroFalso.respuesta = { reply: 'Listo, Pedro.', draft: { tipo: 'lead', nombre: 'Pedro Gómez', modelo: 'GTL 150' }, summary: 'Quiere otra moto.', handoff: true, handoffReason: 'lead' };
   r = await procesar.procesarMensaje(A.deps, msgVentas('584170000000', 'soy Pedro Gómez, quiero la GTL', 'wamid.c3'));
-  ok('si ya existe un cliente con ese teléfono no se duplica: se le anota lo del chat', !A.db26._store.get('clientes/WA-04170000000') && A.db26._store.get('clientes/77').lead_chat && A.db26._store.get('clientes/77').lead_chat.modelo === 'GTL 150' && A.db26._store.get('conversaciones/wa:+584170000000').clienteLead === '77');
+  ok('si ya existe un cliente con ese teléfono no se duplica: se le anota lo del chat', !A.db26._store.get('clientes/WA-04170000000') && A.db26._store.get('clientes/77').lead_chat && A.db26._store.get('clientes/77').lead_chat.modelo === 'GTL 150' && A.db26._store.get('conversaciones/wav:+584170000000').clienteLead === '77');
   const leadWa = A.db26._store.get('leads/wa:+584160000000');
-  ok('...cuando quiere comprar queda el lead de WhatsApp con el teléfono ya puesto y la conversación "Quiere comprar"', leadWa && leadWa.canal === 'whatsapp' && leadWa.telefono === '584160000000' && leadWa.modelo === 'Kavak 250' && A.db26._store.get('conversaciones/wa:+584160000000').atencion === 'lead');
+  ok('...cuando quiere comprar queda el lead de WhatsApp con el teléfono ya puesto y la conversación "Quiere comprar"', leadWa && leadWa.canal === 'whatsapp' && leadWa.telefono === '584160000000' && leadWa.modelo === 'Kavak 250' && A.db26._store.get('conversaciones/wav:+584160000000').atencion === 'lead');
   // Reparto entre vendedores (24-oct-2026, Adam: "que nadie se quede esperando")
-  const cvA = A.db26._store.get('conversaciones/wa:+584160000000');
+  const cvA = A.db26._store.get('conversaciones/wav:+584160000000');
   ok('sin reparto encendido no se asigna a nadie, pero queda desde cuándo espera', !cvA.vendedor && cvA.atencion === 'lead' && cvA.atencionDesde === AHORA);
   ok('quien quiere comprar queda en la etapa "interesado"', cvA.etapa === 'interesado');
   A.deps.cfg.reparto = { activo: true, vendedores: ['Liz Alejandra', 'Marianne Molina'] };
@@ -155,9 +155,9 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   A.cerebroFalso.respuesta = quiere; await procesar.procesarMensaje(A.deps, msgVentas('584180000001', 'quiero la BRZ', 'wamid.r1'));
   A.cerebroFalso.respuesta = persona; await procesar.procesarMensaje(A.deps, msgVentas('584180000002', 'quiero hablar con alguien', 'wamid.r2'));
   A.cerebroFalso.respuesta = quiere; await procesar.procesarMensaje(A.deps, msgVentas('584180000003', 'me interesa', 'wamid.r3'));
-  const vd = n => (A.db26._store.get('conversaciones/wa:+58418000000' + n) || {}).vendedor;
+  const vd = n => (A.db26._store.get('conversaciones/wav:+58418000000' + n) || {}).vendedor;
   ok('con el reparto encendido, quien quiere comprar o pide una persona se asigna por turnos: Liz, Marianne, Liz', vd(1) === 'Liz Alejandra' && vd(2) === 'Marianne Molina' && vd(3) === 'Liz Alejandra');
-  ok('...queda cuándo se asignó y el turno se guarda en config/asistente', A.db26._store.get('conversaciones/wa:+584180000001').asignadoEn === AHORA && (A.db26._store.get('config/asistente') || {}).reparto.ultimo === 'Liz Alejandra');
+  ok('...queda cuándo se asignó y el turno se guarda en config/asistente', A.db26._store.get('conversaciones/wav:+584180000001').asignadoEn === AHORA && (A.db26._store.get('config/asistente') || {}).reparto.ultimo === 'Liz Alejandra');
   A.cerebroFalso.respuesta = quiere; await procesar.procesarMensaje(A.deps, msgVentas('584180000001', 'sigo interesada', 'wamid.r4'));
   ok('una conversación que ya tiene vendedor no se reasigna ni gasta turno', vd(1) === 'Liz Alejandra' && A.deps.cfg.reparto.ultimo === 'Liz Alejandra');
   await A.db26.collection('conversaciones').doc('wa:+584180000005').set({ canal: 'whatsapp', area: 'ventas', telE164: '+584180000005', modo: 'humano', atendidoPor: 'Adam' });
@@ -168,7 +168,7 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   A.deps.cfg.reparto = { activo: true, vendedores: ['Liz Alejandra', 'Marianne Molina'] };
   A.cerebroFalso.respuesta = { reply: 'Listo.', draft: { tipo: 'lead', nombre: 'Eva <script>alert(1)</script> "Mora"', telefono: '04190000000', modelo: 'BRZ 200' }, summary: 'Quiere la BRZ.', handoff: true, handoffReason: 'lead' };
   await procesar.procesarMensaje(A.deps, msgVentas('584190000000', 'soy Eva', 'wamid.x1'));
-  const bx = A.db26._store.get('conversaciones/wa:+584190000000').borrador, cx = A.db26._store.get('clientes/WA-04190000000');
+  const bx = A.db26._store.get('conversaciones/wav:+584190000000').borrador, cx = A.db26._store.get('clientes/WA-04190000000');
   ok('el nombre que viene del chat se guarda limpio en la conversación y en Clientes', bx.nombre === 'Eva scriptalert(1)/script Mora' && cx && !/[<>"]/.test(cx.nombre));
   A.cerebroFalso.respuesta = null; delete A.deps.cfg.numeros;
   ok('el área se decide por el número de negocio cuando hay uno de ventas configurado', procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000', cobranza: '0422-0000000' } } }, { telefonoNegocio: '584125550000' }, 'C26') === 'ventas' && procesar.areaDe({ cfg: { numeros: { ventas: '0412-5550000' } } }, { telefonoNegocio: '584220000000' }, 'C26') === 'cobranza' && procesar.areaDe({ cfg: {} }, { telefonoNegocio: '584220000000' }, '') === 'cobranza');
@@ -192,9 +192,15 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   As.deps.metaPara = id => id === '1415108271676379' ? Object.assign({}, As.deps.meta, { enviarTexto: async (a, t) => { porVentas.push({ a, t }); return 'wamid.v' + porVentas.length; }, marcarLeido: async x => { leidosVentas.push(x); return ''; } }) : As.deps.meta;
   As.deps.cfg = Object.assign({}, As.deps.cfg);
   await procesar.procesarMensaje(As.deps, Object.assign(msgTexto('584149990000', 'hola, quiero una moto', 'wamid.ventas'), { telefonoNegocio: '584142719914', numeroId: '1415108271676379' }));
-  const cV = As.db26._store.get('conversaciones/wa:+584149990000') || As.db18._store.get('conversaciones/wa:+584149990000');
+  const cV = As.db26._store.get('conversaciones/wav:+584149990000') || As.db18._store.get('conversaciones/wav:+584149990000');
   ok('...la conversación queda en ventas con su número', cV && cV.area === 'ventas' && cV.numeroId === '1415108271676379');
   ok('...y la respuesta sale por el número de ventas, no por el de cobranza', porVentas.length === 1 && As.enviados.length === 0 && leidosVentas[0] === 'wamid.ventas');
+  // El mismo cliente escribe a los dos números: cada asistente lee solo su propia conversación
+  const Ad2 = armar(); Ad2.deps.metaPara = () => Ad2.deps.meta;
+  await procesar.procesarMensaje(Ad2.deps, Object.assign(msgTexto('584141234567', 'quiero una RK 200', 'wamid.mV'), { telefonoNegocio: '584142719914', numeroId: '1415108271676379' }));
+  await procesar.procesarMensaje(Ad2.deps, Object.assign(msgTexto('584141234567', 'cuánto debo', 'wamid.mC'), { telefonoNegocio: '584146401617', numeroId: '1424568607402146' }));
+  ok('dos números, dos conversaciones separadas', Ad2.db26._store.has('conversaciones/wav:+584141234567/mensajes/wamid.mV') && Ad2.db26._store.has('conversaciones/wa:+584141234567/mensajes/wamid.mC') && !Ad2.db26._store.has('conversaciones/wa:+584141234567/mensajes/wamid.mV'));
+  ok('Patricia no ve lo que se habló con Paola', !/RK 200/.test(JSON.stringify(Ad2.cerebroFalso.ultimo)));
   const Ac2 = armar(); const porV2 = [];
   Ac2.deps.metaPara = id => id === '1415108271676379' ? Object.assign({}, Ac2.deps.meta, { enviarTexto: async (a, t) => { porV2.push({ a, t }); return 'x'; } }) : Ac2.deps.meta;
   await procesar.procesarMensaje(Ac2.deps, Object.assign(msgTexto('584141234567', 'cuánto debo', 'wamid.cob'), { telefonoNegocio: '584146401617', numeroId: '1424568607402146' }));
@@ -215,6 +221,15 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   const Af = armar(); Af.cerebroFalso.leerComprobante = async () => { throw new Error('sin saldo'); };
   await procesar.procesarMensaje(Af.deps, imgC('wamid.r4'));
   ok('si no se puede leer el recibo, entra igual a la bandeja', Af.db26._lista('comprobantes/').length === 1 && /Recibí tu comprobante/.test(Af.enviados[0].t));
+  const Ad = armar(); Ad.cerebroFalso.leerComprobante = async () => ({ esComprobante: true, monto: 25, moneda: 'USD', fecha: '', referencia: 'R9', banco: '' });
+  await procesar.procesarMensaje(Ad.deps, imgC('wamid.d1')); await procesar.procesarMensaje(Ad.deps, imgC('wamid.d2'));
+  const dd = Ad.db26._lista('comprobantes/');
+  ok('el mismo recibo mandado dos veces queda marcado como repetido', dd.length === 2 && dd.filter(x => x.referenciaRepetida).length === 1);
+  const Al = armar(); Al.db26._store.set('creditos/M-2', cred('M-2', 'C26b', 12, { cli: 'ANA LÓPEZ' })); Al.db26._store.set('clientes/C26b', { id: 'C26b', nombre: 'ANA LÓPEZ', tel: '04149998877' });
+  let rl = await recordatorios.correr(Al.deps, { hoy: HOY, plantillas: {}, lista: ['18:M-2'] });
+  ok('con lista, a un crédito fuera de ella no se le escribe', Al.plantillas.length === 0 && rl.find(x => x.empresa === '26').fueraDeLista >= 1);
+  rl = await recordatorios.correr(Al.deps, { hoy: HOY, plantillas: {}, lista: ['26:M-2'] });
+  ok('con lista, solo se le escribe a los de la lista', Al.plantillas.length === 1 && Al.plantillas[0].a === '+584149998877');
   const cerebroR = require('../functions/lib/cerebro');
   const lr = await cerebroR.leerComprobante({ apiKey: 'x', bytes: Buffer.from('a'), mime: 'image/png', fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ usage: {}, content: [{ type: 'tool_use', name: 'anotar_recibo', input: { es_comprobante: true, monto: 25.005, moneda: 'USD', fecha: 'ayer', referencia: '<b>12', banco: null } }] }) }) });
   ok('lo leído se limpia antes de guardarse', lr.monto === 25.01 && lr.fecha === '' && lr.referencia === 'b12' && lr.banco === '');
