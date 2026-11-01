@@ -204,8 +204,8 @@ function portalComprobantesCard(){
       + '<td class="tdm">' + _pEsc(quien) + '</td>'
       + '<td class="tds" style="font-family:var(--fd)">' + _pEsc(c.credId||'—') + '</td>'
       + '<td class="tds">' + _pEsc(c.fecha||'') + '</td>'
-      + '<td style="font-weight:800;font-family:var(--fd)">' + fmt(c.monto||0) + '</td>'
-      + '<td class="tds">' + _pEsc(c.metodo||'') + (c.referencia?'<div style="font-size:10px;color:var(--ink3)">Ref ' + _pEsc(c.referencia) + '</div>':'') + (c.montoDicho?'<div style="font-size:10px;color:var(--ink3)">Dijo: ' + _pEsc(c.montoDicho) + '</div>':'') + '</td>'
+      + '<td style="font-weight:800;font-family:var(--fd)">' + (c.monto ? fmt(c.monto) : (c.leido && c.leido.moneda === 'BS' && c.leido.monto ? 'Bs. ' + _pEsc(c.leido.monto) : '—')) + (c.origen === 'whatsapp' ? '<div style="font-size:10px;font-weight:600;color:var(--amber)">Recibido · sin confirmar</div>' : '') + '</td>'
+      + '<td class="tds">' + _pEsc(c.metodo||'') + (c.leido && c.leido.banco ? ' · ' + _pEsc(c.leido.banco) : '') + (c.leido && !c.leido.esComprobante ? '<div style="font-size:10px;color:var(--amber)">No parece un comprobante</div>' : '') + (c.referencia?'<div style="font-size:10px;color:var(--ink3)">Ref ' + _pEsc(c.referencia) + '</div>':'') + (c.montoDicho?'<div style="font-size:10px;color:var(--ink3)">Dijo: ' + _pEsc(c.montoDicho) + '</div>':'') + '</td>'
       + '<td><div style="display:flex;gap:4px;flex-wrap:wrap">'
       + (c.fotoUrl ? '<a class="btn btn-g btn-xs" href="' + _pEsc(c.fotoUrl) + '" target="_blank" rel="noopener">Ver foto</a>' : '')
       + '<button class="btn btn-p btn-xs" onclick="portalCompRegistrar(\'' + c.id + '\')">Registrar pago</button>'

@@ -23,6 +23,13 @@ function yaDisculpado(historial, ahora) {
   return !!(ult && ult.autor === 'asistente' && ult.texto === CORTESIA && Date.parse(ahora) - Date.parse(ult.hora || 0) < 12 * 3600 * 1000);
 }
 const ACK_COMPROBANTE = '¡Gracias! Recibí tu comprobante y lo pasé al equipo de Pagasi para confirmarlo. En cuanto lo registren te aviso por aquí.';
+// Con el recibo leido, se le dice al cliente lo que se anoto: queda recibido, sin confirmar
+function ackRecibo(l) {
+  if (l && !l.esComprobante) return 'Recibí tu imagen, pero no logro ver un pago en ella. Se la paso al equipo de Pagasi para que la revise; si era otra, envíame la foto del comprobante.';
+  if (!l || !l.monto) return ACK_COMPROBANTE;
+  const cifra = (l.moneda === 'BS' ? 'Bs. ' : '$') + l.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `¡Gracias! Recibí tu comprobante por ${cifra}${l.referencia ? ', referencia ' + l.referencia : ''}. Queda como recibido, sin confirmar, hasta que el equipo de Pagasi lo revise. Te aviso por aquí.`;
+}
 const RAZON_A_ATENCION = { pide_persona: 'pide_persona', queja: 'queja', comprobante: 'comprobante', no_puede_pagar: 'pide_persona', descuento: 'pide_persona', no_cliente: 'pide_persona', lead: 'lead', otro: 'pide_persona' };
 
 // Lo que escribe la persona en el chat y Paola anota (nombre, dirección, fiador…) se muestra en varias pantallas:
@@ -152,19 +159,20 @@ async function procesarMensaje(deps, m) {
 
   // Una imagen o un documento: posible comprobante. Se guarda y se le pasa al equipo.
   if (m.medio && (m.tipo === 'imagen' || m.tipo === 'documento')) {
-    let medio = null;
+    let medio = null, leido = null;
     try {
       const b = await deps.meta.bajarMedio(m.medio.id);
       const ruta = 'comprobantes_whatsapp/' + tel.replace('+', '') + '/' + m.metaId + '.' + extDe(b.mime);
       const url = await deps.storage(u.empresa).subir(ruta, b.bytes, b.mime);
       medio = { url, path: ruta, mime: b.mime };
       await msgRef.set({ medio }, { merge: true });
+      if (u.clienteId && deps.cerebro && deps.cerebro.leerComprobante) { try { leido = await deps.cerebro.leerComprobante({ bytes: b.bytes, mime: b.mime }); } catch (e) { deps.log('recibo-fallo', { error: String(e && e.message || e).slice(0, 120) }); } }
     } catch (e) { deps.log('medio-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
     if (u.clienteId && medio) {
-      await db.collection('comprobantes').add({ clienteId: u.clienteId, clienteNombre: (ctx.cliente && ctx.cliente.nombre) || '', credId: ctx.credActivo ? ctx.credActivo.id : '', monto: null, fecha: hoy, metodo: 'WhatsApp', referencia: '', montoDicho: m.montoDicho || '', fotoUrl: medio.url, fotoPath: medio.path, estado: 'pendiente', origen: 'whatsapp', creadoEn: ahora, telE164: tel });
+      await db.collection('comprobantes').add({ clienteId: u.clienteId, clienteNombre: (ctx.cliente && ctx.cliente.nombre) || '', credId: ctx.credActivo ? ctx.credActivo.id : '', monto: leido && leido.esComprobante && leido.moneda !== 'BS' ? leido.monto : null, fecha: (leido && leido.fecha) || hoy, metodo: 'WhatsApp', referencia: (leido && leido.referencia) || '', leido: leido ? { esComprobante: leido.esComprobante, monto: leido.monto, moneda: leido.moneda, fecha: leido.fecha, referencia: leido.referencia, banco: leido.banco } : null, montoDicho: m.montoDicho || '', fotoUrl: medio.url, fotoPath: medio.path, estado: 'pendiente', origen: 'whatsapp', creadoEn: ahora, telE164: tel });
     }
     await convRef.set({ atencion: 'comprobante', actualizado: ahora }, { merge: true });
-    if (base.modo === 'bot' && responde(deps, 'whatsappCobranza')) await responder(deps, convRef, base, u.clienteId ? ACK_COMPROBANTE : 'Recibí tu imagen. ¿Me dices tu nombre y si tienes un crédito con Pagasi? Un asesor te atiende en breve.', ahora, { resumen: 'Mandó una imagen (posible comprobante).' });
+    if (base.modo === 'bot' && responde(deps, 'whatsappCobranza')) await responder(deps, convRef, base, u.clienteId ? ackRecibo(leido) : 'Recibí tu imagen. ¿Me dices tu nombre y si tienes un crédito con Pagasi? Un asesor te atiende en breve.', ahora, { resumen: 'Mandó una imagen (posible comprobante).' });
     return { empresa: u.empresa, comprobante: true };
   }
 

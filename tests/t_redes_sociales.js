@@ -111,6 +111,8 @@ ctx._rsVista = 'bandeja';
 ['mtt', 'msb', 'modal-box', 'mbd', 'mft', 'ov', 'mic'].forEach(el); els['ov'].style = {}; els['mic'].style = {};
 ctx.isAdminUser = () => true;
 ctx._waCfg = Object.assign({}, ctx._waCfg, { responde: { comentariosIg: false }, calidad: { ventas: 'economica' }, instruccionesVentas: 'Casco gratis esta semana' });
+ctx.rsAsistente('cobranza');
+ok('la ventana de Patricia trae una casilla de cuentas para cada compañía', /id="rs-pago"/.test(els['mbd'].innerHTML) && /id="rs-pago26"/.test(els['mbd'].innerHTML) && /clientes de PAGASI 18/.test(els['mbd'].innerHTML) && /clientes de PAGASI 26/.test(els['mbd'].innerHTML));
 ctx.rsAsistente('ventas');
 let v = els['mbd'].innerHTML;
 ok('la ventana de Paola se abre con su nombre', els['mtt'].textContent === 'Paola de Pagasi' && els['ov'].style.display === 'flex' && /Hoy contestó en/.test(els['msb'].textContent));

@@ -14,7 +14,7 @@ const MES3 = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oc
 // Bolívares a tasa euro: monto en dólares × tasa del euro BCV (Adam, 21-oct-2026)
 const bs = (usd, tasa) => 'Bs. ' + (Math.round((parseFloat(usd) || 0) * tasa * 100) / 100).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // Sin tasa ni montos en bolívares en los mensajes (Adam, 1-nov-2026): los montos van solo en dólares
-const REGLA_BOLIVARES = 'BOLÍVARES: da los montos SOLO en dólares. Nunca menciones tasas de cambio, el BCV ni montos en bolívares. Si el cliente quiere pagar en bolívares, dile que una persona del equipo le confirma cómo hacerlo por este mismo chat.';
+const REGLA_BOLIVARES = 'BOLÍVARES: da los montos SOLO en dólares. Nunca digas el valor de la tasa ni montos en bolívares, y no lo menciones si el cliente no pregunta. Si pregunta si puede pagar en bolívares: sí, se acepta a la tasa euro del BCV del día del pago.';
 const money = n => '$' + (Math.round((parseFloat(n) || 0) * 100) / 100).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fecha = iso => { if (!iso) return ''; const p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? parseInt(p[2], 10) + ' de ' + MES3[parseInt(p[1], 10) - 1] : iso; };
 const dias = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);

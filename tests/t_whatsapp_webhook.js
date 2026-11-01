@@ -97,7 +97,8 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     ok('bolívares: Patricia da los montos solo en dólares y no menciona tasas', /da los montos SOLO en dólares/.test(sb) && !/993,18/.test(sb) && !/tasa oficial/.test(sb));
     ok('bolívares: la cuota del cliente ya no viene calculada en bolívares', !/en bolívares: Bs/.test(sb));
     const sv = ventas.armarVentas({ motos: [], cond: null, sedes: [], hoy: HOY, canal: 'instagram', tasaEuro: 993.18, fechaEuro: HOY });
-    ok('bolívares: Paola lo dice con seguridad y ya no lo deja "por confirmar"', /PAGO EN BOLÍVARES: sí se puede pagar la inicial y las cuotas en bolívares/.test(sv) && !/te lo confirmo hoy por aquí": bolívares/.test(sv));
+    ok('bolívares: Paola dice que se acepta a tasa euro, sin valor de tasa ni montos', /PAGO EN BOLÍVARES: sí se puede pagar la inicial y las cuotas en bolívares, a la tasa euro/.test(sv) && !/Bs\. \d/.test(sv) && !/993,18/.test(sv));
+    ok('bolívares: Patricia también dice que se acepta a tasa euro si le preguntan', /se acepta a la tasa euro del BCV/.test(sb));
     const sinTasa = briefing.armar({ empresa: 'PAGASI 26', cliente: { nombre: 'ANA' }, creditos: [e], hoy: HOY });
     ok('bolívares: sin tasa guardada tampoco hay montos en bolívares', !/en bolívares: Bs/.test(sinTasa));
   }
@@ -198,6 +199,26 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
   Ac2.deps.metaPara = id => id === '1415108271676379' ? Object.assign({}, Ac2.deps.meta, { enviarTexto: async (a, t) => { porV2.push({ a, t }); return 'x'; } }) : Ac2.deps.meta;
   await procesar.procesarMensaje(Ac2.deps, Object.assign(msgTexto('584141234567', 'cuánto debo', 'wamid.cob'), { telefonoNegocio: '584146401617', numeroId: '1424568607402146' }));
   ok('lo que llega al número nuevo lo atiende Patricia, por el número de cobranza', porV2.length === 0 && Ac2.enviados.length === 1 && Ac2.db26._store.get('conversaciones/wa:+584141234567').area === 'cobranza');
+  // El robot lee el recibo y lo deja recibido, sin confirmar (Adam, 1-nov-2026)
+  const imgC = id => ({ metaId: id, de: '584141234567', nombre: 'María', tipo: 'imagen', texto: '', medio: { id: 'media-' + id, mime: 'image/jpeg' }, hora: AHORA });
+  const Ar = armar(); Ar.cerebroFalso.leerComprobante = async () => ({ esComprobante: true, monto: 25, moneda: 'USD', fecha: '2026-10-30', referencia: '123456', banco: '100% Banco' });
+  await procesar.procesarMensaje(Ar.deps, imgC('wamid.r1'));
+  const cr = Ar.db26._lista('comprobantes/')[0];
+  ok('recibo leído: queda pendiente con monto, fecha y referencia, sin crear ningún pago', cr.estado === 'pendiente' && cr.monto === 25 && cr.fecha === '2026-10-30' && cr.referencia === '123456' && cr.leido.banco === '100% Banco' && Ar.db26._lista('pagos/').length === armar().db26._lista('pagos/').length);
+  ok('recibo leído: al cliente se le dice lo anotado y que queda sin confirmar', /\$25,00, referencia 123456/.test(Ar.enviados[0].t) && /sin confirmar/.test(Ar.enviados[0].t));
+  const Ab = armar(); Ab.cerebroFalso.leerComprobante = async () => ({ esComprobante: true, monto: 24820, moneda: 'BS', fecha: '', referencia: '', banco: '' });
+  await procesar.procesarMensaje(Ab.deps, imgC('wamid.r2'));
+  ok('recibo en bolívares: el monto no entra como dólares', Ab.db26._lista('comprobantes/')[0].monto === null && Ab.db26._lista('comprobantes/')[0].leido.monto === 24820 && Ab.db26._lista('comprobantes/')[0].fecha === HOY);
+  const An = armar(); An.cerebroFalso.leerComprobante = async () => ({ esComprobante: false, monto: null, moneda: '', fecha: '', referencia: '', banco: '' });
+  await procesar.procesarMensaje(An.deps, imgC('wamid.r3'));
+  ok('una foto que no es recibo: va al equipo y se le avisa al cliente', An.db26._lista('comprobantes/')[0].monto === null && /no logro ver un pago/.test(An.enviados[0].t));
+  const Af = armar(); Af.cerebroFalso.leerComprobante = async () => { throw new Error('sin saldo'); };
+  await procesar.procesarMensaje(Af.deps, imgC('wamid.r4'));
+  ok('si no se puede leer el recibo, entra igual a la bandeja', Af.db26._lista('comprobantes/').length === 1 && /Recibí tu comprobante/.test(Af.enviados[0].t));
+  const cerebroR = require('../functions/lib/cerebro');
+  const lr = await cerebroR.leerComprobante({ apiKey: 'x', bytes: Buffer.from('a'), mime: 'image/png', fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ usage: {}, content: [{ type: 'tool_use', name: 'anotar_recibo', input: { es_comprobante: true, monto: 25.005, moneda: 'USD', fecha: 'ayer', referencia: '<b>12', banco: null } }] }) }) });
+  ok('lo leído se limpia antes de guardarse', lr.monto === 25.01 && lr.fecha === '' && lr.referencia === 'b12' && lr.banco === '');
+  ok('un archivo que no se puede leer no llama a nadie', (await cerebroR.leerComprobante({ apiKey: 'x', bytes: Buffer.from('a'), mime: 'audio/ogg', fetchImpl: async () => { throw new Error('no'); } })) === null);
   // Cada compañía con sus propias cuentas: un cliente de la 26 nunca ve las de la 18
   const Ap = armar(); Ap.deps.cfg = Object.assign({}, Ap.deps.cfg, { datosPago: 'CUENTA-DE-LA-18', datosPago26: '' });
   await procesar.procesarMensaje(Ap.deps, msgTexto('584141234567', 'cómo pago', 'wamid.p26'));

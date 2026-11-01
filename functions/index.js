@@ -100,7 +100,7 @@ function armarDeps(cfg) {
   // Bajar una foto por su enlace (las de Instagram) para guardarla en Storage antes de que venza
   const bajarUrl = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return { bytes: Buffer.from(await r.arrayBuffer()), mime: String(r.headers.get('content-type') || '').split(';')[0] }; };
   return { bases, storage: storageDe, bajarUrl, meta: m, metaPara, metaIG: ig, instagramId: configurado(sec(IG_CUENTA)) ? sec(IG_CUENTA) : '', ventas: catalogoVentas, cfg, ahora: () => new Date().toISOString(), hoy: hoyCaracas, log: (q, d) => logger.info(q, d || {}),
-    cerebro: { pensar: async ({ sistema, mensajes, calidad, area }) => { const r = await cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes, calidad }); anotarGasto(area || 'ventas', r && r.gasto); return r; } } };
+    cerebro: { leerComprobante: async ({ bytes, mime }) => { const r = await cerebro.leerComprobante({ apiKey: sec(ANTHROPIC), bytes, mime }); anotarGasto('cobranza', r && r.gasto); return r; }, pensar: async ({ sistema, mensajes, calidad, area }) => { const r = await cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes, calidad }); anotarGasto(area || 'ventas', r && r.gasto); return r; } } };
 }
 // Lo que gasta cada asistente por día, en config/asistenteUso de la 26 (23-oct-2026, Adam: "ya nos
 // gastamos $40 en Paola y Patricia, ¿me ayudas a bajar los costos?"): así se ve el costo real en el
