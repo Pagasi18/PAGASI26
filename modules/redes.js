@@ -325,7 +325,7 @@ function rsAsistente(area){
     + '</div>'
     + '<h4>Lo que ' + A.nombre + ' debe saber</h4><div class="sv">' + (A.area === 'ventas' ? 'Promociones, horarios, qué decir de una sede, a quién pasar los interesados. Ya conoce precios, inicial, cuotas y cómo se solicita. Lo que escribas aquí manda sobre todo lo demás.' : 'Lo que debe tener en cuenta esta semana. Ejemplos: "esta semana no se reciben pagos en efectivo", "si preguntan por refinanciar, pásalos a Samantha". Lo que escribas aquí manda sobre todo lo demás.') + '</div>'
     + '<textarea class="fta" id="rs-instr"' + (editable ? '' : ' disabled') + ' placeholder="' + (A.area === 'ventas' ? 'Ej.:\nEsta semana: casco gratis con la Veloz\nSábados la sede de Valencia abre hasta la 1 pm' : 'Ej.:\nEsta semana no se reciben pagos en efectivo') + '">' + _waEsc(A.area === 'ventas' ? (cfg.instruccionesVentas || '') : (cfg.instrucciones || '')) + '</textarea>'
-    + (A.area === 'cobranza' ? '<h4>Cómo pagar</h4><div class="sv">Lo único que Patricia le da al cliente cuando pregunta dónde pagar: Pago Móvil, cuenta, RIF, Zelle. Si está vacío, lo manda con el equipo.</div><textarea class="fta" id="rs-pago" style="min-height:80px"' + (editable ? '' : ' disabled') + '>' + _waEsc(cfg.datosPago || '') + '</textarea>' : '')
+    + (A.area === 'cobranza' ? '<h4>Cómo pagar · clientes de PAGASI 18</h4><div class="sv">Lo único que Patricia le da al cliente cuando pregunta dónde pagar. Si está vacío, lo manda con el equipo.</div><textarea class="fta" id="rs-pago" style="min-height:80px"' + (editable ? '' : ' disabled') + '>' + _waEsc(cfg.datosPago || '') + '</textarea><h4>Cómo pagar · clientes de PAGASI 26</h4><textarea class="fta" id="rs-pago26" style="min-height:80px"' + (editable ? '' : ' disabled') + '>' + _waEsc(cfg.datosPago26 || '') + '</textarea>' : '')
     + (cfg.actualizadoEn ? '<div class="sv" style="margin-top:6px">Última vez: ' + _waEsc(cfg.actualizadoPor || 'alguien') + ', ' + _waHora(cfg.actualizadoEn) + '</div>' : '')
     + '<h4>Conexión</h4><div class="rs-cx">'
     + [['Meta (la app de Pagasi)', aqui], [A.area === 'ventas' ? 'Instagram' + (cfg.instagram ? ' @' + _waEsc(String(cfg.instagram).replace(/^@/, '')) : '') : 'WhatsApp ' + _waEsc(cfg.telefono || ''), A.area === 'ventas' ? !!cfg.instagram : waConectado()], [A.area === 'ventas' ? 'WhatsApp ' + _waEsc(cfg.telefono || '') : 'Plantillas de recordatorio', A.area === 'ventas' ? waConectado() : !!(cfg.plantillas && Object.keys(cfg.plantillas).length)], [A.area === 'ventas' ? 'Messenger' : '', false], ['Claude (la inteligencia de ' + A.nombre + ')', claudeOk]]
@@ -443,6 +443,7 @@ function rsGuardarAsistente(area){
   datos.responde = resp; datos.calidad = cal;
   var t = document.getElementById('rs-instr'); if(t){ if(area === 'ventas') datos.instruccionesVentas = t.value; else datos.instrucciones = t.value; }
   var pago = document.getElementById('rs-pago'); if(pago) datos.datosPago = pago.value;
+  var pago26 = document.getElementById('rs-pago26'); if(pago26) datos.datosPago26 = pago26.value;
   var rep = document.getElementById('rs-rep-on');
   if(rep && !rep.disabled){
     var lista = Array.prototype.map.call(document.querySelectorAll('#mbd .rs-rep-v:checked'), function(e){ return e.value; });

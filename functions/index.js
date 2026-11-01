@@ -49,7 +49,7 @@ async function cfgAsistente() {
   // config/tasa: la tasa del euro BCV que guarda el panel cada día (bolívares a tasa euro, Adam 21-oct-2026)
   const [d, t] = await Promise.all([bases['26'].collection('config').doc('asistente').get(), bases['26'].collection('config').doc('tasa').get().catch(() => null)]);
   const c = d.exists ? d.data() : {}, tasa = t && t.exists ? t.data() : {};
-  return { tasaEuro: parseFloat(tasa.tasaEuro) || 0, fechaEuro: String(tasa.fechaEuro || tasa.fechaActualizacion || '').slice(0, 10), instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false,
+  return { tasaEuro: parseFloat(tasa.tasaEuro) || 0, fechaEuro: String(tasa.fechaEuro || tasa.fechaActualizacion || '').slice(0, 10), instrucciones: c.instrucciones || '', instruccionesVentas: c.instruccionesVentas || '', datosPago: c.datosPago || '', datosPago26: c.datosPago26 || '', plantillas: c.plantillas || {}, empresaNombre: { '18': 'PAGASI 18', '26': 'PAGASI 26' }, conectado: !!c.conectado, recordatorios: c.recordatorios !== false,
     // Redes sociales (22-oct-2026): donde contesta cada asistente (apagada, el mensaje llega y lo
     // atiende el equipo) y la calidad de Claude de cada una. Sin escoger, todo encendido y "normal".
     responde: Object.assign({ whatsappCobranza: true, whatsappVentas: true, instagram: true, comentariosIg: true, messenger: true, comentariosFb: true }, c.responde || {}),
