@@ -205,7 +205,7 @@ function portalComprobantesCard(){
       + '<td class="tds" style="font-family:var(--fd)">' + _pEsc(c.credId||'—') + '</td>'
       + '<td class="tds">' + _pEsc(c.fecha||'') + '</td>'
       + '<td style="font-weight:800;font-family:var(--fd)">' + fmt(c.monto||0) + '</td>'
-      + '<td class="tds">' + _pEsc(c.metodo||'') + (c.referencia?'<div style="font-size:10px;color:var(--ink3)">Ref ' + _pEsc(c.referencia) + '</div>':'') + '</td>'
+      + '<td class="tds">' + _pEsc(c.metodo||'') + (c.referencia?'<div style="font-size:10px;color:var(--ink3)">Ref ' + _pEsc(c.referencia) + '</div>':'') + (c.montoDicho?'<div style="font-size:10px;color:var(--ink3)">Dijo: ' + _pEsc(c.montoDicho) + '</div>':'') + '</td>'
       + '<td><div style="display:flex;gap:4px;flex-wrap:wrap">'
       + (c.fotoUrl ? '<a class="btn btn-g btn-xs" href="' + _pEsc(c.fotoUrl) + '" target="_blank" rel="noopener">Ver foto</a>' : '')
       + '<button class="btn btn-p btn-xs" onclick="portalCompRegistrar(\'' + c.id + '\')">Registrar pago</button>'

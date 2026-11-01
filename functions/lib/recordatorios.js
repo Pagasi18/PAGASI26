@@ -22,15 +22,28 @@ const CUANDO = { proximas: it => it.dias === -3, hoy: it => it.dias === 0, graci
 // Las plantillas que Pagasi ya tiene aprobadas en Meta (cuenta "Pagasi Cobranza", 15-sep-2026),
 // con sus variables en orden y su texto, para guardar en la conversacion lo que de verdad se mando.
 // Una plantilla que no este aqui recibe las 5 variables de siempre (nombre, cuota, total, monto, fecha).
+// La imagen de cabecera va rotando para no cansar al cliente (Adam, 1-nov-2026): cada cuota avanza una casilla por aviso,
+// asi dos avisos seguidos del mismo cliente nunca llevan el mismo diseño.
+const IMAGENES = 'https://pagasi.io/assets/public/avisos/', DISENOS = ['g', 'a', 'b', 'c', 'e', 'f'];
+const PASO_AVISO = { proximas: 0, hoy: 1, gracia: 2, atrasadas: 4, acuerdo: 0 };
+function imagenDe(plantilla, grupo, it) {
+  const estado = (PLANTILLAS[plantilla] || {}).imagen; if (!estado) return undefined;
+  const base = String(it.cred || '').split('').reduce((n, c) => n + c.charCodeAt(0), 0);
+  const paso = PASO_AVISO[grupo] + (grupo === 'gracia' && it.dias === 3 ? 1 : 0) + (grupo === 'acuerdo' && it.dias === 0 ? 1 : 0);
+  return IMAGENES + DISENOS[(base + (parseInt(it.cuota, 10) || 0) * 5 + paso) % DISENOS.length] + '-' + estado + '.jpg';
+}
 const PLANTILLAS = {
+  aviso_cuota_proxima: { vars: ['nombre', 'monto', 'fecha'], imagen: 'por-vencer', texto: 'Hola, {{1}} 👋\n\nLa cuota de tu crédito por {{2}} vence el {{3}}.\n\nSi ya realizaste el pago, ¡gracias! Puedes ignorar este aviso.' },
+  aviso_cuota_hoy: { vars: ['nombre', 'monto'], imagen: 'hoy', texto: 'Hola, {{1}} 👋\n\nHoy vence la cuota de tu crédito por {{2}}.\n\nSi ya realizaste el pago, ¡gracias! Puedes ignorar este aviso.' },
+  aviso_cuota_vencida: { vars: ['nombre', 'monto', 'fecha'], imagen: 'pendiente', texto: 'Hola, {{1}}\n\nLa cuota de tu crédito por {{2}} venció el {{3}} y sigue pendiente de pago.\n\nSi ya realizaste el pago, envía tu comprobante. Si no, responde para coordinar tu pago.' },
   recordatorio_cuota: { vars: ['nombre', 'monto', 'fecha'], texto: 'Hola {{1}}, te recordamos que la cuota de tu crédito por {{2}} vence el {{3}}. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' },
   vence_hoy: { vars: ['nombre', 'monto'], texto: 'Hola {{1}}, hoy vence la cuota de tu crédito por {{2}}. Si ya realizaste el pago, ignora este aviso. Si tienes dudas sobre tu pago, responde a este mensaje.' },
   cuota_vencida: { vars: ['nombre', 'monto', 'fecha'], texto: 'Hola {{1}}, la cuota de tu crédito por {{2}} venció el {{3}} y sigue pendiente de pago. Si ya realizaste el pago, ignora este aviso. Si no, responde a este mensaje para coordinar tu pago.' }
 };
 // Por defecto, el grupo → plantilla que ya existe en Meta
-const PLANTILLAS_POR_GRUPO = { proximas: 'recordatorio_cuota', hoy: 'vence_hoy', gracia: 'cuota_vencida', atrasadas: 'cuota_vencida', acuerdo: 'recordatorio_cuota' };
+const PLANTILLAS_POR_GRUPO = { proximas: 'aviso_cuota_proxima', hoy: 'aviso_cuota_hoy', gracia: 'aviso_cuota_vencida', atrasadas: 'aviso_cuota_vencida', acuerdo: 'aviso_cuota_proxima' };
 // El dia del compromiso va como "hoy vence"; el dia antes, como recordatorio con la fecha del compromiso
-function plantillaDe(grupo, it, plantillas) { if (grupo === 'acuerdo' && it.dias === 0) return (plantillas && plantillas.acuerdoHoy) || 'vence_hoy'; return (plantillas && plantillas[grupo]) || PLANTILLAS_POR_GRUPO[grupo]; }
+function plantillaDe(grupo, it, plantillas) { if (grupo === 'acuerdo' && it.dias === 0) return (plantillas && plantillas.acuerdoHoy) || 'aviso_cuota_hoy'; return (plantillas && plantillas[grupo]) || PLANTILLAS_POR_GRUPO[grupo]; }
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const fechaLarga = iso => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? parseInt(p[2], 10) + ' de ' + MESES[parseInt(p[1], 10) - 1] : String(iso || ''); };
 // La plantilla aprobada en Meta dice "por {{2}}" (ejemplo "$88,14"): el $ va dentro de la variable (21-oct-2026: salía "por 25,00")
@@ -65,7 +78,7 @@ async function correrEmpresa(deps, empresa, plantillas, hoy) {
       try { await regRef.create({ empresa, cred: it.cred, cuota: it.cuota, grupo, tel: it.tel, hoy, creado: deps.ahora(), estado: 'enviando' }); } catch (e) { r.repetidos++; continue; }
       const { params, texto } = armarPlantilla(plantilla, Object.assign({ grupo }, it));
       let metaId = '', estado = 'enviado', error = '';
-      try { metaId = await deps.meta.enviarPlantilla(it.tel, plantilla, params, 'es'); r.enviados++; }
+      try { metaId = await deps.meta.enviarPlantilla(it.tel, plantilla, params, 'es', (PLANTILLAS[plantilla] || {}).imagen ? { imagen: imagenDe(plantilla, grupo, it), ventana: 'comprobante' } : undefined); r.enviados++; }
       catch (e) { estado = 'fallo'; error = String(e && e.message || e).slice(0, 160); r.fallos++; }
       await regRef.set({ estado, error, metaId }, { merge: true });
       const convRef = db.collection('conversaciones').doc('wa:' + it.tel);
@@ -86,4 +99,4 @@ async function correr(deps, opciones) {
   return res;
 }
 
-module.exports = { correr, correrEmpresa, armarPlantilla, CUANDO, PLANTILLAS, PLANTILLAS_POR_GRUPO };
+module.exports = { correr, correrEmpresa, armarPlantilla, imagenDe, CUANDO, PLANTILLAS, PLANTILLAS_POR_GRUPO };

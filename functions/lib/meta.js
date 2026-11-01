@@ -56,6 +56,14 @@ function parsearInstagram(cuerpo) {
 }
 
 // Del aviso crudo salen mensajes y estados, planos, sin perder de que numero vinieron
+// La respuesta de la ventana "Enviar comprobante" (WhatsApp Flow, 1-nov-2026): trae la foto como un medio mas y el monto que escribio el cliente
+function leerVentana(nfm) {
+  let r; try { r = JSON.parse(nfm.response_json || '{}'); } catch (e) { return null; }
+  const foto = Array.isArray(r.foto) ? r.foto[0] : null;
+  const monto = String(r.monto || '').replace(/[<>"'`\\&]/g, '').trim().slice(0, 40);
+  return { monto, texto: 'Comprobante enviado' + (monto ? ' · Monto: ' + monto : ''), medio: foto && foto.id ? { id: foto.id, mime: foto.mime_type || 'image/jpeg', nombre: foto.file_name || '' } : null };
+}
+
 function parsearWebhook(cuerpo) {
   const mensajes = [], estados = [];
   if (cuerpo && cuerpo.object === 'instagram' && Array.isArray(cuerpo.entry)) return parsearInstagram(cuerpo);
@@ -75,7 +83,8 @@ function parsearWebhook(cuerpo) {
         else if (tipo === 'interactive') texto = (m.interactive && ((m.interactive.button_reply && m.interactive.button_reply.title) || (m.interactive.list_reply && m.interactive.list_reply.title))) || '';
         else if (tipo === 'image' || tipo === 'document' || tipo === 'audio' || tipo === 'video' || tipo === 'sticker') texto = (m[tipo] && m[tipo].caption) || '';
         const medio = ['image', 'document', 'audio', 'video', 'sticker'].includes(tipo) && m[tipo] ? { id: m[tipo].id, mime: m[tipo].mime_type || '', nombre: m[tipo].filename || '' } : null;
-        mensajes.push({ canal: 'whatsapp', metaId: m.id, de: m.from, nombre: perfil[m.from] || '', tipo: tipo === 'text' || tipo === 'button' || tipo === 'interactive' ? 'texto' : tipo === 'image' ? 'imagen' : tipo === 'document' ? 'documento' : tipo === 'audio' ? 'audio' : tipo, texto, medio,
+        const ventana = tipo === 'interactive' && m.interactive && m.interactive.nfm_reply ? leerVentana(m.interactive.nfm_reply) : null;
+        mensajes.push({ canal: 'whatsapp', metaId: m.id, de: m.from, nombre: perfil[m.from] || '', tipo: ventana && ventana.medio ? 'imagen' : tipo === 'text' || tipo === 'button' || tipo === 'interactive' ? 'texto' : tipo === 'image' ? 'imagen' : tipo === 'document' ? 'documento' : tipo === 'audio' ? 'audio' : tipo, texto: ventana ? ventana.texto : texto, medio: ventana ? ventana.medio : medio, montoDicho: ventana ? ventana.monto : '',
           hora: m.timestamp ? new Date(parseInt(m.timestamp, 10) * 1000).toISOString() : new Date().toISOString(), telefonoNegocio: (v.metadata && v.metadata.display_phone_number) || '' });
       });
       (v.statuses || []).forEach(s => {
@@ -103,7 +112,7 @@ function cliente(cfg) {
     enviarTexto: (para, texto) => enviar({ to: para.replace('+', ''), type: 'text', text: { body: String(texto).slice(0, 4096), preview_url: false } }),
     enviarImagen: (para, url, pie) => enviar({ to: para.replace('+', ''), type: 'image', image: Object.assign({ link: url }, pie ? { caption: String(pie).slice(0, 1024) } : {}) }),
     // Plantilla aprobada por Meta (la unica forma de escribir fuera de la ventana)
-    enviarPlantilla: (para, nombre, parametros, idioma) => enviar({ to: para.replace('+', ''), type: 'template', template: { name: nombre, language: { code: idioma || 'es' }, components: parametros && parametros.length ? [{ type: 'body', parameters: parametros.map(t => ({ type: 'text', text: String(t) })) }] : [] } }),
+    enviarPlantilla: (para, nombre, parametros, idioma, extra) => enviar({ to: para.replace('+', ''), type: 'template', template: { name: nombre, language: { code: idioma || 'es' }, components: [].concat(extra && extra.imagen ? [{ type: 'header', parameters: [{ type: 'image', image: { link: extra.imagen } }] }] : [], parametros && parametros.length ? [{ type: 'body', parameters: parametros.map(t => ({ type: 'text', text: String(t) })) }] : [], extra && extra.ventana ? [{ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: extra.ventana } }] }] : []) } }),
     marcarLeido: (metaId) => enviar({ status: 'read', message_id: metaId }).catch(() => ''),
     // Un medio que mando el cliente: primero la URL temporal, despues los bytes
     async bajarMedio(mediaId) {

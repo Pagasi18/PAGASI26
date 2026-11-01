@@ -111,6 +111,8 @@ function destino(conv) { return canalDe(conv) === 'instagram' ? conv.igsid : con
 function responde(deps, donde) { const r = deps.cfg && deps.cfg.responde; return !r || r[donde] !== false; }
 function calidadDe(deps, area) { const c = deps.cfg && deps.cfg.calidad; return (c && c[area]) || 'normal'; }
 
+// El 0414-2719914 es de ventas y lo atiende una persona (Adam, 30-oct y 1-nov-2026): lo que llegue ahi se guarda y espera a alguien, sin respuesta automatica
+const NUMEROS_SOLO_PERSONA = ['584142719914'];
 async function procesarMensaje(deps, m) {
   if ((m.canal || 'whatsapp') === 'instagram') return procesarInstagram(deps, m);
   const tel = telDe(m.de); if (!tel) return { saltado: 'sin-telefono' };
@@ -132,6 +134,7 @@ async function procesarMensaje(deps, m) {
   if (!conv) base.creado = ahora;
   await convRef.set(base, { merge: true });
   deps.log('entrante', { canal: 'whatsapp', area, empresa: u.empresa, tipo: m.tipo, cliente: !!u.clienteId });
+  if (NUMEROS_SOLO_PERSONA.includes(String(m.telefonoNegocio || '').replace(/\D/g, ''))) { await convRef.set({ atencion: 'pide_persona', actualizado: ahora }, { merge: true }); return { empresa: u.empresa, soloPersona: true }; }
   if (deps.meta.marcarLeido) deps.meta.marcarLeido(m.metaId).catch(() => {});
 
   // VENTAS por WhatsApp: el mismo asistente que en Instagram, ya con el telefono de la persona
@@ -152,7 +155,7 @@ async function procesarMensaje(deps, m) {
       await msgRef.set({ medio }, { merge: true });
     } catch (e) { deps.log('medio-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
     if (u.clienteId && medio) {
-      await db.collection('comprobantes').add({ clienteId: u.clienteId, clienteNombre: (ctx.cliente && ctx.cliente.nombre) || '', credId: ctx.credActivo ? ctx.credActivo.id : '', monto: null, fecha: hoy, metodo: 'WhatsApp', referencia: '', fotoUrl: medio.url, fotoPath: medio.path, estado: 'pendiente', origen: 'whatsapp', creadoEn: ahora, telE164: tel });
+      await db.collection('comprobantes').add({ clienteId: u.clienteId, clienteNombre: (ctx.cliente && ctx.cliente.nombre) || '', credId: ctx.credActivo ? ctx.credActivo.id : '', monto: null, fecha: hoy, metodo: 'WhatsApp', referencia: '', montoDicho: m.montoDicho || '', fotoUrl: medio.url, fotoPath: medio.path, estado: 'pendiente', origen: 'whatsapp', creadoEn: ahora, telE164: tel });
     }
     await convRef.set({ atencion: 'comprobante', actualizado: ahora }, { merge: true });
     if (base.modo === 'bot' && responde(deps, 'whatsappCobranza')) await responder(deps, convRef, base, u.clienteId ? ACK_COMPROBANTE : 'Recibí tu imagen. ¿Me dices tu nombre y si tienes un crédito con Pagasi? Un asesor te atiende en breve.', ahora, { resumen: 'Mandó una imagen (posible comprobante).' });
