@@ -189,7 +189,8 @@ async function procesarMensaje(deps, m) {
   const historial = await ultimosMensajes(convRef, 60, conv && conv.historialDesde);
   const freno = frenado(historial, ahora);
   if (freno) { deps.log('frenado', { canal: 'whatsapp', area: 'cobranza', motivo: freno }); await convRef.set({ atencion: 'revisar', actualizado: ahora }, { merge: true }); return { empresa: u.empresa, frenado: freno }; }
-  const sistema = briefing.armar({ tasaEuro: deps.cfg.tasaEuro, fechaEuro: deps.cfg.fechaEuro, empresa: (deps.cfg.empresaNombre || {})[u.empresa] || 'Pagasi', cliente: ctx.cliente, creditos: ctx.creditos, instrucciones: deps.cfg.instrucciones, datosPago: u.empresa === '26' ? deps.cfg.datosPago26 : deps.cfg.datosPago, hoy, nombrePerfil: m.nombre, promesa: conv && conv.borrador && conv.borrador.tipo === 'promesa' ? conv.borrador : null, comprobantesPendientes: ctx.comprobantesPendientes });
+  const hablaron = yaHablaron(historial, ahora);
+  const sistema = briefing.armar({ tasaEuro: deps.cfg.tasaEuro, fechaEuro: deps.cfg.fechaEuro, empresa: (deps.cfg.empresaNombre || {})[u.empresa] || 'Pagasi', cliente: ctx.cliente, creditos: ctx.creditos, instrucciones: deps.cfg.instrucciones, datosPago: u.empresa === '26' ? deps.cfg.datosPago26 : deps.cfg.datosPago, hoy, nombrePerfil: m.nombre, promesa: conv && conv.borrador && conv.borrador.tipo === 'promesa' ? conv.borrador : null, comprobantesPendientes: ctx.comprobantesPendientes, yaHablaron: hablaron });
   let r;
   try { r = await deps.cerebro.pensar({ sistema, mensajes: historial, calidad: calidadDe(deps, 'cobranza'), area: 'cobranza' }); }
   catch (e) {
@@ -205,7 +206,7 @@ async function procesarMensaje(deps, m) {
   if (!u.clienteId) { r.handoff = true; r.handoffReason = r.handoffReason || 'no_cliente'; }
   if (r.handoff) cambios.atencion = RAZON_A_ATENCION[r.handoffReason] || 'pide_persona';
   if (cambios.atencion && !(conv && conv.atencion)) cambios.atencionDesde = ahora;   // desde cuándo espera a una persona
-  await responder(deps, convRef, base, r.reply, ahora, cambios);
+  await responder(deps, convRef, base, hablaron && ctx.cliente ? briefing.sinNombre(r.reply, ctx.cliente.nombre) : r.reply, ahora, cambios);
   return { empresa: u.empresa, respondido: true, handoff: !!r.handoff, draft: r.draft || null };
 }
 
@@ -281,6 +282,12 @@ function repite(texto, historial) {
 async function ultimosMensajes(convRef, n, desde) {
   const s = await docs(convRef.collection('mensajes').orderBy('hora', 'desc').limit(n || 60));
   return s.filter(m => !desde || String(m.hora || '') >= desde).sort((a, b) => String(a.hora || '').localeCompare(String(b.hora || '')));
+}
+
+// Patricia ya le escribió en las últimas 12 horas: el nombre y el saludo solo van al empezar (Adam, 1-nov-2026)
+function yaHablaron(historial, ahora) {
+  const desde = new Date(new Date(ahora).getTime() - 12 * 3600000).toISOString();
+  return (historial || []).some(m => m.direccion === 'saliente' && String(m.hora || '') >= desde);
 }
 
 // Freno: Paola no manda mas de 3 mensajes en 10 minutos ni 20 en 24 horas a la misma conversacion
@@ -759,4 +766,4 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   return { vendedor: v };
 }
 
-module.exports = { palabraClave, motoDeTexto, textoComentaMoto, COMENTA_PUBLICO, mayus, textoLista, seguimientoVentas, textoSeguimiento, SEGUIMIENTO_TEXTO, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { palabraClave, motoDeTexto, textoComentaMoto, COMENTA_PUBLICO, mayus, textoLista, seguimientoVentas, textoSeguimiento, SEGUIMIENTO_TEXTO, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, yaHablaron, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };

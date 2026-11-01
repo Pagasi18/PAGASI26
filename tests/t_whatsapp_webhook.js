@@ -648,5 +648,22 @@ const msgTexto = (de, texto, id) => ({ metaId: id || 'wamid.in' + Math.random().
     ok('el servidor anota el gasto por día y por asistente en config/asistenteUso', /anotarGasto\(area \|\| 'ventas', r && r\.gasto\)/.test(idx) && /collection\('config'\)\.doc\('asistenteUso'\)/.test(idx));
   }
 
+  { // Patricia: el nombre solo al empezar (Adam, 1-nov-2026)
+    const q = (t) => briefing.sinNombre(t, 'ADAM PRUEBA');
+    ok('nombre: "Con gusto, Adam." pierde el nombre', q('Con gusto, Adam. Quedo pendiente.') === 'Con gusto. Quedo pendiente.');
+    ok('nombre: "Listo, Adam, anoté" pierde el nombre', q('Listo, Adam, anoté tu pago.') === 'Listo, anoté tu pago.');
+    ok('nombre: al empezar la frase se quita y sigue en mayúscula', q('Adam, te faltan $100,00.') === 'Te faltan $100,00.');
+    ok('nombre: "Hola Adam," también se quita', q('Hola Adam, tienes una cuota.') === 'Tienes una cuota.');
+    ok('nombre: "¡Gracias, Adam!" conserva los signos', q('¡Gracias, Adam!') === '¡Gracias!');
+    ok('nombre: con tilde aunque la ficha no la tenga', briefing.sinNombre('Con gusto, María.', 'MARIA PEREZ') === 'Con gusto.');
+    ok('nombre: no toca otra palabra que empiece igual', q('Pregunta por Adamaris, tu asesora.') === 'Pregunta por Adamaris, tu asesora.');
+    const A = '2026-11-01T20:00:00.000Z';
+    ok('ya hablaron: Patricia escribió hace 2 horas', procesar.yaHablaron([{ direccion: 'saliente', hora: '2026-11-01T18:00:00.000Z' }], A) === true);
+    ok('no ya hablaron: lo último de Patricia fue hace 13 horas', procesar.yaHablaron([{ direccion: 'saliente', hora: '2026-11-01T07:00:00.000Z' }], A) === false);
+    ok('no ya hablaron: solo escribió el cliente', procesar.yaHablaron([{ direccion: 'entrante', hora: A }], A) === false);
+    const e = { id: 'M-9', moto: 'X', cuotaQ: 25, pagadas: 0, totalCuotas: 4, totalPagado: 0, saldoPendiente: 100, vencidas: [{ vence: '2026-10-29' }], montoVencido: 25, diasAtraso: 3, proxima: { numero: 2, monto: 25, vence: '2026-11-13', enDias: 12 } };
+    ok('con cuota vencida también le da la fecha de la siguiente', /La siguiente cuota vence el/.test(briefing.armar({ cliente: { nombre: 'ANA' }, creditos: [e], hoy: HOY })));
+  }
+
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });
