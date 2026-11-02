@@ -876,6 +876,7 @@ PG.reportes = function(){
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
               <span style="font-weight:800;font-family:var(--fd);color:var(--red);font-size:14px">-${fmt(e.monto)}</span>
+              ${e.origenAuto?'':`<button class="btn btn-g btn-xs btn-ic" onclick="openEditEgreso('${String(e.id).replace(/'/g,'')}')" title="Corregir">✎</button>`}
               <button class="btn btn-d btn-xs btn-ic" onclick="delEgreso(${e.id})" title="Eliminar">✕</button>
             </div>
           </div>`).join(''):`<div style="text-align:center;padding:40px 0;color:var(--ink3)">

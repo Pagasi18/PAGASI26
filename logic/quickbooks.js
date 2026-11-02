@@ -373,7 +373,7 @@ function qbFacturas(ctx){
     if(!(igtf > 0 && igtf < cobrado)) igtf = 0;
     var partes = qbPartirPago(c, _qbR2(cobrado - igtf));
     if(igtf) partes.igtf = igtf;
-    var lineas = qbLineas(partes), v = venc[c.id].pagos[p.id] || {}, fecha = _qbISO(p.fecha);
+    var lineas = qbLineas(partes), v = venc[c.id].pagos[p.id] || {}, fecha = _qbISO(p.fecha), edi = [p.editadoEn, p.restauradoEn].filter(Boolean).sort().pop() || '';
     var tipo = _qbTipoCobro(p, cobrado, venc[c.id].cuota, (v.cuotas || []).length);
     var d = { numero: String(p.id), pagoId: p.id, factura: fac ? String(fac.numero) : '', cred: c.id, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS),
       servicio: v.fechaVence || fecha, cuotas: v.cuotas || [], nota: 'CONTRATO Nº ' + c.id + (fac ? ' · FACTURA FISCAL Nº ' + fac.numero : ''),
@@ -381,7 +381,8 @@ function qbFacturas(ctx){
       monto: _qbR2(lineas.reduce(function(a, l){ return a + l.monto; }, 0)), iva: _qbR2(lineas.reduce(function(a, l){ return a + l.iva; }, 0)),
       contado: tipo.contado, mixto: tipo.mixto, liquidacion: tipo.liquidacion, sinAplicar: tipo.sinAplicar, cuotasPagadas: tipo.cuotasPagadas, redondeo: tipo.redondeo,
       deposito: _qbCuentaDeposito(p.metodo || p.cuenta),
-      registrado: _qbISO(p.creadoEn), editado: _qbISO(p.editadoEn) };   // cuándo se anotó o se editó (la fecha de arriba es la del cliente)
+      registrado: _qbISO(p.creadoEn), editado: _qbISO(edi),   // cuándo se anotó o se editó/restauró (la fecha de arriba es la del cliente)
+      registradoEn: p.creadoEn || '', editadoEn: edi };        // con hora, para "solo lo nuevo desde la última descarga"
     (tipo.contado ? contado : docs).push(d);
   });
   return { docs: docs, contado: contado, iniciales: iniciales, sinCredito: sinCredito, credsFacturados: credsFacturados };
@@ -490,9 +491,10 @@ function qbCompras(docs, periodo, provs){
       lineas.push({ monto: f.base, codigo: cod, iva: cod === QB_SIN_IVA ? 0 : (typeof f.iva === 'number' ? f.iva : 0) });
     }
     if(!lineas.length){ lineas.push({ monto: _qbR2(f.total), codigo: QB_SIN_IVA, iva: 0 }); avisos.push('sin base ni IVA: va todo sin IVA'); }
-    var fecha = _qbISO(f.fechaDoc);
+    var fecha = _qbISO(f.fechaDoc), e0 = (g.egresos || [])[0] || {};
     bills.push({ numero: numero, proveedor: prov.nombreQB, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS), cuenta: cuenta, desc: _qbTxt(g.concepto), lineas: lineas, avisos: avisos,
-      monto: _qbR2(lineas.reduce(function(a, l){ return a + l.monto; }, 0)), iva: _qbR2(lineas.reduce(function(a, l){ return a + l.iva; }, 0)), clave: f.clave });
+      monto: _qbR2(lineas.reduce(function(a, l){ return a + l.monto; }, 0)), iva: _qbR2(lineas.reduce(function(a, l){ return a + l.iva; }, 0)), clave: f.clave,
+      registradoEn: e0.creadoEn || '', editadoEn: [e0.editadoEn, fi.actualizado].filter(Boolean).sort().pop() || '' });   // cuándo se anotó el gasto o se completó su factura, lo último ("solo lo nuevo")
   });
   return { bills: bills, sinProveedor: sinProveedor, notasCredito: notasCredito };
 }
@@ -653,30 +655,200 @@ function _qbDescargar(nombre, bytes, tipoMime){
   setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
 }
 
+// ══════════════ REGISTRO DE DESCARGAS ══════════════
+// El contador (2-nov-2026): "que refleje la última fecha de descarga de clientes, proveedores, facturas y egresos…
+// que me indique cuál fue la última factura descargada, para que la actualización sea a partir de la siguiente".
+// Cada descarga de un archivo (CSV o Excel) queda anotada en config/quickbooks: cuándo, quién, de qué período, cuántos
+// documentos y hasta cuál llegó. Con eso la pantalla muestra la última descarga de cada archivo y, en el modo "solo lo
+// nuevo", deja fuera lo que ya estaba en esa descarga: lo registrado o editado después de ella (y, si el registro no
+// tiene hora de registro, lo fechado después). Nada de esto cambia los archivos: solo los filtra.
+// { porClave: { 'facturas|2026-10': reg, 'clientes|2026-09-30': reg, 'servicios': reg }, porArchivo: { facturas: reg (la última
+//   del archivo, de cualquier mes) }, historial: [reg…] }; null = todavía no se leyó
+var _qbDescargas = null;
+function _qbDescargasVacio(){ return { porClave: {}, porArchivo: {}, historial: [] }; }
+function _qbDescargasDe(D){ return (D && D.descargas) || _qbDescargas || _qbDescargasVacio(); }
+// La descarga que sirve de corte es la de ESTE archivo y ESTE período (03, 04 y 06): la de otro mes no cuenta, porque lo
+// de este mes nunca estuvo en ella. Las fichas (01, 05) y el catálogo (02) se acumulan: cuenta la última del archivo (el
+// corte del saldo del 01 se mueve con el mes y no define qué clientes ya están en QuickBooks). Una descarga hecha con
+// búsqueda tampoco cuenta (era parcial): queda solo en el historial.
+function _qbClaveDescarga(tipo, st){ return _qbPorMes(tipo) ? tipo + '|' + st.periodo : tipo; }
+function _qbUltimaDescarga(D, tipo){ return _qbDescargasDe(D).porClave[_qbClaveDescarga(tipo, D.st)] || null; }
+function _qbUltimaDelArchivo(D, tipo){ return _qbDescargasDe(D).porArchivo[tipo] || null; }
+function _qbPonerDescarga(d, clave, reg){
+  d.historial = [reg].concat(d.historial || []).slice(0, 100);
+  if(reg.busqueda) return;
+  d.porClave[clave] = reg; d.porArchivo[reg.tipo] = reg;
+}
+var _qbDescargasError = false;   // la última lectura de config/quickbooks falló (sin conexión): se avisa y se reintenta
+function _qbCargarDescargas(){
+  if(_qbDescargas || typeof DB === 'undefined' || !DB.getQuickbooks) return;
+  _qbLeerDescargas(_qbDescargas = Object.assign(_qbDescargasVacio(), { cargando: true, locales: [] }));
+}
+function _qbLeerDescargas(local){
+  DB.getQuickbooks().then(function(d){
+    var leido = { porClave: (d && d.porClave) || {}, porArchivo: (d && d.porArchivo) || {}, historial: ((d && d.historial) || []).slice().reverse() };
+    (local.locales || []).forEach(function(x){ _qbPonerDescarga(leido, x.clave, x.reg); });   // lo que se anotó mientras se leía
+    _qbDescargas = leido; _qbDescargasError = false;
+    _qbRepintarTodo();
+  }).catch(function(){
+    _qbDescargas = null; _qbDescargasError = true;   // la próxima pintada vuelve a leer; lo anotado quedó en la base (merge)
+    if(typeof toast === 'function') toast('No se pudo leer el registro de descargas de QuickBooks (¿sin conexión?). Se vuelve a intentar al abrir la pestaña.', 'error');
+    _qbRepintarTodo();
+  });
+}
+// El registro de una descarga: qué archivo, en qué formato, cuándo, quién, de qué período, cuántos documentos y hasta
+// cuál llegó (el último del archivo, en el orden en que sale: por fecha y N°)
+function qbDescargaRegistro(tipo, formato, D, V, ahora, usuario){
+  var A = QB_ARCHIVOS[tipo], filas = (V && V.filas) || [], ult = _qbUltimaDescarga(D, tipo), cantidad = 0, hasta = '';
+  var docs = tipo === 'facturas' ? D.facturas.docs : (tipo === 'contado' ? D.facturas.contado : null);
+  if(docs){
+    var nums = {}; filas.forEach(function(r){ nums[r[0]] = 1; });
+    var incl = docs.filter(function(d){ return nums[d.numero]; }), u = incl[incl.length - 1];
+    cantidad = incl.length; if(u) hasta = u.numero + ' del ' + _qbDMY(u.fecha);
+  } else if(tipo === 'compras'){
+    var claves = {}; filas.forEach(function(r){ claves[r[0] + '|' + r[1]] = 1; });
+    var inclB = D.compras.bills.filter(function(b){ return claves[b.numero + '|' + b.proveedor]; }), ub = inclB[inclB.length - 1];
+    cantidad = inclB.length; if(ub) hasta = ub.numero + ' · ' + ub.proveedor + ' del ' + _qbDMY(ub.fecha);
+  } else cantidad = filas.length;
+  var nuevo = D.st.modo === 'nuevo' && !!ult;
+  return { tipo: tipo, clave: _qbClaveDescarga(tipo, D.st), archivo: A.n + ' · ' + A.titulo, formato: formato, en: ahora || new Date().toISOString(), por: usuario || '',
+    periodo: _qbPorMes(tipo) ? D.st.periodo : '', corte: tipo === 'clientes' ? D.st.corte : '', cantidad: cantidad, hasta: hasta,
+    modo: nuevo ? 'nuevo' : 'todo', desde: nuevo ? ult.en : '', busqueda: String(D.st.q || '').trim() };
+}
+// Las claves de los documentos "nuevos" desde una descarga: registrados o editados después de ella; si el registro no
+// tiene hora de registro (los viejos), cuenta su fecha. null = el archivo no se filtra (el catálogo 02).
+function qbNuevosDesde(D, tipo, desde){
+  if(!desde || tipo === 'servicios') return null;
+  var fechaDesde = _qbFechaLocal(desde), out = {};
+  // Sin hora de registro (los registros viejos) vale la fecha, y el mismo día de la descarga cuenta como nuevo: mejor un
+  // documento repetido a la vista (QuickBooks avisa el N° duplicado) que uno perdido en silencio
+  var nuevo = function(reg, edi, fecha){ return (!!reg && reg > desde) || (!!edi && edi > desde) || (!reg && !!fecha && fecha >= fechaDesde); };
+  if(tipo === 'facturas' || tipo === 'contado'){ (tipo === 'facturas' ? D.facturas.docs : D.facturas.contado).forEach(function(d){ if(nuevo(d.registradoEn, d.editadoEn, d.fecha)) out[d.numero] = 1; }); return out; }
+  if(tipo === 'compras'){ D.compras.bills.forEach(function(b){ if(nuevo(b.registradoEn, b.editadoEn, b.fecha)) out[b.numero + '|' + b.proveedor] = 1; }); return out; }
+  if(tipo === 'clientes'){
+    // Nuevo: su primer crédito es de después, o alguno de sus créditos se creó después (los créditos guardan "creado",
+    // aunque su fecha sea anterior). Un cliente que ya está en QuickBooks no se repite solo porque tenga cobros nuevos.
+    var creado = {}; (D.ctx.creds || []).forEach(function(c){ if(c && c.creado) creado[String(c.id)] = String(c.creado); });
+    D.clientes.filas.forEach(function(x){
+      if(nuevo('', '', String(x.primera || '').slice(0, 10)) || (x.creditos || []).some(function(id){ return creado[id] && creado[id] > desde; })) out[x.nombreQB] = 1;
+    });
+    return out;
+  }
+  if(tipo === 'proveedores'){
+    // Nuevo: su primer gasto es de después, o tiene facturas nuevas en el 06 (cargadas después, aunque su fecha sea anterior)
+    var nB = qbNuevosDesde(D, 'compras', desde), conFactura = {};
+    D.compras.bills.forEach(function(b){ if(nB[b.numero + '|' + b.proveedor]) conFactura[b.proveedor] = 1; });
+    D.proveedores.filas.forEach(function(x){ if(conFactura[x.nombreQB] || nuevo('', '', String(x.primera || x.desde || '').slice(0, 10))) out[x.nombreQB] = 1; });
+    return out;
+  }
+  return out;
+}
+function _qbFechaLocal(iso){
+  var d = iso ? new Date(iso) : null;
+  if(!d || isNaN(d.getTime())) return '';
+  var p = function(n){ return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function _qbFechaHora(iso){
+  var d = iso ? new Date(iso) : null;
+  if(!d || isNaN(d.getTime())) return '';
+  var p = function(n){ return String(n).padStart(2, '0'); };
+  return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function _qbDescargaTexto(r){
+  if(!r) return 'todavía no se ha descargado';
+  var que = { clientes: ['cliente', 'clientes'], proveedores: ['proveedor', 'proveedores'], servicios: ['servicio', 'servicios'], compras: ['factura de proveedor', 'facturas de proveedor'], contado: ['recibo', 'recibos'], facturas: ['factura', 'facturas'] }[r.tipo] || ['documento', 'documentos'];
+  return _qbFechaHora(r.en) + (r.por ? ' · ' + r.por : '') + ' · ' + String(r.formato || '').toUpperCase() + (r.periodo ? ' · ' + _lbPeriodoVE(r.periodo) : '') + (r.corte ? ' · corte ' + _qbDMY(r.corte) : '')
+    + ' · ' + r.cantidad + ' ' + que[r.cantidad === 1 ? 0 : 1] + (r.hasta ? ' · hasta ' + r.hasta : '') + (r.modo === 'nuevo' ? ' · solo lo nuevo desde el ' + _qbFechaHora(r.desde) : '') + (r.busqueda ? ' · búsqueda "' + r.busqueda + '"' : '');
+}
+// Anota la descarga en la memoria viva (no en la foto que trae D: "Descargar los 6" comparte el mismo D para los seis) y en
+// la base campo por campo, con merge, para que dos personas con la pestaña abierta no se pisen el registro
+function _qbAnotarDescarga(tipo, formato, D, V){
+  var reg = qbDescargaRegistro(tipo, formato, D, V, new Date().toISOString(), (typeof S !== 'undefined' && S.currentUser && S.currentUser.nombre) || '');
+  var clave = _qbClaveDescarga(tipo, D.st);
+  if(!_qbDescargas){   // la lectura falló o no se hizo: se anota igual y se vuelve a leer para mezclar
+    _qbDescargas = Object.assign(_qbDescargasVacio(), { cargando: true, locales: [] });
+    if(typeof DB !== 'undefined' && DB.getQuickbooks) _qbLeerDescargas(_qbDescargas);
+  }
+  _qbPonerDescarga(_qbDescargas, clave, reg);
+  if(_qbDescargas.cargando) _qbDescargas.locales.push({ clave: clave, reg: reg });
+  D.descargas = _qbDescargas;
+  if(typeof DB !== 'undefined' && DB.anotarDescargaQuickbooks) DB.anotarDescargaQuickbooks(reg.busqueda ? '' : clave, reg);
+  _qbRepintarTodo();
+  return reg;
+}
+// Lo que estaba en una descarga y se eliminó después ya no sale en ningún modo: el contador tiene que anularlo en
+// QuickBooks. Solo lo que de verdad fue al archivo: cobros confirmados con su crédito, del archivo que les tocaba (03 o
+// 04, según el monto), y gastos que el Libro de Compras incluía; y registrados antes de la descarga (lo anotado y borrado
+// después nunca se bajó)
+function _qbEliminadosTras(D, tipo, desde){
+  var ctx = D.ctx, antesDe = function(x){ return !x.creadoEn || x.creadoEn <= desde; }, out = [];
+  if(tipo === 'compras'){
+    (ctx.egresos || []).forEach(function(e){
+      if(!e || !e.eliminado || !e.eliminadoEn || e.eliminadoEn <= desde || !_lbEnPeriodo(e.fecha, D.st.periodo) || !antesDe(e)) return;
+      var doc = lbComprasDocumentos([Object.assign({}, e, { eliminado: false })])[0];
+      if(!doc) return;
+      var f = doc.fiscal || {};
+      out.push(_qbDMY(e.fecha) + ' · ' + (f.numero ? 'factura ' + _qbTxt(f.numero) : 'EG-' + e.id) + (f.proveedor ? ' · ' + _qbTxt(f.proveedor) : '') + ' · ' + _qbTxt(e.concepto || '') + ' · ' + fmt(e.monto) + ' · eliminado el ' + _qbFechaHora(e.eliminadoEn) + (e.eliminadoRazon ? ' (' + e.eliminadoRazon + ')' : ''));
+    });
+    return out;
+  }
+  var credPorId = {}; (ctx.creds || []).forEach(function(c){ if(c) credPorId[String(c.id)] = c; });
+  (ctx.pagos || []).forEach(function(p){
+    if(!p || !p.eliminado || !p.eliminadoEn || p.eliminadoEn <= desde || p.estado !== 'confirmado' || _qbEsInicial(p) || !_lbEnPeriodo(p.fecha, D.st.periodo) || !antesDe(p)) return;
+    var c = credPorId[String(p.cred || p.creditoId)]; if(!c) return;
+    var t = _qbTipoCobro(p, _qbR2(p.monto), _qbVencimientos(c, _qbPagosDe(ctx, c.id)).cuota, 1);
+    if((tipo === 'contado') !== !!t.contado) return;
+    out.push(_qbDMY(p.fecha) + ' · ' + p.id + ' · ' + c.id + ' · ' + fmt(p.monto) + ' · eliminado el ' + _qbFechaHora(p.eliminadoEn) + (p.eliminadoRazon ? ' (' + p.eliminadoRazon + ')' : ''));
+  });
+  return out;
+}
+// Las facturas de proveedor corregidas después de la descarga salen en "solo lo nuevo" como si fueran nuevas; el contador
+// necesita saber qué decían antes para editar o anular la que ya importó
+function _qbCorregidosTras(D, desde){
+  var out = [], r2 = function(v){ return (v === '' || v == null) ? null : _qbR2(v); };
+  (D.ctx.egresos || []).forEach(function(e){
+    if(!e || e.eliminado || !_lbEnPeriodo(e.fecha, D.st.periodo)) return;
+    (e.historial || []).forEach(function(h){
+      if(!h || !h.en || h.en <= desde || !h.antes) return;
+      var a = h.antes, fa = a.fiscal || {}, fn = e.fiscal || {}, cambios = [];
+      if(_qbTxt(fa.numero) !== _qbTxt(fn.numero)) cambios.push('N° ' + (_qbTxt(fa.numero) || '—') + ' → ' + (_qbTxt(fn.numero) || '—'));
+      if(_qbClaveNombre(fa.proveedor) !== _qbClaveNombre(fn.proveedor)) cambios.push('proveedor ' + (_qbTxt(fa.proveedor) || '—') + ' → ' + (_qbTxt(fn.proveedor) || '—'));
+      if(Math.abs((parseFloat(a.monto) || 0) - (parseFloat(e.monto) || 0)) > 0.005) cambios.push('monto ' + fmt(a.monto) + ' → ' + fmt(e.monto));
+      if(a.fecha && e.fecha && a.fecha !== e.fecha) cambios.push('fecha ' + _qbDMY(a.fecha) + ' → ' + _qbDMY(e.fecha));
+      if(r2(fa.base) !== r2(fn.base) || r2(fa.iva) !== r2(fn.iva) || r2(fa.exento) !== r2(fn.exento)) cambios.push('base, IVA o exento');
+      if(!cambios.length) return;
+      out.push(_qbDMY(e.fecha) + ' · EG-' + e.id + ' · ' + _qbTxt(e.concepto || '') + ' · corregido el ' + _qbFechaHora(h.en) + (h.por ? ' por ' + _qbTxt(h.por) : '') + ': ' + cambios.join(', '));
+    });
+  });
+  return out;
+}
+
 // ══════════════ PANTALLA ══════════════
 function _qbEstado(){
   if(!S.qbPeriodo){ var d = new Date(); S.qbPeriodo = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
   if(!S.qbCorte) S.qbCorte = _qbFinMesAnterior(S.qbPeriodo);
   if(!S.qbVista || !QB_ARCHIVOS[S.qbVista]) S.qbVista = 'facturas';
-  return { periodo: S.qbPeriodo, corte: S.qbCorte, vista: S.qbVista, q: S.qbQ || '' };
+  return { periodo: S.qbPeriodo, corte: S.qbCorte, vista: S.qbVista, q: S.qbQ || '', modo: S.qbModo === 'nuevo' ? 'nuevo' : 'todo' };
 }
 function _qbCalcular(){
   var st = _qbEstado();
   var D = qbDatos({ creds: S.creds || [], pagos: S.pagos || [], clientes: S.clientes || [], facturas: S.facturas || [], egresos: S.egresos || [],
     motos: S.motos || [], concesionarios: S.concesionarios || [], periodo: st.periodo, corte: st.corte });
-  D.st = st; D.empresa = (typeof getEmpresa === 'function' ? getEmpresa() : {}) || {};
+  D.st = st; D.empresa = (typeof getEmpresa === 'function' ? getEmpresa() : {}) || {}; D.descargas = _qbDescargasDe(null);
   return D;
 }
-// Lo de la vista elegida, con la búsqueda aplicada: lo que se ve es lo que se exporta (como en los libros). En las
-// facturas (03, 04 y 06) la búsqueda elige facturas enteras: si algo de una factura coincide, van todas sus líneas.
+// Lo de la vista elegida, con la búsqueda y el modo "solo lo nuevo" aplicados: lo que se ve es lo que se exporta (como
+// en los libros). En las facturas (03, 04 y 06) se eligen facturas enteras: si algo de una factura coincide, van todas
+// sus líneas.
 function _qbVer(D, tipo){
   var filas = D.filas[tipo], q = String(D.st.q || '').trim();
-  if(!q) return { filas: filas, filtrado: false };
+  var ult = D.st.modo === 'nuevo' ? _qbUltimaDescarga(D, tipo) : null, nuevos = ult ? qbNuevosDesde(D, tipo, ult.en) : null;
   var norm = function(s){ return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }, Q = norm(q);
-  if(!_qbPorMes(tipo)) return { filas: filas.filter(function(r){ return norm(r.join(' ')).indexOf(Q) > -1; }), filtrado: true };
-  var docs = [], clave = function(r){ return tipo === 'compras' ? r[0] + '|' + r[1] : r[0]; };
-  filas.forEach(function(r){ var u = docs[docs.length - 1]; if(u && u.k === clave(r)) u.filas.push(r); else docs.push({ k: clave(r), filas: [r] }); });
-  return { filas: [].concat.apply([], docs.filter(function(d){ return norm(d.filas.map(function(r){ return r.join(' '); }).join(' ')).indexOf(Q) > -1; }).map(function(d){ return d.filas; })), filtrado: true };
+  var porDoc = _qbPorMes(tipo), clave = function(r){ return tipo === 'compras' ? r[0] + '|' + r[1] : r[0]; }, docs = [];
+  filas.forEach(function(r){ var u = docs[docs.length - 1]; if(porDoc && u && u.k === clave(r)) u.filas.push(r); else docs.push({ k: clave(r), filas: [r] }); });
+  var elegidos = docs.filter(function(d){ return (!nuevos || nuevos[d.k]) && (!Q || norm(d.filas.map(function(r){ return r.join(' '); }).join(' ')).indexOf(Q) > -1); });
+  return { filas: [].concat.apply([], elegidos.map(function(d){ return d.filas; })), filtrado: !!(Q || nuevos), nuevo: !!nuevos, desde: ult ? ult.en : '', docs: elegidos.length, totalDocs: docs.length };
 }
 
 function _qbTablaHtml(D, tipo, V){
@@ -693,7 +865,7 @@ function _qbTablaHtml(D, tipo, V){
     return '<tr style="' + estilo + '">' + r.map(celda).join('') + '</tr>';
   }).join('');
   var vacio = !V.filas.length ? '<tr><td colspan="' + A.enc.length + '" style="padding:22px;text-align:center;color:var(--ink3);font-size:12px">'
-    + (V.filtrado ? 'Nada coincide con la búsqueda.' : { clientes: 'No hay clientes con crédito.', servicios: '', facturas: 'No hay abonos (cobros a crédito) en ' + _lbPeriodoVE(D.st.periodo) + '.', contado: 'No hay cobros de contado (cuotas completas pagadas de una vez) en ' + _lbPeriodoVE(D.st.periodo) + '.', proveedores: 'Ningún gasto tiene proveedor todavía. Se completan en el Libro de Compras.', compras: 'No hay facturas de proveedor en ' + _lbPeriodoVE(D.st.periodo) + '.' }[tipo]) + '</td></tr>' : '';
+    + (D.st.q ? 'Nada coincide con la búsqueda.' : V.nuevo ? 'Nada nuevo desde la última descarga (' + _lbEsc(_qbFechaHora(V.desde)) + ').' : { clientes: 'No hay clientes con crédito.', servicios: '', facturas: 'No hay abonos (cobros a crédito) en ' + _lbPeriodoVE(D.st.periodo) + '.', contado: 'No hay cobros de contado (cuotas completas pagadas de una vez) en ' + _lbPeriodoVE(D.st.periodo) + '.', proveedores: 'Ningún gasto tiene proveedor todavía. Se completan en el Libro de Compras.', compras: 'No hay facturas de proveedor en ' + _lbPeriodoVE(D.st.periodo) + '.' }[tipo]) + '</td></tr>' : '';
   var tot = '';
   var sumCol = function(i){ return _qbR2(V.filas.reduce(function(a, r){ return a + (typeof r[i] === 'number' ? r[i] : 0); }, 0)); };
   var cols = { facturas: [9, 11], contado: [10, 12], compras: [9, 11], clientes: [11] }[tipo];
@@ -756,8 +928,20 @@ function _qbCuerpoHtml(D){
     proveedores: 'Los proveedores salen de los datos fiscales de cada gasto (Libro de Compras). Las compras de motos no van: la sede no le factura cada moto a PAGASI. Si un gasto trae el RIF o el nombre de una sede, la ficha toma su teléfono, dirección y ciudad. Fe. Creación = la de la sede o la del primer gasto.',
     compras: 'Los gastos del mes con factura de proveedor (por su fecha), como en el Libro de Compras de ' + _lbPeriodoVE(D.st.periodo) + ': la parte exenta va en una línea "' + QB_SIN_IVA + '" y la base en otra con su IVA. La cuenta (*Account) es la de la categoría del gasto en el plan del contador. Las compras de motos, la nómina y las comisiones no van.'
   }[tipo];
-  return (V.filtrado ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)">Filtrado: los totales y lo que se exporta son solo de lo que se ve.</div>' : '')
-    + '<div class="ch" style="flex-wrap:wrap;gap:10px;margin-bottom:8px"><div><div class="ct" style="font-size:14px">' + A.n + '. ' + _lbEsc(A.titulo) + '</div><div class="cs">' + _lbEsc(nota) + '</div></div>'
+  var ult = _qbUltimaDescarga(D, tipo), ultArch = _qbUltimaDelArchivo(D, tipo), porMes = _qbPorMes(tipo), que = 'este período';
+  if(ult && (tipo === 'facturas' || tipo === 'contado')) listas += _qbListaHtml('Cobros de este archivo eliminados después de la última descarga (anúlalos en QuickBooks)', _qbEliminadosTras(D, tipo, ult.en));
+  if(ult && tipo === 'compras'){
+    listas += _qbListaHtml('Gastos eliminados después de la última descarga (anula sus facturas en QuickBooks)', _qbEliminadosTras(D, 'compras', ult.en));
+    listas += _qbListaHtml('Facturas corregidas después de la última descarga (edita o anula en QuickBooks la que ya importaste)', _qbCorregidosTras(D, ult.en));
+  }
+  var lineaDesc = ult ? '<b>Última descarga' + (porMes ? ' de ' + que : '') + ':</b> ' + _lbEsc(_qbDescargaTexto(ult))
+    : '<b>' + (porMes ? 'Este período todavía no se ha descargado' : 'Todavía no se ha descargado') + '</b>' + (ultArch ? ' · última del archivo: ' + _lbEsc(_qbDescargaTexto(ultArch)) : '');
+  return (_qbDescargasError ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)"><b>No se pudo leer el registro de descargas</b> (¿sin conexión?): lo que se ve es solo lo de esta sesión. Se vuelve a intentar al abrir la pestaña.</div>' : '')
+    + (V.nuevo ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)"><b>Solo lo nuevo</b> desde la última descarga de este archivo' + (porMes ? ' y ' + que : '') + ' (' + _lbEsc(_qbFechaHora(V.desde)) + '): ' + V.docs + ' de ' + V.totalDocs + '. Los totales y lo que se exporta son solo de lo que se ve.</div>'
+      : (D.st.modo === 'nuevo' && tipo !== 'servicios' ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)"><b>Solo lo nuevo:</b> ' + (porMes ? que : 'este archivo') + ' todavía no se ha descargado, así que se muestra todo.</div>' : ''))
+    + (V.filtrado && D.st.q ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)">Filtrado: los totales y lo que se exporta son solo de lo que se ve.</div>' : '')
+    + '<div class="ch" style="flex-wrap:wrap;gap:10px;margin-bottom:8px"><div><div class="ct" style="font-size:14px">' + A.n + '. ' + _lbEsc(A.titulo) + '</div><div class="cs">' + _lbEsc(nota) + '</div>'
+    +   '<div style="font-size:11px;margin-top:4px;color:' + (ult ? 'var(--ink2)' : 'var(--ink3)') + '">' + lineaDesc + '</div></div>'
     +   '<div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">'
     +     (A.fmt === 'csv' ? '<button class="btn btn-p btn-sm" onclick="qbExportar(\'' + tipo + '\',\'csv\')">⬇ CSV para QuickBooks</button>' : '')
     +     '<button class="btn ' + (A.fmt === 'csv' ? 'btn-g' : 'btn-p') + ' btn-sm" onclick="qbExportar(\'' + tipo + '\',\'excel\')">⬇ Excel</button>'
@@ -767,13 +951,18 @@ function _qbCuerpoHtml(D){
 }
 
 function _renderQuickBooks(){
+  _qbCargarDescargas();   // la primera vez lee config/quickbooks y repinta cuando llega
   var st = _qbEstado(), emp = (typeof getEmpresa === 'function' ? getEmpresa() : {}) || {};
   var D = _qbCalcular();
+  var descargas = QB_ORDEN.map(function(t){
+    var r = _qbUltimaDelArchivo(D, t);
+    return '<tr><td style="padding:4px 8px;border-bottom:1px solid var(--rim2);white-space:nowrap;font-weight:700">' + QB_ARCHIVOS[t].n + ' · ' + _lbEsc(QB_ARCHIVOS[t].titulo) + '</td><td style="padding:4px 8px;border-bottom:1px solid var(--rim2);color:' + (r ? 'var(--ink2)' : 'var(--ink3)') + '">' + _lbEsc(_qbDescargaTexto(r)) + '</td></tr>';
+  }).join('');
   var chips = QB_ORDEN.map(function(t){
     var A = QB_ARCHIVOS[t], n = t === 'facturas' ? D.facturas.docs.length : (t === 'contado' ? D.facturas.contado.length : (t === 'compras' ? D.compras.bills.length : D.filas[t].length)), act = st.vista === t;
     return '<button class="btn ' + (act ? 'btn-p' : 'btn-g') + ' btn-sm" style="padding:6px 11px" onclick="qbVista(\'' + t + '\')">' + A.n + ' · ' + _lbEsc(A.titulo) + ' <span style="opacity:.75">(' + n + ')</span></button>';
   }).join('');
-  return '<div class="card" style="margin-bottom:14px">'
+  return '<div id="qb-panel"><div class="card" style="margin-bottom:14px">'
     + '<div class="ch" style="flex-wrap:wrap;gap:10px"><div><div class="ct">Exportar a QuickBooks</div><div class="cs">Las plantillas de importación del contador, llenas con los datos del sistema · cifras en dólares (USD)</div></div>'
     +   '<div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-p btn-sm" onclick="qbDescargarTodo()">⬇ Descargar los 6</button></div></div>'
     + '<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:12px;margin:2px 0 12px;padding:10px 12px;background:var(--gs);border-radius:9px">'
@@ -782,13 +971,31 @@ function _renderQuickBooks(){
     + '<div class="fgr" style="gap:10px;align-items:end;flex-wrap:wrap">'
     +   '<div class="fg" style="min-width:150px"><label>Período de las facturas (03, 04 y 06)</label><input class="fi" id="qb-periodo" type="month" value="' + st.periodo + '" onchange="qbPeriodo(this.value)"></div>'
     +   '<div class="fg" style="min-width:150px"><label>Corte del saldo de clientes (01)</label><input class="fi" id="qb-corte" type="date" value="' + st.corte + '" onchange="qbCorte(this.value)"></div>'
+    +   '<div class="fg" style="min-width:230px"><label>Qué incluir</label><select class="fs" id="qb-modo" onchange="qbModo(this.value)"><option value="todo"' + (st.modo === 'todo' ? ' selected' : '') + '>Todo</option><option value="nuevo"' + (st.modo === 'nuevo' ? ' selected' : '') + '>Solo lo nuevo desde la última descarga de cada archivo</option></select></div>'
     +   '<div class="fg" style="flex:1;min-width:200px"><label>Buscar</label><input class="fi" id="qb-buscar" placeholder="Buscar por cliente, proveedor, RIF, N° de factura o contrato…" value="' + _lbEsc(st.q) + '" oninput="qbBuscar(this.value)"></div>'
     + '</div>'
-    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">' + chips + '</div></div>'
-    + '<div class="card" style="margin-bottom:14px"><div id="qb-cuerpo">' + _qbCuerpoHtml(D) + '</div></div>';
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">' + chips + '</div>'
+    + '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:800">Última descarga de cada archivo</summary>'
+    +   '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px"><tbody>' + descargas + '</tbody></table>'
+    +   '<div style="font-size:10.5px;color:var(--ink3);margin-top:6px">Se anota cada vez que se baja un CSV o un Excel (el PDF no cuenta). Con "Solo lo nuevo" cada archivo deja fuera lo que ya estaba en su última descarga del mismo período: lo registrado o editado después de ella. Una descarga con búsqueda es parcial y no cuenta como corte.</div></details></div>'
+    + '<div class="card" style="margin-bottom:14px"><div id="qb-cuerpo">' + _qbCuerpoHtml(D) + '</div></div></div>';
 }
 function _qbRepintar(){ var el = document.getElementById('qb-cuerpo'); if(el) el.innerHTML = _qbCuerpoHtml(); }
+// Vuelve a pintar el panel entero (llega la lectura del registro, se anota una descarga) sin perder lo que el usuario
+// tenía: los <details> abiertos y el foco y el cursor en el buscador
+function _qbRepintarTodo(){
+  var el = (typeof document !== 'undefined') ? document.getElementById('qb-panel') : null;
+  if(!el) return;
+  var abiertos = [].map.call(el.querySelectorAll('details'), function(d){ return d.open; });
+  var buscar = document.getElementById('qb-buscar'), foco = !!buscar && document.activeElement === buscar, pos = foco ? buscar.selectionStart : 0, val = foco ? buscar.value : null;
+  el.outerHTML = _renderQuickBooks();
+  var el2 = document.getElementById('qb-panel');
+  if(!el2) return;
+  [].forEach.call(el2.querySelectorAll('details'), function(d, i){ if(abiertos[i]) d.open = true; });
+  if(foco){ var b2 = document.getElementById('qb-buscar'); if(b2){ if(val != null) b2.value = val; b2.focus(); try { b2.setSelectionRange(pos, pos); } catch(e){} } }
+}
 function qbVista(t){ if(QB_ARCHIVOS[t]){ S.qbVista = t; nav('reportes'); } }
+function qbModo(v){ S.qbModo = v === 'nuevo' ? 'nuevo' : 'todo'; nav('reportes'); }
 function qbPeriodo(v){
   if(!/^\d{4}-\d{2}$/.test(v)) return;
   var corteDef = S.qbCorte === _qbFinMesAnterior(S.qbPeriodo);   // si el corte era el de siempre, se mueve con el mes
@@ -806,7 +1013,7 @@ function qbHtmlPdf(D, tipo, V){
   var td = 'border:1px solid #cbd5e1;padding:2px 3px;font-size:7px;color:#111';
   var h = '<div style="font-size:10.5px;line-height:1.5;margin-bottom:8px"><b style="font-size:12.5px">' + _lbEsc(emp.nombre || '') + '</b><br>RIF: ' + _lbEsc(emp.rif || '') + '<br><b>QUICKBOOKS · ' + A.n + '. ' + _lbEsc(A.titulo.toUpperCase()) + '</b><br>'
     + (tipo === 'clientes' ? 'Balance de apertura al <b>' + _qbDMY(D.st.corte) + '</b>' : (_qbPorMes(tipo) ? 'Período: <b>' + _lbPeriodoVE(D.st.periodo) + '</b>' : 'Catálogo'))
-    + ' · Cifras en dólares (USD)' + (V.filtrado ? '<br><i>Filtrado por: ' + _lbEsc(D.st.q) + '</i>' : '') + '</div>';
+    + ' · Cifras en dólares (USD)' + (V.nuevo ? '<br><i>Solo lo nuevo desde la descarga del ' + _lbEsc(_qbFechaHora(V.desde)) + ' (' + V.docs + ' de ' + V.totalDocs + ')</i>' : '') + (D.st.q ? '<br><i>Filtrado por: ' + _lbEsc(D.st.q) + '</i>' : '') + '</div>';
   h += '<table style="border-collapse:collapse;width:100%;table-layout:auto"><thead><tr>' + A.enc.map(function(x){ return '<th style="' + th + '">' + _lbEsc(x) + '</th>'; }).join('') + '</tr></thead><tbody>'
     + V.filas.map(function(r){ return '<tr>' + r.map(function(v, i){
         var num = typeof v === 'number', fecha = (tipo === 'clientes' || tipo === 'proveedores') && i === 12;
@@ -821,8 +1028,9 @@ function qbHtmlPdf(D, tipo, V){
 function qbExportar(tipo, formato, D){
   D = D || _qbCalcular();
   var A = QB_ARCHIVOS[tipo], V = _qbVer(D, tipo), nombre = _qbNombreArchivo(tipo, D.st);
-  if(formato === 'csv') return _qbDescargar(nombre + '.csv', qbWin1252(qbCsvTexto(A.enc, V.filas)), 'text/csv;charset=windows-1252');
-  if(formato === 'excel') return xlsxEscribir(nombre + '.xlsx', [qbHoja(tipo, V.filas)]);
+  // Los archivos que le entran a QuickBooks (CSV y Excel) quedan anotados como descarga; el PDF es para leer
+  if(formato === 'csv'){ _qbDescargar(nombre + '.csv', qbWin1252(qbCsvTexto(A.enc, V.filas)), 'text/csv;charset=windows-1252'); _qbAnotarDescarga(tipo, formato, D, V); return; }
+  if(formato === 'excel'){ xlsxEscribir(nombre + '.xlsx', [qbHoja(tipo, V.filas)]); _qbAnotarDescarga(tipo, formato, D, V); return; }
   _abrirVentanaImpresion('QuickBooks · ' + A.n + '. ' + A.titulo + (_qbPorMes(tipo) ? ' ' + _lbPeriodoVE(D.st.periodo) : ''), qbHtmlPdf(D, tipo, V), { horizontal: true });
 }
 // Los 6 en el formato de cada plantilla (el navegador puede pedir permiso para bajar varios archivos)
@@ -834,4 +1042,5 @@ function qbDescargarTodo(){
 }
 
 if(typeof module !== 'undefined' && module.exports) module.exports = { qbPartirPago: qbPartirPago, qbLineas: qbLineas, qbSaldoCredito: qbSaldoCredito, qbClientes: qbClientes, qbFacturas: qbFacturas,
-  qbProveedores: qbProveedores, qbCompras: qbCompras, qbDatos: qbDatos, qbCsvTexto: qbCsvTexto, qbWin1252: qbWin1252, qbHoja: qbHoja, QB_ARCHIVOS: QB_ARCHIVOS, QB_SERVICIOS: QB_SERVICIOS };
+  qbProveedores: qbProveedores, qbCompras: qbCompras, qbDatos: qbDatos, qbCsvTexto: qbCsvTexto, qbWin1252: qbWin1252, qbHoja: qbHoja, QB_ARCHIVOS: QB_ARCHIVOS, QB_SERVICIOS: QB_SERVICIOS,
+  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde };

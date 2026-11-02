@@ -119,6 +119,10 @@ const lead = (id, cambios) => Object.assign({}, LEAD, { id }, cambios || {});
   await prueba('el admin sí', assertSucceeds(updateDoc(doc(admin, 'config/plan'), { factor: 1.95 })));
   await prueba('un cobrador NO cambia las cuentas bancarias', assertFails(updateDoc(doc(cobrador, 'config/cuentasBanc'), { lista: [] })));
   await prueba('la tasa del día la sigue actualizando cualquier empleado', assertSucceeds(updateDoc(doc(cobrador, 'config/tasa'), { tasaBs: 41 })));
+  // Registro de descargas de QuickBooks (config/quickbooks, 2-nov-2026): lo escribe cualquier empleado interno, como
+  // todo documento de config que no está en la lista de los reservados (el contador no es administrador)
+  await prueba('el registro de descargas de QuickBooks lo escribe quien tiene Reportes', assertSucceeds(setDoc(doc(gerente, 'config/quickbooks'), { porArchivo: {}, historial: [] })));
+  await prueba('...y cualquier otro empleado interno (el contador no es administrador)', assertSucceeds(setDoc(doc(cobrador, 'config/quickbooks'), { porArchivo: {}, historial: [] })));
   // Historial de tasas por día (26-oct-2026): lo escribe cualquier interno con campos válidos, nadie lo borra
   await prueba('el historial de tasas lo escribe cualquier empleado interno (dólar y euro del día, con merge)', assertSucceeds(setDoc(doc(cobrador, 'tasas/2026-10-23'), { fecha: '2026-10-23', usd: 886.23, fuente: 've.dolarapi.com', guardadoEn: 'x', guardadoPor: 'Cobrador' }, { merge: true })));
   await prueba('...y la tasa manual del analista también', assertSucceeds(setDoc(doc(cobrador, 'tasas/2026-09-01'), { fecha: '2026-09-01', usd: 850, manual: true, fuente: 'manual', guardadoEn: 'x', guardadoPor: 'Cobrador' }, { merge: true })));

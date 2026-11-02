@@ -24,7 +24,7 @@ ok('...los ingresos de financiamiento, mora y Protect con sus cuentas 4101001, 4
 // ── Dónde se usa ──────────────────────────────────────────────────────────────────────────────────────
 const html2=src('admin.html');
 ok('carga antes que todo logic/ (la usan egresos, cuentas, coromoto, reportes y quickbooks)', html2.indexOf('logic/categorias-egreso.js')>html2.indexOf('assets/pagasi-app.js') && html2.indexOf('logic/categorias-egreso.js')<html2.indexOf('logic/financiero.js'));
-ok('Registrar Egreso usa el selector por grupos', /egresoCategoriasOpciones\('operativo'\)/.test(src('logic/egresos.js')));
+ok('Registrar Egreso usa el selector por grupos', /egresoCategoriasOpciones\([\s\S]{0,80}'operativo'\)/.test(src('logic/egresos.js')));
 ok('Finanzas, Cuentas y el reporte del contador muestran el nombre, no el id', (src('modules/reportes.js').match(/egresoCategoriaNombre/g)||[]).length>=5 && /egresoCategoriaNombre\(g\.cat\)/.test(src('logic/cuentas.js')));
 ok('Coromoto deja mapear todas las categorías a su plan de cuentas', /EGRESO_CATEGORIAS\.map\(function\(c\)\{ return \[c\.id, c\.nombre\]; \}\)/.test(src('logic/coromoto.js')));
 ok('QuickBooks saca la cuenta del gasto de la categoría y avisa si no la tiene', /egresoCuentaQB\(categoria\)/.test(src('logic/quickbooks.js')) && /sin cuenta de QuickBooks/.test(src('logic/quickbooks.js')));

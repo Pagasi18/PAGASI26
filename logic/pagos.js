@@ -13,6 +13,7 @@ function restaurarPago(id){
   delete p.eliminadoRazon;
   delete p.eliminadoModo;
   p.mantenerEnAmortizacion = false;
+  p.editadoEn=new Date().toISOString(); p.editadoPor=(S.currentUser&&S.currentUser.nombre)||'Admin';   // cuenta como cambio: QuickBooks "solo lo nuevo" lo vuelve a sacar
   DB.savePago(p);
   // Si la eliminación era completa, recalcular crédito y restaurar el movimiento asociado
   if(modoPrevio==='completo'){
@@ -1005,7 +1006,8 @@ function ejecutarLiquidacionAnticipada(){
       tipo:'liquidacion',
       motivo:motivo,
       observacion:observacion,
-      tasaBs:window._tasaBsGlobal||1
+      tasaBs:window._tasaBsGlobal||1,
+      creadoEn:new Date().toISOString()   // cuando se registró (la fecha de arriba es la elegida); lo usa "solo lo nuevo" de QuickBooks
     };
     S.pagos.push(pago);
     DB.savePago(pago);
@@ -1385,6 +1387,7 @@ function confirmarPago(pagoId){
   if(pi<0) return;
   var pago = S.pagos[pi];
   pago.estado='confirmado';
+  pago.editadoEn=new Date().toISOString();   // cuenta como cambio: QuickBooks "solo lo nuevo" lo saca aunque se haya registrado antes
   DB.savePago(pago);
 
   // Crear o actualizar movimiento bancario vinculado al pago

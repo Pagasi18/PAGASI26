@@ -2611,6 +2611,16 @@ DB.getTareas = function(){ if(!db) return Promise.resolve([]); return db.collect
 DB.saveRecurso = function(o){ if(!db)return Promise.resolve(false); return _dbSilent(function(){ return db.collection('recursos').doc(String(o.id)).set(clean(o),{merge:true}); }); };
 DB.delRecurso = function(id){ if(!db)return Promise.resolve(false); return _dbSilent(function(){ return db.collection('recursos').doc(String(id)).delete(); }); };
 DB.getRecursos = function(){ if(!db) return Promise.resolve([]); return db.collection('recursos').get().then(function(s){return s.docs.map(function(d){return Object.assign({id:d.id},d.data());});}); };
+// Registro de descargas de Exportar a QuickBooks (config/quickbooks, 2-nov-2026): cuándo se bajó cada archivo y hasta dónde
+DB.getQuickbooks = function(){ if(!db) return Promise.resolve(null); return db.collection('config').doc('quickbooks').get().then(function(d){ return d.exists ? d.data() : null; }); };   // si falla, rechaza: la pantalla avisa y reintenta
+// Campo por campo y con merge: dos personas con la pestaña abierta no se pisan el registro. clave vacía = descarga con
+// búsqueda (parcial): va al historial, pero no cuenta como última descarga
+DB.anotarDescargaQuickbooks = function(clave, reg){
+  if(!db) return Promise.resolve(false);
+  var r = clean(reg), o = { historial: firebase.firestore.FieldValue.arrayUnion(r), actualizado: reg.en };
+  if(clave){ o.porClave = {}; o.porClave[clave] = r; o.porArchivo = {}; o.porArchivo[reg.tipo] = r; }
+  return _dbSilent(function(){ return db.collection('config').doc('quickbooks').set(o, { merge: true }); });
+};
 DB.saveInventarioOficina = function(){ if(!db) return Promise.resolve(false); return _dbSilent(function(){ return db.collection('config').doc('inventarioOficina').set({items:(S.inventarioOficina||[]), actualizado:new Date().toISOString()}); }); };
 // Gestiones de cobranza guardadas en el propio crédito (creditos/{id}.gestiones)
 // — evita una colección aparte bloqueada por las reglas; cargan junto con S.creds.

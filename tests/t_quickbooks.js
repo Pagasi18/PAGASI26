@@ -206,6 +206,80 @@ ok('un pago guardado sin cuenta ("—") sale como SIN CUENTA, no con la raya', D
 const DS=G.qbDatos(baseQ({ creds:[Object.assign({}, M154, { id:'M-S', estado:'completado' })], pagos:[{ id:'PAG-S', cred:'M-S', fecha:'2026-10-02', monto:1272, estado:'confirmado' }, { id:'PAG-S2', cred:'M-S', fecha:'2026-10-09', monto:53, estado:'confirmado' }] }));
 ok('un cobro que el motor no aplica a ninguna cuota (el crédito ya estaba saldado) va a crédito y el control lo avisa', DS.filas.facturas.some(r=>r[0]==='PAG-S2') && DS.controles.facturas.some(c=>/no aplica a ninguna cuota/.test(c.concepto) && c.estado==='REVISAR: 1'));
 
+// Registro de descargas y "solo lo nuevo desde la última descarga" (el contador, 2-nov-2026)
+const pagosD=[
+  { id:'PAG-D1', cred:'M-154', fecha:'2026-10-08', monto:53, estado:'confirmado', metodo:'Binance 26' },                                           // viejo, sin hora de registro
+  { id:'PAG-D2', cred:'M-154', fecha:'2026-10-20', monto:30, estado:'confirmado', creadoEn:'2026-10-20T15:00:00.000Z' },                          // abono anotado el 20
+  { id:'PAG-D3', cred:'M-154', fecha:'2026-10-27', monto:53, estado:'confirmado', metodo:'Binance 26', creadoEn:'2026-11-02T13:00:00.000Z' },    // cuota del 27 anotada el lunes 2-nov
+  { id:'PAG-D4', cred:'M-154', fecha:'2026-10-09', monto:20, estado:'confirmado', creadoEn:'2026-10-09T10:00:00.000Z', editadoEn:'2026-11-02T14:00:00.000Z' } ];   // abono viejo, editado el lunes
+const DD=G.qbDatos(baseQ({ creds:[M154], pagos:pagosD, egresos:[
+  { id:801, fecha:'2026-10-05', monto:50, categoria:'otros', concepto:'viejo', fiscal:{ proveedor:'A', rif:'J-1', numero:'1', base:50, alicuota:0 } },
+  { id:802, fecha:'2026-10-06', monto:60, categoria:'otros', concepto:'anotado el lunes', creadoEn:'2026-11-02T12:00:00.000Z', fiscal:{ proveedor:'B', rif:'J-2', numero:'2', base:60, alicuota:0 } },
+  { id:803, fecha:'2026-10-07', monto:70, categoria:'otros', concepto:'factura completada el lunes', fiscal:{ proveedor:'C', rif:'J-3', numero:'3', base:70, alicuota:0, actualizado:'2026-11-02T12:30:00.000Z' } } ] }));
+DD.st={ periodo:'2026-10', corte:'2026-09-30', q:'', modo:'todo', vista:'facturas' };
+const viernes='2026-10-30T20:12:00.000Z';
+const regF=G.qbDescargaRegistro('facturas','csv',DD,G._qbVer(DD,'facturas'),viernes,'JESUS');
+ok('descarga: queda anotado qué archivo, cuándo, quién, el formato, el período, cuántas y hasta cuál (la última por fecha)', regF.tipo==='facturas' && regF.en===viernes && regF.por==='JESUS' && regF.formato==='csv' && regF.periodo==='2026-10' && regF.cantidad===2 && regF.hasta==='PAG-D2 del 20/10/2026' && regF.modo==='todo' && regF.busqueda==='');
+const regC=G.qbDescargaRegistro('compras','csv',DD,G._qbVer(DD,'compras'),viernes,'JESUS');
+ok('...en el 06 cuenta facturas de proveedor (no líneas) y dice hasta cuál llegó, con la fecha en dd/mm/aaaa', regC.cantidad===3 && regC.hasta==='3 · C del 07/10/2026');
+const regCt=G.qbDescargaRegistro('contado','csv',DD,G._qbVer(DD,'contado'),viernes,'JESUS'), regCl=G.qbDescargaRegistro('clientes','excel',DD,G._qbVer(DD,'clientes'),viernes,'JESUS');
+const desc={ porClave:{ 'facturas|2026-10':regF, 'compras|2026-10':regC, 'contado|2026-10':regCt, 'clientes':regCl }, porArchivo:{ facturas:regF, compras:regC, contado:regCt, clientes:regCl }, historial:[] };
+ok('...el 04 anota hasta el último recibo y el 01 el corte; la clave lleva el período en 03/04/06 y solo el archivo en las fichas', regCt.hasta==='PAG-D3 del 27/10/2026' && regCt.cantidad===2 && regCl.corte==='2026-09-30' && regCl.cantidad===1 && regF.clave==='facturas|2026-10' && regCl.clave==='clientes');
+const DNu=Object.assign({}, DD, { st:Object.assign({}, DD.st, { modo:'nuevo' }), descargas:desc });
+const VN=G._qbVer(DNu,'facturas'), VCn=G._qbVer(DNu,'contado'), V6n=G._qbVer(DNu,'compras'), V1n=G._qbVer(DNu,'clientes');
+ok('"solo lo nuevo": del 03 queda el abono editado el lunes; el anotado el 20 ya estaba en la descarga del viernes', VN.nuevo && VN.docs===1 && VN.totalDocs===2 && VN.filas.length===3 && VN.filas.every(r=>r[0]==='PAG-D4') && VN.desde===viernes);
+ok('...del 04 queda la cuota anotada el lunes aunque sea del 27; la vieja sin hora de registro, fechada antes, no', VCn.docs===1 && VCn.filas.every(r=>r[0]==='PAG-D3'));
+ok('...del 06 quedan el gasto anotado el lunes y el que completó su factura el lunes; el viejo no', V6n.docs===2 && V6n.filas.every(r=>r[0]==='2' || r[0]==='3'));
+ok('...el 01 no trae clientes nuevos (su crédito es anterior a la descarga)', V1n.nuevo && V1n.docs===0 && V1n.totalDocs===1);
+ok('...y sin descarga previa de ese archivo, "solo lo nuevo" muestra todo (no hay desde dónde contar)', (()=>{ const V=G._qbVer(Object.assign({}, DNu, { descargas:{ porClave:{}, porArchivo:{}, historial:[] } }),'facturas'); return !V.nuevo && V.filas.length===6; })());
+ok('...el corte es por archivo Y período: con noviembre elegido, la descarga de octubre no cuenta y se muestra todo', !G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { periodo:'2026-11' }) }),'facturas').nuevo);
+ok('...la búsqueda sigue funcionando encima del modo nuevo', G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { q:'PAG-D2' }) }),'facturas').filas.length===0 && G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { q:'PAG-D4' }) }),'facturas').filas.length===3);
+const regN=G.qbDescargaRegistro('facturas','csv',DNu,VN,'2026-11-02T15:00:00.000Z','JESUS');
+ok('...la descarga de lo nuevo anota desde cuándo y cuántas fueron', regN.modo==='nuevo' && regN.desde===viernes && regN.cantidad===1 && regN.hasta==='PAG-D4 del 09/10/2026');
+ok('...el 02 (catálogo) no se filtra nunca', G.qbNuevosDesde(DNu,'servicios',viernes)===null && G._qbVer(DNu,'servicios').filas.length===DNu.filas.servicios.length);
+// Lo que encontró la revisión del 2-nov-2026
+G._qbDescargas=null;
+const DT=G.qbDatos(baseQ({ creds:[M154], pagos:pagosD })); DT.st={ periodo:'2026-10', corte:'2026-09-30', q:'', modo:'todo', vista:'facturas' };
+const a1=G._qbAnotarDescarga('facturas','csv',DT,G._qbVer(DT,'facturas')), a2=G._qbAnotarDescarga('contado','csv',DT,G._qbVer(DT,'contado'));
+ok('"Descargar los 6" anota cada archivo aunque los seis compartan el mismo D (se parte de la memoria viva)', G._qbDescargas.porArchivo.facturas===a1 && G._qbDescargas.porArchivo.contado===a2 && G._qbDescargas.porClave['facturas|2026-10']===a1 && G._qbDescargas.historial.length===2 && DT.descargas===G._qbDescargas);
+const DTb=Object.assign({}, DT, { st:Object.assign({}, DT.st, { q:'PAG-D4' }) });
+const ab=G._qbAnotarDescarga('facturas','csv',DTb,G._qbVer(DTb,'facturas'));
+ok('una descarga con búsqueda (parcial) queda en el historial pero no sirve de corte', ab.busqueda==='PAG-D4' && G._qbDescargas.historial.length===3 && G._qbDescargas.porClave['facturas|2026-10']===a1 && G._qbDescargas.porArchivo.facturas===a1);
+G._qbDescargas=null;
+const DP=G.qbDatos(baseQ({ creds:[M154, { id:'M-NEW', cli:'PEDRO PEREZ', fecha:'2026-10-25', estado:'activo', precio:1350, ini:750, cuotaQ:53, totalCuotas:24, total:1272, creado:'2026-11-02T10:00:00.000Z' }],
+  clientes:clientes.concat([{ id:12, nombre:'PEDRO PEREZ', cedula:'V-7777777', estado:'activo' }]),
+  pagos:[{ id:'PAG-P', cred:'M-NEW', fecha:'2026-10-26', monto:53, estado:'confirmado', creadoEn:'2026-11-02T10:05:00.000Z' }, { id:'PAG-MISMO', cred:'M-154', fecha:'2026-10-30', monto:53, estado:'confirmado' }],
+  egresos:[{ id:811, fecha:'2026-10-20', monto:10, categoria:'otros', concepto:'cargado el lunes', creadoEn:'2026-11-02T12:00:00.000Z', fiscal:{ proveedor:'NUEVO C.A.', rif:'J-9', numero:'7', base:10, alicuota:0 } },
+    { id:812, fecha:'2026-10-02', monto:5, categoria:'otros', concepto:'viejo', editadoEn:'2026-10-20T00:00:00.000Z', fiscal:{ proveedor:'VIEJO C.A.', rif:'J-8', numero:'8', base:5, alicuota:0, actualizado:'2026-10-21T00:00:00.000Z' } },
+    { id:813, fecha:'2026-10-03', monto:7, categoria:'otros', concepto:'factura completada el lunes', editadoEn:'2026-10-20T00:00:00.000Z', fiscal:{ proveedor:'TERCERO C.A.', rif:'J-7', numero:'9', base:7, alicuota:0, actualizado:'2026-11-02T12:30:00.000Z' } }] }));
+DP.st={ periodo:'2026-10', corte:'2026-09-30', q:'', modo:'nuevo', vista:'facturas' };
+DP.descargas={ porClave:{ 'clientes':{ en:viernes, tipo:'clientes' }, 'proveedores':{ en:viernes, tipo:'proveedores' }, 'compras|2026-10':{ en:viernes, tipo:'compras' }, 'contado|2026-10':{ en:viernes, tipo:'contado' } }, porArchivo:{}, historial:[] };
+ok('01 "solo lo nuevo": el cliente cuyo crédito se creó después de la descarga sale aunque el crédito esté fechado antes', G._qbVer(DP,'clientes').filas.map(r=>r[0]).join()==='PEDRO PEREZ');
+ok('06: la factura completada en el Libro después de la descarga sale aunque el gasto se hubiera editado antes (gana la fecha mayor)', G._qbVer(DP,'compras').filas.map(r=>r[0]).sort().join()==='7,9');
+ok('05 "solo lo nuevo": los proveedores con facturas cargadas después salen aunque las facturas sean de antes; el viejo no', G._qbVer(DP,'proveedores').filas.map(r=>r[0]).join()==='NUEVO C.A.,TERCERO C.A.');
+ok('un cobro sin hora de registro fechado el mismo día de la descarga cuenta como nuevo (mejor repetido a la vista que perdido)', G._qbVer(DP,'contado').filas.some(r=>r[0]==='PAG-MISMO') && G._qbVer(DP,'contado').filas.some(r=>r[0]==='PAG-P'));
+ok('la liquidación anticipada guarda la hora en que se registró', /creadoEn:new Date\(\).toISOString\(\)/.test(src('logic/pagos.js').slice(src('logic/pagos.js').indexOf("id:pagoId,"), src('logic/pagos.js').indexOf("id:pagoId,")+900)));
+ok('restaurar o confirmar un pago cuenta como cambio (editadoEn), y el 04 lo lee también desde restauradoEn', /p\.editadoEn=new Date\(\)\.toISOString\(\)/.test(src('logic/pagos.js')) && /pago\.editadoEn=new Date\(\)\.toISOString\(\)/.test(src('logic/pagos.js')) && (()=>{ const Dr=G.qbDatos(baseQ({ creds:[M154], pagos:[{ id:'PAG-RS', cred:'M-154', fecha:'2026-10-08', monto:53, estado:'confirmado', creadoEn:'2026-10-08T10:00:00.000Z', restauradoEn:'2026-11-02T10:00:00.000Z' }] })); Dr.st={ periodo:'2026-10', corte:'2026-09-30', q:'', modo:'nuevo', vista:'contado' }; Dr.descargas={ porClave:{ 'contado|2026-10':{ en:viernes, tipo:'contado' } }, porArchivo:{}, historial:[] }; return G._qbVer(Dr,'contado').filas.some(r=>r[0]==='PAG-RS'); })());
+// Eliminados y corregidos después de la descarga (segunda ronda de la revisión)
+const DE=G.qbDatos(baseQ({ creds:[M154], pagos:[
+  { id:'PAG-X1', cred:'M-154', fecha:'2026-10-08', monto:53, estado:'confirmado', creadoEn:'2026-10-08T10:00:00.000Z', eliminado:true, eliminadoEn:'2026-11-02T09:00:00.000Z', eliminadoRazon:'Error' },   // cuota completa: estaba en el 04
+  { id:'PAG-X2', cred:'M-154', fecha:'2026-10-20', monto:30, estado:'confirmado', eliminado:true, eliminadoEn:'2026-11-02T09:10:00.000Z' },                                            // abono: estaba en el 03
+  { id:'PAG-X3', cred:'M-154', fecha:'2026-10-21', monto:53, estado:'confirmado', creadoEn:'2026-11-02T08:00:00.000Z', eliminado:true, eliminadoEn:'2026-11-02T09:20:00.000Z' },   // anotado y borrado el lunes: nunca se bajó
+  { id:'PAG-X4', cred:'M-154', fecha:'2026-10-22', monto:53, estado:'pendiente', eliminado:true, eliminadoEn:'2026-11-02T09:30:00.000Z' } ],                                       // pendiente: nunca se exportó
+  egresos:[
+  { id:821, fecha:'2026-10-05', monto:50, categoria:'otros', concepto:'papel', fiscal:{ proveedor:'A', rif:'J-1', numero:'1', base:50, alicuota:0 }, eliminado:true, eliminadoEn:'2026-11-02T09:00:00.000Z', eliminadoRazon:'Duplicado' },
+  { id:822, fecha:'2026-10-06', monto:900, categoria:'nomina', concepto:'nómina', eliminado:true, eliminadoEn:'2026-11-02T09:00:00.000Z' },
+  { id:823, fecha:'2026-10-07', monto:700, categoria:'inventario', concepto:'moto', origenAuto:'compra_moto', motoIdRef:1, eliminado:true, eliminadoEn:'2026-11-02T09:00:00.000Z' },
+  { id:824, fecha:'2026-10-08', monto:20, categoria:'otros', concepto:'propina', fiscal:{ noAplica:true }, eliminado:true, eliminadoEn:'2026-11-02T09:00:00.000Z' },
+  { id:825, fecha:'2026-10-09', monto:116, categoria:'otros', concepto:'toner', fiscal:{ proveedor:'B', rif:'J-2', numero:'00001243', base:100, alicuota:0.16, iva:16 }, editadoEn:'2026-11-02T10:00:00.000Z', historial:[{ en:'2026-11-02T10:00:00.000Z', por:'ADAM', antes:{ concepto:'toner', monto:116, fecha:'2026-10-09', fiscal:{ proveedor:'B', rif:'J-2', numero:'00001234', base:100, alicuota:0.16, iva:16 } } }] } ] }));
+DE.st={ periodo:'2026-10', corte:'2026-09-30', q:'', modo:'todo', vista:'facturas' };
+const e03=G._qbEliminadosTras(DE,'facturas',viernes), e04=G._qbEliminadosTras(DE,'contado',viernes), e06=G._qbEliminadosTras(DE,'compras',viernes);
+ok('eliminados tras la descarga: el abono en el 03 y la cuota completa en el 04, cada uno en su archivo; ni el anotado y borrado después ni el pendiente', e03.length===1 && /PAG-X2/.test(e03[0]) && e04.length===1 && /PAG-X1/.test(e04[0]) && /Error/.test(e04[0]));
+ok('...en el 06 solo el gasto que de verdad fue al libro: ni nómina, ni compra de moto, ni "no lleva factura"', e06.length===1 && /factura 1 · A/.test(e06[0]) && /Duplicado/.test(e06[0]));
+const c06=G._qbCorregidosTras(DE,viernes);
+ok('facturas corregidas tras la descarga: dice qué decía antes y qué dice ahora', c06.length===1 && /EG-825/.test(c06[0]) && /N° 00001234 → 00001243/.test(c06[0]) && /ADAM/.test(c06[0]));
+ok('la tabla vacía en modo nuevo dice que no hay nada nuevo, no que la búsqueda no coincide', /Nada nuevo desde la última descarga/.test(G._qbTablaHtml(DNu,'clientes',G._qbVer(DNu,'clientes'))) && !/Nada coincide/.test(G._qbTablaHtml(DNu,'clientes',G._qbVer(DNu,'clientes'))));
+
 // 05 Proveedores
 const pv5=D.filas.proveedores;
 ok('05: un proveedor por RIF (mayúsculas y guiones no lo duplican)', pv5.filter(r=>/LIBRERIA EL SOL/.test(r[1])).length===1);
@@ -352,7 +426,7 @@ const rep=src('modules/reportes.js'), html=src('admin.html');
 ok('la pestaña está en Finanzas', /\{k:'quickbooks', lbl:'Exportar a QuickBooks'/.test(rep) && /tab==='quickbooks'/.test(rep));
 const iMet=html.indexOf('logic/metodologia.js'), iQb=html.indexOf('logic/quickbooks.js'), iMod=html.indexOf('modules/reportes.js');
 ok('...y su script carga después de lo que usa y antes de las vistas', iMet>0 && iQb>iMet && iQb<iMod && html.indexOf('logic/credito-ledger.js')<iQb && html.indexOf('logic/libros-iva.js')<iQb);
-ok('no escribe nada en la base: solo lee y exporta', !/\bDB\.|\.set\(|\.update\(|\.add\(|collection\(/.test(src('logic/quickbooks.js')));
+ok('en la base solo anota las descargas (config/quickbooks): los datos los lee y exporta, no los toca', !/\.set\(|\.update\(|\.add\(|collection\(/.test(src('logic/quickbooks.js')) && (src('logic/quickbooks.js').match(/\bDB\.\w+/g)||[]).every(x=>x==='DB.getQuickbooks' || x==='DB.anotarDescargaQuickbooks'));
 
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;
