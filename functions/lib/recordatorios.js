@@ -86,7 +86,7 @@ async function correrEmpresa(deps, empresa, plantillas, hoy, lista) {
       const convRef = db.collection('conversaciones').doc('wa:' + it.tel);
       const c = await convRef.get();
       const ahora = deps.ahora();
-      await convRef.set(Object.assign({ canal: 'whatsapp', telE164: it.tel, clienteId: it.clienteId, clienteNombre: it.nombre, cred: it.cred, ultimoMensaje: texto, ultimoMensajeHora: ahora, actualizado: ahora, empresa }, c.exists ? {} : { nombre: it.nombre, modo: 'bot', noLeidos: 0, creado: ahora }), { merge: true });
+      await convRef.set(Object.assign({ canal: 'whatsapp', area: 'cobranza', telE164: it.tel, clienteId: it.clienteId, clienteNombre: it.nombre, cred: it.cred, ultimoMensaje: texto, ultimoMensajeHora: ahora, actualizado: ahora, empresa }, c.exists ? {} : { nombre: it.nombre, modo: 'bot', noLeidos: 0, creado: ahora }), { merge: true });
       await convRef.collection('mensajes').doc(metaId || clave).set({ metaId, direccion: 'saliente', autor: 'asistente', tipo: 'plantilla', texto, estado, error, hora: ahora, grupo });
     }
   }

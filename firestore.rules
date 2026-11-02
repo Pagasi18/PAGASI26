@@ -394,46 +394,51 @@ service cloud.firestore {
             : esInterno() ) ) ) );
     }
 
-    // == WhatsApp e Instagram (18-oct-2026) ==
+    // == Redes Ventas y Redes Cobranza (1-nov-2026; antes WhatsApp e Instagram, 18-oct) ==
     // Las conversaciones y sus mensajes los escribe el servidor (Cloud Functions, con la
-    // cuenta de servicio). Desde el navegador cada canal lo ve quien tiene su modulo:
-    // 'whatsapp' (cobranza y ventas por WhatsApp) o 'instagram' (ventas por Instagram), y
-    // solo cambia lo de atenderlas (tomarla, devolverla, marcar vista, el borrador). Las
-    // listas deben pedir un canal (where canal ==), que es como las lee el panel. Los
-    // mensajes del equipo salen por el endpoint /equipo, no por aqui, para que nada quede
-    // guardado como enviado sin haber pasado por Meta.
-    function veWhatsapp() { return esInterno() && (esAdmin() || permiso('whatsapp')); }
-    function veInstagram() { return esInterno() && (esAdmin() || permiso('instagram')); }
-    function veCanal(d) { return (d.canal == 'whatsapp' && veWhatsapp()) || (d.canal == 'instagram' && veInstagram()); }
+    // cuenta de servicio). Desde el navegador son dos areas, cada una con su permiso:
+    // 'redes' (Redes Ventas: Instagram y el WhatsApp de ventas, area 'ventas') y 'redescob'
+    // (Redes Cobranza: el WhatsApp de cobranza, area 'cobranza' o sin area). Un usuario de antes,
+    // sin esos dos permisos, entra como entraba: 'whatsapp' le abria las dos areas de WhatsApp e
+    // 'instagram' solo Instagram. Solo cambia lo de atenderlas (tomarla, devolverla, marcar
+    // vista, el borrador). Las listas deben pedir el canal y, en WhatsApp, tambien el area
+    // (where canal == ... y area == ...), que es como las lee el panel. Los mensajes del equipo
+    // salen por el endpoint /equipo, no por aqui, para que nada quede guardado como enviado sin
+    // haber pasado por Meta.
+    function permisosDeRedes() { return permiso('redes') || permiso('redescob'); }
+    function veVentasDe(canal) { return esInterno() && (esAdmin() || (permisosDeRedes() ? permiso('redes') : permiso(canal))); }
+    function veCobranza() { return esInterno() && (esAdmin() || (permisosDeRedes() ? permiso('redescob') : permiso('whatsapp'))); }
+    function deCobranza(d) { return d.canal == 'whatsapp' && d.get('area', 'cobranza') == 'cobranza'; }
+    function veArea(d) { return esAdmin() ? esInterno() : (deCobranza(d) ? veCobranza() : ((d.canal == 'instagram' || d.canal == 'whatsapp') && veVentasDe(d.canal))); }
     match /conversaciones/{id} {
-      allow read: if veCanal(resource.data);
-      allow update: if veCanal(resource.data)
+      allow read: if veArea(resource.data);
+      allow update: if veArea(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['modo','atendidoPor','atencion','noLeidos','borrador','actualizado']);
       allow create, delete: if false;
       match /mensajes/{mid} {
-        allow read: if veCanal(get(/databases/$(database)/documents/conversaciones/$(id)).data);
+        allow read: if veArea(get(/databases/$(database)/documents/conversaciones/$(id)).data);
         allow write: if false;
       }
     }
     // Los leads (quien quiere comprar y dejo sus datos, por WhatsApp o Instagram): los anota
-    // el asistente desde el servidor; el equipo de ese canal los ve y los marca atendidos.
+    // el asistente desde el servidor; son de ventas: los ve Redes Ventas y los marca atendidos.
     match /leads/{id} {
-      allow read: if veCanal(resource.data);
-      allow update: if veCanal(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado','atendidoPor','nota','actualizado']);
+      allow read: if veVentasDe(resource.data.canal);
+      allow update: if veVentasDe(resource.data.canal) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado','atendidoPor','nota','actualizado']);
       allow create, delete: if false;
     }
     // Los comentarios de Instagram (22-oct-2026): los guarda el servidor cuando Paola contesta (o
-    // decide no contestar) un comentario; en Redes sociales los lee quien tiene el canal Instagram.
+    // decide no contestar) un comentario; los lee Redes Ventas (antes, quien tenia el canal Instagram).
     // Nadie los escribe desde el navegador.
     match /comentarios_ig/{id} {
-      allow read: if veInstagram();
+      allow read: if veVentasDe('instagram');
       allow write: if false;
     }
     // Lo que guarda el servidor para auditoria: los avisos crudos de Meta, los recordatorios
     // mandados y el resultado de cada corrida. Se leen desde administracion, no se tocan.
     match /webhooks_meta/{id} { allow read: if esAdmin(); allow write: if false; }
-    match /recordatorios/{id} { allow read: if veWhatsapp(); allow write: if false; }
+    match /recordatorios/{id} { allow read: if veCobranza(); allow write: if false; }
     match /recordatorios_corridas/{id} { allow read: if esAdmin(); allow write: if false; }
 
     // == Portal de aliados (17-oct-2026) ==

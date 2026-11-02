@@ -116,4 +116,28 @@ const ok = (l, v) => { if (v) { pass++; console.log('OK   ' + l); } else { fail+
   ok('la ventana de Patricia sigue teniendo el aviso de los recordatorios y las cuentas de las dos compañías', (() => { ['ov','mtt','msb','mbd','mft','modal-box'].forEach(el); els['ov'].style = {}; ctx.closeM = () => {}; ctx.setMicon = () => {}; try { ctx.rsAsistente('cobranza'); } catch (e) { return false; } return /clientes de verdad/.test(els['mbd'].innerHTML) && /id="rs-pago26"/.test(els['mbd'].innerHTML); })());
 }
 
+// ── C. Las listas piden el área (las Reglas dejan leer solo la del módulo) ──
+{
+  const src = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  ok('el servidor anota area: cobranza en la conversación que abre un recordatorio', /canal: 'whatsapp', area: 'cobranza', telE164: it\.tel/.test(src('functions/lib/recordatorios.js')));
+  ok('las Reglas van por área: veArea, veCobranza, veVentasDe; ya no veCanal', /function veArea\(d\)/.test(src('firestore.rules')) && /function veCobranza\(\)/.test(src('firestore.rules')) && !/veCanal\(/.test(src('firestore.rules')));
+  ok('...y las listas sin área de WhatsApp quedan para el administrador (esAdmin primero)', /return esAdmin\(\) \? esInterno\(\) : \(deCobranza\(d\)/.test(src('firestore.rules')));
+  const wheres = [], snaps = {};
+  const ctx = { console: { log() {}, warn() {}, error() {} }, document: { getElementById() { return null; } }, setTimeout() { return 0; }, S: { page: 'clientes', currentUser: { nombre: 'X' } }, nav() {}, _waRefrescarEnSitio() { return true; } };
+  ctx.window = ctx;
+  ctx.db = { collection(col) { const w = []; const q = { where(a, b, c) { w.push([a, b, c]); return q; }, orderBy() { return q; }, limit() { return q; }, onSnapshot(fn) { wheres.push(w.slice()); snaps[w.map(x => x[2]).join(':')] = fn; return () => {}; } }; return q; } };
+  vm.createContext(ctx); vm.runInContext(src('logic/whatsapp.js'), ctx, { filename: 'logic/whatsapp.js' });
+  ctx._waCfg = { conectado: true, instagram: 'pagasi.io' };
+  const snap = (docs) => ({ docs: docs.map(d => ({ id: d.id, data: () => d })) });
+  ctx.waAbrirConversaciones('whatsapp', 'cobranza'); ctx.waAbrirConversaciones('whatsapp', 'ventas'); ctx.waAbrirConversaciones('instagram');
+  ok('Redes Cobranza pide canal whatsapp y área cobranza; Redes Ventas, área ventas; Instagram solo el canal', JSON.stringify(wheres) === JSON.stringify([[['canal', '==', 'whatsapp'], ['area', '==', 'cobranza']], [['canal', '==', 'whatsapp'], ['area', '==', 'ventas']], [['canal', '==', 'instagram']]]));
+  ok('cada lista es su propia escucha (no se repite si se vuelve a pedir)', (ctx.waAbrirConversaciones('whatsapp', 'cobranza'), wheres.length === 3 && Object.keys(ctx._waUnsubs).sort().join() === 'instagram,whatsapp:cobranza,whatsapp:ventas'));
+  snaps['whatsapp:cobranza'](snap([{ id: 'wa:+1', canal: 'whatsapp', area: 'cobranza' }, { id: 'wa:+9', canal: 'whatsapp' }]));
+  snaps['whatsapp:ventas'](snap([{ id: 'wav:+2', canal: 'whatsapp', area: 'ventas' }]));
+  snaps['instagram'](snap([{ id: 'ig:3', canal: 'instagram', area: 'ventas' }]));
+  ok('las tres listas conviven en memoria', ctx._waConvs.map(c => c.id).sort().join() === 'ig:3,wa:+1,wa:+9,wav:+2');
+  snaps['whatsapp:cobranza'](snap([{ id: 'wa:+1', canal: 'whatsapp', area: 'cobranza' }]));
+  ok('una foto nueva de cobranza reemplaza solo lo de cobranza (la de ventas y la de Instagram siguen)', ctx._waConvs.map(c => c.id).sort().join() === 'ig:3,wa:+1,wav:+2');
+}
+
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

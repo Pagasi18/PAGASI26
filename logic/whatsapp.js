@@ -193,15 +193,22 @@ function waDemoResponder(conv, texto){
   return { texto: 'Soy el asistente de cobranza de Pagasi y solo puedo ayudarte con tu crédito: cuánto debes, cuándo vence y cómo pagar. Si necesitas otra cosa, te comunico con una persona.', atencion: '' };
 }
 
-function waAbrirConversaciones(canal, cb){
-  if(typeof canal === 'function'){ cb = canal; canal = 'whatsapp'; }
-  canal = canal || 'whatsapp';
+// area (1-nov-2026): en WhatsApp la lista pide tambien el area ('cobranza' o 'ventas'), que es lo que
+// dejan leer las Reglas de cada modulo (Redes Cobranza / Redes Ventas); Instagram es todo ventas.
+function waAreaDe(c){ return c.area || ((c.canal || 'whatsapp') === 'instagram' ? 'ventas' : 'cobranza'); }
+function waAbrirConversaciones(canal, area, cb){
+  if(typeof canal === 'function'){ cb = canal; canal = 'whatsapp'; area = ''; }
+  if(typeof area === 'function'){ cb = area; area = ''; }
+  canal = canal || 'whatsapp'; area = area || '';
   if(!waConectadoCanal(canal)){ if(cb) cb(_waRoot._waConvs); return; }
   _waRoot._waUnsubs = _waRoot._waUnsubs || {};
-  if(_waRoot._waUnsubs[canal]){ if(cb) cb(_waRoot._waConvs); return; }
+  var clave = canal + (area ? ':' + area : '');
+  if(_waRoot._waUnsubs[clave]){ if(cb) cb(_waRoot._waConvs); return; }
   if(typeof db === 'undefined' || !db){ if(cb) cb([]); return; }
-  _waRoot._waUnsubs[canal] = db.collection('conversaciones').where('canal', '==', canal).orderBy('actualizado', 'desc').limit(200).onSnapshot(function(snap){
-    var otras = (_waRoot._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') !== canal; });
+  var q = db.collection('conversaciones').where('canal', '==', canal);
+  if(area) q = q.where('area', '==', area);
+  _waRoot._waUnsubs[clave] = q.orderBy('actualizado', 'desc').limit(200).onSnapshot(function(snap){
+    var otras = (_waRoot._waConvs || []).filter(function(c){ return (c.canal || 'whatsapp') !== canal || (area && waAreaDe(c) !== area); });
     _waRoot._waConvs = otras.concat(snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }));
     try{ _waAvisar(canal, _waRoot._waConvs.filter(function(c){ return (c.canal || 'whatsapp') === canal; })); }catch(e){}
     // Si la pantalla esta puesta se refresca en el sitio (lista, contadores, hilo si cambio); si no, nav

@@ -487,11 +487,12 @@ function rsCargarMetricas(){
   db.collection('config').doc('redesMetricas').get().then(function(d){ window._rsMet = d.exists ? d.data() : null; listo(); }).catch(function(){ listo(); });
   _rsCargarGasto(function(){ listo(); });
   // Las conversaciones de los últimos días de cada canal que este usuario ve (la bandeja trae solo las 200 más recientes)
-  var canales = [];
-  if(_rsVe('instagram') && waConectadoCanal('instagram')) canales.push('instagram');
-  if(_rsVe('whatsapp') && waConectado()) canales.push('whatsapp');
-  if(!canales.length) return;
-  Promise.all(canales.map(function(c){ return db.collection('conversaciones').where('canal', '==', c).orderBy('actualizado', 'desc').limit(1000).get().then(function(s){ return s.docs.map(function(x){ return Object.assign({ id: x.id }, x.data()); }); }).catch(function(){ return []; }); }))
+  // (por canal y area, como lo piden las Reglas: lo de cobranza solo si este usuario tiene Redes Cobranza)
+  var consultas = [];
+  if(_rsVe('instagram') && waConectadoCanal('instagram')) consultas.push(['instagram', '']);
+  if(_rsVe('whatsapp') && waConectado()){ consultas.push(['whatsapp', 'ventas']); if(_rsVe('redescob')) consultas.push(['whatsapp', 'cobranza']); }
+  if(!consultas.length) return;
+  Promise.all(consultas.map(function(ca){ var q = db.collection('conversaciones').where('canal', '==', ca[0]); if(ca[1]) q = q.where('area', '==', ca[1]); return q.orderBy('actualizado', 'desc').limit(1000).get().then(function(s){ return s.docs.map(function(x){ return Object.assign({ id: x.id }, x.data()); }); }).catch(function(){ return []; }); }))
     .then(function(r){ window._rsMetConvs = [].concat.apply([], r); listo(); });
 }
 function _rsDiaLocal(iso){ var d = new Date(iso); return isNaN(d) ? '' : _waFechaLocal(d); }
@@ -579,7 +580,7 @@ function _rsPagina(mod){
   if(!cob && !tabs.some(function(t){ return t.id === window._rsTab; })) window._rsTab = 'todos';
   var cola = veWa ? waColaHoy() : null;
   // Cada canal se abre solo si este usuario lo ve (las Reglas tampoco dejan leer el otro)
-  if(veWa){ if(waConectado()) waAbrirConversaciones('whatsapp'); else waDemoConversaciones(cola); }
+  if(veWa){ if(waConectado()) waAbrirConversaciones('whatsapp', M.area); else waDemoConversaciones(cola); }
   if(veIg){ if(waConectadoCanal('instagram')) waAbrirConversaciones('instagram'); else waDemoInstagram(); waAbrirComentarios(); }
   var vistas = cob ? (cola ? ['bandeja', 'hoy'] : ['bandeja']) : ['bandeja', 'metricas'];
   if(vistas.indexOf(window._rsVista) < 0) window._rsVista = 'bandeja';
