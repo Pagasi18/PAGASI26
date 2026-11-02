@@ -2615,6 +2615,7 @@ DB.getRecursos = function(){ if(!db) return Promise.resolve([]); return db.colle
 DB.getQuickbooks = function(){ if(!db) return Promise.resolve(null); return db.collection('config').doc('quickbooks').get().then(function(d){ return d.exists ? d.data() : null; }); };   // si falla, rechaza: la pantalla avisa y reintenta
 // Campo por campo y con merge: dos personas con la pestaña abierta no se pisan el registro. clave vacía = descarga con
 // búsqueda (parcial): va al historial, pero no cuenta como última descarga
+DB.borrarDescargasQuickbooks = function(){ if(!db) return Promise.resolve(false); return _dbSilent(function(){ return db.collection('config').doc('quickbooks').set({ porClave: {}, porArchivo: {}, historial: [], reiniciadoEn: new Date().toISOString(), reiniciadoPor: (S.currentUser && S.currentUser.nombre) || '' }); }); };
 DB.anotarDescargaQuickbooks = function(clave, reg){
   if(!db) return Promise.resolve(false);
   var r = clean(reg), o = { historial: firebase.firestore.FieldValue.arrayUnion(r), actualizado: reg.en };

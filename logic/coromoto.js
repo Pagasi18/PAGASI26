@@ -270,7 +270,9 @@ function _coroAsientos(){
     }
     var codG=cfg.mapCategorias[e.categoria]|| '7151039';
     L.push({f:f,doc:doc,co:String(e.concepto||'Egreso'),cod:codG,debe:monto,haber:0});
-    L.push({f:f,doc:doc,co:String(e.concepto||'Egreso'),cod:mapCta(e.forma),debe:0,haber:monto});
+    // pagado de varias cuentas (2-nov-2026): un haber por cada cuenta
+    if((e.partes||[]).length) e.partes.forEach(function(x){ L.push({f:f,doc:doc,co:String(e.concepto||'Egreso'),cod:mapCta(x.forma),debe:0,haber:Math.round((parseFloat(x.monto)||0)*100)/100}); });
+    else L.push({f:f,doc:doc,co:String(e.concepto||'Egreso'),cod:mapCta(e.forma),debe:0,haber:monto});
   });
 
   // 4) Asientos manuales de la contadora

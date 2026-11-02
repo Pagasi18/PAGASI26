@@ -46,7 +46,8 @@ function openAddEgreso(eg){
   // pasa con el dinero) y el pago de una comisión desde Comisiones (su categoría y su monto los lleva ese módulo)
   if(editar && eg.origenAuto){ toast(eg.origenAuto==='compra_moto' ? 'Este gasto es la compra de una moto: se corrige desde Motocicletas' : (eg.origenAuto==='comision' ? 'Este gasto es un pago de comisión: se corrige desde Comisiones' : 'Este gasto lo creó el sistema: se corrige desde su módulo'),'error'); return; }
   if(editar && eg.eliminado){ toast('Este gasto está eliminado: no se puede corregir','error'); return; }
-  var puedeDinero=!editar || (typeof isAdminUser==='function' && isAdminUser());
+  var puedeDinero=!editar || ((typeof isAdminUser==='function' && isAdminUser()) && !(eg.partes||[]).length);
+  _egPartesIds=[];
   var enBsEg=editar && eg.moneda==='BS';
   var fisEg=editar ? _egFiscalParaEditar(eg) : {};
   var monEg=editar ? { moneda:enBsEg?'BS':'USD', tasa:enBsEg?eg.tasaBs:'', tasaMoneda:eg.tasaMoneda||'usd', tasaFecha:eg.tasaFecha||'', tasaFuente:eg.tasaFuente||'' } : {};
@@ -64,7 +65,7 @@ function openAddEgreso(eg){
       : '<option value="inventario">Inventario / Motos</option><option value="equipos">Equipos (GPS)</option><option value="operativo" selected>Oficina y servicios</option><option value="nomina">Salarios / Nómina</option><option value="otros">Otros</option>');
   if(editar && eg.categoria && typeof egresoCategoria==='function' && !egresoCategoria(eg.categoria)) _catOpts = '<option value="'+esc(eg.categoria)+'" selected>'+esc(typeof egresoCategoriaNombre==='function' ? egresoCategoriaNombre(eg.categoria) : eg.categoria)+'</option>' + _catOpts;
   $('mbd').innerHTML = '<div class="fgr c1" style="gap:9px">'
-    +(editar && !puedeDinero ? '<div style="padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)">El monto, la moneda, la fecha y la cuenta de un gasto ya registrado los cambia solo un administrador. Lo demás (concepto, categoría, referencia y factura) sí lo puedes corregir aquí.</div>' : '')
+    +(editar && !puedeDinero ? '<div style="padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)">'+((eg.partes||[]).length ? 'Este gasto se pagó de varias cuentas: el monto y las cuentas no se corrigen aquí (elimínalo y regístralo de nuevo).' : 'El monto, la moneda, la fecha y la cuenta de un gasto ya registrado los cambia solo un administrador.')+' Lo demás (concepto, categoría, referencia y factura) sí lo puedes corregir aquí.</div>' : '')
     +'<div class="fg"><label>Concepto *</label><input class="fi" id="eg_conc" value="'+(editar?esc(eg.concepto):'')+'" placeholder="Ej: Compra de motos, GPS..."></div>'
     +'<div class="fgr" style="gap:8px">'
     +'<div class="fg"><label>Categoría</label><select class="fs" id="eg_cat">'+_catOpts+'</select></div>'
@@ -74,7 +75,12 @@ function openAddEgreso(eg){
     // tasa BCV de la fecha de la factura (Adam, 26-oct-2026). Lo que se guarda sigue en dólares.
     +(typeof lbMonedaHtml==='function' ? lbMonedaHtml('egf', monEg) : '')
     +'<div class="fgr" style="gap:8px">'
-    +'<div class="fg"><label>Forma de pago</label><select class="fs" id="eg_forma"'+dis+'>'+_metodosOpts+'</select></div>'
+    +'<div class="fg"><label>Forma de pago</label><select class="fs" id="eg_forma"'+dis+'>'+_metodosOpts+'</select>'
+    // Un gasto pagado de varias cuentas (el contador, 2-nov-2026: parte en efectivo y parte por transferencia): una sola
+    // factura, un movimiento por cuenta. Al corregir no se reparte de nuevo: se elimina y se registra otra vez.
+    +(editar ? ((eg.partes||[]).length ? '<div style="font-size:11px;color:var(--ink2);margin-top:4px">Pagado con: '+eg.partes.map(function(x){ return esc(x.forma)+' '+fmt(x.monto); }).join(' · ')+'</div>' : '')
+      : '<div id="eg_partes"></div><a href="javascript:void(0)" onclick="egAgregarParte()" style="display:inline-block;margin-top:4px;font-size:11.5px;font-weight:700;color:var(--p1)">+ Pagado también con otra cuenta</a><div id="eg_partes_resto" style="font-size:10.5px;color:var(--ink3)"></div>')
+    +'</div>'
     +'</div>'
     +'<div class="fgr" style="gap:8px">'
     +'<div class="fg"><label>Fecha</label><input class="fi" id="eg_fecha" type="date" value="'+(editar?esc(eg.fecha||''):hoyLocalISO())+'"'+dis+' onchange="if(typeof lbTasaBuscar===\'function\')lbTasaBuscar(\'egf\')"></div>'
@@ -109,6 +115,8 @@ function openAddEgreso(eg){
     // Factura repetida (mismo N° del mismo proveedor): avisa y pregunta (Adam, 27-oct-2026); no bloquea
     if(typeof lbRepetidaConfirmar==='function' && !lbRepetidaConfirmar('egf')) return false;
     if(editar) return _egGuardarCorreccion(eg, { conc:conc, montoIn:montoIn, monto:monto, enBs:enBs, tasaEg:tasaEg, puedeDinero:puedeDinero });
+    var partes=_egLeerPartes(montoIn, enBs, tasaEg);
+    if(partes===false) return false;
     // El numero lo da el contador de Firestore, no el maximo en memoria: con dos
     // personas guardando a la vez, el segundo gasto borraba al primero (punto 30).
     return nextEgresoIdAsync().then(function(newId){
@@ -128,16 +136,18 @@ function openAddEgreso(eg){
     DB.saveEgreso(newEg);
     if(typeof logActividad==='function') logActividad('egreso_registrado','egresos',String(newId),{concepto:conc, monto:monto, categoria:newEg.categoria});
 
-    // Crear movimiento de SALIDA en la cuenta seleccionada
+    // Crear movimiento de SALIDA en la cuenta seleccionada (uno por cuenta si se pagó de varias)
     var cuentaSalida=($('eg_forma')&&$('eg_forma').value)||'';
     if(!cuentaSalida && _cuentasBanc && _cuentasBanc.length>0) cuentaSalida=_cuentasBanc[0].nombre;
-    if(cuentaSalida){
+    if(partes){ newEg.partes=partes; newEg.forma=partes.map(function(x){ return x.forma; }).join(' + '); DB.saveEgreso(newEg); }
+    var salidas=partes || (cuentaSalida ? [{ forma:cuentaSalida, monto:monto, montoBs:enBs?montoIn:undefined }] : []);
+    salidas.forEach(function(x, i){
       var mov={
-        id:'MOV-'+Date.now(),
+        id:'MOV-'+Date.now()+(partes?'-'+(i+1):''),
         tipo:'retiro',
-        concepto:'Egreso · '+conc,
-        monto:monto,
-        cuentaOrigen:cuentaSalida,
+        concepto:'Egreso · '+conc+(partes?' ('+(i+1)+'/'+salidas.length+')':''),
+        monto:x.monto,
+        cuentaOrigen:x.forma,
         cuentaDestino:null,
         fecha:newEg.fecha,
         referencia:newEg.notas||'',
@@ -146,10 +156,10 @@ function openAddEgreso(eg){
         hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false}),
         egresoId:newId   // para encontrarlo al corregir o eliminar el gasto
       };
-      if(enBs) mov.montoBs = montoIn;
+      if(enBs) mov.montoBs = x.montoBs;
       S.movimientos.push(mov);
       DB.saveMovimiento(mov);
-    }
+    });
 
     toast('Egreso registrado · '+fmt(monto)+(enBs ? ' (Bs '+montoIn.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2})+' a '+tasaEg+' Bs/$)' : ''),'success');
     if(otro){
@@ -167,6 +177,44 @@ function openAddEgreso(eg){
     ? `<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" onclick="saveM()">Guardar corrección</button>`
     : `<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-g" onclick="_egGuardarOtro=true;saveM()">Guardar y registrar otro</button><button class="btn btn-p" onclick="saveM()">Guardar Egreso y Cerrar</button>`;
   $('ov').style.display='flex';
+}
+// Las otras cuentas de un gasto pagado de varias: filas con cuenta y monto; lo que falta para el total sale de la cuenta
+// de arriba. Devuelve null si es una sola cuenta, false si algo está mal (ya avisó), o la lista de partes en dólares.
+var _egPartesIds=[], _egPartesN=0;
+function egAgregarParte(){
+  var cont=$('eg_partes'); if(!cont) return;
+  var n=++_egPartesN, opts=(_cuentasBanc||[]).map(function(c){ return '<option>'+String(c.nombre).replace(/</g,'&lt;')+'</option>'; }).join('');
+  _egPartesIds.push(n);
+  var fila=document.createElement('div'); fila.id='eg_parte_'+n; fila.className='fgr'; fila.style.cssText='gap:8px;margin-top:6px;align-items:end';
+  fila.innerHTML='<div class="fg"><label>También con</label><select class="fs" id="eg_parte_cta_'+n+'">'+opts+'</select></div>'
+    +'<div class="fg"><label>Monto de esa cuenta</label><input class="fi" id="eg_parte_monto_'+n+'" type="number" step="0.01" placeholder="0.00" oninput="egPartesResto()"></div>'
+    +'<button type="button" class="btn btn-g btn-sm" onclick="egQuitarParte('+n+')" title="Quitar">✕</button>';
+  cont.appendChild(fila); egPartesResto();
+}
+function egQuitarParte(n){ _egPartesIds=_egPartesIds.filter(function(x){ return x!==n; }); var f=$('eg_parte_'+n); if(f && f.remove) f.remove(); egPartesResto(); }
+function egPartesResto(){
+  var el=$('eg_partes_resto'); if(!el) return;
+  if(!_egPartesIds.length){ el.textContent=''; return; }
+  var total=parseFloat(($('eg_monto')&&$('eg_monto').value))||0, otras=_egPartesIds.reduce(function(a,n){ return a+(parseFloat(($('eg_parte_monto_'+n)||{}).value)||0); },0);
+  var resto=Math.round((total-otras)*100)/100, sim=(typeof lbMonedaEs==='function' && lbMonedaEs('egf'))?'Bs ':'$';
+  el.textContent=resto>0 ? 'De la cuenta de arriba salen '+sim+resto.toFixed(2)+' (el resto del total)' : (total ? 'Las otras cuentas suman igual o más que el total' : '');
+}
+function _egLeerPartes(montoIn, enBs, tasaEg){
+  if(!_egPartesIds.length) return null;
+  var primera=($('eg_forma')&&$('eg_forma').value)||'', partes=[], suma=0, r2=function(x){ return Math.round(x*100)/100; };
+  for(var i=0;i<_egPartesIds.length;i++){
+    var n=_egPartesIds[i], cta=($('eg_parte_cta_'+n)||{}).value||'', m=parseFloat(($('eg_parte_monto_'+n)||{}).value)||0;
+    if(!cta || m<=0){ toast('Cada cuenta adicional necesita su cuenta y su monto','error'); return false; }
+    partes.push({ forma:cta, montoIn:m }); suma=r2(suma+m);
+  }
+  var resto=r2(montoIn-suma);
+  if(resto<=0){ toast('Las otras cuentas suman igual o más que el total: revisa los montos','error'); return false; }
+  partes.unshift({ forma:primera, montoIn:resto });
+  var enUsd=partes.map(function(x){ return { forma:x.forma, monto:enBs ? bsAUsd(x.montoIn, tasaEg) : r2(x.montoIn), montoBs:enBs ? x.montoIn : undefined }; });
+  // los centavos del cambio van a la primera cuenta, para que las partes sumen exactamente el gasto
+  var totalUsd=enBs ? bsAUsd(montoIn, tasaEg) : r2(montoIn), dif=r2(totalUsd-enUsd.reduce(function(a,x){ return a+x.monto; },0));
+  if(dif) enUsd[0].monto=r2(enUsd[0].monto+dif);
+  return enUsd;
 }
 // Guarda la corrección de un gasto: lo que cambió queda en su historial, y su movimiento de Cuentas se ajusta
 function _egGuardarCorreccion(eg, v){
@@ -205,8 +253,11 @@ function _egGuardarCorreccion(eg, v){
   DB.saveEgreso(real);
   if(typeof logActividad==='function') logActividad('egreso_corregido','egresos',String(real.id),{ antes:antes, despues:{ concepto:real.concepto, monto:real.monto, fecha:real.fecha, forma:real.forma } });
   // El dinero que salió de la cuenta sigue al gasto
-  var mov=_egMovimientoDe(real, antes), cambioDinero=v.puedeDinero && (Math.abs((parseFloat(antes.monto)||0)-real.monto)>0.005 || antes.fecha!==real.fecha || antes.forma!==real.forma);
-  if(mov){
+  var cambioDinero=v.puedeDinero && (Math.abs((parseFloat(antes.monto)||0)-real.monto)>0.005 || antes.fecha!==real.fecha || antes.forma!==real.forma);
+  var movs=(real.partes||[]).length ? (S.movimientos||[]).filter(function(m){ return m && !m.eliminado && m.tipo==='retiro' && String(m.egresoId)===String(real.id); }) : [];
+  var mov=movs.length ? movs[0] : _egMovimientoDe(real, antes);
+  if(movs.length) movs.forEach(function(m, i){ m.concepto='Egreso · '+real.concepto+' ('+(i+1)+'/'+movs.length+')'; m.referencia=notas; DB.saveMovimiento(m); });
+  else if(mov){
     mov.concepto='Egreso · '+real.concepto; mov.referencia=notas; mov.egresoId=real.id;
     if(v.puedeDinero){
       mov.monto=real.monto; mov.fecha=real.fecha; mov.cuentaOrigen=real.forma; mov.tasaBs=v.enBs ? v.tasaEg : (mov.tasaBs||window._tasaBsGlobal||1);
@@ -281,14 +332,16 @@ function delEgreso(id){
     if(devolver){
       var cuentaSalida=eg.forma||eg.cuenta||eg.cuentaOrigen||'';
       if(!cuentaSalida && _cuentasBanc && _cuentasBanc.length>0) cuentaSalida=_cuentasBanc[0].nombre;
-      if(cuentaSalida){
+      // pagado de varias cuentas: cada parte vuelve a la suya
+      var vueltas=(eg.partes||[]).length ? eg.partes : (cuentaSalida ? [{ forma:cuentaSalida, monto:parseFloat(eg.monto)||0 }] : []);
+      vueltas.forEach(function(x, k){
         var mov={
-          id:'MOV-REV-EG-'+Date.now(),
+          id:'MOV-REV-EG-'+Date.now()+(vueltas.length>1?'-'+(k+1):''),
           tipo:'deposito',
           concepto:'Reverso egreso eliminado · '+eg.concepto,
-          monto:parseFloat(eg.monto)||0,
+          monto:parseFloat(x.monto)||0,
           cuentaOrigen:null,
-          cuentaDestino:cuentaSalida,
+          cuentaDestino:x.forma,
           fecha:hoyLocalISO(),
           referencia:'Reverso por eliminación de egreso #'+eg.id,
           realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin',
@@ -298,7 +351,7 @@ function delEgreso(id){
         };
         S.movimientos.push(mov);
         DB.saveMovimiento(mov);
-      }
+      });
     }
     closeM(); nav('conta');
     toast(devolver?'Egreso eliminado y dinero regresado a la cuenta':'Egreso eliminado sin regresar dinero','info');

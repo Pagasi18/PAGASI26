@@ -426,7 +426,8 @@ const rep=src('modules/reportes.js'), html=src('admin.html');
 ok('la pestaña está en Finanzas', /\{k:'quickbooks', lbl:'Exportar a QuickBooks'/.test(rep) && /tab==='quickbooks'/.test(rep));
 const iMet=html.indexOf('logic/metodologia.js'), iQb=html.indexOf('logic/quickbooks.js'), iMod=html.indexOf('modules/reportes.js');
 ok('...y su script carga después de lo que usa y antes de las vistas', iMet>0 && iQb>iMet && iQb<iMod && html.indexOf('logic/credito-ledger.js')<iQb && html.indexOf('logic/libros-iva.js')<iQb);
-ok('en la base solo anota las descargas (config/quickbooks): los datos los lee y exporta, no los toca', !/\.set\(|\.update\(|\.add\(|collection\(/.test(src('logic/quickbooks.js')) && (src('logic/quickbooks.js').match(/\bDB\.\w+/g)||[]).every(x=>x==='DB.getQuickbooks' || x==='DB.anotarDescargaQuickbooks'));
+ok('en la base solo anota las descargas (config/quickbooks): los datos los lee y exporta, no los toca', !/\.set\(|\.update\(|\.add\(|collection\(/.test(src('logic/quickbooks.js')) && (src('logic/quickbooks.js').match(/\bDB\.\w+/g)||[]).every(x=>['DB.getQuickbooks','DB.anotarDescargaQuickbooks','DB.borrarDescargasQuickbooks'].includes(x)));
+ok('cada archivo lleva el rótulo verde "YA DESCARGADO A QUICKBOOKS" o gris "NO DESCARGADO" (el contador, 2-nov)', /YA DESCARGADO A QUICKBOOKS/.test(G._qbSello({ en:'x' })) && /b-g/.test(G._qbSello({ en:'x' })) && /NO DESCARGADO/.test(G._qbSello(null)));
 
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;

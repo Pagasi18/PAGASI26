@@ -158,5 +158,15 @@ G._dom.el('egf_num').value='00001234'; G._dom.el('egf_rif').value='J-11111111-1'
   ok('cambiar solo la alícuota conserva los bolívares y la tasa, y recalcula el IVA en las dos monedas', f15.moneda==='BS' && f15.baseBs===7640 && f15.tasa===886.23 && f15.alicuota===0.08 && f15.iva===0.69 && f15.ivaBs===611.2);
   const G16=entorno([{ id:70, fecha:'2026-10-05', monto:5, concepto:'X', categoria:'otros', forma:'Binance', historial:[{en:'a',por:'A',antes:{}},{en:'b',por:'A',antes:{}},{en:'c',por:'ANA',antes:{}}], editadoPor:'ANA', editadoEn:'2026-10-20T00:00:00.000Z' }]); G16.openEditEgreso('70');
   ok('el pie dice "3 veces", no "vezces"', /Corregido 3 veces/.test(G16.$('mbd').innerHTML));
+  // Gasto pagado de varias cuentas (el contador, 2-nov-2026): una factura, un movimiento por cuenta
+  const G17=entorno([]); G17._cuentasBanc=[{nombre:'Binance'},{nombre:'Efectivo'}]; G17.closeM=()=>{};
+  G17.openAddEgreso(); G17._egPartesIds=[7]; G17._dom.el('eg_parte_cta_7').value='Efectivo'; G17._dom.el('eg_parte_monto_7').value='200';
+  G17._dom.el('eg_conc').value='ESCRITORIOS'; G17._dom.el('eg_monto').value='500'; G17._dom.el('eg_forma').value='Binance'; G17._dom.el('eg_fecha').value='2026-11-02'; G17._dom.el('eg_cat').value='otros';
+  const r17=await G17.S.saveFn(); const e17=G17.S.egresos[0], m17=G17.S.movimientos.filter(m=>m.tipo==='retiro');
+  ok('pagado de dos cuentas: un solo gasto de $500 con sus partes y "Binance + Efectivo" como forma', r17===true && e17.monto===500 && e17.forma==='Binance + Efectivo' && e17.partes.length===2 && e17.partes[0].forma==='Binance' && e17.partes[0].monto===300 && e17.partes[1].monto===200);
+  ok('...y dos retiros en Cuentas, uno por cuenta, enlazados al gasto', m17.length===2 && m17[0].cuentaOrigen==='Binance' && m17[0].monto===300 && m17[1].cuentaOrigen==='Efectivo' && m17[1].monto===200 && m17.every(m=>m.egresoId===900) && G17.DB.guardados.filter(x=>x[0]==='mov').length===2);
+  const G18=entorno([]); G18._cuentasBanc=[{nombre:'Binance'},{nombre:'Efectivo'}]; G18.openAddEgreso(); G18._egPartesIds=[1]; G18._dom.el('eg_parte_cta_1').value='Efectivo'; G18._dom.el('eg_parte_monto_1').value='500';
+  G18._dom.el('eg_conc').value='X'; G18._dom.el('eg_monto').value='500'; G18._dom.el('eg_forma').value='Binance';
+  ok('...si las otras cuentas suman el total o más, no guarda y avisa', G18.S.saveFn()===false && G18.avisos.some(a=>/suman igual o más/.test(a[1])));
   console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas'); if(fail) process.exitCode=1;
 })();

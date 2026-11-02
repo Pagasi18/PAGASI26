@@ -755,6 +755,20 @@ function _qbFechaHora(iso){
   var p = function(n){ return String(n).padStart(2, '0'); };
   return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
+// El rótulo que pidió el contador (2-nov-2026): verde si ya se descargó a QuickBooks, gris si no
+function _qbSello(r){
+  return r ? '<span class="bdg b-g" style="font-size:10px">YA DESCARGADO A QUICKBOOKS</span>' : '<span class="bdg" style="font-size:10px;background:var(--surf2);color:var(--ink3)">NO DESCARGADO</span>';
+}
+// Borra el registro (solo administradores): para el día en que QuickBooks se reinicie y se migre de verdad, o si
+// las descargas que hay fueron pruebas
+function qbReiniciarDescargas(){
+  if(!(typeof isAdminUser === 'function' && isAdminUser())){ toast('Solo un administrador puede reiniciar el registro', 'error'); return; }
+  if(!confirm('¿Reiniciar el registro de descargas? Todos los archivos pasan a "NO DESCARGADO" y "Solo lo nuevo" vuelve a traer todo. Hazlo solo si lo descargado hasta ahora no se importó de verdad en QuickBooks.')) return;
+  _qbDescargas = _qbDescargasVacio(); _qbDescargasError = false;
+  if(typeof DB !== 'undefined' && DB.borrarDescargasQuickbooks) DB.borrarDescargasQuickbooks();
+  toast('Registro de descargas reiniciado: todo queda como no descargado', 'success');
+  _qbRepintarTodo();
+}
 function _qbDescargaTexto(r){
   if(!r) return 'todavía no se ha descargado';
   var que = { clientes: ['cliente', 'clientes'], proveedores: ['proveedor', 'proveedores'], servicios: ['servicio', 'servicios'], compras: ['factura de proveedor', 'facturas de proveedor'], contado: ['recibo', 'recibos'], facturas: ['factura', 'facturas'] }[r.tipo] || ['documento', 'documentos'];
@@ -934,8 +948,8 @@ function _qbCuerpoHtml(D){
     listas += _qbListaHtml('Gastos eliminados después de la última descarga (anula sus facturas en QuickBooks)', _qbEliminadosTras(D, 'compras', ult.en));
     listas += _qbListaHtml('Facturas corregidas después de la última descarga (edita o anula en QuickBooks la que ya importaste)', _qbCorregidosTras(D, ult.en));
   }
-  var lineaDesc = ult ? '<b>Última descarga' + (porMes ? ' de ' + que : '') + ':</b> ' + _lbEsc(_qbDescargaTexto(ult))
-    : '<b>' + (porMes ? 'Este período todavía no se ha descargado' : 'Todavía no se ha descargado') + '</b>' + (ultArch ? ' · última del archivo: ' + _lbEsc(_qbDescargaTexto(ultArch)) : '');
+  var lineaDesc = _qbSello(ult) + ' ' + (ult ? '<b>Última descarga' + (porMes ? ' de ' + que : '') + ':</b> ' + _lbEsc(_qbDescargaTexto(ult))
+    : '<b>' + (porMes ? 'Este período todavía no se ha descargado' : 'Todavía no se ha descargado') + '</b>' + (ultArch ? ' · última del archivo: ' + _lbEsc(_qbDescargaTexto(ultArch)) : ''));
   return (_qbDescargasError ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)"><b>No se pudo leer el registro de descargas</b> (¿sin conexión?): lo que se ve es solo lo de esta sesión. Se vuelve a intentar al abrir la pestaña.</div>' : '')
     + (V.nuevo ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)"><b>Solo lo nuevo</b> desde la última descarga de este archivo' + (porMes ? ' y ' + que : '') + ' (' + _lbEsc(_qbFechaHora(V.desde)) + '): ' + V.docs + ' de ' + V.totalDocs + '. Los totales y lo que se exporta son solo de lo que se ve.</div>'
       : (D.st.modo === 'nuevo' && tipo !== 'servicios' ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)"><b>Solo lo nuevo:</b> ' + (porMes ? que : 'este archivo') + ' todavía no se ha descargado, así que se muestra todo.</div>' : ''))
@@ -956,15 +970,16 @@ function _renderQuickBooks(){
   var D = _qbCalcular();
   var descargas = QB_ORDEN.map(function(t){
     var r = _qbUltimaDelArchivo(D, t);
-    return '<tr><td style="padding:4px 8px;border-bottom:1px solid var(--rim2);white-space:nowrap;font-weight:700">' + QB_ARCHIVOS[t].n + ' · ' + _lbEsc(QB_ARCHIVOS[t].titulo) + '</td><td style="padding:4px 8px;border-bottom:1px solid var(--rim2);color:' + (r ? 'var(--ink2)' : 'var(--ink3)') + '">' + _lbEsc(_qbDescargaTexto(r)) + '</td></tr>';
+    return '<tr><td style="padding:5px 8px;border-bottom:1px solid var(--rim2);white-space:nowrap;font-weight:700">' + QB_ARCHIVOS[t].n + ' · ' + _lbEsc(QB_ARCHIVOS[t].titulo) + '</td><td style="padding:5px 8px;border-bottom:1px solid var(--rim2);color:' + (r ? 'var(--ink2)' : 'var(--ink3)') + '">' + _qbSello(r) + ' ' + _lbEsc(_qbDescargaTexto(r)) + '</td></tr>';
   }).join('');
+  var admin = typeof isAdminUser === 'function' && isAdminUser();
   var chips = QB_ORDEN.map(function(t){
     var A = QB_ARCHIVOS[t], n = t === 'facturas' ? D.facturas.docs.length : (t === 'contado' ? D.facturas.contado.length : (t === 'compras' ? D.compras.bills.length : D.filas[t].length)), act = st.vista === t;
     return '<button class="btn ' + (act ? 'btn-p' : 'btn-g') + ' btn-sm" style="padding:6px 11px" onclick="qbVista(\'' + t + '\')">' + A.n + ' · ' + _lbEsc(A.titulo) + ' <span style="opacity:.75">(' + n + ')</span></button>';
   }).join('');
   return '<div id="qb-panel"><div class="card" style="margin-bottom:14px">'
     + '<div class="ch" style="flex-wrap:wrap;gap:10px"><div><div class="ct">Exportar a QuickBooks</div><div class="cs">Las plantillas de importación del contador, llenas con los datos del sistema · cifras en dólares (USD)</div></div>'
-    +   '<div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-p btn-sm" onclick="qbDescargarTodo()">⬇ Descargar los 6</button></div></div>'
+    +   '<div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-p btn-sm" onclick="qbDescargarTodo()">⬇ Descargar los 6 archivos</button></div></div>'
     + '<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:12px;margin:2px 0 12px;padding:10px 12px;background:var(--gs);border-radius:9px">'
     +   '<span style="color:var(--ink3)">Empresa</span><b>' + _lbEsc(emp.nombre || '') + '</b>'
     +   '<span style="color:var(--ink3)">RIF</span><b>' + _lbEsc(emp.rif || '—') + '</b></div>'
@@ -975,9 +990,10 @@ function _renderQuickBooks(){
     +   '<div class="fg" style="flex:1;min-width:200px"><label>Buscar</label><input class="fi" id="qb-buscar" placeholder="Buscar por cliente, proveedor, RIF, N° de factura o contrato…" value="' + _lbEsc(st.q) + '" oninput="qbBuscar(this.value)"></div>'
     + '</div>'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">' + chips + '</div>'
-    + '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:800">Última descarga de cada archivo</summary>'
+    + '<details open style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:800">Qué ya se descargó a QuickBooks</summary>'
     +   '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px"><tbody>' + descargas + '</tbody></table>'
-    +   '<div style="font-size:10.5px;color:var(--ink3);margin-top:6px">Se anota cada vez que se baja un CSV o un Excel (el PDF no cuenta). Con "Solo lo nuevo" cada archivo deja fuera lo que ya estaba en su última descarga del mismo período: lo registrado o editado después de ella. Una descarga con búsqueda es parcial y no cuenta como corte.</div></details></div>'
+    +   '<div style="font-size:10.5px;color:var(--ink3);margin-top:6px">Se anota cada vez que se baja un CSV o un Excel (el PDF no cuenta). Con "Solo lo nuevo" cada archivo deja fuera lo que ya estaba en su última descarga del mismo período: lo registrado o editado después de ella. Una descarga con búsqueda es parcial y no cuenta como corte.'
+    +   (admin ? ' <a href="javascript:void(0)" onclick="qbReiniciarDescargas()" style="font-weight:700;color:var(--red)">Reiniciar el registro (nada se ha migrado todavía)</a>' : '') + '</div></details></div>'
     + '<div class="card" style="margin-bottom:14px"><div id="qb-cuerpo">' + _qbCuerpoHtml(D) + '</div></div></div>';
 }
 function _qbRepintar(){ var el = document.getElementById('qb-cuerpo'); if(el) el.innerHTML = _qbCuerpoHtml(); }
