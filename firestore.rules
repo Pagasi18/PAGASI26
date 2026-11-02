@@ -410,8 +410,12 @@ service cloud.firestore {
     function veCobranza() { return esInterno() && (esAdmin() || (permisosDeRedes() ? permiso('redescob') : permiso('whatsapp'))); }
     function deCobranza(d) { return d.canal == 'whatsapp' && d.get('area', 'cobranza') == 'cobranza'; }
     function veArea(d) { return esAdmin() ? esInterno() : (deCobranza(d) ? veCobranza() : ((d.canal == 'instagram' || d.canal == 'whatsapp') && veVentasDe(d.canal))); }
+    // Una lista tiene que pedir el area de WhatsApp tal cual (where area ==): sin eso, una lista de
+    // WhatsApp mezclaria las dos areas (el emulador lo dejaba pasar con el area por defecto, 1-nov-2026).
+    function veLista(d) { return esAdmin() ? esInterno() : (d.canal == 'instagram' ? veVentasDe('instagram') : (d.canal == 'whatsapp' && (d.area == 'cobranza' ? veCobranza() : (d.area == 'ventas' && veVentasDe('whatsapp'))))); }
     match /conversaciones/{id} {
-      allow read: if veArea(resource.data);
+      allow get: if veArea(resource.data);
+      allow list: if veLista(resource.data);
       allow update: if veArea(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['modo','atendidoPor','atencion','noLeidos','borrador','actualizado']);

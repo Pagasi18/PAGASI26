@@ -121,7 +121,7 @@ const ok = (l, v) => { if (v) { pass++; console.log('OK   ' + l); } else { fail+
   const src = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   ok('el servidor anota area: cobranza en la conversación que abre un recordatorio', /canal: 'whatsapp', area: 'cobranza', telE164: it\.tel/.test(src('functions/lib/recordatorios.js')));
   ok('las Reglas van por área: veArea, veCobranza, veVentasDe; ya no veCanal', /function veArea\(d\)/.test(src('firestore.rules')) && /function veCobranza\(\)/.test(src('firestore.rules')) && !/veCanal\(/.test(src('firestore.rules')));
-  ok('...y las listas sin área de WhatsApp quedan para el administrador (esAdmin primero)', /return esAdmin\(\) \? esInterno\(\) : \(deCobranza\(d\)/.test(src('firestore.rules')));
+  ok('...y las listas sin área de WhatsApp quedan para el administrador (get y list por separado)', /allow get: if veArea\(resource\.data\);\s*allow list: if veLista\(resource\.data\);/.test(src('firestore.rules')) && /function veLista\(d\) \{ return esAdmin\(\) \? esInterno\(\)/.test(src('firestore.rules')));
   const wheres = [], snaps = {};
   const ctx = { console: { log() {}, warn() {}, error() {} }, document: { getElementById() { return null; } }, setTimeout() { return 0; }, S: { page: 'clientes', currentUser: { nombre: 'X' } }, nav() {}, _waRefrescarEnSitio() { return true; } };
   ctx.window = ctx;
