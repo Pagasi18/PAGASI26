@@ -304,7 +304,7 @@ function _usersRenderList(){
     var initials = nombre.split(' ').slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase();
     var info = ROLES_INFO[u.rol] || {color:'#888', icon:'?'};
     var esMio = S.currentUser && S.currentUser.uid === u.uid;
-    var mods = (u.permisos||[]).filter(function(p){return p!=='perm_delete';}).length;
+    var mods = (u.permisos||[]).filter(function(p){return p!=='perm_delete' && p!=='whatsapp' && p!=='instagram';}).length;
     var lastTxt = 'Nunca';
     var lastColor = 'var(--ink3)';
     var isOnline = false;
@@ -496,7 +496,7 @@ function openUserPanel(uid){
   }
 
   var perms = Array.isArray(u.permisos) ? u.permisos : [];
-  var permCount = perms.filter(function(p){return p!=='perm_delete';}).length;
+  var permCount = perms.filter(function(p){return p!=='perm_delete' && p!=='whatsapp' && p!=='instagram';}).length;
 
   var stats = el('div', { cls:'up-stats' });
   function addStat(label, value, color){
@@ -589,7 +589,7 @@ function openUserPanel(uid){
   secPerms.appendChild(permsTitleRow);
 
   var chipsWrap = el('div', { cls:'up-perms-grid' });
-  perms.filter(function(p){ return p !== 'perm_delete'; }).forEach(function(pId){
+  perms.filter(function(p){ return p !== 'perm_delete' && p !== 'whatsapp' && p !== 'instagram'; }).forEach(function(pId){
     var mod = MODULOS.find(function(m){ return m.id === pId; });
     var lbl = mod ? mod.label : pId;
     var chip = el('span', { cls:'up-perm-chip has', text: lbl });
@@ -1034,6 +1034,7 @@ function openInviteUser(){
     var detailOpen = $('invu_perms_detail') && $('invu_perms_detail').style.display !== 'none';
     if(detailOpen){
       document.querySelectorAll('#inv_mod_list input[type=checkbox]:checked').forEach(function(cb){ permisos.push(cb.value); });
+      permisos = permisosConCanales(permisos);
     } else {
       permisos = (ROL_PERMISOS[rol]||[]).slice();
     }
@@ -1233,8 +1234,9 @@ function editarUsuario(uid){
     var u=doc.data();
     setMicon('editar'); $('mtt').textContent='Editar Permisos'; $('msb').textContent=u.nombre||u.email;
     $('modal-box').className='modal';
-    // 'redes' no es un permiso: Redes sociales lo abren WhatsApp o Instagram (los que usan las Reglas)
-    var modCheckboxes=Object.keys(PGL).filter(function(key){ return key !== 'redes'; }).map(function(key){
+    // 'whatsapp' e 'instagram' no se marcan: son los canales que miran las Reglas y salen de
+    // Redes Ventas / Redes Cobranza al guardar (1-nov-2026)
+    var modCheckboxes=Object.keys(PGL).filter(function(key){ return key !== 'whatsapp' && key !== 'instagram'; }).map(function(key){
       var checked=(u.permisos||[]).includes(key);
       return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;cursor:pointer">'
         +'<input type="checkbox" value="'+key+'" '+(checked?'checked':'')+' style="accent-color:var(--p1)"> '+PGL[key]+'</label>';
@@ -1335,6 +1337,7 @@ function editarUsuario(uid){
         if(cb.classList && cb.classList.contains('eu-conc-cb')) return; // saltar concesionarios
         if(cb.checked) permisos.push(cb.value);
       });
+      permisos = permisosConCanales(permisos);   // los canales de las Reglas salen de Redes Ventas / Redes Cobranza
       // Recoger concesionarios asignados
       var concesAsig = [];
       document.querySelectorAll('.eu-conc-cb:checked').forEach(function(cb){

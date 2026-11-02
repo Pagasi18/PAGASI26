@@ -37,8 +37,8 @@ ok('...y nada de lo que no tiene (pagos, cuentas, usuarios, configuración)', ![
 const todos = vm.runInContext('Object.keys(PGL)', ctx).filter(k => !['cobranza','conta'].includes(k));   // PGL es const: no cuelga del global
 S.currentUser.permisos = todos.slice(); S.creds = [{ id:'CRED-1', estado:'pendiente_revision' }];
 ctx.renderSidebar(); menu = modulosEnMenu();
-// WhatsApp e Instagram son canales de Redes sociales (22-oct-2026): en el menú es el botón 'redes'
-const DENTRO_DE = { whatsapp: 'redes', instagram: 'redes' };
+// WhatsApp e Instagram son los canales de las Reglas (1-nov-2026): en el menú son Redes Cobranza y Redes Ventas
+const DENTRO_DE = { whatsapp: 'redescob', instagram: 'redes' };
 const faltan = todos.filter(k => !menu.includes(DENTRO_DE[k] || k) && ctx.sidebarMuestra(k));
 ok('con todos los permisos, el menú del empleado muestra todos los módulos (faltan: ' + (faltan.join(', ') || 'ninguno') + ')', faltan.length === 0);
 ok('Aprobaciones aparece cuando hay solicitudes pendientes y el empleado trabaja con créditos', menu.includes('aprobaciones'));

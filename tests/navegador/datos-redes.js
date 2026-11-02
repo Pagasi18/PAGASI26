@@ -2,7 +2,7 @@
    ventas) e Instagram conectados, y comentarios de Instagram. Nada real. */
 (function(){
   function hace(min){ return new Date(Date.now() - min * 60000).toISOString(); }
-  var PERMISOS = ['dash','clientes','motos','creditos','pagos','cobranza','whatsapp','instagram','contratos','notif','reportes','cuentas','config','users','perm_delete'];
+  var PERMISOS = ['dash','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas','config','users','perm_delete'];
   var conv = {}, sub = {};
   function c(id, d, msgs){ conv[id] = d; var m = {}; msgs.forEach(function(x, i){ m['m' + i] = x; }); sub['conversaciones/' + id + '/mensajes'] = m; }
   c('wa:+584140000001', { canal:'whatsapp', area:'cobranza', telE164:'+584140000001', nombre:'MARIA PEREZ', clienteNombre:'MARIA PEREZ', modo:'bot', noLeidos:2, atencion:'comprobante', ultimoMensaje:'ya pagué, aquí está', ultimoMensajeHora:hace(5), ultimoEntranteHora:hace(5), ultimoAutor:'cliente', actualizado:hace(5), creado:hace(60*24*1) },
@@ -16,7 +16,7 @@
       { autor:'cliente', direccion:'entrante', tipo:'texto', texto:'en Maracay hay?', hora:hace(15), estado:'recibido' } ]);
   var colecciones = {
     usuarios: { 'u-prueba': { nombre:'ADAM', email:'adam@pagasi.io', rol:'Administrador', permisos:PERMISOS, concesionarios:[] } },
-    config: { asistente: { conectado:true, telefono:'+58 414-2719914', instagram:'pagasi.io', instrucciones:'', instruccionesVentas:'' },
+    config: { asistente: { conectado:true, telefono:'+58 414-640-1617', instagram:'pagasi.io', instrucciones:'', instruccionesVentas:'' },
       redesMetricas: { actualizado: hace(30), seguidoresDias: (function(){ var o = {}, d = new Date(); for(var i = 12; i >= 0; i--){ var x = new Date(d); x.setDate(d.getDate() - i); o[x.toISOString().slice(0,10)] = 640 + (12 - i) * 2; } return o; })(),
         instagram: { usuario:'pagasi.io', seguidores:664, publicaciones:12, posts: [
           { id:'1', texto:'La EK Xpress 150 en cuotas quincenales. Inicial desde 40%.', fecha:hace(60*24*2), tipo:'IMAGE', enlace:'https://instagram.com/p/x', imagen:'assets/public/ek-xpress-hero.webp', meGusta:6, comentarios:11 },

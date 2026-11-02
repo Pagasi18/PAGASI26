@@ -24,6 +24,8 @@ vm.createContext(ctx);
 for (const f of ['logic/whatsapp.js', 'modules/whatsapp.js', 'modules/redes.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 const flush = () => { while (timers.length) timers.shift()(); };
 const montar = () => { ['wa-items', 'wa-filtros', 'wa-hilo', 'wa-ficha', 'wa-q', 'rs-com-items', 'rs-com-filtros', 'rs-com-hilo', 'rs-com-ficha', 'rs-com-q'].forEach(el); const h = ctx.PG.redes(); flush(); return h; };
+// Redes Cobranza (1-nov-2026): la misma pantalla, en el módulo 'redescob'
+const montarCob = () => { ['wa-items', 'wa-filtros', 'wa-hilo', 'wa-ficha', 'wa-q'].forEach(el); ctx.S.page = 'redescob'; const h = ctx.PG.redescob(); flush(); ctx.S.page = 'redes'; return h; };
 
 // WhatsApp e Instagram conectados (como en la PAGASI 26)
 ctx._waCfg = { conectado: true, telefono: '+58 414-2719914', instagram: 'pagasi.io' };
@@ -43,29 +45,36 @@ ctx._waComs = [
 ctx._rsTab = 'todos';
 let html = montar();
 const nombres = ['Todos los mensajes', 'Instagram', 'WhatsApp', 'Messenger', 'Comentarios de Instagram', 'Comentarios de Facebook'];
-ok('el módulo se llama Redes sociales', /Redes sociales/.test(html));
+ok('el módulo de ventas se llama Redes Ventas', /Redes Ventas/.test(html) && !/Redes sociales/.test(html));
 ok('tiene las seis pestañas en el orden de Adam: todos, Instagram, WhatsApp, Messenger y los comentarios', nombres.every(n => html.indexOf('>' + n + '<') > -1) && nombres.map(n => html.indexOf('>' + n + '<')).every((p, i, a) => !i || p > a[i - 1]));
 ok('Messenger y Comentarios de Facebook dicen "sin conectar"', (html.match(/class="pend">sin conectar/g) || []).length === 2);
-ok('los globos cuentan lo que no se ha leído: Todos 2, WhatsApp 1, Instagram 1', /id="rs-b-todos"><span class="b">2</.test(html) && /id="rs-b-whatsapp"><span class="b">1</.test(html) && /id="rs-b-instagram"><span class="b">1</.test(html));
+ok('los globos cuentan lo no leído de ventas: Todos 1, Instagram 1, WhatsApp nada (lo de María es de cobranza)', /id="rs-b-todos"><span class="b">1</.test(html) && /id="rs-b-whatsapp"><\/span>/.test(html) && /id="rs-b-instagram"><span class="b">1</.test(html));
 ok('Comentarios de Instagram cuenta los de hoy (2)', /id="rs-b-igcom"><span class="b">2</.test(html));
-ok('arriba a la derecha: Bandeja, Cobranza de hoy y los botones de Paola y Patricia', /Bandeja<\/button>/.test(html) && /Cobranza de hoy · /.test(html) && /rsAsistente\('ventas'\)/.test(html) && /rsAsistente\('cobranza'\)/.test(html));
+ok('arriba a la derecha: Bandeja, Métricas y el botón de Paola; ni Patricia ni la cola de cobranza', /Bandeja<\/button>/.test(html) && /Métricas<\/button>/.test(html) && /rsAsistente\('ventas'\)/.test(html) && !/Cobranza de hoy · /.test(html) && !/rsAsistente\('cobranza'\)/.test(html));
 ok('escucha las conversaciones de los dos canales y los comentarios', escuchas.includes('conversaciones') && escuchas.includes('comentarios_ig'));
 
 // ── 2. "Todos los mensajes" mezcla los canales ──
-ok('en Todos salen las 3 conversaciones (WhatsApp cobranza, WhatsApp ventas e Instagram)', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 3);
+ok('en Todos salen las 2 conversaciones de ventas (WhatsApp ventas e Instagram); la de cobranza no', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 2 && !/María/.test(els['wa-items'].innerHTML));
 ok('cada fila lleva la marca de su canal', /class="cn wa"/.test(els['wa-items'].innerHTML) && /class="cn ig"/.test(els['wa-items'].innerHTML));
-ok('en Todos hay filtros de Cobranza y Ventas (en el menú)', />Cobranza \(1\)</.test(els['wa-filtros'].innerHTML) && />Ventas \(2\)</.test(els['wa-filtros'].innerHTML));
-ctx.waFiltro('cobranza');
-ok('el filtro Cobranza deja solo a María', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /María/.test(els['wa-items'].innerHTML));
+ok('ya no hay filtros de Cobranza y Ventas: cada módulo es un área', !/>Cobranza \(/.test(els['wa-filtros'].innerHTML) && !/>Ventas \(/.test(els['wa-filtros'].innerHTML) && />Quieren comprar \(1\)</.test(els['wa-filtros'].innerHTML) && !/Con promesa/.test(els['wa-filtros'].innerHTML));
+const ventasItems = els['wa-items'].innerHTML, ventasHilo = els['wa-hilo'].innerHTML;
+// ── 2a. Redes Cobranza: solo el WhatsApp de Patricia ──
+let htmlCob = montarCob();
+ok('Redes Cobranza se llama así y trae el número de Patricia, sin pestañas, vendedores ni Métricas', /Redes Cobranza/.test(htmlCob) && /WhatsApp · \+58 414-2719914/.test(htmlCob) && !/class="rs-tabs"/.test(htmlCob) && !/id="rs-vend"/.test(htmlCob) && !/Métricas<\/button>/.test(htmlCob));
+ok('arriba: Bandeja, Cobranza de hoy y el botón de Patricia; Paola no', /Cobranza de hoy · /.test(htmlCob) && /rsAsistente\('cobranza'\)/.test(htmlCob) && !/rsAsistente\('ventas'\)/.test(htmlCob));
+ok('en la lista solo está María', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /María/.test(els['wa-items'].innerHTML));
+ok('sus filtros: Con promesa sí, Quieren comprar no', /Con promesa/.test(els['wa-filtros'].innerHTML) && !/Quieren comprar/.test(els['wa-filtros'].innerHTML));
+ok('la caja de escribir dice que se responde como Patricia', /Responde en WhatsApp como Patricia/.test(els['wa-hilo'].innerHTML));
+montar();
 ctx.waFiltro('todas');
 
 // ── 2b. El aspecto de la bandeja de Meta (Adam: "necesito que la visual sea como la de Meta") ──
 ok('todo va en un solo panel con las pestañas arriba', /class="rs-caja"><div class="rs-tabs">/.test(html));
-ok('la fila dice quién escribió lo último ("Patricia: ..." / "Paola: ...") y lleva etiquetas', /Paola: |Patricia: /.test(els['wa-items'].innerHTML) || /class="rs-tg"><span>Cobranza<\/span>/.test(els['wa-items'].innerHTML));
+ok('la fila lleva sus etiquetas (ya sin "Cobranza"/"Ventas": lo dice el módulo)', /class="rs-tg"><span class="verde">Quiere comprar<\/span>/.test(ventasItems) && !/<span>Cobranza<\/span>/.test(ventasItems) && !/<span>Ventas<\/span>/.test(ventasItems));
 ok('las no leídas van en negrita (data-nl) con el punto azul', /data-nl="1"/.test(els['wa-items'].innerHTML) && /class="punto"/.test(els['wa-items'].innerHTML));
 ok('la cabecera del hilo trae la foto y botones cuadrados', /wa-hilo-top"><div class="quien"><div class="av/.test(els['wa-hilo'].innerHTML) && /class="rs-ib/.test(els['wa-hilo'].innerHTML));
 ok('la ficha empieza con el perfil, como en Meta', /class="card rs-perfil"/.test(els['wa-ficha'].innerHTML) && /Información/.test(els['wa-ficha'].innerHTML));
-ok('la caja de escribir dice por dónde y como quién se responde', /Responde en WhatsApp como Patricia/.test(els['wa-hilo'].innerHTML));
+ok('el hilo de ventas es de Paola (la caja sale solo con la ventana de 24 h abierta)', /· ventas · lo atiende el asistente/.test(ventasHilo) && !/Patricia/.test(ventasHilo));
 ctx._waMsgs['wa:+584140000001'] = [
   { autor: 'asistente', tipo: 'plantilla', texto: 'Tu cuota vence hoy', hora: '2026-10-20T13:00:00.000Z', estado: 'leido' },
   { autor: 'cliente', tipo: 'texto', texto: 'ya pagué', hora: '2026-10-20T13:05:00.000Z' },
@@ -80,7 +89,7 @@ ctx._rsTab = 'instagram'; montar();
 ok('Instagram: solo Luis', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /Luis/.test(els['wa-items'].innerHTML));
 ok('Instagram no tiene los filtros de cobranza', !/Cobranza<i>/.test(els['wa-filtros'].innerHTML) && !/Con promesa/.test(els['wa-filtros'].innerHTML));
 ctx._rsTab = 'whatsapp'; montar();
-ok('WhatsApp: María y Ana', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 2 && !/Luis/.test(els['wa-items'].innerHTML));
+ok('WhatsApp (en ventas): solo Ana', (els['wa-items'].innerHTML.match(/class="wa-item/g) || []).length === 1 && /Ana/.test(els['wa-items'].innerHTML));
 // Abrir desde Todos una conversación que no está en la pestaña: se va a Todos
 navs.length = 0; ctx.waAbrir('ig:1');
 ok('abrir una de Instagram estando en WhatsApp lleva a Todos los mensajes', navs[0] === 'redes' && ctx._rsTab === 'todos' && ctx._waSel === 'ig:1');
@@ -104,9 +113,10 @@ ctx.rsComFiltro('todos'); ctx.rsComAbrir('c2');
 ok('el de Pedro dice por qué Paola no respondió y que fue en un anuncio', /solo emoji o vacío/.test(els['rs-com-ficha'].innerHTML) && /Anuncio/.test(els['rs-com-ficha'].innerHTML));
 
 // ── 6. La cola de hoy y la ventana de cada asistente (como "Sandra" de DARKSIDE) ──
-ctx._rsVista = 'hoy'; html = montar();
-ok('Cobranza de hoy muestra la cola de recordatorios', /Recordatorios antes de vencer/.test(html) && !/class="rs-tabs"/.test(html));
-ok('arriba están los botones de Paola y de Patricia', /onclick="rsAsistente\('ventas'\)">[\s\S]*Paola<\/button>/.test(html) && /onclick="rsAsistente\('cobranza'\)">[\s\S]*Patricia<\/button>/.test(html) && !/>Asistentes</.test(html));
+ctx._rsVista = 'hoy'; htmlCob = montarCob();
+ok('Cobranza de hoy (en Redes Cobranza) muestra la cola de recordatorios', /Recordatorios antes de vencer/.test(htmlCob) && !/class="rs-tabs"/.test(htmlCob));
+ok('en Redes Ventas la vista "hoy" no existe: cae en la bandeja', (ctx._rsTab = 'todos', html = montar(), ctx._rsVista === 'bandeja' && /id="wa-items"/.test(html)));
+ok('el botón de Paola está en Ventas y el de Patricia en Cobranza', /onclick="rsAsistente\('ventas'\)">[\s\S]*Paola<\/button>/.test(html) && /onclick="rsAsistente\('cobranza'\)">[\s\S]*Patricia<\/button>/.test(htmlCob) && !/>Asistentes</.test(html));
 ctx._rsVista = 'bandeja';
 ['mtt', 'msb', 'modal-box', 'mbd', 'mft', 'ov', 'mic'].forEach(el); els['ov'].style = {}; els['mic'].style = {};
 ctx.isAdminUser = () => true;

@@ -2058,7 +2058,7 @@ function _rtRedibujar(){
   _rtUltimoRender = Date.now();
   // Redes sociales se refresca en el sitio: redibujarla entera vaciaba la caja donde el vendedor
   // estaba escribiendo cada vez que alguien del equipo guardaba algo (23-oct-2026)
-  if(S.page==='redes' && typeof waRefrescarPorDatos==='function'){
+  if((S.page==='redes' || S.page==='redescob') && typeof waRefrescarPorDatos==='function'){
     try{ if(waRefrescarPorDatos()) return; }catch(e){ console.warn('Redes en el sitio:', e); }
   }
   var focus = _captureFocus();
@@ -2675,10 +2675,11 @@ var MODULOS = [
   {id:'motos', label:'Motocicletas', grupo:'Gestión'},
   {id:'creditos', label:'Créditos', grupo:'Gestión'},
   {id:'pagos', label:'Cobranza', grupo:'Gestión'},
-  // 22-oct-2026: WhatsApp e Instagram se ven en un solo modulo, Redes sociales; los dos permisos
-  // siguen separados (cada uno abre su canal dentro del modulo, y las Reglas los usan).
-  {id:'whatsapp', label:'Redes sociales · WhatsApp', grupo:'Gestión'},
-  {id:'instagram', label:'Redes sociales · Instagram', grupo:'Gestión'},
+  // 1-nov-2026, Adam: "divideme el modulo de redes sociales entre cobranza y ventas". Los permisos
+  // que se marcan son estos dos; 'whatsapp' e 'instagram' (los canales que miran las Reglas) se
+  // derivan de ellos al guardar al usuario (permisosConCanales).
+  {id:'redes', label:'Redes Ventas', grupo:'Gestión'},
+  {id:'redescob', label:'Redes Cobranza', grupo:'Gestión'},
   {id:'contratos', label:'Contratos', grupo:'Operaciones'},
   {id:'notif', label:'Notificaciones', grupo:'Operaciones'},
   {id:'calculadora', label:'Calculadora', grupo:'Operaciones'},
@@ -2940,27 +2941,36 @@ function fmtFecha(iso){
 }
 const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
-const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Redes sociales · WhatsApp',instagram:'Redes sociales · Instagram',redes:'Redes sociales',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
+const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Canal WhatsApp',instagram:'Canal Instagram',redes:'Redes Ventas',redescob:'Redes Cobranza',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
 
 const EXTRA_PERMS={perm_delete:'Permiso para eliminar'};
 function getCurrentPerms(){ return (S.currentUser&&Array.isArray(S.currentUser.permisos)) ? S.currentUser.permisos : []; }
 function isAdminUser(){ return !!(S.currentUser && S.currentUser.rol==='Administrador'); }
+// Permisos de Redes (1-nov-2026): se marcan 'redes' (Redes Ventas: Instagram y el WhatsApp de ventas) y
+// 'redescob' (Redes Cobranza: el WhatsApp de Patricia). 'whatsapp' e 'instagram' son los canales que
+// miran las Reglas de Firestore: se derivan de esos dos cada vez que se guarda al usuario.
+var CANALES_DE_REDES = { redes: ['instagram','whatsapp'], redescob: ['whatsapp'] };
+function permisosConCanales(permisos){
+  var p = (permisos||[]).filter(function(k){ return k!=='whatsapp' && k!=='instagram'; });
+  Object.keys(CANALES_DE_REDES).forEach(function(m){ if(p.indexOf(m)>-1) CANALES_DE_REDES[m].forEach(function(c){ if(p.indexOf(c)<0) p.push(c); }); });
+  return p;
+}
 // ══════════════════════════════════════════
 // PERMISOS POR ROL — presets automáticos
 // ══════════════════════════════════════════
 var ROL_PERMISOS = {
   // Acceso total: dueño del sistema
-  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','whatsapp','instagram','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','catalogo','metricas','perm_delete'],
+  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','catalogo','metricas','perm_delete'],
   // Supervisa operaciones, ve reportes, NO toca config ni usuarios
-  Gerente: ['dash','centro','clientes','motos','creditos','pagos','cobranza','whatsapp','instagram','contratos','notif','reportes','cuentas'],
+  Gerente: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas'],
   // Cobra en la oficina: ve todos los clientes, registra pagos, ve cobranza y deudores
-  Cobrador: ['dash','centro','clientes','cobranza','whatsapp','pagos','creditos'],
+  Cobrador: ['dash','centro','clientes','cobranza','redescob','whatsapp','pagos','creditos'],
   // Capta clientes, hace solicitudes, NO toca pagos ni cobranza
-  Vendedor: ['dash','centro','clientes','creditos','motos','instagram'],
+  Vendedor: ['dash','centro','clientes','creditos','motos','redes','instagram','whatsapp'],
   // Solo finanzas: reportes, pagos, cuentas y contabilidad
   Contador: ['dash','centro','pagos','reportes','cuentas'],
   // Empleado general: hace casi todo excepto config/users
-  Empleado: ['dash','centro','clientes','motos','creditos','pagos','cobranza','whatsapp','instagram','contratos','notif'],
+  Empleado: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif'],
   // Vendedor Concesionario: solo calculadora (motos), clientes y solicitudes (creditos)
   // Los créditos que crea quedan en estado 'pendiente_revision' hasta que admin apruebe
   'Vendedor Concesionario': ['motos','clientes','creditos'],
@@ -3030,15 +3040,22 @@ var USUARIOS_DE_PRUEBA = ['l8OCCAHCWyNLU6akwlU8vdrP3Ow2', 'adam@pagasi.io'];   /
 function moduloOcultoParaMi(key){
   // Redes sociales queda escondido solo si los dos canales lo estan
   if(key === 'redes') return moduloOcultoParaMi('whatsapp') && moduloOcultoParaMi('instagram');
+  if(key === 'redescob') return moduloOcultoParaMi('whatsapp');
   if(!MODULOS_EN_PRUEBA[key]) return false;
   var u = S.currentUser || {};
   return !(USUARIOS_DE_PRUEBA.indexOf(String(u.uid || '')) > -1 || USUARIOS_DE_PRUEBA.indexOf(String(u.email || '').toLowerCase()) > -1);
 }
 function hasModuleAccess(key){
-  // Redes sociales (22-oct-2026): entra quien ve al menos uno de sus canales
-  if(key === 'redes') return hasModuleAccess('whatsapp') || hasModuleAccess('instagram');
   if(moduloOcultoParaMi(key)) return false;
   if(isAdminUser()) return true;
+  // Redes Ventas y Redes Cobranza (1-nov-2026). Un usuario de antes, sin los permisos nuevos, entra
+  // como entraba: WhatsApp le abria las dos areas e Instagram solo ventas.
+  if(key === 'redes' || key === 'redescob'){
+    if(isVendedorConcesionarioRole()) return false;
+    var pr = getPermsEfectivos(), nuevo = pr.includes('redes') || pr.includes('redescob');
+    if(nuevo) return pr.includes(key);
+    return key === 'redes' ? (pr.includes('whatsapp') || pr.includes('instagram')) : pr.includes('whatsapp');
+  }
   // Recursos: repositorio de material disponible para TODOS los usuarios logueados
   if(key === 'recursos') return true;
   // Vendedor Concesionario: motos, clientes, solicitudes y calculadora + recursos
@@ -3170,6 +3187,7 @@ var PG_NAVICONS = {
   whatsapp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9.2 8.4 8.6 8.6 0 0 1-3.4-.8L3 21l1.9-5.1A8.4 8.4 0 1 1 21 11.5z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
   instagram:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>',
   redes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 9h2a2 2 0 0 1 2 2v9l-3-2.5h-6a2 2 0 0 1-2-2V15"/><path d="M3 4h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2z"/></svg>',
+  redescob:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9.2 8.4 8.6 8.6 0 0 1-3.4-.8L3 21l1.9-5.1A8.4 8.4 0 1 1 21 11.5z"/><path d="M12 7.2v1.3M12 14.5v1.3"/><path d="M14.2 9.7h-3a1.3 1.3 0 0 0 0 2.6h1.6a1.3 1.3 0 0 1 0 2.6H9.8"/></svg>',
   calculadora:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="10" height="3" rx="0.5"/><circle cx="8" cy="13" r="0.6" fill="currentColor"/><circle cx="12" cy="13" r="0.6" fill="currentColor"/><circle cx="16" cy="13" r="0.6" fill="currentColor"/><circle cx="8" cy="17" r="0.6" fill="currentColor"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/><circle cx="16" cy="17" r="0.6" fill="currentColor"/></svg>',
   reportes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>',
   aprobaciones:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
@@ -3219,7 +3237,7 @@ function renderSidebar(){
     var permsEmp = getCurrentPerms();
     var grposEmp = [
       {label:'Mi Trabajo', keys:['dash','centro','recursos']},
-      {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes']},
+      {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes','redescob']},
       {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
       {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
       // 16-oct-2026: el menu del empleado no listaba Concesionarios ni Cumplimiento, asi que el
@@ -3244,7 +3262,7 @@ function renderSidebar(){
           +'</div>'
         : '')
       + grposEmp.map(function(g){
-          var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (k==='recursos' || permsEmp.includes(k) || (k==='redes' && (permsEmp.includes('whatsapp') || permsEmp.includes('instagram')))); });
+          var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (k==='recursos' || permsEmp.includes(k) || ((k==='redes' || k==='redescob') && hasModuleAccess(k))); });
           if(!items.length) return '';
           return '<div class="sb-grp"><div class="sb-lbl">'+g.label+'</div>'
             +items.map(function(k){
@@ -3286,7 +3304,7 @@ function renderSidebar(){
   var perms = getCurrentPerms();
   var grupos = [
     {label:'Principal', keys:['dash','centro','recursos']},
-    {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes']},
+    {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes','redescob']},
     {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
     {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
     {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','catalogo']},
@@ -3300,7 +3318,7 @@ function renderSidebar(){
     aprobaciones:'<span class="si-bx">'+_sidebarAprobPendientes()+'</span>'};
 
   sb.innerHTML = grupos.map(function(g){
-    var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (isAdminUser() || k==='recursos' || perms.includes(k) || (k==='redes' && (perms.includes('whatsapp') || perms.includes('instagram')))); });
+    var items = g.keys.filter(function(k){ return sidebarMuestra(k) && (isAdminUser() || k==='recursos' || perms.includes(k) || ((k==='redes' || k==='redescob') && hasModuleAccess(k))); });
     if(!items.length) return '';
     return '<div class="sb-grp"><div class="sb-lbl">'+g.label+'</div>'
       +items.map(function(k){

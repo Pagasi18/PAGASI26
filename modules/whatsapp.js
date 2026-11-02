@@ -3,20 +3,30 @@
 // (modules/redes.js), con una pestana por canal. Aqui queda la pantalla compartida: lista +
 // hilo + ficha y la cola de cobranza de hoy (la ventana de cada asistente vive en modules/redes.js). Patricia
 // atiende la COBRANZA por WhatsApp; Paola las VENTAS por WhatsApp e Instagram. Ver logic/whatsapp.js.
-// El contexto es la pestana abierta de Redes sociales: 'todos', 'whatsapp', 'instagram'...
-function _waCtxActual(){ return { modulo: 'redes', canal: window._rsTab || 'todos', area: '' }; }
+// Desde el 1-nov-2026 (Adam: "divideme el modulo de redes sociales entre cobranza y ventas") son dos
+// modulos con esta misma pantalla: 'redes' = Redes Ventas (Paola: Instagram, el WhatsApp de ventas y
+// los comentarios) y 'redescob' = Redes Cobranza (Patricia: el WhatsApp de cobranza y la cola de hoy).
+var RS_MODULOS = { redes: { area: 'ventas', nombre: 'Redes Ventas' }, redescob: { area: 'cobranza', nombre: 'Redes Cobranza' } };
+function _rsModulo(){ return RS_MODULOS[S.page] ? S.page : 'redes'; }
+function _rsArea(){ return RS_MODULOS[_rsModulo()].area; }
+function _rsEnBandeja(){ return !!RS_MODULOS[S.page]; }
+// El contexto: el modulo, su area y la pestana abierta ('todos', 'whatsapp', 'instagram'...; en cobranza solo WhatsApp)
+function _waCtxDe(m){ var a = RS_MODULOS[m].area; return { modulo: m, canal: a === 'cobranza' ? 'whatsapp' : (window._rsTab || 'todos'), area: a }; }
+function _waCtxActual(){ return _waCtxDe(_rsModulo()); }
 function _waClave(ctx){ ctx = ctx || _waCtxActual(); return ctx.modulo + ':' + ctx.canal; }
 // Abrir una conversacion: si ya estamos en esa pantalla se cambia solo el hilo y la ficha (sin
 // recargar la pagina, que saltaba el formato y el scroll con cada clic, 19-oct-2026); si no, nav.
-// Si la conversacion no es del canal de la pestana abierta, se abre en "Todos los mensajes".
+// Si la conversacion no es del canal de la pestana abierta, se abre en "Todos los mensajes". Una de
+// cobranza se abre en Redes Cobranza; las demas en Redes Ventas.
 function waAbrir(id){
-  var c = _waConv(id), enLista = !!c && _waConvsDe(_waCtxActual()).indexOf(c) > -1;
+  var c = _waConv(id), mod = c && _waEsCobranza(c) ? 'redescob' : 'redes';
+  var enLista = !!c && _waConvsDe(_waCtxDe(mod)).indexOf(c) > -1;
   window._waSel = id;
-  var enSitio = S.page === 'redes' && (window._rsVista || 'bandeja') === 'bandeja' && document.getElementById('wa-hilo') && enLista;
+  var enSitio = enLista && S.page === mod && (window._rsVista || 'bandeja') === 'bandeja' && document.getElementById('wa-hilo');
   if(enSitio){ _waPintarSeleccion(); return; }
   window._rsVista = 'bandeja';
   if(!enLista){ window._rsTab = 'todos'; window._waVendSel = ''; }   // que se vea aunque sea de otro vendedor
-  nav('redes');
+  nav(mod);
 }
 // Filtros de la lista (por pestana): la clave es redes:canal
 window._waFiltros = window._waFiltros || {};
@@ -27,24 +37,24 @@ function waFiltro(f){ window._waFiltros[_waClave()] = f; _waPintarLista(); }
 function _waSinResponder(c){ if(!c || !c.ultimoEntranteHora) return false; return c.ultimoAutor ? c.ultimoAutor === 'cliente' : String(c.ultimoMensajeHora || '') === String(c.ultimoEntranteHora || ''); }
 function _waEsHoy(iso){ return !!iso && new Date(iso).toDateString() === new Date().toDateString(); }
 function _waEsCobranza(c){ return (c.canal || 'whatsapp') === 'whatsapp' && (c.area || 'cobranza') === 'cobranza'; }
-// en: las pestanas donde sale el filtro (sin "en", sale en todas). Cobranza solo hay por WhatsApp.
+// en: las pestanas donde sale el filtro (sin "en", sale en todas); area: solo en ese modulo.
 var WA_FILTROS = [
   { id: 'todas', nombre: 'Todas', f: function(){ return true; } },
   { id: 'noleidas', nombre: 'No leídas', f: function(c){ return (c.noLeidos || 0) > 0; } },
   { id: 'sin', nombre: 'Sin responder', f: _waSinResponder },
   { id: 'esperan', nombre: 'Esperan persona', f: function(c){ return !!c.atencion; } },
   { id: 'humano', nombre: 'Atiende una persona', f: function(c){ return c.modo === 'humano'; } },
-  { id: 'cobranza', nombre: 'Cobranza', f: _waEsCobranza, en: ['todos', 'whatsapp'] },
-  { id: 'ventas', nombre: 'Ventas', f: function(c){ return !_waEsCobranza(c); }, en: ['todos', 'whatsapp'] },
-  { id: 'leads', nombre: 'Quieren comprar', f: function(c){ return !!(c.borrador && c.borrador.tipo === 'lead'); } },
-  { id: 'promesas', nombre: 'Con promesa', f: function(c){ return !!(c.borrador && c.borrador.tipo === 'promesa'); }, en: ['todos', 'whatsapp'] },
+  { id: 'leads', nombre: 'Quieren comprar', f: function(c){ return !!(c.borrador && c.borrador.tipo === 'lead'); }, area: 'ventas' },
+  { id: 'promesas', nombre: 'Con promesa', f: function(c){ return !!(c.borrador && c.borrador.tipo === 'promesa'); }, area: 'cobranza' },
   { id: 'hoy', nombre: 'Hoy', f: function(c){ return _waEsHoy(c.ultimoMensajeHora); } }
 ];
-function _waFiltrosDe(ctx){ return WA_FILTROS.filter(function(f){ return !f.en || f.en.indexOf(ctx.canal) > -1; }); }
-// Las conversaciones de la pestana abierta ('todos' = todos los canales que este usuario ve)...
-function _waConvsCanal(ctx){ return (window._waConvs || []).filter(function(c){ return ctx.canal === 'todos' || (c.canal || 'whatsapp') === ctx.canal; }); }
-// ...y del vendedor escogido en la barra de vendedores
-function _waConvsDe(ctx){ var v = waVendSel(); return _waConvsCanal(ctx).filter(function(c){ return !v || (v === '-' ? !waVendedorDe(c) : waVendedorDe(c) === v); }); }
+function _waFiltrosDe(ctx){ return WA_FILTROS.filter(function(f){ return (!f.en || f.en.indexOf(ctx.canal) > -1) && (!f.area || !ctx.area || f.area === ctx.area); }); }
+// Las conversaciones del area del modulo (cobranza = el WhatsApp de Patricia; ventas = lo demas) y de la
+// pestana abierta ('todos' = todos los canales que este usuario ve)...
+function _waEsArea(c, area){ return !area || (area === 'cobranza') === _waEsCobranza(c); }
+function _waConvsCanal(ctx){ return (window._waConvs || []).filter(function(c){ return (ctx.canal === 'todos' || (c.canal || 'whatsapp') === ctx.canal) && _waEsArea(c, ctx.area); }); }
+// ...y del vendedor escogido en la barra de vendedores (la barra es de ventas; en cobranza no filtra)
+function _waConvsDe(ctx){ var v = ctx.area === 'cobranza' ? '' : waVendSel(); return _waConvsCanal(ctx).filter(function(c){ return !v || (v === '-' ? !waVendedorDe(c) : waVendedorDe(c) === v); }); }
 // Desde cuándo espera a una persona (quiere comprar, pidió una persona, queja…). El servidor lo anota desde el
 // 24-oct-2026 (atencionDesde); las de antes, desde su último mensaje.
 function waEsperaDesde(c){ return c && c.atencion ? (c.atencionDesde || c.ultimoEntranteHora || c.ultimoMensajeHora || '') : ''; }
@@ -62,7 +72,7 @@ function waVendSel(){
   var yo = String((S.currentUser && S.currentUser.nombre) || '').trim(), admin = typeof isAdminUser === 'function' && isAdminUser();
   return (!admin && yo && (window._waConvs || []).some(function(c){ return waVendedorDe(c) === yo; })) ? yo : '';
 }
-function waVendedorFiltro(v){ window._waVendSel = v == null ? '' : String(v); if(!_waRefrescarEnSitio(true)) nav('redes'); }
+function waVendedorFiltro(v){ window._waVendSel = v == null ? '' : String(v); if(!_waRefrescarEnSitio(true)) nav(_rsModulo()); }
 // Los vendedores de la pestaña, con cuántas conversaciones tiene cada uno (los nuevos aparecen solos)
 function waVendedores(ctx){
   var o = {}, sin = 0, convs = _waConvsCanal(ctx || _waCtxActual());
@@ -164,7 +174,7 @@ function _waPintarLista(){
   cont.innerHTML = convs.length ? convs.map(function(c){
     // Como la bandeja de Meta: foto redonda con la marca de la red, nombre, "Paola: ..." y etiquetas
     var quien = c.ultimoAutor === 'equipo' ? 'Tú: ' : c.ultimoAutor === 'asistente' ? _waNombreAsis(c) + ': ' : '';
-    var tags = [_waEsCobranza(c) ? '<span>Cobranza</span>' : '<span>Ventas</span>'];
+    var tags = [];   // el area ya la dice el modulo
     if(c.atencion) tags.push('<span class="' + (/pide_persona|queja|error/.test(c.atencion) ? 'rojo' : c.atencion === 'lead' ? 'verde' : 'ambar') + '">' + _waAtencion(c.atencion).replace(/<[^>]+>/g, '') + '</span>');
     else if(c.borrador && c.borrador.tipo === 'lead') tags.push('<span class="verde">Quiere comprar</span>');
     if(c.etapa && WA_ETAPAS_TAG[c.etapa]) tags.push('<span class="' + WA_ETAPAS_TAG[c.etapa][1] + '">' + WA_ETAPAS_TAG[c.etapa][0] + '</span>');
@@ -278,7 +288,7 @@ function _waPintarSeleccion(){
 // refrescan en el sitio la lista, los contadores y la ficha del cliente (que usa créditos y pagos).
 // Devuelve true si lo hizo; en las otras vistas de Redes devuelve false y se redibuja como siempre.
 function waRefrescarPorDatos(){
-  if(S.page !== 'redes' || !document.getElementById('wa-items')) return false;
+  if(!_rsEnBandeja() || !document.getElementById('wa-items')) return false;
   _waRefrescarEnSitio();
   var ficha = document.getElementById('wa-ficha'), ctx = _waCtxActual();
   if(ficha) ficha.innerHTML = _waHtmlFicha(_waSeleccionada(ctx), ctx);
@@ -289,7 +299,7 @@ function _waMarcarLeida(c){ if(!c || !(c.noLeidos > 0)) return; c.noLeidos = 0; 
 // Llamada cuando cambian las conversaciones en la base o tras una accion: refresca en el sitio
 // y devuelve true; si la pantalla no esta puesta devuelve false y el que llama hace nav.
 function _waRefrescarEnSitio(forzar){
-  if(S.page !== 'redes') return false;
+  if(!_rsEnBandeja()) return false;
   if(typeof _rsPintarContadores === 'function') _rsPintarContadores();
   // En la cola de hoy, los comentarios o el asistente no hay lista que refrescar, y no se recarga
   // la pagina (borraria lo que se esta escribiendo en las instrucciones)
@@ -312,7 +322,7 @@ function _waHtmlHilo(sel, ctx, conectado){
           + '<div class="wa-burbujas" id="wa-burbujas"></div>'
           + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" data-conv="' + _waEsc(sel.id) + '" oninput="_waGuardarBorrador(\'' + _waEsc(sel.id) + '\', this.value)" placeholder="Responde en ' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' como ' + _waNombreAsis(sel) + '…">' + _waEsc(window._waBorradores[sel.id] || '') + '</textarea><div class="wa-rr" id="wa-rr" hidden></div><div class="wa-esc-pie"><div class="wa-esc-her">'
             + '<button type="button" class="wa-her" onclick="waRespuestas(\'' + _waEsc(sel.id) + '\')" title="Textos guardados: requisitos, proceso, inicial…">' + _WA_RAYO + 'Respuestas</button>'
-            + '<button type="button" class="wa-her" onclick="waFotoMoto(\'' + _waEsc(sel.id) + '\')" title="Mandar la foto de una moto del catálogo">' + _WA_FOTO + 'Foto de moto</button></div>'
+            + (_waEsCobranza(sel) ? '' : '<button type="button" class="wa-her" onclick="waFotoMoto(\'' + _waEsc(sel.id) + '\')" title="Mandar la foto de una moto del catálogo">' + _WA_FOTO + 'Foto de moto</button>') + '</div>'
             + '<span class="cs">Al escribir, tomas la conversación y queda registrado que fuiste tú.</span><button class="btn btn-p btn-sm" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div></div>'
             : (sel.canal === 'instagram' ? '<div class="wa-cerrada">Pasaron más de 7 días desde el último mensaje de la persona' + (sel.ultimoEntranteHora ? ' (' + _waHora(sel.ultimoEntranteHora) + ')' : '') + ': Instagram no deja escribirle hasta que vuelva a escribir.</div>'
               : '<div class="wa-cerrada">La ventana de 24 horas de WhatsApp está cerrada: el cliente escribió por última vez ' + (sel.ultimoEntranteHora ? 'el ' + _waHora(sel.ultimoEntranteHora) : 'hace más de un día') + '. Solo se le puede escribir con una plantilla aprobada, o esperar a que vuelva a escribir.</div>'))
@@ -565,7 +575,7 @@ function _waHtmlFicha(sel, ctx){
 // y del ledger; los recordatorios los manda Patricia sola a las 8:30 am.
 function _waPanelHoy(cola){
   var conectado = waConectado();
-  var promesas = _waConvsDe({ canal: 'whatsapp' }).filter(function(c){ return _waEsCobranza(c) && c.borrador && c.borrador.tipo === 'promesa'; }).length;
+  var promesas = _waConvsDe({ canal: 'whatsapp', area: 'cobranza' }).filter(function(c){ return c.borrador && c.borrador.tipo === 'promesa'; }).length;
   var h = '<div class="sg wa-stats">'
     + '<div class="stat"><div class="st-v">' + (cola.grupos.proximas.length + cola.grupos.hoy.length) + '</div><div class="st-l">Recordatorios antes de vencer (2 días y hoy)</div></div>'
     + '<div class="stat"><div class="st-v" style="color:var(--amber)">' + (cola.grupos.gracia.length + cola.grupos.atrasadas.length) + '</div><div class="st-l">Vencidas que el asistente persigue (1 a 10 días)</div></div>'

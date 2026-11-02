@@ -205,7 +205,7 @@ function waAbrirConversaciones(canal, cb){
     _waRoot._waConvs = otras.concat(snap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }));
     try{ _waAvisar(canal, _waRoot._waConvs.filter(function(c){ return (c.canal || 'whatsapp') === canal; })); }catch(e){}
     // Si la pantalla esta puesta se refresca en el sitio (lista, contadores, hilo si cambio); si no, nav
-    if(S.page === 'redes'){ if(!(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio()) && typeof nav === 'function') nav(S.page); }
+    if(S.page === 'redes' || S.page === 'redescob'){ if(!(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio()) && typeof nav === 'function') nav(S.page); }
     if(cb){ cb(_waRoot._waConvs); cb = null; }
   }, function(e){ console.warn('conversaciones ' + canal + ':', e); if(cb) cb([]); });
 }
@@ -341,7 +341,7 @@ function _waActualizar(id, cambios, accion){
   return db.collection('conversaciones').doc(id).set(Object.assign({}, cambios, { actualizado: new Date().toISOString() }), { merge: true }).catch(function(e){ toast('No se pudo guardar: ' + (e && e.message || e), 'error'); });
 }
 // Tras una accion sobre la conversacion: refrescar en el sitio si la pantalla esta puesta; si no, nav
-function _waTrasCambio(id){ if(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio(true)) return; if(typeof nav === 'function') nav('redes'); }
+function _waTrasCambio(id){ if(typeof _waRefrescarEnSitio === 'function' && _waRefrescarEnSitio(true)) return; var c = _waConv(id); if(typeof nav === 'function') nav(c && (c.canal || 'whatsapp') === 'whatsapp' && (c.area || 'cobranza') === 'cobranza' ? 'redescob' : 'redes'); }
 function waAtender(id){ var yo = (S.currentUser && S.currentUser.nombre) || 'Equipo'; _waActualizar(id, { modo: 'humano', atendidoPor: yo, atencion: '', noLeidos: 0 }, 'wa_atender').then(function(){
   // Si todavía no tiene vendedor, queda como suya (también cuando la devuelva a Paola)
   var c = _waConv(id); if(c && !c.vendedor){ c.vendedor = yo; if(waConectadoCanal(c.canal)) _waPedirVendedor(id, yo).catch(function(){}); }

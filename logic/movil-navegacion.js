@@ -4,11 +4,11 @@ var PG_MOBILE_LABELS={dash:'Inicio',motos:'Inventario de motos',creditos:'Ventas
 var PG_MENU_GROUPS=[
   {label:'Herramientas',keys:['calculadora','motos','contratos','aprobaciones']},
   {label:'Mi trabajo',keys:['dash','clientes','creditos']},
-  {label:'Seguimiento',keys:['pagos','cobranza','redes','gps','notif']},
+  {label:'Seguimiento',keys:['pagos','cobranza','redes','redescob','gps','notif']},
   {label:'Finanzas',keys:['reportes','cuentas','comisiones','conta']},
   {label:'Administración',keys:['concesionarios','users','catalogo','metricas','cumplimiento','plan','config','centro','scores','recursos']}
 ];
-var PG_MENU_HINTS={dash:'Tu actividad y próximos pasos',clientes:'Buscar o registrar un cliente',motos:'Consultar el inventario',creditos:'Consultar el estado de una venta',calculadora:'Simular inicial y cuotas',contratos:'Preparar los documentos',aprobaciones:'Solicitudes por revisar',pagos:'Pagos y cuotas de clientes',redes:'Conversaciones con clientes',gps:'Ubicación y seguimiento',notif:'Avisos de tu cuenta',cuentas:'Saldos y movimientos',concesionarios:'Sedes y aliados',users:'Equipo y permisos',catalogo:'Productos de la página web'};
+var PG_MENU_HINTS={dash:'Tu actividad y próximos pasos',clientes:'Buscar o registrar un cliente',motos:'Consultar el inventario',creditos:'Consultar el estado de una venta',calculadora:'Simular inicial y cuotas',contratos:'Preparar los documentos',aprobaciones:'Solicitudes por revisar',pagos:'Pagos y cuotas de clientes',redes:'Chats de ventas: Instagram y WhatsApp',redescob:'Chats de cobranza por WhatsApp',gps:'Ubicación y seguimiento',notif:'Avisos de tu cuenta',cuentas:'Saldos y movimientos',concesionarios:'Sedes y aliados',users:'Equipo y permisos',catalogo:'Productos de la página web'};
 function pgNavElement(tag,cls,text){var el=document.createElement(tag);if(cls)el.className=cls;if(text!=null)el.textContent=String(text);return el;}
 function pgMobileGlyph(key){
   var paths={search:'<circle cx="10.7" cy="10.7" r="6.7"/><path d="m16 16 4.5 4.5"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',next:'<path d="m9 5 7 7-7 7"/>',moon:'<path d="M20.8 13.4A9 9 0 0 1 10.6 3.2a9 9 0 1 0 10.2 10.2Z"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>'};

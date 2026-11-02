@@ -6,6 +6,10 @@
 // quedan como botones arriba a la derecha (Paola y Patricia abren su ventana, como Sandra de DARKSIDE). Cada canal lo ve quien tiene su permiso ('whatsapp' o
 // 'instagram', los mismos de las Reglas). Messenger y los comentarios de Facebook todavía no
 // llegan al servidor (Adam, 22-oct: "por ahora no" a conectarlos): sus pestañas lo dicen.
+// 1-nov-2026, Adam: "divídeme el módulo de redes sociales entre cobranza y ventas". Son dos módulos
+// con esta misma pantalla (RS_MODULOS, en modules/whatsapp.js): Redes Ventas ('redes': Paola, con las
+// pestañas por canal, la barra de vendedores y Métricas) y Redes Cobranza ('redescob': Patricia, solo el
+// WhatsApp de cobranza y la cola de hoy). Cada uno lo abre su permiso ('redes' o 'redescob').
 window._rsTab = window._rsTab || 'todos';
 window._rsVista = window._rsVista || 'bandeja';   // bandeja · hoy
 window._rsComSel = window._rsComSel || '';
@@ -29,7 +33,7 @@ function _rsGlobo(n){ return n > 0 ? '<span class="b">' + Number(n).toLocaleStri
 function _rsCuenta(tab){
   if(tab === 'igcom') return (window._waComs || []).filter(function(c){ return _waEsHoy(c.hora); }).length;
   if(tab === 'messenger' || tab === 'fbcom') return 0;
-  return _waConvsCanal({ canal: tab }).filter(function(c){ return (c.noLeidos || 0) > 0; }).length;   // los globos no dependen del vendedor escogido
+  return _waConvsCanal({ canal: tab, area: 'ventas' }).filter(function(c){ return (c.noLeidos || 0) > 0; }).length;   // los globos no dependen del vendedor escogido
 }
 
 var _RS_CSS = '<style id="rs-css">'
@@ -103,8 +107,8 @@ var _RS_CSS = '<style id="rs-css">'
   + '.rs-com .estado{margin-top:4px}'
   + '</style>';
 
-function rsTab(t){ window._rsTab = t; window._rsVista = 'bandeja'; window._waSel = null; nav('redes'); }
-function rsVista(v){ window._rsVista = v; nav('redes'); }
+function rsTab(t){ window._rsTab = t; window._rsVista = 'bandeja'; window._waSel = null; nav(_rsModulo()); }
+function rsVista(v){ window._rsVista = v; nav(_rsModulo()); }
 
 // El sonido de los avisos (Adam, 24-oct-2026: "ponme un botón del sonido en el módulo de redes para probar y que
 // lo puedan cambiar los vendedores"). Cada quien escoge el suyo; se guarda en su navegador.
@@ -561,40 +565,49 @@ function _rsTip(e, el){
   t.style.left = (e.clientX - caja.left) + 'px'; t.style.top = (e.clientY - caja.top - 8) + 'px';
 }
 
-PG.redes = function(){
+PG.redes = function(){ return _rsPagina('redes'); };
+PG.redescob = function(){ return _rsPagina('redescob'); };
+// La página de cada módulo. Ventas: pestañas por canal, vendedores, Métricas y Paola. Cobranza: la
+// bandeja del WhatsApp de Patricia (sin pestañas ni vendedores), la cola de hoy y Patricia.
+function _rsPagina(mod){
+  var M = RS_MODULOS[mod], cob = M.area === 'cobranza';
   if(!document.getElementById('wa-css')) document.head.insertAdjacentHTML('beforeend', _WA_CSS);
   if(!document.getElementById('rs-css')) document.head.insertAdjacentHTML('beforeend', _RS_CSS);
-  if(!window._waCfg){ waCargarCfg(function(){ if(S.page === 'redes') nav('redes'); }); }
-  var veWa = _rsVe('whatsapp'), veIg = _rsVe('instagram'), cfg = window._waCfg || {};
-  var tabs = _rsTabsVisibles();
-  if(!tabs.some(function(t){ return t.id === window._rsTab; })) window._rsTab = 'todos';
+  if(!window._waCfg){ waCargarCfg(function(){ if(S.page === mod) nav(mod); }); }
+  var veWa = _rsVe('whatsapp'), veIg = !cob && _rsVe('instagram'), cfg = window._waCfg || {};
+  var tabs = cob ? [] : _rsTabsVisibles();
+  if(!cob && !tabs.some(function(t){ return t.id === window._rsTab; })) window._rsTab = 'todos';
   var cola = veWa ? waColaHoy() : null;
   // Cada canal se abre solo si este usuario lo ve (las Reglas tampoco dejan leer el otro)
   if(veWa){ if(waConectado()) waAbrirConversaciones('whatsapp'); else waDemoConversaciones(cola); }
   if(veIg){ if(waConectadoCanal('instagram')) waAbrirConversaciones('instagram'); else waDemoInstagram(); waAbrirComentarios(); }
-  if((window._rsVista === 'hoy' && !veWa) || window._rsVista === 'asistente') window._rsVista = 'bandeja';
-  var vista = window._rsVista, tab = window._rsTab, ctx = _waCtxActual();
+  var vistas = cob ? (cola ? ['bandeja', 'hoy'] : ['bandeja']) : ['bandeja', 'metricas'];
+  if(vistas.indexOf(window._rsVista) < 0) window._rsVista = 'bandeja';
+  var vista = window._rsVista, tab = cob ? 'whatsapp' : window._rsTab, ctx = _waCtxActual();
   var waOk = waConectado(), igOk = waConectadoCanal('instagram');
+  var sinConectar = (veWa && !waOk) || (veIg && !igOk);
 
   var h = '<div class="page wa-page rs-page">'
-    + '<div class="rs-cab"><div><div class="t">Redes sociales '
-      + (veWa ? (waOk ? '<span class="wa-pill verde">WhatsApp · ' + _waEsc(cfg.telefono || 'conectado') + '</span>' : '<span class="wa-pill ambar">WhatsApp en demostración</span>') : '')
+    + '<div class="rs-cab"><div><div class="t">' + M.nombre + ' '
+      + (veWa ? (waOk ? '<span class="wa-pill verde">WhatsApp · ' + _waEsc(cob ? (cfg.telefono || 'conectado') : 'ventas') + '</span>' : '<span class="wa-pill ambar">WhatsApp en demostración</span>') : '')
       + (veIg ? (igOk ? '<span class="wa-pill ig">Instagram · @' + _waEsc(String(cfg.instagram).replace(/^@/, '')) + '</span>' : '<span class="wa-pill ambar">Instagram en demostración</span>') : '')
-    + '</div><div class="cs">' + (veWa ? 'Patricia atiende la cobranza por WhatsApp. ' : '') + 'Paola atiende las ventas' + (veIg && veWa ? ' por WhatsApp e Instagram' : veIg ? ' por Instagram' : ' por WhatsApp') + '.</div></div>'
+    + '</div><div class="cs">' + (cob ? 'Patricia atiende la cobranza por WhatsApp.' : 'Paola atiende las ventas' + (veIg && veWa ? ' por WhatsApp e Instagram' : veIg ? ' por Instagram' : ' por WhatsApp') + '.') + '</div></div>'
       + '<div class="wa-tabs"><button class="' + (vista === 'bandeja' ? 'on' : '') + '" onclick="rsVista(\'bandeja\')">Bandeja</button>'
-      + (veWa ? '<button class="' + (vista === 'hoy' ? 'on' : '') + '" onclick="rsVista(\'hoy\')">Cobranza de hoy · ' + cola.total + '</button>' : '')
-      + '<button class="' + (vista === 'metricas' ? 'on' : '') + '" onclick="rsVista(\'metricas\')">Métricas</button>'
-      + (veIg || veWa ? '<button class="rs-asis-btn" onclick="rsAsistente(\'ventas\')">' + _RS_CHISPA + 'Paola</button>' : '')
-      + (veWa ? '<button class="rs-asis-btn" onclick="rsAsistente(\'cobranza\')">' + _RS_CHISPA + 'Patricia</button>' : '')
+      + (cob && cola ? '<button class="' + (vista === 'hoy' ? 'on' : '') + '" onclick="rsVista(\'hoy\')">Cobranza de hoy · ' + cola.total + '</button>' : '')
+      + (!cob ? '<button class="' + (vista === 'metricas' ? 'on' : '') + '" onclick="rsVista(\'metricas\')">Métricas</button>' : '')
+      + (!cob && (veIg || veWa) ? '<button class="rs-asis-btn" onclick="rsAsistente(\'ventas\')">' + _RS_CHISPA + 'Paola</button>' : '')
+      + (cob && veWa ? '<button class="rs-asis-btn" onclick="rsAsistente(\'cobranza\')">' + _RS_CHISPA + 'Patricia</button>' : '')
       + '<button class="rs-asis-btn" id="rs-son-btn" onclick="rsSonido()" title="El sonido de los avisos">' + _rsIconoSonido() + 'Sonido</button>' + '</div>'
     + '</div>'
-    + ((veWa && !waOk) || (veIg && !igOk) ? '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>' + (veWa && !waOk && veIg && !igOk ? 'WhatsApp e Instagram todavía no están conectados' : veWa && !waOk ? 'WhatsApp todavía no está conectado' : 'Instagram todavía no está conectado') + ' en esta compañía.</b> Lo que ves de ' + (veWa && !waOk && veIg && !igOk ? 'esos canales' : 'ese canal') + ' es de muestra, en memoria, para ver cómo atienden las asistentes.</div></div>' : '');
+    + (sinConectar ? '<div class="wa-aviso"><span style="font-size:18px">⚠️</span><div><b>' + (veWa && !waOk && veIg && !igOk ? 'WhatsApp e Instagram todavía no están conectados' : veWa && !waOk ? 'WhatsApp todavía no está conectado' : 'Instagram todavía no está conectado') + ' en esta compañía.</b> Lo que ves es de muestra. Se conectan en pagasi.io; a esta compañía le llegan las conversaciones de sus clientes.</div></div>' : '');
 
   if(vista === 'hoy'){
     h += _waPanelHoy(cola);
   } else if(vista === 'metricas'){
     h += '<div class="rs-met" id="rs-met">' + _rsMetricasHtml() + '</div>';
     rsCargarMetricas();
+  } else if(cob){
+    h += '<div class="rs-caja">' + _waPanelConversaciones(ctx) + '</div>';
   } else {
     h += '<div class="rs-caja"><div class="rs-tabs">' + tabs.map(function(t){
       return '<button class="' + (t.id === tab ? 'on' : '') + '" onclick="rsTab(\'' + t.id + '\')">' + t.nombre
@@ -609,6 +622,6 @@ PG.redes = function(){
   }
   h += '</div>';
   // Se vuelve a medir cuando termina la animación de entrada de la página (la corre 8 px)
-  setTimeout(function(){ if(S.page === 'redes' && typeof _waAjustarAltura === 'function') _waAjustarAltura(); }, 260);
+  setTimeout(function(){ if(S.page === mod && typeof _waAjustarAltura === 'function') _waAjustarAltura(); }, 260);
   return h;
-};
+}

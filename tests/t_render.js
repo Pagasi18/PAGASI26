@@ -192,9 +192,9 @@ ok('los sidebars declaran modulos (' + clavesSidebar.size + ')', clavesSidebar.s
 
 // Estos viven fuera del sidebar a proposito
 const APARTE = new Set(['concesionarios', 'aprobaciones']);
-// Permisos que se usan DENTRO de otro modulo: WhatsApp e Instagram son canales de Redes
-// sociales desde el 22-oct-2026; el boton del menu es el de 'redes'
-const DENTRO_DE = { whatsapp: 'redes', instagram: 'redes' };
+// Permisos que se usan DENTRO de otro modulo: WhatsApp e Instagram son los canales que miran las
+// Reglas (1-nov-2026); en el menu son Redes Cobranza ('redescob') y Redes Ventas ('redes')
+const DENTRO_DE = { whatsapp: 'redescob', instagram: 'redes' };
 const huerfanos = otorgables.filter(k => !clavesSidebar.has(DENTRO_DE[k] || k) && !APARTE.has(k));
 if (huerfanos.length) {
   console.log('');
