@@ -3261,7 +3261,7 @@ function renderSidebar(){
       contratos:'CTR',notif:'NOT',reportes:'RPT',
       cuentas:'CTA',comisiones:'CMS',conta:'CNT',plan:'PLN',config:'CFG',scores:'SCR',users:'USR'
     };
-    var nameMapEmp = { dash:'Mi Dashboard', creditos:'Solicitudes' };
+    var nameMapEmp = { dash:'Mi Dashboard' };   // 4-nov-2026 (Adam): el módulo se llama Créditos para todos
     var extraMapEmp = {pagos:'<span class="si-bx" id="sb-badge-cob"></span>', centro:'<span class="si-bx" id="sb-badge-wt"></span>',
       aprobaciones:'<span class="si-bx">'+_sidebarAprobPendientes()+'</span>'};
 
@@ -4619,7 +4619,7 @@ function updateMobileNav(){
   if(first)items.push({key:first,label:first==='dash'?'Inicio':first==='motos'?'Motos':PGL[first],icon:first});
   if(first!=='clientes' && hasModuleAccess('clientes'))items.push({key:'clientes',label:'Clientes',icon:'clientes'});
   if(typeof _puedeVender==='function' && _puedeVender() && hasModuleAccess('creditos'))items.push({key:'nueva',label:'Vender',add:true});
-  if(first!=='creditos' && hasModuleAccess('creditos'))items.push({key:'creditos',label:typeof _puedeVender==='function'&&!_puedeVender()?'Créditos':'Ventas',icon:'creditos'});
+  if(first!=='creditos' && hasModuleAccess('creditos'))items.push({key:'creditos',label:'Créditos',icon:'creditos'});
   if(items.length<4 && first!=='pagos' && hasModuleAccess('pagos'))items.push({key:'pagos',label:'Cobrar',icon:'pagos'});
   items=items.slice(0,4);
   items.push({key:'more',label:'Más',more:true});
@@ -4630,7 +4630,7 @@ function updateMobileNav(){
     var active=it.key===page || (it.more && !items.some(function(x){return x.key===page;}));
     var action=it.add?'openAddCred()':it.more?'openMobileMenu()':"nav('"+it.key+"')";
     var image=it.add?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>':it.more?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>':pgNavIcon(it.icon);
-    var label=it.add?'Comenzar nueva venta':it.key==='creditos'?'Consultar ventas y solicitudes':it.more?'Más herramientas':it.label;
+    var label=it.add?'Comenzar nueva venta':it.key==='creditos'?'Consultar créditos':it.more?'Más herramientas':it.label;
     return '<button type="button" id="mbb-'+it.key+'" class="mbb-btn'+(active?' on':'')+(it.add?' mbb-new':'')+'" onclick="'+action+'" aria-label="'+label+'"'+(it.more?' aria-haspopup="dialog" aria-controls="pg-mobile-menu" aria-expanded="false"':'')+(active?' aria-current="page"':'')+'><span class="mbb-ic" aria-hidden="true">'+image+'</span><span>'+it.label+'</span></button>';
   }).join('');}
   if(typeof pgMobileNavigationRefresh==='function')pgMobileNavigationRefresh();

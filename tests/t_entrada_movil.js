@@ -22,7 +22,7 @@ ok('la invitación conserva su tarjeta', html.includes('id="invite-screen"') && 
 
 // ── Móvil: Cobranza y Contratos en fichas ──
 const movil = leer('logic/movil.js');
-ok('las tablas de Cobranza y Contratos también pasan a fichas', /\['clientes','motos','creditos','pagos','contratos'\]\.indexOf\(S\.page\)/.test(movil));
+ok('las tablas de Cobranza y Contratos también pasan a fichas; Créditos se queda como tabla (Adam, 4-nov-2026)', /\['clientes','motos','pagos','contratos'\]\.indexOf\(S\.page\)/.test(movil));
 ok('en Cobranza las notas y la gestión ocupan el ancho completo de la ficha', /td\[data-label="Gestión de cobro"\][^{]*\{grid-column:1\/-1\}/.test(mcss));
 ok('las pestañas hechas con borde inferior se deslizan en vez de partirse', /border-bottom:2px solid var\(--rim\)"\]\[style\*="display:flex"\]\{overflow-x:auto/.test(mcss));
 ok('las ventanas de detalle pasan a una columna en el teléfono', /#modal-box \[style\*="grid-template-columns:1fr 1fr"\]/.test(mcss) && /#modal-box \.m-ft\{flex-wrap:wrap\}/.test(mcss));
