@@ -61,7 +61,8 @@ ok('la tabla de los que más venden, Debora de primera', /Vendedores que más ve
 ok('...y las dos tablas van también en Tablas, para el Excel', (() => { ctx.metTab('tablas'); const ht = ctx.PG.metricas(); ctx.metTab('redes'); return /<h4>Vendedores que más responden<\/h4>/.test(ht) && /<h4>Vendedores que más venden<\/h4>/.test(ht); })());
 html = ctx.PG.metricas(); graficos.length = 0; while (esperando.length) esperando.shift()();
 const g = graficos.find(x => x.id === 'met-c-redes');
-ok('el gráfico se dibuja con dos series (escribieron / les contestó una persona) y una barra por día', !!g && g.cfg.data.datasets.length === 2 && g.cfg.data.datasets[0].label === 'Escribieron' && g.cfg.data.labels.length === 7 && g.cfg.data.datasets[0].data.join() === '0,0,0,1,0,2,2' && g.cfg.data.datasets[1].data.join() === '0,0,0,0,0,2,1');
+ok('el gráfico se dibuja con dos series superpuestas (escribieron / les contestó una persona), anchas con 7 días', !!g && g.cfg.data.datasets.length === 2 && g.cfg.data.datasets[0].label === 'Escribieron' && g.cfg.data.labels.length === 7 && g.cfg.data.datasets[0].data.join() === '0,0,0,1,0,2,2' && g.cfg.data.datasets[1].data.join() === '0,0,0,0,0,2,1' && g.cfg.data.datasets.every(x => x.grouped === false && x.maxBarThickness === 54) && g.cfg.data.datasets[1].order < g.cfg.data.datasets[0].order);
+ok('...y la tarjeta dice el % contestado del período', /Escriben vs\. les contestan<\/div><\/div><div class="dash-big" style="color:var\(--green\)">60%<\/div>/.test(html));
 // Hoy: sin gráfico, solo los totales
 vm.runInContext('_met.rango = 1;', ctx); html = ctx.PG.metricas();
 ok('en "Hoy" no hay gráfico por día: dice los totales de hoy', !/id="met-c-redes"/.test(html) && /Hoy: 2 escribieron y a 1 les contestó una persona/.test(html));

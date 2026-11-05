@@ -94,17 +94,20 @@ function _metBarras(id, d, rgb, uni, grosor){
       scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
         y: { beginAtZero: true, grid: { color: 'rgba(' + rgb + ',0.07)' }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxTicksLimit: 5, precision: 0 } } } } });
 }
-// Dos series juntas (escribieron / les contestó una persona), con los colores del Dashboard
+// Escribieron vs. les contestó una persona (5-nov-2026, Adam: "este chart lo tienes que mejorar"): barras anchas y
+// superpuestas, la azul es cuánta gente escribió y encima, en verde, la parte a la que le contestó una persona
+// (es una parte de la misma barra, no otra barra al lado). Con 7 días las barras son gruesas; con 30, más finas.
 function _metBarrasDobles(id, d){
-  var T = _metTema();
+  var T = _metTema(), n = d.etq.length, ancho = n <= 7 ? 54 : n <= 14 ? 34 : 18;
+  var pctDe = function(i){ var e = d.escribieron[i] || 0; return e ? Math.round((d.atendidas[i] || 0) / e * 100) : 0; };
   _metChart(id, { type: 'bar', data: { labels: d.etq, datasets: [
-      { label: 'Escribieron', data: d.escribieron, backgroundColor: 'rgba(37,99,235,0.85)', borderWidth: 0, borderRadius: 5, borderSkipped: false, maxBarThickness: MET_BARRA_PX },
-      { label: 'Les contestó una persona', data: d.atendidas, backgroundColor: 'rgba(0,184,118,0.85)', borderWidth: 0, borderRadius: 5, borderSkipped: false, maxBarThickness: MET_BARRA_PX } ] },
+      { label: 'Escribieron', data: d.escribieron, backgroundColor: 'rgba(37,99,235,0.22)', borderColor: 'rgba(37,99,235,0.55)', borderWidth: 1, borderRadius: 7, borderSkipped: false, grouped: false, barPercentage: 0.8, categoryPercentage: 0.9, maxBarThickness: ancho, order: 2 },
+      { label: 'Les contestó una persona', data: d.atendidas, backgroundColor: 'rgba(0,184,118,0.95)', borderWidth: 0, borderRadius: 7, borderSkipped: false, grouped: false, barPercentage: 0.8, categoryPercentage: 0.9, maxBarThickness: ancho, order: 1 } ] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: true, position: 'bottom', labels: { color: T.ink3, boxWidth: 10, font: { size: 10 } } }, tooltip: { backgroundColor: T.tipBg, borderColor: 'rgba(37,99,235,0.25)', borderWidth: 1, titleColor: T.tipTit, bodyColor: T.tipTxt, padding: 10,
-        callbacks: { title: function(it){ return d.tit[it[0].dataIndex]; }, label: function(ctx){ return ' ' + ctx.dataset.label + ': ' + (ctx.raw || 0).toLocaleString('es-VE'); } } } },
-      scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
-        y: { beginAtZero: true, grid: { color: 'rgba(37,99,235,0.07)' }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxTicksLimit: 5, precision: 0 } } } } });
+      plugins: { legend: { display: true, position: 'bottom', labels: { color: T.ink3, boxWidth: 10, boxHeight: 10, borderRadius: 3, useBorderRadius: true, font: { size: 11 } } }, tooltip: { backgroundColor: T.tipBg, borderColor: 'rgba(37,99,235,0.25)', borderWidth: 1, titleColor: T.tipTit, bodyColor: T.tipTxt, padding: 10,
+        callbacks: { title: function(it){ return d.tit[it[0].dataIndex]; }, label: function(ctx){ var i = ctx.dataIndex; return ctx.datasetIndex === 0 ? ' Escribieron ' + (ctx.raw || 0).toLocaleString('es-VE') : ' Les contestó una persona: ' + (ctx.raw || 0).toLocaleString('es-VE') + ' (' + pctDe(i) + '%)'; } } } },
+      scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: T.ink3, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+        y: { beginAtZero: true, grid: { color: 'rgba(37,99,235,0.07)' }, border: { display: false }, ticks: { color: T.ink3, font: { size: 10 }, maxTicksLimit: 5, precision: 0 } } } } });
 }
 function _metDona(id, partes){
   var T = _metTema();
@@ -307,7 +310,7 @@ PG.metricas = function(){
       '<div class="kx-big" style="color:var(--p1)">' + N(R.escribieron) + '</div><div class="kx-sub">personas nuevas por Instagram y el WhatsApp de ventas</div><div class="kx-pie kx-prom"><div class="kx-r"><span>Quieren comprar (dejaron sus datos)</span><b>' + N(R.quieren) + ' · ' + pct(R.quieren, R.escribieron) + '</b></div><div class="kx-r"><span>Las atendió solo Paola</span><b>' + N(R.sinVendedor) + '</b></div></div>');
     var kAt = card('personas', 'var(--green)', 'rgba(0,168,112,.12)', 'Les contestó una persona', '<span class="kx-chip" style="background:rgba(0,168,112,.12);color:var(--green)">' + pct(R.atendidas, R.escribieron) + '</span>',
       '<div class="kx-big" style="color:var(--green)">' + N(R.atendidas) + '</div><div class="kx-sub">de las ' + N(R.escribieron) + ' que escribieron; a las demás solo les respondió Paola</div><div class="kx-pie"><div class="kx-t"><i style="width:' + Math.max(1, Math.min(100, pc(R.atendidas, R.escribieron))) + '%;background:var(--green)"></i></div></div>');
-    var kGraf = '<div class="card"><div class="dash-head"><div class="dash-ch"><div class="ct" style="color:var(--p1)">Escriben vs. les contestan</div></div><div class="cs dash-cs">Por día: cuánta gente escribió y a cuántas les contestó una persona del equipo (no Paola)</div></div>'
+    var kGraf = '<div class="card"><div class="dash-head"><div class="dash-ch"><div class="ct" style="color:var(--p1)">Escriben vs. les contestan</div></div><div class="dash-big" style="color:var(--green)">' + pct(R.atendidas, R.escribieron) + '</div><div class="cs dash-cs">de los ' + N(R.escribieron) + ' que escribieron en el período les contestó una persona del equipo (no Paola). La barra azul es cuánta gente escribió cada día; la verde, la parte a la que le contestaron.</div></div>'
       + (D.redes ? '<div style="position:relative;height:210px;min-height:210px"><canvas id="met-c-redes" role="img" aria-label="Escribieron y les contestó una persona, por día"></canvas></div>' : '<div style="margin-top:12px;color:var(--ink3);font-size:12.5px">Hoy: ' + N(R.escribieron) + ' escribieron y a ' + N(R.atendidas) + ' les contestó una persona.</div>') + '</div>';
     var kResp = card('personas', 'var(--green)', 'rgba(0,168,112,.12)', 'Vendedores que más responden', '<span class="kx-chip" style="background:rgba(0,168,112,.12);color:var(--green)">' + periodo + '</span>',
       '<div style="margin-top:12px">' + tRed(['Vendedor', 'Conversaciones', 'Contestó', 'Tardó', 'Quieren'], R.responden.slice(0, 8).map(function(v, i){ return [(i === 0 ? '<span class="kx-bd kx-bd-g">1</span> ' : '') + E(v.nombre), N(v.conversaciones), N(v.atendidas) + ' <small>' + pct(v.atendidas, v.conversaciones) + '</small>', tm(v.minutos), N(v.quieren)]; })) + '</div><div class="kx-pie" style="font-size:11.5px;color:var(--ink3);line-height:1.5">Conversaciones asignadas a cada vendedor en el período. "Tardó": lo que tardó en escribirle a quien esperaba una persona (la mitad de las veces fue más rápido).</div>');
