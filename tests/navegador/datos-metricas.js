@@ -27,9 +27,21 @@
         disp: azar() < 0.86 ? 'telefono' : (azar() < 0.9 ? 'computadora' : 'tablet'), entrada: azar() < 0.7 ? 'index' : (azar() < 0.6 ? 'simulador' : 'catalogo'), ev: ev, n: ev.length, v: 1 };
     }
   }
+  // Conversaciones de ventas (Instagram y WhatsApp) y créditos por vendedor, inventados, para la sección de Instagram y vendedores (5-nov-2026)
+  function fechaVE(n){ var d = new Date(Date.now() - n * 86400000); return d.toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }); }
+  var VEND = ['Marianne Molina', 'MICHELLE DE LEON', 'Liz Alejandra', 'Debora Angulo', 'Oliver Torres'], conversaciones = {}, creditos = {}, segDias = {};
+  for(var dd = 29; dd >= 0; dd--){ var f = fechaVE(dd); segDias[f] = 731 - dd * 2; var nC = 3 + Math.floor(azar() * 9);
+    for(var k = 0; k < nC; k++){ var ig = azar() < 0.8, v = azar() < 0.45 ? VEND[Math.floor(azar() * VEND.length)] : '', id = (ig ? 'ig:' : 'wav:+58414') + dd + '' + k + '000';
+      var hora = new Date(f + 'T' + String(8 + Math.floor(azar() * 11)).padStart(2, '0') + ':15:00-04:00').toISOString();
+      conversaciones[id] = { canal: ig ? 'instagram' : 'whatsapp', area: 'ventas', nombre: 'Persona ' + dd + k, usuario: ig ? 'persona' + dd + k : '', telE164: ig ? '' : '+58414' + dd + k + '000', creado: hora, ultimoMensajeHora: hora, ultimoEntranteHora: hora, modo: v ? 'humano' : 'bot', atendidoPor: v, vendedor: v, ultimoAutor: v ? 'equipo' : 'asistente', noLeidos: 0,
+        borrador: azar() < 0.3 ? { tipo: 'lead', nombre: 'Persona ' + dd + k, modelo: 'Owen 200S' } : null, ultimaRespuesta: v ? { desde: hora, hasta: new Date(new Date(hora).getTime() + Math.floor(azar() * 90) * 60000).toISOString() } : null, actualizado: hora };
+    }
+    for(var q = 0; q < Math.floor(azar() * 4); q++){ var vv = VEND[Math.floor(azar() * VEND.length)]; creditos['CRED-' + dd + q] = { id: 'CRED-' + dd + q, cli: 'CLIENTE ' + dd + q, fecha: f, estado: 'activo', vendedorNombre: vv, creadoPor: vv, fin: 800 + Math.floor(azar() * 900), precio: 1500, modelo: 'Owen 200S' }; }
+  }
   var PERMISOS = ['dash','clientes','motos','creditos','pagos','cobranza','contratos','notif','reportes','cuentas','config','users','catalogo','metricas','perm_delete'];
   window.__DATOS_PRUEBA = { usuarioActual: { uid: 'u-prueba', email: 'adam@pagasi.io', displayName: 'adam' }, colecciones: {
     usuarios: { 'u-prueba': { nombre: 'ADAM', email: 'adam@pagasi.io', rol: 'Administrador', permisos: PERMISOS, concesionarios: [] } },
-    metricas: metricas, clientes: {}, creditos: {}, pagos: {}, motos: {}, concesionarios: {}, egresos: {}, movimientos: {}, cuentasPendientes: {}, tareas: {}, recursos: {}, gps: {}
+    metricas: metricas, clientes: {}, creditos: creditos, pagos: {}, motos: {}, concesionarios: {}, egresos: {}, movimientos: {}, cuentasPendientes: {}, tareas: {}, recursos: {}, gps: {},
+    conversaciones: conversaciones, config: { asistente: { conectado: true, telefono: '+58 414-640-1617', instagram: 'pagasi.io' }, redesMetricas: { actualizado: new Date().toISOString(), seguidoresDias: segDias, instagram: { usuario: 'pagasi.io', seguidores: 731, publicaciones: 14, posts: [] } } }
   } };
 })();

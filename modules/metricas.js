@@ -90,6 +90,18 @@ function _metBarras(id, d, rgb, uni, grosor){
       scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
         y: { beginAtZero: true, grid: { color: 'rgba(' + rgb + ',0.07)' }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxTicksLimit: 5, precision: 0 } } } } });
 }
+// Dos series juntas (escribieron / les contestó una persona), con los colores del Dashboard
+function _metBarrasDobles(id, d){
+  var T = _metTema();
+  _metChart(id, { type: 'bar', data: { labels: d.etq, datasets: [
+      { label: 'Escribieron', data: d.escribieron, backgroundColor: 'rgba(37,99,235,0.85)', borderWidth: 0, borderRadius: 5, borderSkipped: false, maxBarThickness: MET_BARRA_PX },
+      { label: 'Les contestó una persona', data: d.atendidas, backgroundColor: 'rgba(0,184,118,0.85)', borderWidth: 0, borderRadius: 5, borderSkipped: false, maxBarThickness: MET_BARRA_PX } ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: true, position: 'bottom', labels: { color: T.ink3, boxWidth: 10, font: { size: 10 } } }, tooltip: { backgroundColor: T.tipBg, borderColor: 'rgba(37,99,235,0.25)', borderWidth: 1, titleColor: T.tipTit, bodyColor: T.tipTxt, padding: 10,
+        callbacks: { title: function(it){ return d.tit[it[0].dataIndex]; }, label: function(ctx){ return ' ' + ctx.dataset.label + ': ' + (ctx.raw || 0).toLocaleString('es-VE'); } } } },
+      scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+        y: { beginAtZero: true, grid: { color: 'rgba(37,99,235,0.07)' }, border: { display: false }, ticks: { color: T.ink3, font: { size: 9 }, maxTicksLimit: 5, precision: 0 } } } } });
+}
 function _metDona(id, partes){
   var T = _metTema();
   _metChart(id, { type: 'doughnut', data: { labels: partes.map(function(p){ return p.nombre; }), datasets: [{ data: partes.map(function(p){ return p.v; }), backgroundColor: partes.map(function(p){ return p.col; }), borderColor: T.surf, borderWidth: 2, hoverOffset: 4 }] },
@@ -115,6 +127,7 @@ function _metDibujar(){
   _MET_SERIES.forEach(function(s){ _metDibujarSerie(s.id); });
   Object.keys(D.donas).forEach(function(k){ _metDona('met-d-' + k, D.donas[k]); });
   if(D.semana) _metBarras('met-c-semana', D.semana, _metTema().dark ? '157,123,250' : '139,92,246', 'visitas');
+  if(D.redes) _metBarrasDobles('met-c-redes', D.redes);
   _met._sinAnim = false;
 }
 
@@ -267,6 +280,39 @@ PG.metricas = function(){
     + '<div class="kx-pie" style="font-size:11.5px;color:var(--ink3);line-height:1.55">Para saber qué publicación o anuncio trae gente, compártelo con un enlace marcado, por ejemplo <b style="color:var(--ink2);word-break:break-all">pagasi.io/?utm_campaign=veloz</b>. Aquí sale "veloz" con sus visitas y el % que escribe.</div>');
   var fila5 = '<div class="' + (esHoy ? 'met-g2' : 'met-g3') + '">' + kMotos + kSemana + kCamp + '</div>';
 
+  // ── Fila 6: Instagram, el WhatsApp de ventas y los vendedores (5-nov-2026, Adam: "en métricas web no veo nada de
+  // instagram… una chart de cuánta gente escribe vs cuánta gente responde… los vendedores que más responden…
+  // los que más venden"). Los datos los trae metCargarRedes (logic/metricas.js); aquí solo se pintan.
+  var filaRedes = '', RD = _met.redes, R = null;
+  var tRed = function(cab, filas){ return '<div class="met-tw"><table><thead><tr>' + cab.map(function(c, i){ return '<th' + (i ? ' class="n"' : '') + '>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' + (filas.length ? filas.map(function(f){ return '<tr>' + f.map(function(x, i){ return '<td' + (i ? ' class="n"' : '') + '>' + x + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="' + cab.length + '" style="color:var(--ink3)">Nada en este período.</td></tr>') + '</tbody></table></div>'; };
+  var tituloRedes = '<h3 style="font-size:15px;font-weight:800;margin:4px 0 12px">Instagram, WhatsApp de ventas y vendedores</h3>';
+  if(!RD){
+    if(!_met.redesCargando && typeof metCargarRedes === 'function') metCargarRedes().then(function(x){ if(x && S.page === 'metricas' && typeof nav === 'function') nav('metricas'); });
+    filaRedes = tituloRedes + '<div class="card" style="padding:18px;color:var(--ink3);font-size:13px;margin-bottom:18px">Cargando Instagram y las conversaciones…</div>';
+  } else if(!RD.conectado){
+    filaRedes = tituloRedes + '<div class="met-g2">' + card('campana', '#E08E00', 'rgba(245,166,35,.15)', 'Instagram y conversaciones', '', '<div style="margin-top:12px;font-size:12.5px;color:var(--ink3);line-height:1.55">Instagram y el WhatsApp de ventas están conectados en <b>pagasi.io</b>: ahí se ven los seguidores, cuánta gente escribe, a cuántos les contesta una persona y los vendedores que más responden y más venden.</div>') + '</div>';
+  } else if(RD.sinPermiso){
+    filaRedes = tituloRedes + '<div class="met-g2">' + card('campana', '#E08E00', 'rgba(245,166,35,.15)', 'Instagram y conversaciones', '', '<div style="margin-top:12px;font-size:12.5px;color:var(--ink3);line-height:1.55">Para ver las conversaciones hace falta el permiso <b>Redes Ventas</b>.</div>') + '</div>';
+  } else {
+    R = metRedesResumen(RD, P.desde, P.hasta, (typeof S !== 'undefined' && S.creds) || []);
+    var tm = function(m){ return m == null ? '—' : m < 60 ? Math.round(m) + ' min' : (m / 60).toLocaleString('es-VE', { maximumFractionDigits: 1 }) + ' h'; };
+    D.redes = esHoy ? null : { etq: dias.map(fc), tit: dias.map(function(f){ return MET_DIAS[new Date(f + 'T12:00:00').getDay()] + ' ' + fc(f); }), escribieron: dias.map(function(f){ return (R.porDia[f] || {}).escribieron || 0; }), atendidas: dias.map(function(f){ return (R.porDia[f] || {}).atendidas || 0; }) };
+    var kIg = card('campana', '#c13584', 'rgba(193,53,132,.12)', 'Instagram', R.ig && R.ig.crecimiento != null ? '<span class="kx-chip" style="background:rgba(193,53,132,.12);color:#c13584">' + (R.ig.crecimiento >= 0 ? '+' : '') + N(R.ig.crecimiento) + ' seguidores</span>' : '',
+      R.ig ? '<div class="kx-big" style="color:#c13584">' + N(R.ig.seguidores) + '</div><div class="kx-sub">seguidores · ' + N(R.ig.publicaciones) + ' publicaciones</div><div class="kx-pie kx-prom"><div class="kx-r"><span>Escribieron por Instagram</span><b>' + N(R.instagram) + '</b></div><div class="kx-r"><span>Por el WhatsApp de ventas</span><b>' + N(R.whatsapp) + '</b></div></div>'
+        : '<div style="margin-top:12px;color:var(--ink3);font-size:12.5px;line-height:1.5">El servidor todavía no guardó los seguidores (lo hace cada 2 horas).</div>');
+    var kEsc = card('whatsapp', 'var(--p1)', 'rgba(37,99,235,.12)', 'Escribieron', '<span class="kx-chip" style="background:rgba(37,99,235,.12);color:var(--p1)">' + periodo + '</span>',
+      '<div class="kx-big" style="color:var(--p1)">' + N(R.escribieron) + '</div><div class="kx-sub">personas nuevas por Instagram y el WhatsApp de ventas</div><div class="kx-pie kx-prom"><div class="kx-r"><span>Quieren comprar (dejaron sus datos)</span><b>' + N(R.quieren) + ' · ' + pct(R.quieren, R.escribieron) + '</b></div><div class="kx-r"><span>Las atendió solo Paola</span><b>' + N(R.sinVendedor) + '</b></div></div>');
+    var kAt = card('personas', 'var(--green)', 'rgba(0,168,112,.12)', 'Les contestó una persona', '<span class="kx-chip" style="background:rgba(0,168,112,.12);color:var(--green)">' + pct(R.atendidas, R.escribieron) + '</span>',
+      '<div class="kx-big" style="color:var(--green)">' + N(R.atendidas) + '</div><div class="kx-sub">de las ' + N(R.escribieron) + ' que escribieron; a las demás solo les respondió Paola</div><div class="kx-pie"><div class="kx-t"><i style="width:' + Math.max(1, Math.min(100, pc(R.atendidas, R.escribieron))) + '%;background:var(--green)"></i></div></div>');
+    var kGraf = '<div class="card"><div class="dash-head"><div class="dash-ch"><div class="ct" style="color:var(--p1)">Escriben vs. les contestan</div></div><div class="cs dash-cs">Por día: cuánta gente escribió y a cuántas les contestó una persona del equipo (no Paola)</div></div>'
+      + (D.redes ? '<div style="position:relative;height:210px;min-height:210px"><canvas id="met-c-redes" role="img" aria-label="Escribieron y les contestó una persona, por día"></canvas></div>' : '<div style="margin-top:12px;color:var(--ink3);font-size:12.5px">Hoy: ' + N(R.escribieron) + ' escribieron y a ' + N(R.atendidas) + ' les contestó una persona.</div>') + '</div>';
+    var kResp = card('personas', 'var(--green)', 'rgba(0,168,112,.12)', 'Vendedores que más responden', '<span class="kx-chip" style="background:rgba(0,168,112,.12);color:var(--green)">' + periodo + '</span>',
+      '<div style="margin-top:12px">' + tRed(['Vendedor', 'Conversaciones', 'Contestó', 'Tardó', 'Quieren'], R.responden.slice(0, 8).map(function(v, i){ return [(i === 0 ? '<span class="kx-bd kx-bd-g">1</span> ' : '') + E(v.nombre), N(v.conversaciones), N(v.atendidas) + ' <small>' + pct(v.atendidas, v.conversaciones) + '</small>', tm(v.minutos), N(v.quieren)]; })) + '</div><div class="kx-pie" style="font-size:11.5px;color:var(--ink3);line-height:1.5">Conversaciones asignadas a cada vendedor en el período. "Tardó": lo que tardó en escribirle a quien esperaba una persona (la mitad de las veces fue más rápido).</div>');
+    var kVend = card('moto', 'var(--p1)', 'rgba(37,99,235,.12)', 'Vendedores que más venden', '<span class="kx-chip" style="background:rgba(37,99,235,.12);color:var(--p1)">' + periodo + '</span>',
+      '<div style="margin-top:12px">' + tRed(['Vendedor', 'Motos', 'Financiado', 'Total'], R.venden.slice(0, 8).map(function(v, i){ return [(i === 0 && v.periodo ? '<span class="kx-bd kx-bd-g">1</span> ' : '') + E(v.nombre), N(v.periodo), '$' + N(Math.round(v.financiado)), N(v.total)]; })) + '</div><div class="kx-pie" style="font-size:11.5px;color:var(--ink3);line-height:1.5">Créditos creados en el período por cada vendedor, sin cancelados. "Total": todos los suyos desde el principio.</div>');
+    filaRedes = tituloRedes + '<div class="met-g3">' + kIg + kEsc + kAt + '</div><div class="met-g2" style="grid-template-columns:1fr">' + kGraf + '</div><div class="met-g2">' + kResp + kVend + '</div>';
+  }
+
   // ── Abajo: todos los números en tablas (Excel/PDF) ──
   var tabla = function(cab, filas){ return '<div class="met-tw"><table><thead><tr>' + cab.map(function(c, i){ return '<th' + (i ? ' class="n"' : '') + '>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' + filas.map(function(f){ return '<tr>' + f.map(function(c, i){ return '<td' + (i ? ' class="n"' : '') + '>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>'; };
   var grupoFilas = function(tipo, nombre){ var o = r.grupos[tipo]; return Object.keys(o).sort(function(a, b){ return o[b].visitas - o[a].visitas; }).map(function(k){ var g = o[k]; return [E(nombre(k)), N(g.visitas), N(g.personas), N(g.whatsapp), N(g.solEnviada), pct(g.contactos, g.visitas)]; }); };
@@ -280,6 +326,7 @@ PG.metricas = function(){
     + '<h4>Teléfono o computadora</h4>' + tabla(cabG('Dispositivo'), grupoFilas('disp', function(k){ return MET_DISP[k] || k; }))
     + '<h4>Por dónde entran</h4>' + tabla(cabG('Página'), grupoFilas('entrada', function(k){ return MET_PAGINAS[k] || k; }))
     + (camps.length ? '<h4>Campañas y enlaces</h4>' + tabla(cabG('Campaña'), grupoFilas('campana', nomCamp)) : '')
+    + (R ? '<h4>Vendedores que más responden</h4>' + tabla(['Vendedor', 'Conversaciones', 'Contestó', 'Quieren comprar'], R.responden.map(function(v){ return [E(v.nombre), N(v.conversaciones), N(v.atendidas), N(v.quieren)]; })) + '<h4>Vendedores que más venden</h4>' + tabla(['Vendedor', 'Motos del período', 'Financiado', 'Total'], R.venden.map(function(v){ return [E(v.nombre), N(v.periodo), N(Math.round(v.financiado)), N(v.total)]; })) : '')
     + '<h4>Motos</h4>' + tabla(['Moto', 'La abrieron', 'Simularon', '"La quiero"', 'WhatsApp'], motos.map(function(m){ var x = m[1]; return [E(metNombreMoto(m[0])), N(x.vistas), N(x.simulo), N(x.quiero), N(x.whatsapp)]; }))
     + '</details>';
   // Para el Excel: los números de arriba en una tabla (no se ve en pantalla)
@@ -291,7 +338,7 @@ PG.metricas = function(){
   window._metDatos = D;
   _met._sinAnim = !!window._rtRenderizando;   // en los redibujos por tiempo real, sin animación (como el Dashboard)
   if(typeof setTimeout === 'function') setTimeout(_metDibujar, 30);
-  return '<div class="page">' + cabeza + '<div id="met-cont" data-titulo-base="Métricas">' + exportar + tablaResumen + fila1 + aviso + graficos + fila3 + fila4 + fila5 + tablas
+  return '<div class="page">' + cabeza + '<div id="met-cont" data-titulo-base="Métricas">' + exportar + tablaResumen + fila1 + aviso + graficos + fila3 + fila4 + fila5 + filaRedes + tablas
     + '<div style="font-size:11px;color:var(--ink3);line-height:1.55">Una visita es un rato seguido en la página (30 minutos sin moverse empieza otra). "Personas" cuenta navegadores distintos: la misma persona en el teléfono y en la computadora cuenta dos veces. "Escribe" es el % de visitas que escribió por WhatsApp o pidió el crédito. No se guarda ningún dato personal.</div>'
     + '</div></div>';
 };

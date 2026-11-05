@@ -8,7 +8,7 @@
 // anterior, lo que convierte cada fuente, moto, teléfono y página, tiempo en la página, los que
 // se van sin hacer nada, los que vuelven otro día y un resumen con lo más importante.
 
-var _met = { rango: 7, serie: 'personas', cargando: false, docs: null, desde: '', error: '', cargadoEn: 0 };
+var _met = { rango: 7, serie: 'personas', cargando: false, docs: null, desde: '', error: '', cargadoEn: 0, redes: null, redesCargando: false };
 var MET_INICIO = '2026-10-14';   // se publicaron las métricas: antes no hay con qué comparar
 
 function _metHoyVE(){
@@ -34,6 +34,7 @@ function metPeriodos(rango, hoyISO, horaAhora){
 // Se trae el doble del período para poder comparar con el anterior
 function metCargar(rango, forzar){
   rango = rango || _met.rango;
+  if(forzar) _met.redes = null;   // el botón ↻ también vuelve a traer Instagram y las conversaciones
   var desde = metDesde(rango * 2);
   if(_met.cargando) return Promise.resolve(_met);
   if(!forzar && _met.docs && _met.desde <= desde && (Date.now() - _met.cargadoEn) < 5 * 60 * 1000){ _met.rango = rango; return Promise.resolve(_met); }
@@ -195,4 +196,72 @@ function metIdeas(r){
     ideas.push('La moto más vista: <b>' + metNombreMoto(motos[0][0]) + '</b> (' + motos[0][1].vistas + ' visitas). La hora con más visitas: <b>' + _metHoraTexto(hp) + '</b>.');
   }
   return ideas.slice(0, 4);
+}
+
+// ── Instagram, el WhatsApp de ventas y los vendedores (5-nov-2026) ──
+// Adam: "en métricas web no veo nada de instagram… pon una chart de cuánta gente escribe vs cuánta gente
+// responde, quiénes son los vendedores que más responden, quiénes son los que más venden". Lo de Instagram
+// y las conversaciones vive en la compañía conectada a Meta (pagasi.io): seguidores y publicaciones en
+// config/redesMetricas (las guarda el servidor cada 2 horas) y las conversaciones de ventas (Instagram y
+// el WhatsApp de ventas, que es lo que dejan leer las Reglas). Las ventas por vendedor salen de los créditos.
+function _metDiaVE(iso){
+  if(!iso) return '';
+  try{ return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }); }catch(e){ return String(iso).slice(0, 10); }
+}
+function metCargarRedes(forzar){
+  if(typeof db === 'undefined' || !db) return Promise.resolve(null);
+  if(!forzar && _met.redes && (Date.now() - _met.redes.cargadoEn) < 5 * 60 * 1000) return Promise.resolve(_met.redes);
+  if(_met.redesCargando) return Promise.resolve(null);
+  _met.redesCargando = true;
+  var lee = function(q){ return q.get().then(function(s){ return s.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); }); }).catch(function(){ return null; }); };
+  var convs = db.collection('conversaciones');
+  var cfg = typeof waCargarCfg === 'function' ? new Promise(function(res){ waCargarCfg(res); }) : Promise.resolve(null);
+  return Promise.all([
+    db.collection('config').doc('redesMetricas').get().then(function(d){ return d.exists ? d.data() : null; }).catch(function(){ return null; }),
+    lee(convs.where('canal', '==', 'instagram').orderBy('actualizado', 'desc').limit(1000)),
+    lee(convs.where('canal', '==', 'whatsapp').where('area', '==', 'ventas').orderBy('actualizado', 'desc').limit(1000)),
+    cfg
+  ]).then(function(r){
+    _met.redesCargando = false;
+    var todas = (r[1] || []).concat(r[2] || []);
+    _met.redes = { cargadoEn: Date.now(), ig: r[0], convs: todas, sinPermiso: r[1] === null && r[2] === null, conectado: r[3] ? !!(r[3].conectado || r[3].instagram) : todas.length > 0 };
+    return _met.redes;
+  }).catch(function(){ _met.redesCargando = false; return null; });
+}
+// El resumen del período: cuánta gente escribió, a cuántos les contestó una persona (no Paola), por día,
+// por vendedor, y las ventas de cada vendedor (créditos de la compañía)
+function metRedesResumen(redes, desde, hasta, creds){
+  var atendida = function(c){ return !!(c.ultimaRespuesta || c.ultimoAutor === 'equipo' || c.modo === 'humano' || (c.vendedor && String(c.vendedor).trim())); };
+  var lead = function(c){ return !!(c.borrador && c.borrador.tipo === 'lead'); };
+  var vendedorDe = function(c){ if(c.vendedor != null && String(c.vendedor).trim()) return String(c.vendedor).trim(); return c.modo === 'humano' ? String(c.atendidoPor || '').trim() : ''; };
+  var todas = (redes && redes.convs) || [];
+  var convs = todas.filter(function(c){ var f = _metDiaVE(c.creado || c.ultimoMensajeHora); return f >= desde && f <= hasta; });
+  var porDia = {}, vend = {};
+  convs.forEach(function(c){
+    var f = _metDiaVE(c.creado || c.ultimoMensajeHora), d = porDia[f] = porDia[f] || { escribieron: 0, atendidas: 0 };
+    d.escribieron++; if(atendida(c)) d.atendidas++;
+    var v = vendedorDe(c); if(!v) return;
+    var r = vend[v] = vend[v] || { nombre: v, conversaciones: 0, atendidas: 0, quieren: 0, tiempos: [] };
+    r.conversaciones++; if(atendida(c)) r.atendidas++; if(lead(c)) r.quieren++;
+    if(c.ultimaRespuesta && c.ultimaRespuesta.desde && c.ultimaRespuesta.hasta){ var m = (new Date(c.ultimaRespuesta.hasta) - new Date(c.ultimaRespuesta.desde)) / 60000; if(m >= 0) r.tiempos.push(m); }
+  });
+  var mediana = function(a){ if(!a.length) return null; var s = a.slice().sort(function(x, y){ return x - y; }), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  var responden = Object.keys(vend).map(function(k){ var r = vend[k]; return { nombre: r.nombre, conversaciones: r.conversaciones, atendidas: r.atendidas, quieren: r.quieren, minutos: mediana(r.tiempos) }; })
+    .sort(function(a, b){ return b.atendidas - a.atendidas || b.conversaciones - a.conversaciones || a.nombre.localeCompare(b.nombre); });
+  var ventas = {};
+  (creds || []).forEach(function(c){
+    if(!c || c.eliminado || c.estado === 'cancelado' || c.estado === 'pendiente_revision') return;
+    var v = String(c.vendedorNombre || c.creadoPor || '').trim(); if(!v) return;
+    var f = String(c.fecha || '').slice(0, 10), r = ventas[v] = ventas[v] || { nombre: v, periodo: 0, financiado: 0, total: 0 };
+    r.total++; if(f >= desde && f <= hasta){ r.periodo++; r.financiado += parseFloat(c.fin) || 0; }
+  });
+  var venden = Object.keys(ventas).map(function(k){ return ventas[k]; }).sort(function(a, b){ return b.periodo - a.periodo || b.total - a.total || a.nombre.localeCompare(b.nombre); });
+  var ig = redes && redes.ig && redes.ig.instagram ? redes.ig.instagram : null, sd = (redes && redes.ig && redes.ig.seguidoresDias) || {};
+  var fechas = Object.keys(sd).sort(), base = fechas.filter(function(f){ return f <= desde; }).pop() || fechas[0];
+  return {
+    escribieron: convs.length, instagram: convs.filter(function(c){ return c.canal === 'instagram'; }).length, whatsapp: convs.filter(function(c){ return c.canal !== 'instagram'; }).length,
+    atendidas: convs.filter(atendida).length, quieren: convs.filter(lead).length, sinVendedor: convs.filter(function(c){ return !vendedorDe(c); }).length,
+    porDia: porDia, responden: responden, venden: venden,
+    ig: ig ? { seguidores: ig.seguidores || 0, publicaciones: ig.publicaciones || (ig.posts || []).length, crecimiento: (base && sd[base] != null && ig.seguidores != null) ? ig.seguidores - sd[base] : null, desdeCuando: base || '', actualizado: redes.ig.actualizado || '' } : null
+  };
 }
