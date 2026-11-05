@@ -46,18 +46,20 @@ ok('sin conversaciones ni créditos no revienta', (() => { const z = ctx.metRede
 const docs = [{ vid: 'v1', fecha: '2026-11-05', hora: 10, fuente: 'ig', disp: 'telefono', entrada: 'index', inicio: 1000, ev: [{ t: 'vista', p: 'index', ts: 1000 }] }];
 vm.runInContext('_met.docs = ' + JSON.stringify(docs) + '; _met.rango = 7; _met.redes = null;', ctx);
 ctx.db = { collection(){ return { doc(){ return { get: () => Promise.resolve({ exists: false }) }; }, where(){ return this; }, orderBy(){ return this; }, limit(){ return this; }, get: () => Promise.resolve({ docs: [] }) }; } };
+ctx.metTab('redes');
 let html = ctx.PG.metricas();
 ok('mientras carga, la sección dice que está cargando y pide los datos una sola vez', /Cargando Instagram y las conversaciones/.test(html) && vm.runInContext('_met.redesCargando', ctx) === true);
 vm.runInContext('_met.redes = ' + JSON.stringify(redes) + '; _met.redesCargando = false;', ctx);
 ctx.S.creds = creds;
 html = ctx.PG.metricas();
-ok('la sección nueva: Instagram con seguidores y crecimiento', /Instagram, WhatsApp de ventas y vendedores/.test(html) && /731<\/div><div class="kx-sub">seguidores · 14 publicaciones/.test(html) && /\+21 seguidores/.test(html));
+ok('la pestaña Instagram y chats: seguidores y crecimiento', /class="met-sec">Instagram y el WhatsApp de ventas/.test(html) && /731<\/div><div class="kx-sub">seguidores · 14 publicaciones/.test(html) && /\+21 seguidores/.test(html));
 ok('escribieron y a cuántos les contestó una persona, con el %', /<div class="kx-big" style="color:var\(--p1\)">5<\/div>/.test(html) && /<div class="kx-big" style="color:var\(--green\)">3<\/div>/.test(html) && /color:var\(--green\)">60%<\/span>/.test(html));
 ok('el gráfico de escriben vs. les contestan', /id="met-c-redes"/.test(html) && /Escriben vs\. les contestan/.test(html));
-ok('la tabla de los vendedores que más responden, Liz de primera con su tiempo', /Vendedores que más responden/.test(html) && /kx-bd-g">1<\/span> Liz Alejandra<\/td><td class="n">2<\/td><td class="n">2 <small>100%<\/small><\/td><td class="n">1,5 h<\/td><td class="n">2<\/td>/.test(html));
+ctx.metTab('vendedores'); html = ctx.PG.metricas();
+ok('la pestaña Vendedores: los que más responden, Liz de primera con su tiempo', /Vendedores que más responden/.test(html) && /kx-bd-g">1<\/span> Liz Alejandra<\/td><td class="n">2<\/td><td class="n">2 <small>100%<\/small><\/td><td class="n">1,5 h<\/td><td class="n">2<\/td>/.test(html));
 ok('la tabla de los que más venden, Debora de primera', /Vendedores que más venden/.test(html) && /kx-bd-g">1<\/span> Debora Angulo<\/td><td class="n">2<\/td><td class="n">\$2\.000<\/td><td class="n">2<\/td>/.test(html));
-ok('...y las dos tablas van también abajo, para el Excel', /<h4>Vendedores que más responden<\/h4>/.test(html) && /<h4>Vendedores que más venden<\/h4>/.test(html));
-graficos.length = 0; while (esperando.length) esperando.shift()();
+ok('...y las dos tablas van también en Tablas, para el Excel', (() => { ctx.metTab('tablas'); const ht = ctx.PG.metricas(); ctx.metTab('redes'); return /<h4>Vendedores que más responden<\/h4>/.test(ht) && /<h4>Vendedores que más venden<\/h4>/.test(ht); })());
+html = ctx.PG.metricas(); graficos.length = 0; while (esperando.length) esperando.shift()();
 const g = graficos.find(x => x.id === 'met-c-redes');
 ok('el gráfico se dibuja con dos series (escribieron / les contestó una persona) y una barra por día', !!g && g.cfg.data.datasets.length === 2 && g.cfg.data.datasets[0].label === 'Escribieron' && g.cfg.data.labels.length === 7 && g.cfg.data.datasets[0].data.join() === '0,0,0,1,0,2,2' && g.cfg.data.datasets[1].data.join() === '0,0,0,0,0,2,1');
 // Hoy: sin gráfico, solo los totales

@@ -147,14 +147,17 @@ const campo = (w, k) => { const f = w.update.fields[k]; return f && (f.stringVal
   ctx3._metHoyVE = () => '2026-10-22'; ctx3._metHoraVE = () => 22;
   vm.runInContext('_met.docs = ' + JSON.stringify(docs3.concat(muchas)) + '; _met.rango = 7;', ctx3);
   let h = ctx3.PG.metricas();
+  ok('la pantalla va por pestañas: Resumen, Página web, Instagram y chats, Vendedores y Tablas; arranca en Resumen', /class="met-tabs"/.test(h) && ['Resumen', 'Página web', 'Instagram y chats', 'Vendedores', 'Tablas'].every(x => h.indexOf('>' + x + '</button>') > -1) && /class="on" onclick="metTab\('resumen'\)"/.test(h));
   ok('arriba, las tarjetas del Dashboard: la azul con personas y visitas, WhatsApp, solicitudes, el anillo de los que se van y el tiempo',
     /class="kx-row"/.test(h) && /class="kx-hero met-k"[\s\S]*Personas que entraron/.test(h) && />WhatsApp<\/span>[\s\S]*class="kx-mes"/.test(h) && />Solicitudes<\/span>[\s\S]*Empezaron a llenarla/.test(h) && />Se fueron<\/span>[\s\S]*class="kx-ring"/.test(h) && /Tiempo en la web/.test(h));
-  ok('los 4 gráficos como los del Dashboard, con el selector Día / Hora (sin las pastillas de antes)',
+  ok('en Resumen: lo más importante y el embudo, sin los gráficos ni las tablas', /Lo más importante/.test(h) && /aquí se pierde más/.test(h) && !/id="met-c-personas"/.test(h) && !/Todos los números en tablas/.test(h) && /La comparación con los 7 días anteriores aparece/.test(h));
+  ctx3.metTab('web'); h = ctx3.PG.metricas();
+  ok('Página web: los 4 gráficos como los del Dashboard, con el selector Día / Hora (sin las pastillas de antes)',
     ['personas', 'visitas', 'whatsapp', 'solicitudes'].every(s => h.indexOf('id="met-c-' + s + '"') > -1 && h.indexOf('id="met-s-' + s + '-hora"') > -1) && /class="dash-seg"/.test(h) && !/met-chip/.test(h) && !/met-plot/.test(h));
   ok('redondos para de dónde vienen, teléfono o computadora y por dónde entran, con su leyenda y el % que escribe',
     ['fuente', 'disp', 'entrada'].every(k => h.indexOf('id="met-d-' + k + '"') > -1) && /De dónde vienen/.test(h) && /class="met-dona-t"><b>/.test(h) && /% escribe<\/span>/.test(h));
-  ok('lo más importante, el embudo con el paso donde se pierde gente, motos, días de la semana y campañas', /Lo más importante/.test(h) && /aquí se pierde más/.test(h) && /Motos más vistas/.test(h) && /id="met-c-semana"/.test(h) && /Campañas y enlaces/.test(h));
-  ok('...y abajo todos los números en tablas, con Excel/PDF; sin comparar antes del 14-oct', /Todos los números en tablas/.test(h) && (h.match(/<table>/g) || []).length >= 6 && /pgExportarTablas\('met-cont'/.test(h) && /La comparación con los 7 días anteriores aparece/.test(h));
+  ok('...motos más vistas, días de la semana y campañas, en secciones con título', /Motos más vistas/.test(h) && /id="met-c-semana"/.test(h) && /Campañas y enlaces/.test(h) && /class="met-sec">De dónde vienen y por dónde entran/.test(h));
+  ok('Tablas: todos los números en tablas, abiertas, con Excel/PDF', (() => { ctx3.metTab('tablas'); const ht = ctx3.PG.metricas(); ctx3.metTab('web'); return /<details open class="card met-tablas"/.test(ht) && (ht.match(/<table>/g) || []).length >= 6 && /pgExportarTablas\('met-cont'/.test(ht); })());
   esperando.splice(0).forEach(f => f());
   const g = id => graficos.filter(x => x.id === id).pop();
   ok('se dibujan 4 gráficos de barras, 3 redondos y el de días de la semana', ['met-c-personas', 'met-c-visitas', 'met-c-whatsapp', 'met-c-solicitudes', 'met-c-semana'].every(id => g(id) && g(id).cfg.type === 'bar') && ['met-d-fuente', 'met-d-disp', 'met-d-entrada'].every(id => g(id) && g(id).cfg.type === 'doughnut'));
@@ -166,7 +169,7 @@ const campo = (w, k) => { const f = w.update.fields[k]; return f && (f.stringVal
   ok('Día / Hora cambia solo ese gráfico, sin armar la página', graficos.length === 1 && g('met-c-whatsapp').cfg.data.labels.length === 24 && g('met-c-whatsapp').cfg.data.labels[20] === '8 pm');
   vm.runInContext('_met.rango = 1; _met.vistas = {}; _met.docs.push({ vid: "z1", fecha: "2026-10-21", hora: 9, fuente: "google", disp: "telefono", entrada: "index", ev: [] });', ctx3);
   h = ctx3.PG.metricas();
-  ok('hoy: hora por hora, comparado con ayer y sin selector', /Hoy, hora por hora/.test(h) && /vs ayer/.test(h) && !/met-s-personas-dia/.test(h) && !/id="met-c-semana"/.test(h));
+  ok('hoy: hora por hora y sin selector (Página web); comparado con ayer (Resumen)', /Hoy, hora por hora/.test(h) && !/met-s-personas-dia/.test(h) && !/id="met-c-semana"/.test(h) && (ctx3.metTab('resumen'), /vs ayer/.test(ctx3.PG.metricas())));
 
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FALLA ' + e.stack); process.exitCode = 1; });
