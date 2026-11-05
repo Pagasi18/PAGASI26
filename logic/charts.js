@@ -429,7 +429,7 @@ function _dashResumen(pre, valores, periodo, dinero){
   var tot = valores.reduce(function(a,b){ return a + (+b||0); }, 0);
   var n = valores.length || 1;
   var fm = function(v){ return (dinero?'$':'') + Math.round(v).toLocaleString('es-VE'); };
-  var uni = periodo==='diario' ? 'día' : periodo==='quincenal' ? 'quincena' : 'mes';
+  var uni = periodo==='diario' ? 'día' : periodo==='quincenal' ? 'quincena' : periodo==='anual' ? 'año' : 'mes';
   var big = document.getElementById('dash-'+pre+'-big');
   if(big) big.textContent = fm(tot) + (dinero ? '' : ' otorgados');
   var avg = document.getElementById('dash-'+pre+'-avg');
@@ -674,6 +674,28 @@ function _cobrosProgramadosBuckets(periodo){
         }
       }
     });
+  } else if(periodo === 'anual'){
+    // Año (Adam, 5-nov-2026): cuánto se va a cobrar en lo que queda de este año y en los dos siguientes
+    subTxt = 'Este año y los dos siguientes';
+    for(var i=0; i<3; i++){
+      var dA = new Date(now.getFullYear()+i, 0, 1), finA = new Date(now.getFullYear()+i+1, 0, 1);
+      buckets.push({ label: String(now.getFullYear()+i), ini: i===0 ? now.getTime() : dA.getTime(), fin: finA.getTime(), monto:0, cuotas:0 });
+    }
+    activos.forEach(function(c){
+      var inicio = parseFechaLocal(c.fecha).getTime();
+      if(isNaN(inicio)) return;
+      var totalCuotas = c.totalCuotas || (c.plazo*2) || 24;
+      var pagadas = c.pagado || 0;
+      var cuotaV = parseFloat(c.cuotaQ||c.cuota||0)||0;
+      if(cuotaV<=0) return;
+      for(var k=pagadas+1; k<=totalCuotas; k++){
+        var t = inicio + k*MS_QUINCENA;
+        if(t > buckets[buckets.length-1].fin) break;
+        for(var bi=0; bi<buckets.length; bi++){
+          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += cuotaV; buckets[bi].cuotas++; break; }
+        }
+      }
+    });
   } else {
     subTxt = 'Próximos 7 meses';
     for(var i=0; i<7; i++){
@@ -704,8 +726,8 @@ var _dashCobrospChart = null;
 var _dashCobrospPeriodo = 'diario';
 function setDashCobrospPeriodo(periodo){
   _dashCobrospPeriodo = periodo;
-  ['d','q','m'].forEach(function(k){
-    var p = k==='d'?'diario':k==='q'?'quincenal':'mensual';
+  ['d','q','m','a'].forEach(function(k){
+    var p = k==='d'?'diario':k==='q'?'quincenal':k==='m'?'mensual':'anual';
     var btn = document.getElementById('dash-cobrosp-'+k);
     if(btn) btn.className = (p===periodo ? 'on' : '');
   });

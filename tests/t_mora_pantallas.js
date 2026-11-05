@@ -159,5 +159,10 @@ if (rep === 'hay') {
   ok('Reporte semanal: (no expuesto en este arnés, se revisa por código)', true);
 }
 
+// Año (Adam, 5-nov-2026): el cuarto período del gráfico de Cobros programados del dashboard
+ctx.S.creds = CP;
+const anual = ctx._cobrosProgramadosBuckets('anual');
+ok('Cobros programados por año: tres barras (este año y los dos siguientes) y suma todas las cuotas que faltan de los 9 créditos',
+  anual.buckets.length === 3 && anual.buckets[0].label === String(new Date().getFullYear()) && anual.buckets.reduce((a, x) => a + x.cuotas, 0) === ACTIVOS * 24 && anual.subTxt === 'Este año y los dos siguientes');
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas');
 if (fail) process.exitCode = 1;

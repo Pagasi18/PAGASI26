@@ -563,6 +563,7 @@ PG.dash = function(){
         <button id="dash-cobrosp-d" class="on" onclick="setDashCobrospPeriodo('diario')">Día</button>
         <button id="dash-cobrosp-q" onclick="setDashCobrospPeriodo('quincenal')">Quinc.</button>
         <button id="dash-cobrosp-m" onclick="setDashCobrospPeriodo('mensual')">Mes</button>
+        <button id="dash-cobrosp-a" onclick="setDashCobrospPeriodo('anual')">Año</button>
       </div>
     </div>
     <div class="dash-big" id="dash-cobrosp-big" style="color:var(--p1)">—</div>
