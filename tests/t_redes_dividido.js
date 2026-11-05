@@ -140,4 +140,19 @@ const ok = (l, v) => { if (v) { pass++; console.log('OK   ' + l); } else { fail+
   ok('una foto nueva de cobranza reemplaza solo lo de cobranza (la de ventas y la de Instagram siguen)', ctx._waConvs.map(c => c.id).sort().join() === 'ig:3,wa:+1,wav:+2');
 }
 
+
+
+// ── D. 5-nov-2026 (Prisila): el rol Cobrador acuerda compromisos de pago; aviso sobre sedes ──
+{
+  const pg = fs.readFileSync(path.join(ROOT, 'logic/pagos.js'), 'utf8'), us = fs.readFileSync(path.join(ROOT, 'logic/usuarios.js'), 'utf8');
+  const ctx = { S: { currentUser: { rol: 'Cobrador' } } }; vm.createContext(ctx);
+  vm.runInContext(pg.slice(pg.indexOf('function _cobPuedeAcordar'), pg.indexOf('function _acuerdoEsRecurrente')), ctx);
+  ok('un Cobrador puede acordar compromisos de pago', ctx._cobPuedeAcordar() === true);
+  ctx.S.currentUser.rol = 'Vendedor';
+  ok('...un Vendedor sigue sin poder', ctx._cobPuedeAcordar() === false);
+  ctx.S.currentUser.rol = 'Gerente';
+  ok('...y Gerente y Administrador siguen pudiendo', ctx._cobPuedeAcordar() === true && (ctx.S.currentUser.rol = 'Administrador', ctx._cobPuedeAcordar() === true));
+  ok('el aviso de "solo administrador o gerente" ya nombra al cobrador', /Solo Administrador, Gerente o Cobrador pueden acordar/.test(pg));
+  ok('Editar permisos avisa que las sedes son solo para Vendedor Concesionario', /Solo para Vendedor Concesionario\.<\/b> A cualquier otro rol/.test(us));
+}
 console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas'); if (fail) process.exitCode = 1;

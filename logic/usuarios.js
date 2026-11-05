@@ -1276,7 +1276,7 @@ function editarUsuario(uid){
       concSection = ''
         + '<div style="margin-top:14px;padding:12px;background:var(--gs);border-radius:10px;border:1px solid var(--rim2)">'
         + '<div style="font-size:12.5px;font-weight:700">Concesionarios asignados</div>'
-        + '<div style="font-size:10.5px;color:var(--ink3);margin-top:3px;line-height:1.5">Marca a qué sedes tiene acceso. Si no marcas ninguna y el rol es Administrador/Gerente, ve todos. Para roles inferiores, sin asignación → ve todos los datos (vista global).</div>'
+        + '<div style="font-size:10.5px;color:var(--ink3);margin-top:3px;line-height:1.5"><b>Solo para Vendedor Concesionario.</b> A cualquier otro rol (Cobrador, Vendedor, Empleado) marcarle sedes lo deja viendo UNA sede a la vez: el dashboard, los clientes y los créditos le salen vacíos o a medias (5-nov-2026, Prisila). Marca a qué sedes tiene acceso. Si no marcas ninguna y el rol es Administrador/Gerente, ve todos. Para roles inferiores, sin asignación → ve todos los datos (vista global).</div>'
         + '<div style="margin-top:10px;display:grid;gap:5px;max-height:180px;overflow-y:auto;padding:4px">'
         + concListaActivos.map(function(cc){
             var checked = asignadosUsr.indexOf(cc.id) !== -1;

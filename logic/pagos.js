@@ -1654,9 +1654,11 @@ function liveSearchCuotas(q){
 // Si existe, el credito se gestiona en la pestana "Acuerdos Mensuales" de
 // Cobranza; el semaforo se calcula al pintar, nunca se guarda. La mora
 // contable (ledger) no cambia: esto es solo flujo de trabajo.
+// 5-nov-2026, Adam (Prisila, cobradora, "tampoco tiene permisos para compromisos de pago"): el
+// rol Cobrador tambien acuerda compromisos; antes solo Administrador y Gerente.
 function _cobPuedeAcordar(){
   var r = (S.currentUser && S.currentUser.rol) || '';
-  return r==='Administrador' || r==='admin' || r==='Gerente';
+  return r==='Administrador' || r==='admin' || r==='Gerente' || r==='Cobrador';
 }
 // Casilla "acuerdo recurrente" (10-oct-2026, Adam): sin marcar, el acuerdo es por una sola
 // vez y con el pago el credito vuelve a su plan normal. Hasta esa fecha todo acuerdo se
@@ -1681,7 +1683,7 @@ function _acuerdoProximaFecha(fecha){
   return fechaLocalISO(new Date(y, m, Math.min(dia, ult)));
 }
 function acuerdoAcordar(credId){
-  if(!_cobPuedeAcordar()){ toast('Solo Administrador o Gerente pueden acordar pago mensual','error'); return; }
+  if(!_cobPuedeAcordar()){ toast('Solo Administrador, Gerente o Cobrador pueden acordar pago mensual','error'); return; }
   var c=(S.creds||[]).find(function(x){return String(x.id)===String(credId);}); if(!c) return;
   var era = c.fechaCompromiso||'';
   var hoy = hoyLocalISO();
