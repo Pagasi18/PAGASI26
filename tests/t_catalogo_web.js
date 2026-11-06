@@ -23,15 +23,15 @@ function catalogoNuevo(globales){
 }
 let C = catalogoNuevo();
 // 14-oct-2026 noche, Adam: el seguro va dentro del precio; la web y la calculadora no lo cobran aparte
-ok('condiciones de Adam: 500% (15-oct por la tarde), sin seguro aparte, inicial desde 40%, plazos 6, 9 y 12', C.condiciones.apy === 500 && C.condiciones.seguroPct === 0 && C.condiciones.inicialMin === 40 && C.condiciones.inicialMax === 60 && C.condiciones.plazos.join() === '6,9,12');
+ok('condiciones de Adam: 400% e inicial desde 30% (6-nov-2026), sin seguro aparte, plazos 6, 9 y 12', C.condiciones.apy === 400 && C.condiciones.seguroPct === 0 && C.condiciones.inicialMin === 30 && C.condiciones.inicialMax === 60 && C.condiciones.plazos.join() === '6,9,12');
 let p = C.calcPlan(1320, 12);
-ok('moto de $1.320 al 40%: inicial $528, sin seguro, al firmar $528, financiado $792', p.inicial === 528 && p.seguro === 0 && p.alFirmar === 528 && p.financiado === 792);
-ok('cuota quincenal $104, $84 y $74 a 6, 9 y 12 meses (500%)', C.calcPlan(1320, 6).quincenal === 104 && C.calcPlan(1320, 9).quincenal === 84 && p.quincenal === 74);
-ok('al 60%: cuota de $50 a 12 meses', C.calcPlan(1320, 12, 0.60).quincenal === 50);
-ok('todo cuadra a simple vista: mensual = 2 quincenas y total = cuota por número de cuotas', p.mensual === 148 && p.totalEnCuotas === 74 * 24 && p.inicial + p.financiado === 1320);
+ok('moto de $1.320 al 30%: inicial $396, sin seguro, al firmar $396, financiado $924', p.inicial === 396 && p.seguro === 0 && p.alFirmar === 396 && p.financiado === 924);
+ok('cuota quincenal $116, $92 y $81 a 6, 9 y 12 meses (400%, inicial 30%)', C.calcPlan(1320, 6).quincenal === 116 && C.calcPlan(1320, 9).quincenal === 92 && p.quincenal === 81);
+ok('al 60%: cuota de $46 a 12 meses', C.calcPlan(1320, 12, 0.60).quincenal === 46);
+ok('todo cuadra a simple vista: mensual = 2 quincenas y total = cuota por número de cuotas', p.mensual === 162 && p.totalEnCuotas === 81 * 24 && p.inicial + p.financiado === 1320);
 ok('redondea hacia arriba como la calculadora (regla del 11-sep), sin sumar un dólar por la coma flotante', C.arriba(88.01) === 89 && C.arriba(726.0000000001) === 726 && C.money(587.4) === '$588');
 const e = C.calcExacto(1320, 12);
-ok('el cálculo exacto da la tasa de 500% efectiva anual', Math.abs(Math.pow(1 + (Math.pow(6, 1/24) - 1), 24) - 6) < 1e-9 && e.seguro === 0);
+ok('el cálculo exacto da la tasa de 400% efectiva anual', Math.abs(Math.pow(1 + (Math.pow(5, 1/24) - 1), 24) - 5) < 1e-9 && e.seguro === 0);
 ok('plan() de la web usa la inicial mínima y 12 meses', JSON.stringify(C.plan(1)) === JSON.stringify(C.calcPlan(1320, 12)));
 const N = C.base.length;
 ok('la lista de respaldo: los 46 de siempre y los de Veloz primero, con promo', N === 49 && C.motos.length === N && C.origen === 'base' && C.motos.slice(0, 3).every(m => m.sedeName === 'Veloz' && m.promo && m.tag === 'Promo'));
@@ -50,7 +50,7 @@ const r = C.desdeDocumentos(docs);
 ok('de Firestore: lee condiciones, modelos y la foto subida', r.cond.apy === 700 && r.motos.find(m => m.id === 1).precio === 1400 && /firebasestorage/.test(r.motos.find(m => m.id === 1).image));
 ok('...sin los eliminados; el que no tiene precio queda "por confirmar"', !r.motos.some(m => m.id === 3) && r.motos.length === 4 && r.motos.find(m => m.id === 48).sinPrecio === true && r.motos.find(m => m.id === 48).precio === null);
 ok('...y un modelo nuevo sin nombre web toma el del modelo', r.motos.find(m => m.id === 47).name === 'Nueva 200');
-ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:-5, seguroPct:80, inicialMin:0, plazos:['x'] }).apy === 500 && C.condValidas({ seguroPct:80 }).seguroPct === 0 && C.condValidas({ plazos:['x'] }).plazos.join() === '6,9,12');
+ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:-5, seguroPct:80, inicialMin:0, plazos:['x'] }).apy === 400 && C.condValidas({ seguroPct:80 }).seguroPct === 0 && C.condValidas({ plazos:['x'] }).plazos.join() === '6,9,12');
 
 (async () => {
   // cargar(): lee la base una vez, aplica, guarda copia; si falla, queda la lista de respaldo
@@ -69,7 +69,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('sin internet: usa la última copia buena', C2.origen === 'cache' && C2.get(1).precio === 1400 && C2.condiciones.apy === 700);
   const C3 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:false, status:403, json:() => Promise.resolve({}) }) });
   await C3.cargar();
-  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 500 && C3.proximos.length === 5);
+  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 400 && C3.proximos.length === 5);
   const C4 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:true, json:() => Promise.resolve({}) }) });
   await C4.cargar();
   ok('catálogo vacío en la base: sigue la lista de respaldo', C4.origen === 'base' && C4.motos.length === 49);
@@ -112,7 +112,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('Liz carga los 49 modelos y las 5 Veloz sin precio (con promo, foto y precio por confirmar)', coleccion.docs['901'].precio === null && coleccion.docs['901'].promo === true && /veloz-dt-170/.test(coleccion.docs['901'].image) && coleccion.docs['47'].promo === true && coleccion.docs['47'].orden < 0 && coleccion.docs['47'].tag === '' && Object.keys(coleccion.docs).filter(k => k !== '_condiciones').length === 54 && coleccion.docs['1'].precio === 1320 && coleccion.docs['1'].sedeName === 'EK Bello Monte' && coleccion.docs['1'].disponible === true && /assets\/motos/.test(coleccion.docs['1'].image));
   ok('...pero las condiciones no: esas las crea un administrador', !coleccion.docs._condiciones);
   let h = ctx.PG.catalogo();
-  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$528<\/td>/.test(h) && /\$104<\/td>[^]*?\$84<\/td>[^]*?\$74<\/td>/.test(h) && /Cuota 6 m<\/th>[^]*?Cuota 9 m<\/th>[^]*?Cuota 12 m<\/th>/.test(h));
+  ok('la tabla muestra precio, seguro, inicial, al firmar y las cuotas 6 · 9 · 12', /NEW HORSE 150/.test(h) && /\$396<\/td>/.test(h) && /\$116<\/td>[^]*?\$92<\/td>[^]*?\$81<\/td>/.test(h) && /Cuota 6 m<\/th>[^]*?Cuota 9 m<\/th>[^]*?Cuota 12 m<\/th>/.test(h));
   ok('Liz no ve las condiciones del plan (solo administradores)', !/Condiciones del plan/.test(h) && !/id="cat_apy"/.test(h) && !/id="cat_seguro"/.test(h));
   ok('los botones de nuevo modelo y Excel están', /catNuevoModelo\(\)/.test(h) && /Descargar reporte Excel/.test(h));
   ok('filtros con contadores: en la web, ocultos, promo, sin foto y precio por confirmar', /data-cat-chip="sinfoto"/.test(h) && /data-cat-chip="sinprecio"/.test(h) && />Precio por confirmar <b[^>]*>5</.test(h) && /Todos los concesionarios/.test(h));
@@ -134,7 +134,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   S.currentUser = { uid:'adm', nombre:'Adam', rol:'Administrador', permisos:[] };
   doc.getElementById('cat_apy').value = '650'; doc.getElementById('cat_seguro').value = '4.5';
   await ctx.catGuardarCondiciones();
-  ok('el administrador guarda la tasa, el seguro, la inicial y los plazos', coleccion.docs._condiciones.apy === 650 && coleccion.docs._condiciones.seguroPct === 4.5 && coleccion.docs._condiciones.inicialMin === 40 && coleccion.docs._condiciones.plazos.join() === '6,9,12');
+  ok('el administrador guarda la tasa, el seguro, la inicial y los plazos', coleccion.docs._condiciones.apy === 650 && coleccion.docs._condiciones.seguroPct === 4.5 && coleccion.docs._condiciones.inicialMin === 30 && coleccion.docs._condiciones.plazos.join() === '6,9,12');
   S.currentUser = { uid:'liz', nombre:'Liz', rol:'Empleado', permisos:['dash','catalogo'] };
   doc.getElementById('cat_seguro').value = '5'; doc.getElementById('cat_apy').value = '900';
   const antesLiz = escritos.length;
@@ -148,7 +148,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   // Con las condiciones guardadas en la prueba hay seguro (4,5%): sale su columna
   ok('Excel: concesionario primero, las columnas que pidieron y EN LA WEB al final', filas[0].join('|') === 'CONCESIONARIO|MODELO|PRECIO AL CONTADO|COSTO DEL SEGURO|INICIAL MÍNIMA|CUOTA QUINCENAL 6 MESES|CUOTA QUINCENAL 9 MESES|CUOTA QUINCENAL 12 MESES|EN LA WEB');
   const nh = filas.find(f => f[1] === 'NEW HORSE 150');
-  ok('Excel: los mismos montos que la web (precio $1.400, seguro 4,5% = $63, inicial $560)', nh && nh[0] === coleccion.docs['1'].sedeName && nh[2] === 1400 && nh[3] === 63 && nh[4] === 560 && nh[7] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.4, ctx.catCondiciones()).quincenal && nh[8] === 'SÍ');
+  ok('Excel: los mismos montos que la web (precio $1.400, seguro 4,5% = $63, inicial $420)', nh && nh[0] === coleccion.docs['1'].sedeName && nh[2] === 1400 && nh[3] === 63 && nh[4] === 420 && nh[7] === ctx.PagasiCatalog.calcPlan(1400, 12, 0.3, ctx.catCondiciones()).quincenal && nh[8] === 'SÍ');
   ok('Excel: un renglón por modelo, sin el eliminado, y los sin precio dicen POR CONFIRMAR', filas.find(f => f[1] === 'DT 170')[2] === 'POR CONFIRMAR' && filas.length === 1 + 53 && !filas.some(f => f[1] === coleccion.docs['3'].modelo));
   const concs = filas.slice(1).map(f => f[0]);
   ok('Excel: ordenado por concesionario (no por marca)', concs.every((x, i) => i === 0 || concs[i - 1].localeCompare(x, 'es', { sensitivity:'base' }) <= 0));

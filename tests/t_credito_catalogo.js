@@ -28,22 +28,22 @@ const S = ctx.S, D = ctx.PagasiCatalog;
 
 // ── 1. La formula es la de la web y la calculadora de los vendedores ──
 const cond = ctx.planCatCond();
-ok('condiciones del catalogo: tasa 500 (15-oct por la tarde), sin seguro aparte, inicial desde 40%, plazos 6/9/12', cond.apy === 500 && cond.seguroPct === 0 && cond.inicialMin === 40 && cond.plazos.join() === '6,9,12');
-const web = D.calcPlan(1390, 12, 0.40, cond);
+ok('condiciones del catalogo: tasa 400 e inicial desde 30% (6-nov-2026), sin seguro aparte, plazos 6/9/12', cond.apy === 400 && cond.seguroPct === 0 && cond.inicialMin === 30 && cond.plazos.join() === '6,9,12');
+const web = D.calcPlan(1390, 12, 0.30, cond);
 const f = ctx.planCatalogo(1390, null, 12);
-ok('RZ 200 ($1.390, 40%, 12 meses): mismos numeros que pagasi.io', f.ini === web.inicial && f.cuotaQ === web.quincenal && f.alFirmar === web.alFirmar && f.totalCuotas === 24);
-ok('inicial minima 40% = $556 y eso es lo que paga al firmar (sin seguro)', f.ini === 556 && f.alFirmar === 556 && f.seguro === 0);
-ok('cuota sin decimales, redondeada hacia arriba ($78 al 500%)', f.cuotaQ === 78 && f.cuotaQ >= D.calcExacto(1390, 12, 0.40, cond).quincenal);
+ok('RZ 200 ($1.390, 30%, 12 meses): mismos numeros que pagasi.io', f.ini === web.inicial && f.cuotaQ === web.quincenal && f.alFirmar === web.alFirmar && f.totalCuotas === 24);
+ok('inicial minima 30% = $417 y eso es lo que paga al firmar (sin seguro)', f.ini === 417 && f.alFirmar === 417 && f.seguro === 0);
+ok('cuota sin decimales, redondeada hacia arriba ($85 al 400%)', f.cuotaQ === 85 && f.cuotaQ >= D.calcExacto(1390, 12, 0.30, cond).quincenal);
 const f9 = ctx.planCatalogo(1390, 700, 9);
 ok('inicial escrita en dolares ($700) y plazo 9: la cuota baja y son 18 cuotas', f9.ini === 700 && f9.totalCuotas === 18 && f9.cuotaQ === D.calcPlan(1390, 9, 700 / 1390, cond).quincenal);
 ok('sin precio no hay plan', ctx.planCatalogo(0, null, 12) === null);
 
 // ── 2. Cuota fija, editable y marcada ──
-let k = ctx.planCatalogoCampos(1390, 556, 12, f.cuotaQ);
-ok('cuota de la formula: no queda marcada', k.cuotaEditada === false && k.cuotaFormula === f.cuotaQ && k.apyCatalogo === 500 && k.seguro === undefined);
-k = ctx.planCatalogoCampos(1390, 556, 12, f.cuotaQ - 5);
+let k = ctx.planCatalogoCampos(1390, 417, 12, f.cuotaQ);
+ok('cuota de la formula: no queda marcada', k.cuotaEditada === false && k.cuotaFormula === f.cuotaQ && k.apyCatalogo === 400 && k.seguro === undefined);
+k = ctx.planCatalogoCampos(1390, 417, 12, f.cuotaQ - 5);
 ok('cuota escrita a mano ($5 menos): queda marcada con la de la formula', k.cuotaEditada === true && k.cuotaFormula === f.cuotaQ);
-k = ctx.planCatalogoCampos(1390, 556, 12, f.cuotaQ + 0.4);
+k = ctx.planCatalogoCampos(1390, 417, 12, f.cuotaQ + 0.4);
 ok('centavos de diferencia no la marcan', k.cuotaEditada === false);
 
 // ── 3. La calculadora del asistente llena sola (credito nuevo) ──
@@ -51,19 +51,19 @@ ok('centavos de diferencia no la marcan', k.cuotaEditada === false);
 ctx.WZ = { step:3, precio:1390 }; ctx.window._wzEditando = null; ctx.window._wzCondPedida = true;
 pon('wz_precio_base_real', 1390); pon('wz_precio', 1390);
 ctx._wzCuotaSug();
-ok('credito nuevo: inicial 40%, cuota y plazo 12 se llenan solos', els.wz_ini_real.value === '556' && els.wz_cuota_q_custom.value === String(f.cuotaQ) && els.wz_plazo_custom.value === '12');
-ok('la calculadora no menciona el seguro y muestra la tasa', !/[Ss]eguro/.test(els.wz_cuota_sug.innerHTML) && /Tasa 500%/.test(els.wz_cuota_sug.innerHTML) && /\$556/.test(els.wz_cuota_sug.innerHTML));
-ok('los chips de inicial empiezan en 40% y los de plazo son 6, 9 y 12', /_wzCalcPct\(0\.4\)/.test(els.wz_cuota_sug.innerHTML) && !/_wzCalcPct\(0\.35\)/.test(els.wz_cuota_sug.innerHTML) && /_wzCalcPlazo\(6\)/.test(els.wz_cuota_sug.innerHTML) && !/_wzCalcPlazo\(24\)/.test(els.wz_cuota_sug.innerHTML));
+ok('credito nuevo: inicial 30%, cuota y plazo 12 se llenan solos', els.wz_ini_real.value === '417' && els.wz_cuota_q_custom.value === String(f.cuotaQ) && els.wz_plazo_custom.value === '12');
+ok('la calculadora no menciona el seguro y muestra la tasa', !/[Ss]eguro/.test(els.wz_cuota_sug.innerHTML) && /Tasa 400%/.test(els.wz_cuota_sug.innerHTML) && /\$417/.test(els.wz_cuota_sug.innerHTML));
+ok('los chips de inicial empiezan en 30% y los de plazo son 6, 9 y 12', /_wzCalcPct\(0\.3\)/.test(els.wz_cuota_sug.innerHTML) && !/_wzCalcPct\(0\.25\)/.test(els.wz_cuota_sug.innerHTML) && /_wzCalcPlazo\(6\)/.test(els.wz_cuota_sug.innerHTML) && !/_wzCalcPlazo\(24\)/.test(els.wz_cuota_sug.innerHTML));
 ctx._wzCalcPlazo(6);
-ok('elegir 6 meses cambia la cuota sola', els.wz_plazo_custom.value === '6' && els.wz_cuota_q_custom.value === String(ctx.planCatalogo(1390, 556, 6).cuotaQ));
+ok('elegir 6 meses cambia la cuota sola', els.wz_plazo_custom.value === '6' && els.wz_cuota_q_custom.value === String(ctx.planCatalogo(1390, 417, 6).cuotaQ));
 els.wz_cuota_q_custom.value = '150'; ctx._wzCuotaTocada('150');
 ok('cuota escrita a mano: se respeta y se avisa con la de la formula', els.wz_cuota_q_custom.value === '150' && ctx.WZ._cuotaManual === true && /Cuota escrita a mano: \$150/.test(els.wz_cuota_sug.innerHTML) && /Volver a la fórmula/.test(els.wz_cuota_sug.innerHTML));
 ctx._wzCalcPct(0.5);
 ok('cambiar la inicial no pisa la cuota escrita a mano', els.wz_cuota_q_custom.value === '150' && els.wz_ini_real.value === '695');
 ctx._wzCuotaVolver();
 ok('"Volver a la fórmula" la recalcula', ctx.WZ._cuotaManual === false && els.wz_cuota_q_custom.value === String(ctx.planCatalogo(1390, 695, 6).cuotaQ));
-els.wz_ini_real.value = '500'; ctx.WZ._calcPct = 'manual'; ctx._wzCuotaSug();
-ok('inicial escrita por debajo del 40%: se avisa', /por debajo del 40%/.test(els.wz_cuota_sug.innerHTML) && els.wz_ini_real.value === '500');
+els.wz_ini_real.value = '300'; ctx.WZ._calcPct = 'manual'; ctx._wzCuotaSug();
+ok('inicial escrita por debajo del 30%: se avisa', /por debajo del 30%/.test(els.wz_cuota_sug.innerHTML) && els.wz_ini_real.value === '300');
 ['wz_ini_real','wz_cuota_q_custom','wz_plazo_custom'].forEach(id => pon(id, ''));
 ctx.WZ = { step:3, precio:1390 }; pon('wz_cuota_q_custom', 99); pon('wz_plazo_custom', 12);
 ctx._wzCuotaSug();
@@ -77,9 +77,9 @@ ctx._wzCuotaSug();
 ok('editando: la cuota firmada ($88) y la inicial no cambian; se ofrece "Aplicar"', els.wz_cuota_q_custom.value === '88' && els.wz_ini_real.value === '625' && /Aplicar este plan/.test(els.wz_cuota_sug.innerHTML));
 ok('editando: el resumen no agrega marca', ctx._wzFilasCatalogo({ precioBaseReal:1390, ini:625, plazo:12, cuotaQ:88 }).length === 0);
 ctx.window._wzEditando = null;
-const filas = ctx._wzFilasCatalogo({ precioBaseReal:1390, ini:556, plazo:12, cuotaQ:f.cuotaQ - 10 });
+const filas = ctx._wzFilasCatalogo({ precioBaseReal:1390, ini:417, plazo:12, cuotaQ:f.cuotaQ - 10 });
 ok('resumen del paso 4: la marca de la cuota con la de la formula', filas.length === 1 && /fórmula da \$/.test(filas[0][1]));
-ok('resumen del paso 4 sin marca cuando es la de la formula', ctx._wzFilasCatalogo({ precioBaseReal:1390, ini:556, plazo:12, cuotaQ:f.cuotaQ }).length === 0);
+ok('resumen del paso 4 sin marca cuando es la de la formula', ctx._wzFilasCatalogo({ precioBaseReal:1390, ini:417, plazo:12, cuotaQ:f.cuotaQ }).length === 0);
 
 // ── 5. Aprobaciones: la marca ──
 const cred = { id:'CRED-900', cli:'Cliente Prueba', modelo:'RZ 200', cuotaQ:150, cuotaFormula:f.cuotaQ, cuotaEditada:true, ini:556, precio:1390, estado:'pendiente_revision', creadoPor:'Vendedor X', concesionarioId:null };

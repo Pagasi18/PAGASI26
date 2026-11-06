@@ -2055,7 +2055,7 @@ function _wzCuotaSug(){
     +'<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);font-weight:700;margin-bottom:2px">'+l+'</div>'
     +'<div style="font-size:15px;font-weight:900;letter-spacing:-.4px;color:var(--p1)">'+v+'</div>'
     +(sub?'<div style="font-size:9.5px;color:var(--ink3);margin-top:1px">'+sub+'</div>':'')+'</div>'; };
-  var pcts=[minPct]; [0.45,0.50,0.55,0.60,0.70].forEach(function(p){ if(p>minPct+0.001) pcts.push(p); });
+  var pcts=[minPct]; [0.35,0.40,0.45,0.50,0.55,0.60,0.70].forEach(function(p){ if(p>minPct+0.001) pcts.push(p); });   // 6-nov-2026: con la mínima en 30% salen 35 y 40 también
   var pctChip=function(p){ var on=!esManual && Math.abs(pctSel-p)<0.001;
     return '<button type="button" class="btn btn-xs '+(on?'btn-p':'btn-g')+'" onclick="_wzCalcPct('+p+')" style="font-size:10px;padding:3px 9px">'+Math.round(p*100)+'%</button>'; };
   var plazoChip=function(m){ var on=(f.plazo===m);
