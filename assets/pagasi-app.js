@@ -4734,3 +4734,11 @@ document.addEventListener('input', function(e){
     try{ el.setSelectionRange(selS, selE); }catch(_e){}
   }
 }, true);
+
+// La rueda del ratón o el trackpad sobre un campo numérico con el foco le suma o le resta 1 sin que nadie lo
+// toque: así un precio de 1515 se guardaba como 1514 al editar un crédito (Adam, 6-nov-2026). Se quita el foco
+// del campo y la página se desplaza normal; el valor no cambia.
+document.addEventListener('wheel', function(ev){
+  var el = ev.target;
+  if(el && el.tagName === 'INPUT' && el.type === 'number' && document.activeElement === el) el.blur();
+}, { passive: true, capture: true });
