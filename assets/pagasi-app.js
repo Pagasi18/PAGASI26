@@ -3218,7 +3218,9 @@ var PG_NAVICONS = {
 // Se esconden del menu, NO se borran: la pantalla sigue existiendo y se abre por
 // su enlace (nav('scores')) el dia que haga falta. Borrarlas seria tirar trabajo
 // hecho por una temporada sin uso.
-var SIDEBAR_OCULTOS = ['centro','recursos','scores'];
+// 8-nov-2026, Adam: "teníamos un módulo de files para subir archivos... ahora no lo veo". Files
+// vuelve al menú (para todos los del equipo; el Vendedor Concesionario tiene su menú aparte y no lo ve).
+var SIDEBAR_OCULTOS = ['centro','scores'];
 // Aprobaciones es distinto: no es que no se use, es que casi siempre esta vacia.
 // Ahi caen las solicitudes que crea un vendedor de concesionario y que alguien
 // tiene que aprobar. Si se escondiera a secas, esas solicitudes quedarian sin

@@ -31,9 +31,11 @@ function menu(creds){
 
 const m = menu([]);
 ok('el menu se arma', m.length>500 && m.indexOf('data-nav="dash"')>-1);
-['centro','recursos','scores'].forEach(function(k){
+['centro','scores'].forEach(function(k){
   ok('ya no se ve '+k, m.indexOf('data-nav="'+k+'"')===-1);
 });
+// 8-nov-2026, Adam: "teníamos un módulo de files... ahora no lo veo" → Files vuelve al menú
+ok('Files vuelve a estar en el menú', m.indexOf('data-nav="recursos"')>-1);
 ['dash','clientes','motos','creditos','pagos','contratos','gps','notif','calculadora','reportes','cuentas','comisiones','plan','config','concesionarios','users'].forEach(function(k){
   ok('sigue estando '+k, m.indexOf('data-nav="'+k+'"')>-1);
 });
@@ -56,7 +58,7 @@ ok('...y los escondidos siguen escondidos', conCola.indexOf('data-nav="scores"')
   ok('la pantalla '+f.split('/')[1]+' sigue existiendo', fs.existsSync(path.join(ROOT,f)));
 });
 const appSrc=src('assets/pagasi-app.js');
-ok('el menu tiene un solo sitio donde se decide que se esconde', /var SIDEBAR_OCULTOS = \['centro','recursos','scores'\]/.test(appSrc));
+ok('el menu tiene un solo sitio donde se decide que se esconde', /var SIDEBAR_OCULTOS = \['centro','scores'\]/.test(appSrc));
 ok('el menu se vuelve a armar cuando cambia la cola de aprobaciones',
   /function _sidebarSyncAprobaciones\(\)/.test(appSrc) && /function updateBadge\(\)\{\n  _sidebarSyncAprobaciones\(\);/.test(appSrc));
 
