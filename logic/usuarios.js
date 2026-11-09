@@ -516,7 +516,7 @@ function openUserPanel(uid){
   if(u.comisiones && u.comisiones.activo){
     var comV = u.comisiones.venta || {tipo:'fijo',valor:5};
     var comC = u.comisiones.cobranza || {tipo:'fijo',valor:1};
-    var ventaLbl = comV.tipo === 'porc' ? comV.valor+'% del precio' : '$'+comV.valor+' fijos';
+    var ventaLbl = comV.tipo === 'porc' ? comV.valor+'% del precio' : '$'+comV.valor+' fijos · Sábado: $'+(typeof _comMontoSabado==='function' ? _comMontoSabado(u.comisiones) : 15);
     var cobroLbl = comC.tipo === 'porc' ? comC.valor+'% del pago' : '$'+comC.valor+' fijos';
     var saldoDebido = 0;
     try{ if(typeof _comGetSaldo === 'function'){ saldoDebido = _comGetSaldo(u).saldo; } }catch(e){}
@@ -1255,6 +1255,10 @@ function editarUsuario(uid){
       + '<select class="fs" id="eu_com_v_tipo" style="min-width:130px"><option value="fijo" '+(comV.tipo==='fijo'?'selected':'')+'>Monto fijo ($)</option><option value="porc" '+(comV.tipo==='porc'?'selected':'')+'>Porcentaje (%)</option></select>'
       + '<input class="fi" id="eu_com_v_val" type="number" step="0.01" min="0" value="'+_euComVal(comV.valor,5)+'" placeholder="Valor">'
       + '</div>'
+      // 9-nov-2026, Adam: los sábados la venta paga otro monto ($15 si no se cambia)
+      + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Comisión por venta en sábado ($ fijo)</div>'
+      + '<input class="fi" id="eu_com_s_val" type="number" step="0.01" min="0" value="'+(typeof _comMontoSabado==='function' ? _comMontoSabado(u.comisiones) : 15)+'" placeholder="15" style="margin-bottom:4px">'
+      + '<div style="font-size:10px;color:var(--ink3);margin-bottom:11px;line-height:1.5">Reemplaza al monto normal en las ventas con fecha de sábado (desde el 7-nov-2026). Solo aplica con monto fijo.</div>'
       + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Comisión por cobranza (por cada pago)</div>'
       + '<div style="display:grid;grid-template-columns:auto 1fr;gap:8px">'
       + '<select class="fs" id="eu_com_c_tipo" style="min-width:130px"><option value="fijo" '+(comC.tipo==='fijo'?'selected':'')+'>Monto fijo ($)</option><option value="porc" '+(comC.tipo==='porc'?'selected':'')+'>Porcentaje (%)</option></select>'
@@ -1354,7 +1358,8 @@ function editarUsuario(uid){
         cobranza: {
           tipo: ($('eu_com_c_tipo')&&$('eu_com_c_tipo').value)||'fijo',
           valor: _euComNum($('eu_com_c_val'))
-        }
+        },
+        sabado: { valor: (typeof _comMontoSabado==='function') ? _comMontoSabado({ sabado: { valor: $('eu_com_s_val') && $('eu_com_s_val').value } }) : 15 }
       } : { activo: false };
       // IMPORTANTE: esperar a que la escritura confirme ANTES de recargar la lista.
       // Antes se navegaba de inmediato (fire-and-forget) y usersReload() releía

@@ -2,9 +2,14 @@
 var COMISIONES_DEFAULT = {
   activo: true,
   venta: { tipo: 'fijo', valor: 5 },         // $5 por moto vendida
-  cobranza: { tipo: 'fijo', valor: 1 }       // $1 por cobranza
+  cobranza: { tipo: 'fijo', valor: 1 },      // $1 por cobranza
+  // 9-nov-2026, Adam: "empezamos a trabajar también los sábados... las comisiones los sábados van a
+  // ser más altas. En vez de ser $5 por venta, va a ser $15 por venta... que los sábados yo pueda
+  // elegir otro monto". Es un monto fijo por venta; cada vendedor puede tener el suyo y, si no tiene
+  // ninguno guardado, vale $15. Solo cambia CUÁNTO se genera: el pago sigue siendo el mismo gasto
+  // de "comisiones" con su cuenta de origen y su retiro, como el de los $5.
+  sabado: { valor: 15 }
 };
-
 // Lee la configuración de comisiones de un usuario, retornando defaults si está activado pero sin config
 function _comGetConfig(u){
   if(!u || !u.comisiones || !u.comisiones.activo) return null;
@@ -18,8 +23,30 @@ function _comGetConfig(u){
     cobranza: {
       tipo: (c.cobranza && c.cobranza.tipo) || 'fijo',
       valor: parseFloat(c.cobranza && c.cobranza.valor != null ? c.cobranza.valor : COMISIONES_DEFAULT.cobranza.valor)
-    }
+    },
+    sabado: { valor: _comMontoSabado(c) }
   };
+}
+
+// Desde el primer sábado de trabajo. Las ventas de sábados anteriores se pagaron con el monto normal
+// y no se tocan (si no, a todos les aparecería una deuda vieja de $10 por cada una).
+var COMISION_SABADO_DESDE = '2026-11-07';
+function _comEsSabado(fecha){
+  var f = String(fecha||'').slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return false;
+  var p = f.split('-');
+  return new Date(+p[0], +p[1]-1, +p[2], 12).getDay() === 6;
+}
+// ¿Esta venta cobra el monto del sábado? Solo si el vendedor gana un monto fijo por venta (con
+// porcentaje no hay "$5" que reemplazar) y la venta es de un sábado desde COMISION_SABADO_DESDE.
+function _comVentaEsSabado(cfg, fecha){
+  return !!(cfg && cfg.venta && cfg.venta.tipo !== 'porc' && String(fecha||'').slice(0,10) >= COMISION_SABADO_DESDE && _comEsSabado(fecha));
+}
+function _comMontoSabado(c){
+  var v = c && c.sabado && c.sabado.valor;
+  v = (v == null || v === '') ? NaN : parseFloat(v);
+  var porDefecto = (typeof COMISIONES_DEFAULT !== 'undefined' && COMISIONES_DEFAULT.sabado) ? COMISIONES_DEFAULT.sabado.valor : 15;
+  return isNaN(v) ? porDefecto : v;
 }
 
 // Devuelve la lista de usuarios con comisiones activas
@@ -46,7 +73,7 @@ function _comGetTodosUsuarios(){
 function _comConfigRapida(uid){
   var u = (_usersCache||[]).find(function(x){ return x.uid === uid; });
   if(!u){ toast('Usuario no encontrado','error'); return; }
-  var c = _comGetConfig(u) || { activo:false, venta:{tipo:'fijo',valor:5}, cobranza:{tipo:'fijo',valor:1} };
+  var c = _comGetConfig(u) || { activo:false, venta:{tipo:'fijo',valor:5}, cobranza:{tipo:'fijo',valor:1}, sabado:{valor:COMISIONES_DEFAULT.sabado.valor} };
   setMicon('comision');
   $('mtt').textContent = 'Comisiones — ' + (u.nombre || u.email);
   $('msb').textContent = (u.cargo||u.rol||'Usuario') + ' · configuración rápida';
@@ -59,16 +86,19 @@ function _comConfigRapida(uid){
     + '<div class="fg"><label>Comisión por venta</label><div style="display:flex;gap:6px">'
     + '<select class="fs" id="cmr_vtipo" style="width:90px"><option value="fijo" '+(c.venta.tipo!=='porc'?'selected':'')+'>$ fijo</option><option value="porc" '+(c.venta.tipo==='porc'?'selected':'')+'>% precio</option></select>'
     + '<input class="fi" id="cmr_vval" type="number" step="0.01" value="'+(c.venta.valor||0)+'" style="flex:1"></div></div>'
+    + '<div class="fg"><label>Venta en sábado ($ por venta)</label>'
+    + '<input class="fi" id="cmr_sval" type="number" step="0.01" min="0" value="'+c.sabado.valor+'"></div>'
     + '<div class="fg"><label>Comisión por cobranza</label><div style="display:flex;gap:6px">'
     + '<select class="fs" id="cmr_ctipo" style="width:90px"><option value="fijo" '+(c.cobranza.tipo!=='porc'?'selected':'')+'>$ fijo</option><option value="porc" '+(c.cobranza.tipo==='porc'?'selected':'')+'>% pago</option></select>'
     + '<input class="fi" id="cmr_cval" type="number" step="0.01" value="'+(c.cobranza.valor||0)+'" style="flex:1"></div></div>'
     + '</div>'
-    + '<div style="font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.5">Venta = créditos creados por este usuario · Cobranza = pagos confirmados que registró. Los cambios aplican al histórico completo.</div>';
+    + '<div style="font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.5">Venta = créditos creados por este usuario · Venta en sábado = las ventas con fecha de sábado (desde el 7-nov-2026), en lugar del monto normal; solo con monto fijo ($) · Cobranza = pagos confirmados que registró. Los cambios aplican al histórico completo.</div>';
   S.saveFn = function(){
     var config = {
       activo: !!($('cmr_activo')&&$('cmr_activo').checked),
       venta: { tipo: ($('cmr_vtipo')&&$('cmr_vtipo').value)||'fijo', valor: parseFloat(($('cmr_vval')&&$('cmr_vval').value)||0)||0 },
-      cobranza: { tipo: ($('cmr_ctipo')&&$('cmr_ctipo').value)||'fijo', valor: parseFloat(($('cmr_cval')&&$('cmr_cval').value)||0)||0 }
+      cobranza: { tipo: ($('cmr_ctipo')&&$('cmr_ctipo').value)||'fijo', valor: parseFloat(($('cmr_cval')&&$('cmr_cval').value)||0)||0 },
+      sabado: { valor: _comMontoSabado({ sabado: { valor: $('cmr_sval') && $('cmr_sval').value } }) }
     };
     _comGuardarConfigUsuario(uid, config);
     closeM();
@@ -111,16 +141,19 @@ function _comCalcGenerado(u){
       if(vendedor !== nombreLow) return;
     }
     var precio = parseFloat(c.precioFinanciado || c.precio || 0) || 0;
+    var fechaVenta = c.fecha || c.creadoEn || '';
+    var esSabado = _comVentaEsSabado(cfg, fechaVenta);
     var monto = cfg.venta.tipo === 'porc'
       ? precio * (cfg.venta.valor/100)
-      : cfg.venta.valor;
+      : (esSabado ? cfg.sabado.valor : cfg.venta.valor);
     ventas.push({
       credId: c.id,
       cliente: c.cli,
       modelo: c.modelo || '',
-      fecha: c.fecha || c.creadoEn || '',
+      fecha: fechaVenta,
       precio: precio,
       comision: monto,
+      sabado: esSabado,
       concesionarioId: c.concesionarioId || null
     });
   });
@@ -298,7 +331,7 @@ function _comCorteExport(formato){
     aoa.push(['DETALLE DE OPERACIONES DEL CORTE']);
     aoa.push(['Empleado','Tipo','Fecha','Referencia','Cliente','Base','Comisión']);
     filas.forEach(function(x){
-      x.cc.ventas.forEach(function(v){ aoa.push([x.nombre,'Venta',String(v.fecha||'').slice(0,10),v.credId,v.cliente,n2(v.precio),n2(v.comision)]); });
+      x.cc.ventas.forEach(function(v){ aoa.push([x.nombre,v.sabado?'Venta (sábado)':'Venta',String(v.fecha||'').slice(0,10),v.credId,v.cliente,n2(v.precio),n2(v.comision)]); });
       x.cc.cobranzas.forEach(function(c){ aoa.push([x.nombre,'Cobranza',String(c.fecha||'').slice(0,10),c.pagoId,c.cliente,n2(c.monto),n2(c.comision)]); });
     });
     if(typeof _xlsxDownload==='function') _xlsxDownload('corte-comisiones-'+rq.desde+'_'+rq.hasta+'.xlsx', [{name:'Corte', rows:aoa}]);
@@ -320,7 +353,7 @@ function _comCorteExport(formato){
     + '<table><tr><th>Empleado</th><th>Tipo</th><th>Fecha</th><th>Referencia</th><th>Cliente</th><th>Base</th><th>Comisión</th></tr>'
     + filas.map(function(x){
         return x.cc.ventas.map(function(v){
-            return '<tr><td>'+esc(x.nombre)+'</td><td>Venta</td><td>'+String(v.fecha||'').slice(0,10)+'</td><td>'+esc(v.credId)+'</td><td>'+esc(v.cliente)+'</td><td>$'+(v.precio||0).toFixed(2)+'</td><td>$'+(v.comision||0).toFixed(2)+'</td></tr>';
+            return '<tr><td>'+esc(x.nombre)+'</td><td>'+(v.sabado?'Venta (sábado)':'Venta')+'</td><td>'+String(v.fecha||'').slice(0,10)+'</td><td>'+esc(v.credId)+'</td><td>'+esc(v.cliente)+'</td><td>$'+(v.precio||0).toFixed(2)+'</td><td>$'+(v.comision||0).toFixed(2)+'</td></tr>';
           }).join('')
           + x.cc.cobranzas.map(function(c){
             return '<tr><td>'+esc(x.nombre)+'</td><td>Cobranza</td><td>'+String(c.fecha||'').slice(0,10)+'</td><td>'+esc(c.pagoId)+'</td><td>'+esc(c.cliente)+'</td><td>$'+(c.monto||0).toFixed(2)+'</td><td>$'+(c.comision||0).toFixed(2)+'</td></tr>';
@@ -352,7 +385,7 @@ function _comisionesRender(){
     var gen = _comCalcGenerado(u);
     var nombre = u.nombre || u.email || 'Usuario';
     gen.ventas.forEach(function(v){
-      todasGeneradas.push({ tipo:'venta', usuario:nombre, uid:u.uid, fecha:v.fecha, ref:v.credId, cliente:v.cliente, detalle:v.modelo, base:v.precio, comision:v.comision });
+      todasGeneradas.push({ tipo:'venta', usuario:nombre, uid:u.uid, fecha:v.fecha, ref:v.credId, cliente:v.cliente, detalle:v.modelo, base:v.precio, comision:v.comision, sabado:v.sabado });
     });
     gen.cobranzas.forEach(function(cb){
       todasGeneradas.push({ tipo:'cobranza', usuario:nombre, uid:u.uid, fecha:cb.fecha, ref:cb.pagoId, cliente:cb.cliente, detalle:'Pago cuota', base:cb.monto, comision:cb.comision });
@@ -394,7 +427,7 @@ function _comisionesRender(){
         var st = _comStatsRango(u);
         var nombre = (u.nombre || u.email || 'Usuario');
         var subLbl = cfg
-          ? ('Venta '+(cfg.venta.tipo==='porc' ? cfg.venta.valor+'%' : '$'+cfg.venta.valor)+' · Cobro '+(cfg.cobranza.tipo==='porc' ? cfg.cobranza.valor+'%' : '$'+cfg.cobranza.valor))
+          ? ('Venta '+(cfg.venta.tipo==='porc' ? cfg.venta.valor+'%' : '$'+cfg.venta.valor+' · Sábado $'+cfg.sabado.valor)+' · Cobro '+(cfg.cobranza.tipo==='porc' ? cfg.cobranza.valor+'%' : '$'+cfg.cobranza.valor))
           : '<span style="color:var(--amber);font-weight:700">Sin comisiones configuradas</span>';
         var inics = nombre.split(' ').slice(0,2).map(function(w){return (w[0]||'').toUpperCase();}).join('');
         var saldoCol = s.saldo > 0 ? 'var(--green)' : 'var(--ink3)';
@@ -554,7 +587,7 @@ function _comisionesRender(){
                 +'<span style="font-weight:700;font-size:12.5px">'+g.usuario+'</span>'
               +'</div></td>'
               +'<td style="font-size:12px;color:var(--ink2)">'+(g.cliente||'—')+'</td>'
-              +'<td style="font-size:11.5px;color:var(--ink3)">'+(g.detalle||'—')+'<br><span style="font-size:10px;background:'+iconBg+';color:'+iconColor+';border-radius:10px;padding:1px 7px;font-weight:700">'+(esVenta?'Venta':'Cobranza')+'</span></td>'
+              +'<td style="font-size:11.5px;color:var(--ink3)">'+(g.detalle||'—')+'<br><span style="font-size:10px;background:'+iconBg+';color:'+iconColor+';border-radius:10px;padding:1px 7px;font-weight:700">'+(esVenta?(g.sabado?'Venta · sábado':'Venta'):'Cobranza')+'</span></td>'
               +'<td style="text-align:right;font-size:12px;color:var(--ink3);font-family:var(--fd)">'+fmt(g.base)+'</td>'
               +'<td style="text-align:right;font-family:var(--fd);font-weight:900;font-size:14px;color:var(--green)">+'+fmt(g.comision)+'</td>'
               +'</tr>';
@@ -635,10 +668,10 @@ function _comExportarCSV(){
     .forEach(function(e){ aoa.push([e.fecha||'',e.usuarioComisionNombre||'',n2(e.monto),e.forma||e.cuenta||'',e.creadoPor||'',e.notas||'']); });
   aoa.push([]);
   aoa.push(['=== DETALLE DE VENTAS ===']);
-  aoa.push(['Vendedor','Crédito','Cliente','Modelo','Fecha','Precio','Comisión']);
+  aoa.push(['Vendedor','Crédito','Cliente','Modelo','Fecha','Precio','Comisión','Sábado']);
   usuarios.forEach(function(u){
     var gen=_comCalcGenerado(u);
-    gen.ventas.forEach(function(v){ aoa.push([u.nombre||u.email||'',v.credId,v.cliente,v.modelo,v.fecha,n2(v.precio),n2(v.comision)]); });
+    gen.ventas.forEach(function(v){ aoa.push([u.nombre||u.email||'',v.credId,v.cliente,v.modelo,v.fecha,n2(v.precio),n2(v.comision),v.sabado?'Sí':'']); });
   });
   if(typeof _xlsxDownload==='function') _xlsxDownload('comisiones-'+hoyLocalISO()+'.xlsx', [{name:'Comisiones', rows:aoa}]);
   toast('Excel (.xlsx) descargado','success');
@@ -825,7 +858,7 @@ function _comAbrirDetalle(uid){
             + '<td style="padding:6px 8px">'+v.cliente+'</td>'
             + '<td style="padding:6px 8px;color:var(--ink3);font-size:10.5px">'+v.modelo+'</td>'
             + '<td style="padding:6px 8px;text-align:right;font-family:var(--fd)">$'+v.precio.toFixed(2)+'</td>'
-            + '<td style="padding:6px 8px;text-align:right;font-family:var(--fd);color:var(--p1);font-weight:700">$'+v.comision.toFixed(2)+'</td>'
+            + '<td style="padding:6px 8px;text-align:right;font-family:var(--fd);color:var(--p1);font-weight:700">$'+v.comision.toFixed(2)+(v.sabado?' <span style="font-size:9px;background:var(--ambers);color:var(--amber);border-radius:8px;padding:1px 6px;font-weight:800;font-family:var(--f)">sábado</span>':'')+'</td>'
             + '</tr>';
         }).join('') + '</tbody></table></div>';
   } else if(tabActual === 'cobranzas'){
