@@ -76,7 +76,7 @@ setImmediate(() => {
     conv('c', { vendedor: 'Liz' }),
     conv('d', { vendedor: 'Marianne', etapa: 'vendido', modo: 'humano', atendidoPor: 'Marianne' }),
     conv('e', {}),
-    conv('f', { vendedor: 'Liz', ultimoMensajeHora: hace(60 * 24 * 40) })
+    conv('f', { vendedor: 'Liz', ultimoMensajeHora: '2026-09-15T16:00:00.000Z' })   // fecha fija anterior al período: con "hace 40 días" la prueba fallaba desde el 10-nov
   ], '2026-10-01');
   const liz = D.find(r => r.nombre === 'Liz'), mar = D.find(r => r.nombre === 'Marianne'), sin = D.find(r => r.nombre === '-');
   ok('por vendedor: conversaciones del período, atendidas, cuánto tardó en contestar (mediana), quieren comprar, solicitud y vendidas', liz.n === 3 && liz.atendidas === 2 && Math.round(liz.mediana) === 10 && liz.quieren === 2 && liz.solicitud === 1 && liz.vendidas === 1);
