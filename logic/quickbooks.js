@@ -959,6 +959,7 @@ function _qbCuerpoHtml(D){
     +   '<div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">'
     +     (A.fmt === 'csv' ? '<button class="btn btn-p btn-sm" onclick="qbExportar(\'' + tipo + '\',\'csv\')">⬇ CSV para QuickBooks</button>' : '')
     +     '<button class="btn ' + (A.fmt === 'csv' ? 'btn-g' : 'btn-p') + ' btn-sm" onclick="qbExportar(\'' + tipo + '\',\'excel\')">⬇ Excel</button>'
+    +     (tipo === 'compras' ? '<button class="btn btn-p btn-sm" onclick="qbZipFacturasProveedor()" title="Un PDF por cada factura, todos dentro de un zip, para subirlos a QuickBooks">🗜 ZIP: un PDF por factura</button>' : '')
     +     '<button class="btn btn-g btn-sm" onclick="qbExportar(\'' + tipo + '\',\'pdf\')">📄 PDF</button></div></div>'
     + _qbTablaHtml(D, tipo, V)
     + '<div style="margin-top:14px"><div style="font-size:12px;font-weight:800;margin-bottom:6px">CONTROLES</div>' + controles + listas + '</div>';
@@ -992,7 +993,7 @@ function _renderQuickBooks(){
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">' + chips + '</div>'
     + '<details open style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:800">Qué ya se descargó a QuickBooks</summary>'
     +   '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px"><tbody>' + descargas + '</tbody></table>'
-    +   '<div style="font-size:10.5px;color:var(--ink3);margin-top:6px">Se anota cada vez que se baja un CSV o un Excel (el PDF no cuenta). Con "Solo lo nuevo" cada archivo deja fuera lo que ya estaba en su última descarga del mismo período: lo registrado o editado después de ella. Una descarga con búsqueda es parcial y no cuenta como corte.'
+    +   '<div style="font-size:10.5px;color:var(--ink3);margin-top:6px">Se anota cada vez que se baja un CSV, un Excel o el zip de PDF del 06 (el PDF para leer no cuenta). Con "Solo lo nuevo" cada archivo deja fuera lo que ya estaba en su última descarga del mismo período: lo registrado o editado después de ella. Una descarga con búsqueda es parcial y no cuenta como corte.'
     +   (admin ? ' <a href="javascript:void(0)" onclick="qbReiniciarDescargas()" style="font-weight:700;color:var(--red)">Reiniciar el registro (nada se ha migrado todavía)</a>' : '') + '</div></details></div>'
     + '<div class="card" style="margin-bottom:14px"><div id="qb-cuerpo">' + _qbCuerpoHtml(D) + '</div></div></div>';
 }
@@ -1033,12 +1034,94 @@ function qbHtmlPdf(D, tipo, V){
   h += '<table style="border-collapse:collapse;width:100%;table-layout:auto"><thead><tr>' + A.enc.map(function(x){ return '<th style="' + th + '">' + _lbEsc(x) + '</th>'; }).join('') + '</tr></thead><tbody>'
     + V.filas.map(function(r){ return '<tr>' + r.map(function(v, i){
         var num = typeof v === 'number', fecha = (tipo === 'clientes' || tipo === 'proveedores') && i === 12;
-        return '<td style="' + td + ';white-space:nowrap' + (num ? ';text-align:right' : '') + '">' + (v === '' || v == null ? '' : (num && A.montos.indexOf(i) > -1 ? fmt(v).replace('$', '') : (fecha ? _qbDMY(v) : _lbEsc(v)))) + '</td>'; }).join('') + '</tr>'; }).join('')
+        return '<td style="' + td + ';white-space:nowrap' + (num ? ';text-align:right' : '') + '">' + (v === '' || v == null ? '' : (num && A.montos.indexOf(i) > -1 ? _qbMonto(v) : (fecha ? _qbDMY(v) : _lbEsc(v)))) + '</td>'; }).join('') + '</tr>'; }).join('')
     + '</tbody></table>';
   h += '<div style="margin-top:12px;break-inside:avoid"><div style="font-size:9px;font-weight:800;margin-bottom:4px">CONTROLES</div><table style="border-collapse:collapse;width:100%">'
     + D.controles[tipo].map(function(c){ return '<tr><td style="' + td + '">' + _lbEsc(c.concepto) + '</td><td style="' + td + ';font-weight:800;text-align:right;white-space:nowrap;color:' + (/^REVISAR/.test(c.estado) ? '#b91c1c' : '#111') + '">' + _lbEsc(c.estado) + '</td></tr>'; }).join('')
     + '</table></div>';
   return h;
+}
+
+// ══════════════ 06 EN PDF: UN DOCUMENTO POR FACTURA, TODOS EN UN ZIP ══════════════
+// El contador (10-nov-2026): "necesito que al bajar la relación de las facturas de proveedores, genere un documento por
+// factura… yo le subo todos los pdf a QuickBooks y él reconoce los proveedores y los montos… el formato de moneda sea
+// 1,234.56". Adam: "si hay 1000 facturas, 1000 documentos… un solo zip". Cada PDF lleva texto de verdad (no una imagen),
+// para que QuickBooks lo lea. Se arma a mano, sin librerías: una página carta con Helvetica.
+function _qbMonto(n){ var p = (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).split('.'); return p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + p[1]; }   // 1,234.56
+function _qbPdfTxt(s){   // texto de PDF solo con ASCII: lo demás va en octal (WinAnsi), así el archivo pesa lo que mide
+  return String(s == null ? '' : s).replace(/[\\()]/g, '\\$&').replace(/[^\x20-\x7E]/g, function(ch){
+    var c = ch.charCodeAt(0); return c >= 0xA0 && c <= 0xFF ? '\\' + c.toString(8) : (c < 0x20 ? ' ' : '?'); });
+}
+function _qbPdfAncho(s, tam){ s = String(s); var w = 0; for(var i = 0; i < s.length; i++) w += /[.,]/.test(s[i]) ? 278 : (s[i] === '-' ? 333 : 556); return w * tam / 1000; }   // solo cifras (Helvetica)
+function _qbPdfPartir(s, n){
+  var out = [], l = '';
+  String(s || '').split(/\s+/).forEach(function(w){ while(w.length > n){ if(l){ out.push(l); l = ''; } out.push(w.slice(0, n)); w = w.slice(n); }
+    if((l + ' ' + w).trim().length > n){ out.push(l); l = w; } else l = (l + ' ' + w).trim(); });
+  if(l) out.push(l);
+  return out;
+}
+// b: una factura de qbCompras; prov: su ficha de qbProveedores; emp: la empresa (a quién se le factura)
+function qbPdfFactura(b, prov, emp){
+  var ops = [], y = 742;
+  var t = function(x, yy, txt, tam, negrita){ ops.push('BT /' + (negrita ? 'F2' : 'F1') + ' ' + tam + ' Tf ' + x + ' ' + yy + ' Td (' + _qbPdfTxt(txt) + ') Tj ET'); };
+  var der = function(xDer, yy, txt, tam, negrita){ t((xDer - _qbPdfAncho(txt, tam)).toFixed(2), yy, txt, tam, negrita); };
+  var raya = function(yy){ ops.push('0.6 w 50 ' + yy + ' m 562 ' + yy + ' l S'); };
+  _qbPdfPartir(b.proveedor, 48).slice(0, 2).forEach(function(l){ t(50, y, l, 15, true); y -= 19; });
+  if(prov && prov.rif){ t(50, y, 'RIF: ' + prov.rif, 10); y -= 14; }
+  y -= 14;
+  t(50, y, 'FACTURA', 13, true); y -= 18;
+  t(50, y, 'Factura N\u00B0: ' + b.numero, 10.5); y -= 14;
+  t(50, y, 'Fecha: ' + _qbDMY(b.fecha), 10.5); y -= 14;
+  if(b.vence){ t(50, y, 'Vence: ' + _qbDMY(b.vence), 10.5); y -= 14; }
+  y -= 8;
+  t(50, y, 'Facturar a: ' + _qbTxt((emp || {}).nombre), 10.5, true); y -= 14;
+  if((emp || {}).rif){ t(50, y, 'RIF: ' + _qbTxt(emp.rif), 10); y -= 14; }
+  y -= 8; raya(y); y -= 15;
+  t(50, y, 'Descripci\u00F3n', 9.5, true); t(380, y, 'IVA', 9.5, true); t(530, y, 'Monto', 9.5, true);
+  y -= 7; raya(y); y -= 15;
+  b.lineas.forEach(function(l){
+    var txt = _qbPdfPartir(b.desc || b.cuenta || 'Gasto', 58).slice(0, 4);
+    if(!txt.length) txt = ['Gasto'];
+    txt.forEach(function(x, i){ t(50, y, x, 10); if(!i){ t(380, y, l.codigo, 9); der(562, y, _qbMonto(l.monto), 10); } y -= 13; });
+    y -= 3;
+  });
+  if(b.cuenta){ t(50, y, 'Cuenta: ' + b.cuenta, 8.5); y -= 13; }
+  raya(y); y -= 17;
+  t(400, y, 'Subtotal', 10.5); der(562, y, _qbMonto(b.monto), 10.5); y -= 15;
+  t(400, y, 'IVA', 10.5); der(562, y, _qbMonto(b.iva), 10.5); y -= 17;
+  t(400, y, 'TOTAL USD', 12, true); der(562, y, _qbMonto(_qbR2(b.monto + b.iva)), 12, true);
+  t(50, 40, 'Documento generado por PAGASI desde el Libro de Compras. Cifras en d\u00F3lares (USD).', 7.5);
+  var cont = ops.join('\n');
+  var objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    '<< /Length ' + cont.length + ' >>\nstream\n' + cont + '\nendstream'];
+  var pdf = '%PDF-1.4\n', pos = [];
+  objs.forEach(function(o, i){ pos.push(pdf.length); pdf += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  var xref = pdf.length;
+  pdf += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + pos.map(function(n){ return ('0000000000' + n).slice(-10) + ' 00000 n \n'; }).join('')
+    + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  return pdf;
+}
+// Los PDF de lo que se ve en el 06 (respeta "solo lo nuevo" y la búsqueda): [{ name, data }]
+function qbPdfsCompras(D, V){
+  var ver = {}, usados = {}, P = D.proveedores || {};
+  V.filas.forEach(function(r){ ver[r[0] + '|' + r[1]] = 1; });
+  return ((D.compras || {}).bills || []).filter(function(b){ return ver[b.numero + '|' + b.proveedor]; }).map(function(b){
+    var prov = (P.porClave || {})[(P.porDoc || {})[b.clave]] || null;
+    var base = (b.proveedor + ' - Factura ' + b.numero).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ._-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 110) || 'Factura';
+    var n = usados[base.toUpperCase()] = (usados[base.toUpperCase()] || 0) + 1;
+    return { name: base + (n > 1 ? ' (' + n + ')' : '') + '.pdf', data: qbPdfFactura(b, prov, D.empresa) };
+  });
+}
+function qbZipFacturasProveedor(D){
+  D = D || _qbCalcular();
+  var V = _qbVer(D, 'compras'), archivos = qbPdfsCompras(D, V);
+  if(!archivos.length){ if(typeof toast === 'function') toast('No hay facturas de proveedor para descargar', 'error'); return; }
+  _qbDescargar(_qbNombreArchivo('compras', D.st) + ' (' + archivos.length + ' PDF).zip', new Blob(_zipStore(archivos)), 'application/zip');
+  _qbAnotarDescarga('compras', 'zip', D, V);
+  if(typeof toast === 'function') toast(archivos.length + ' PDF en un zip: uno por factura', 'success');
 }
 
 function qbExportar(tipo, formato, D){
@@ -1059,4 +1142,4 @@ function qbDescargarTodo(){
 
 if(typeof module !== 'undefined' && module.exports) module.exports = { qbPartirPago: qbPartirPago, qbLineas: qbLineas, qbSaldoCredito: qbSaldoCredito, qbClientes: qbClientes, qbFacturas: qbFacturas,
   qbProveedores: qbProveedores, qbCompras: qbCompras, qbDatos: qbDatos, qbCsvTexto: qbCsvTexto, qbWin1252: qbWin1252, qbHoja: qbHoja, QB_ARCHIVOS: QB_ARCHIVOS, QB_SERVICIOS: QB_SERVICIOS,
-  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde };
+  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde, qbPdfFactura: qbPdfFactura, qbPdfsCompras: qbPdfsCompras, _qbMonto: _qbMonto };

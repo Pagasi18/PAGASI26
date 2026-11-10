@@ -429,5 +429,25 @@ ok('...y su script carga después de lo que usa y antes de las vistas', iMet>0 &
 ok('en la base solo anota las descargas (config/quickbooks): los datos los lee y exporta, no los toca', !/\.set\(|\.update\(|\.add\(|collection\(/.test(src('logic/quickbooks.js')) && (src('logic/quickbooks.js').match(/\bDB\.\w+/g)||[]).every(x=>['DB.getQuickbooks','DB.anotarDescargaQuickbooks','DB.borrarDescargasQuickbooks'].includes(x)));
 ok('cada archivo lleva el rótulo verde "YA DESCARGADO A QUICKBOOKS" o gris "NO DESCARGADO" (el contador, 2-nov)', /YA DESCARGADO A QUICKBOOKS/.test(G._qbSello({ en:'x' })) && /b-g/.test(G._qbSello({ en:'x' })) && /NO DESCARGADO/.test(G._qbSello(null)));
 
+// ── 06 en PDF: un documento por factura, en un zip (el contador, 10-nov-2026) ──
+{
+  D.st={ periodo:'2026-10', corte:'2026-09-30', q:'', modo:'todo', vista:'compras' }; D.empresa={ nombre:'PAGASI 18, C.A.', rif:'J-50000000-0' };
+  const V6z=G._qbVer(D,'compras'), pdfs=G.qbPdfsCompras(D, V6z);
+  ok('06 zip: un PDF por cada factura de proveedor ('+pdfs.length+')', pdfs.length>0 && pdfs.length===D.compras.bills.length && pdfs.length===V6z.docs);
+  ok('06 zip: los nombres de archivo no se repiten y terminan en .pdf', new Set(pdfs.map(x=>x.name.toUpperCase())).size===pdfs.length && pdfs.every(x=>/\.pdf$/.test(x.name) && !/[\\/:*?"<>|]/.test(x.name)));
+  ok('06 zip: cada PDF es solo ASCII (el zip lo guarda byte a byte) y su tabla xref apunta bien', pdfs.every(x=>{
+    if(/[^\x00-\x7F]/.test(x.data)) return false;
+    const xr=+/startxref\n(\d+)\n%%EOF\n$/.exec(x.data)[1]; if(x.data.slice(xr, xr+4)!=='xref') return false;
+    const pos=x.data.slice(xr).split('\n').slice(3, 9).map(l=>+l.slice(0,10));
+    return pos.every((n,i)=>x.data.slice(n, n+8)===(i+1)+' 0 obj\n');
+  }));
+  const b0=D.compras.bills[0], p0=pdfs[0].data;
+  ok('06 zip: el PDF lleva el proveedor, el N° y el total de su factura con formato 1,234.56', p0.indexOf('('+G._qbMonto(r2(b0.monto+b0.iva))+')')>-1 && p0.indexOf('Factura N\\260: '+b0.numero)>-1 && /TOTAL USD/.test(p0));
+  ok('formato de moneda 1,234.56 (miles con comas, céntimos con punto)', G._qbMonto(1234.56)==='1,234.56' && G._qbMonto(1234567.5)==='1,234,567.50' && G._qbMonto(0.1+0.2)==='0.30' && G._qbMonto(999)==='999.00');
+  const zip=G._zipStore(pdfs), total=zip.reduce((a,c)=>a+c.length,0);
+  ok('06 zip: el zip trae todos los PDF', total>pdfs.reduce((a,x)=>a+x.data.length,0));
+  if(process.env.QB_ZIP_OUT) fs.writeFileSync(process.env.QB_ZIP_OUT, Buffer.concat(zip.map(c=>Buffer.from(c))));
+}
+
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;
