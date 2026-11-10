@@ -492,6 +492,7 @@ function qbCompras(docs, periodo, provs){
     }
     if(!lineas.length){ lineas.push({ monto: _qbR2(f.total), codigo: QB_SIN_IVA, iva: 0 }); avisos.push('sin base ni IVA: va todo sin IVA'); }
     var fecha = _qbISO(f.fechaDoc), e0 = (g.egresos || [])[0] || {};
+    lineas = _qbRepartirLineas(lineas, e0.reparto, avisos);
     bills.push({ numero: numero, proveedor: prov.nombreQB, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS), cuenta: cuenta, desc: _qbTxt(g.concepto), lineas: lineas, avisos: avisos,
       monto: _qbR2(lineas.reduce(function(a, l){ return a + l.monto; }, 0)), iva: _qbR2(lineas.reduce(function(a, l){ return a + l.iva; }, 0)), clave: f.clave,
       registradoEn: e0.creadoEn || '', editadoEn: [e0.editadoEn, fi.actualizado].filter(Boolean).sort().pop() || '' });   // cuándo se anotó el gasto o se completó su factura, lo último ("solo lo nuevo")
@@ -499,8 +500,26 @@ function qbCompras(docs, periodo, provs){
   return { bills: bills, sinProveedor: sinProveedor, notasCredito: notasCredito };
 }
 
+// Un gasto repartido en varias categorías (el contador, 10-nov-2026): cada línea de la factura (exento, base) se parte
+// entre las categorías en la proporción de su monto, y cada parte va a la cuenta de su categoría. Los centavos del
+// redondeo quedan en la primera (la principal), así la factura suma lo mismo que sin repartir.
+function _qbRepartirLineas(lineas, reparto, avisos){
+  var partes = (reparto || []).filter(function(x){ return x && x.categoria && +x.monto > 0; });
+  if(partes.length < 2) return lineas;
+  var total = partes.reduce(function(a, x){ return a + (+x.monto); }, 0), out = [];
+  var cuentas = partes.map(function(x){ var cg = _qbCuentaGasto(x.categoria), av = 'categoría "' + cg.cuenta + '" sin cuenta de QuickBooks: recategorízalo o que el contador diga la cuenta'; if(!cg.ok && avisos.indexOf(av) < 0) avisos.push(av); return cg.cuenta; });
+  var porParte = partes.map(function(){ return []; });
+  lineas.forEach(function(l){
+    var montos = partes.map(function(x){ return _qbR2(l.monto * (+x.monto) / total); }), ivas = partes.map(function(x){ return _qbR2(l.iva * (+x.monto) / total); });
+    montos[0] = _qbR2(montos[0] + l.monto - montos.reduce(function(a, m){ return a + m; }, 0));
+    ivas[0] = _qbR2(ivas[0] + l.iva - ivas.reduce(function(a, m){ return a + m; }, 0));
+    partes.forEach(function(x, i){ if(montos[i] || ivas[i]) porParte[i].push({ monto: montos[i], codigo: l.codigo, iva: ivas[i], cuenta: cuentas[i] }); });
+  });
+  porParte.forEach(function(ls){ out = out.concat(ls); });
+  return out;
+}
 function _qbFilasCompra(b){
-  return b.lineas.map(function(l){ return [b.numero, b.proveedor, _qbMDY(b.fecha), _qbMDY(b.vence), QB_TERMINOS, '', '', b.cuenta, b.desc, l.monto, l.codigo, l.iva, QB_MONEDA]; });
+  return b.lineas.map(function(l){ return [b.numero, b.proveedor, _qbMDY(b.fecha), _qbMDY(b.vence), QB_TERMINOS, '', '', l.cuenta || b.cuenta, b.desc, l.monto, l.codigo, l.iva, QB_MONEDA]; });
 }
 
 // ══════════════ TODO JUNTO (lo que se ve y lo que se exporta) ══════════════

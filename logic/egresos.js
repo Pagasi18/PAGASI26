@@ -47,7 +47,7 @@ function openAddEgreso(eg){
   if(editar && eg.origenAuto){ toast(eg.origenAuto==='compra_moto' ? 'Este gasto es la compra de una moto: se corrige desde Motocicletas' : (eg.origenAuto==='comision' ? 'Este gasto es un pago de comisión: se corrige desde Comisiones' : 'Este gasto lo creó el sistema: se corrige desde su módulo'),'error'); return; }
   if(editar && eg.eliminado){ toast('Este gasto está eliminado: no se puede corregir','error'); return; }
   var puedeDinero=!editar || ((typeof isAdminUser==='function' && isAdminUser()) && !(eg.partes||[]).length);
-  _egPartesIds=[];
+  _egPartesIds=[]; _egCatsIds=[];
   var enBsEg=editar && eg.moneda==='BS';
   var fisEg=editar ? _egFiscalParaEditar(eg) : {};
   var monEg=editar ? { moneda:enBsEg?'BS':'USD', tasa:enBsEg?eg.tasaBs:'', tasaMoneda:eg.tasaMoneda||'usd', tasaFecha:eg.tasaFecha||'', tasaFuente:eg.tasaFuente||'' } : {};
@@ -71,6 +71,8 @@ function openAddEgreso(eg){
     +'<div class="fg"><label>Categoría</label><select class="fs" id="eg_cat">'+_catOpts+'</select></div>'
     +'<div class="fg"><label>Monto (<span id="egf_lblmonto">'+(enBsEg?'Bs':'$')+'</span>) *</label><input class="fi" id="eg_monto" type="number" step="0.01" placeholder="0.00" value="'+(editar?esc(enBsEg?eg.montoBs:eg.monto):'')+'"'+dis+' oninput="if(typeof lbFiscalCalc===\'function\')lbFiscalCalc(\'egf\')"><div id="eg_monto_eq" style="font-size:10.5px;color:var(--ink3);min-height:13px;margin-top:2px"></div></div>'
     +'</div>'
+    // Una factura con gastos de varias categorías (el contador, 10-nov-2026): la categoría de arriba lleva el resto
+    +'<div><div id="eg_cats"></div><a href="javascript:void(0)" onclick="egAgregarCategoria()" style="display:inline-block;font-size:11.5px;font-weight:700;color:var(--p1)">+ Repartir en otra categoría</a><div id="eg_cats_resto" style="font-size:10.5px;color:var(--ink3)"></div></div>'
     // Moneda del gasto: en bolívares el monto y la factura se escriben en Bs y el sistema los pasa a dólares con la
     // tasa BCV de la fecha de la factura (Adam, 26-oct-2026). Lo que se guarda sigue en dólares.
     +(typeof lbMonedaHtml==='function' ? lbMonedaHtml('egf', monEg) : '')
@@ -96,6 +98,8 @@ function openAddEgreso(eg){
     +'</div>';
     if(typeof _lbTasaEscrita!=='undefined'){ _lbTasaEscrita.egf=false; _lbTasaReq.egf=(_lbTasaReq.egf||0)+1; }
     if(typeof _lbRepExcluir!=='undefined') _lbRepExcluir.egf=editar?[eg.id]:[];   // al corregir, su propia factura no cuenta como repetida
+    // Al corregir, el reparto en categorías que ya tenía vuelve a salir (la primera parte es la categoría de arriba)
+    if(editar) (eg.reparto||[]).slice(1).forEach(function(x){ egAgregarCategoria(x.categoria, enBsEg && x.montoBs!=null ? x.montoBs : x.monto); });
     if(editar){
       if(!puedeDinero){ ['egf_mon','egf_tasa','egf_tasasel'].forEach(function(id){ var el=$(id); if(el) el.disabled=true; }); }
       // Con la tasa ya guardada no se busca otra; se recalcula el equivalente y lo que dice la factura
@@ -114,7 +118,9 @@ function openAddEgreso(eg){
     if(monto<=0){toast('El monto en dólares queda en cero: revisa la tasa','error');return false;}
     // Factura repetida (mismo N° del mismo proveedor): avisa y pregunta (Adam, 27-oct-2026); no bloquea
     if(typeof lbRepetidaConfirmar==='function' && !lbRepetidaConfirmar('egf')) return false;
-    if(editar) return _egGuardarCorreccion(eg, { conc:conc, montoIn:montoIn, monto:monto, enBs:enBs, tasaEg:tasaEg, puedeDinero:puedeDinero });
+    var reparto=_egLeerReparto(montoIn, enBs, tasaEg);
+    if(reparto===false) return false;
+    if(editar) return _egGuardarCorreccion(eg, { conc:conc, montoIn:montoIn, monto:monto, enBs:enBs, tasaEg:tasaEg, puedeDinero:puedeDinero, reparto:reparto });
     var partes=_egLeerPartes(montoIn, enBs, tasaEg);
     if(partes===false) return false;
     // El numero lo da el contador de Firestore, no el maximo en memoria: con dos
@@ -124,6 +130,7 @@ function openAddEgreso(eg){
       creadoEn:new Date().toISOString(),creadoPor:(S.currentUser&&S.currentUser.nombre)||''};   // cuándo se anotó (la fecha de arriba es la del gasto)
     // "Referencia" se guardaba solo en notas y los reportes leen e.referencia (salía vacío)
     newEg.referencia = newEg.notas || '';
+    if(reparto) newEg.reparto=reparto;
     if(enBs){
       newEg.moneda='BS'; newEg.montoBs=montoIn; newEg.tasaBs=tasaEg;
       newEg.tasaMoneda=(($('egf_tasasel')&&$('egf_tasasel').value)==='eur')?'eur':'usd';
@@ -216,11 +223,59 @@ function _egLeerPartes(montoIn, enBs, tasaEg){
   if(dif) enUsd[0].monto=r2(enUsd[0].monto+dif);
   return enUsd;
 }
+// Un gasto repartido en varias categorías (el contador, 10-nov-2026: "agregarle dos gastos": una factura con cosas de
+// categorías distintas, para que en QuickBooks cada parte vaya a su cuenta). Igual que las cuentas de arriba: filas con
+// categoría y monto, y lo que falta para el total queda en la categoría principal. Se guarda en eg.reparto =
+// [{ categoria, monto }, …] en dólares, la principal primero, y suma exactamente el gasto. eg.categoria no cambia: los
+// reportes que agrupan por categoría siguen leyendo la principal. Devuelve null si no hay reparto y false si algo está mal.
+var _egCatsIds=[], _egCatsN=0;
+function egAgregarCategoria(cat, monto){
+  var cont=$('eg_cats'); if(!cont) return;
+  var n=++_egCatsN, esc=function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); };
+  var opts=(typeof egresoCategoriasOpciones==='function') ? egresoCategoriasOpciones(cat||'otros') : '<option value="otros">Otros</option>';
+  if(cat && typeof egresoCategoria==='function' && !egresoCategoria(cat)) opts='<option value="'+esc(cat)+'" selected>'+esc(cat)+'</option>'+opts;
+  _egCatsIds.push(n);
+  var fila=document.createElement('div'); fila.id='eg_cat2_'+n; fila.className='fgr'; fila.style.cssText='gap:8px;margin-bottom:6px;align-items:end';
+  fila.innerHTML='<div class="fg"><label>Otra categoría</label><select class="fs" id="eg_cat2_cat_'+n+'">'+opts+'</select></div>'
+    +'<div class="fg"><label>Monto de esa categoría</label><input class="fi" id="eg_cat2_monto_'+n+'" type="number" step="0.01" placeholder="0.00" value="'+(monto!=null?esc(monto):'')+'" oninput="egCategoriasResto()"></div>'
+    +'<button type="button" class="btn btn-g btn-sm" onclick="egQuitarCategoria('+n+')" title="Quitar">✕</button>';
+  cont.appendChild(fila); egCategoriasResto();
+}
+function egQuitarCategoria(n){ _egCatsIds=_egCatsIds.filter(function(x){ return x!==n; }); var f=$('eg_cat2_'+n); if(f && f.remove) f.remove(); egCategoriasResto(); }
+function egCategoriasResto(){
+  var el=$('eg_cats_resto'); if(!el) return;
+  if(!_egCatsIds.length){ el.textContent=''; return; }
+  var total=parseFloat(($('eg_monto')&&$('eg_monto').value))||0, otras=_egCatsIds.reduce(function(a,n){ return a+(parseFloat(($('eg_cat2_monto_'+n)||{}).value)||0); },0);
+  var resto=Math.round((total-otras)*100)/100, sim=(typeof lbMonedaEs==='function' && lbMonedaEs('egf'))?'Bs ':'$';
+  el.textContent=resto>0 ? 'En la categoría de arriba quedan '+sim+resto.toFixed(2)+' (el resto del total)' : (total ? 'Las otras categorías suman igual o más que el total' : '');
+}
+function _egLeerReparto(montoIn, enBs, tasaEg){
+  if(!_egCatsIds.length) return null;
+  var principal=($('eg_cat')&&$('eg_cat').value)||'otros', partes=[], suma=0, vistas={}, r2=function(x){ return Math.round(x*100)/100; };
+  vistas[principal]=1;
+  for(var i=0;i<_egCatsIds.length;i++){
+    var n=_egCatsIds[i], cat=($('eg_cat2_cat_'+n)||{}).value||'', m=parseFloat(($('eg_cat2_monto_'+n)||{}).value)||0;
+    if(!cat || m<=0){ toast('Cada categoría adicional necesita su categoría y su monto','error'); return false; }
+    if(vistas[cat]){ toast('Hay una categoría repetida en el reparto: cada parte va en una categoría distinta','error'); return false; }
+    vistas[cat]=1; partes.push({ categoria:cat, montoIn:m }); suma=r2(suma+m);
+  }
+  var resto=r2(montoIn-suma);
+  if(resto<=0){ toast('Las otras categorías suman igual o más que el total: revisa los montos','error'); return false; }
+  partes.unshift({ categoria:principal, montoIn:resto });
+  var enUsd=partes.map(function(x){ var o={ categoria:x.categoria, monto:enBs ? bsAUsd(x.montoIn, tasaEg) : r2(x.montoIn) }; if(enBs) o.montoBs=x.montoIn; return o; });
+  // los centavos del cambio van a la categoría principal, para que las partes sumen exactamente el gasto
+  var totalUsd=enBs ? bsAUsd(montoIn, tasaEg) : r2(montoIn), dif=r2(totalUsd-enUsd.reduce(function(a,x){ return a+x.monto; },0));
+  if(dif) enUsd[0].monto=r2(enUsd[0].monto+dif);
+  if(enUsd.some(function(x){ return !(x.monto>0); })){ toast('Una parte del reparto queda en cero: revisa los montos','error'); return false; }
+  return enUsd;
+}
 // Guarda la corrección de un gasto: lo que cambió queda en su historial, y su movimiento de Cuentas se ajusta
 function _egGuardarCorreccion(eg, v){
   var real=(S.egresos||[]).find(function(x){ return String(x.id)===String(eg.id); })||eg;
   var antes={ concepto:real.concepto, categoria:real.categoria, monto:real.monto, fecha:real.fecha, forma:real.forma, notas:real.notas||'', moneda:real.moneda||'USD', montoBs:real.montoBs||null, tasaBs:real.tasaBs||null,
     fiscal: real.fiscal ? JSON.parse(JSON.stringify(real.fiscal)) : null };   // la factura también, para poder reconstruirla
+  if((real.reparto||[]).length) antes.reparto=JSON.parse(JSON.stringify(real.reparto));
+  if(v.reparto) real.reparto=v.reparto; else delete real.reparto;
   var ahora=new Date().toISOString(), quien=(S.currentUser&&S.currentUser.nombre)||'';
   var notas=(($('eg_notas')&&$('eg_notas').value)||'').trim();
   real.concepto=v.conc; real.categoria=($('eg_cat')&&$('eg_cat').value)||real.categoria||'otros'; real.notas=notas; real.referencia=notas;

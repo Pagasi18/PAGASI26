@@ -449,5 +449,22 @@ ok('cada archivo lleva el rótulo verde "YA DESCARGADO A QUICKBOOKS" o gris "NO 
   if(process.env.QB_ZIP_OUT) fs.writeFileSync(process.env.QB_ZIP_OUT, Buffer.concat(zip.map(c=>Buffer.from(c))));
 }
 
+// ── Un gasto repartido en dos categorías (el contador, 10-nov-2026): en el 06, cada parte a su cuenta ──
+{
+  const eg=[{ id:901, fecha:'2026-10-05', monto:34.80, concepto:'Limpieza y papelería', categoria:'material-de-limpieza',
+    reparto:[{ categoria:'material-de-limpieza', monto:23.20 }, { categoria:'material-de-oficina', monto:11.60 }],
+    fiscal:{ proveedor:'FARMATODO, C.A.', rif:'J-00020200-1', numero:'F-1', fecha:'2026-10-05', base:30, alicuota:0.16, tipo:'01-REG' } },
+   { id:902, fecha:'2026-10-06', monto:11.60, concepto:'Azúcar', categoria:'material-de-oficina', fiscal:{ proveedor:'FARMATODO, C.A.', rif:'J-00020200-1', numero:'F-2', fecha:'2026-10-06', base:10, alicuota:0.16, tipo:'01-REG' } }];
+  const DRp=G.qbDatos({ creds:[], pagos:[], clientes:[], facturas:[], egresos:eg, periodo:'2026-10', corte:'2026-09-30' });
+  const f1=DRp.filas.compras.filter(r=>r[0]==='F-1'), f2=DRp.filas.compras.filter(r=>r[0]==='F-2');
+  ok('06 reparto: la factura repartida sale en dos líneas, cada una con la cuenta de su categoría', f1.length===2 && f1[0][7]==='6101008 MATERIAL DE LIMPIEZA' && f1[1][7]==='6101007 MATERIAL DE OFICINA');
+  ok('06 reparto: base e IVA se parten en la proporción de cada parte y suman lo mismo que la factura', f1[0][9]===20 && f1[1][9]===10 && cerca(f1[0][11],3.2) && cerca(f1[1][11],1.6) && cerca(f1[0][9]+f1[1][9],30) && cerca(f1[0][11]+f1[1][11],4.8));
+  ok('06 reparto: un gasto sin reparto sigue saliendo igual, en una línea', f2.length===1 && f2[0][7]==='6101007 MATERIAL DE OFICINA' && f2[0][9]===10 && cerca(f2[0][11],1.6));
+  const bR=DRp.compras.bills.find(b=>b.numero==='F-1');
+  ok('06 reparto: el total de la factura no cambia', cerca(bR.monto,30) && cerca(bR.iva,4.8));
+  const partes=G._qbRepartirLineas([{ monto:100, codigo:'x', iva:16 }], [{ categoria:'material-de-limpieza', monto:1 }, { categoria:'material-de-oficina', monto:1 }, { categoria:'condominios', monto:1 }], []);
+  ok('06 reparto: los centavos del redondeo quedan en la primera parte (33,34 + 33,33 + 33,33)', partes.length===3 && partes[0].monto===33.34 && partes[1].monto===33.33 && cerca(partes.reduce((a,l)=>a+l.monto,0),100) && cerca(partes.reduce((a,l)=>a+l.iva,0),16));
+}
+
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;
