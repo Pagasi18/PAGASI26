@@ -442,7 +442,7 @@ ok('cada archivo lleva el rótulo verde "YA DESCARGADO A QUICKBOOKS" o gris "NO 
     return pos.every((n,i)=>x.data.slice(n, n+8)===(i+1)+' 0 obj\n');
   }));
   const b0=D.compras.bills[0], p0=pdfs[0].data;
-  ok('06 zip: el PDF lleva el proveedor, el N° y el total de su factura con formato 1,234.56', p0.indexOf('('+G._qbMonto(r2(b0.monto+b0.iva))+')')>-1 && p0.indexOf('Factura N\\260: '+b0.numero)>-1 && /TOTAL USD/.test(p0));
+  ok('06 zip: el PDF es el reporte horizontal con las columnas de QuickBooks y una sola factura, montos como 1,234.56', p0.indexOf('('+G._qbMonto(b0.lineas[0].monto)+')')>-1 && p0.indexOf('('+b0.numero+')')>-1 && /\(\*BillNo\)/.test(p0) && /\(\*Supplier\)/.test(p0) && /792 612/.test(p0));
   ok('formato de moneda 1,234.56 (miles con comas, céntimos con punto)', G._qbMonto(1234.56)==='1,234.56' && G._qbMonto(1234567.5)==='1,234,567.50' && G._qbMonto(0.1+0.2)==='0.30' && G._qbMonto(999)==='999.00');
   const zip=G._zipStore(pdfs), total=zip.reduce((a,c)=>a+c.length,0);
   ok('06 zip: el zip trae todos los PDF', total>pdfs.reduce((a,x)=>a+x.data.length,0));
