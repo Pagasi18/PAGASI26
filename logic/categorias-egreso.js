@@ -8,7 +8,7 @@
 //  · cuentaQB: la columna *Account de la factura de proveedor en QuickBooks (06). Sin cuenta, va el nombre y se avisa.
 //  · ivaCompra: el código de IVA de compra del contador, de referencia (la factura manda si trae base e IVA).
 
-// Generado desde "01.Crear Servicios.xlsx" del contador (10-nov-2026: "creo que cambié algunos nombres… lo más sano es que
+// Generado desde "01.Crear Servicios.xlsx" del contador, la versión corregida de la tarde (nómina sin IVA) (10-nov-2026: "creo que cambié algunos nombres… lo más sano es que
 // estén con el mismo nombre en ambos lados"), que reemplaza al "02. Servicios.xlsx" del 28-oct. Sus 10 columnas puestas en
 // las 19 de la plantilla del 02; no editar a mano:
 var QB_PLAN_SERVICIOS = [["CARTERA DE FINANCIAMIENTO", "Service", "Non-Inventory", "", "FINANCIAMIENTO 24 CUOTAS", "", "1107001 CARTERA DE FINANCIAMIENTO", "AMORTIZACION DE FINANCIAMIENTO", "", "1107001 CARTERA DE FINANCIAMIENTO", "", "", "", "No VAT (0%)", "", "No VAT (0%)", "", "", ""],
@@ -56,7 +56,7 @@ var QB_PLAN_SERVICIOS = [["CARTERA DE FINANCIAMIENTO", "Service", "Non-Inventory
   ["INVENTARIO / MOTOS", "Service", "Non-Inventory", "", "", "", "", "ADQUISICION DE MOTO", "", "1201006 VEHICULOS", "", "", "", "", "", "No VAT (0%)", "", "", ""],
   ["EQUIPOS (GPS)", "Service", "Non-Inventory", "", "", "", "", "SERVICIO DE GPS PARA MOTOS", "", "6101009 MANTENIMIENTO DE VEHICULO Y SERVICIO DE RASTREO", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
   ["OFICINA Y SERVICIOS", "Service", "Non-Inventory", "", "", "", "", "COMPRA DE EQUIPO DE OFICINA Y SERVICIOS DE OFICINA", "", "1201008 MOBILIARIO Y EQUIPOS DE OFICINA", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["SALARIOS Y NOMINA", "Service", "Non-Inventory", "", "", "", "", "PAGO DE QUINCENA EMPLEADOS CXP", "", "2107001 NOMINA POR PAGAR", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["SALARIOS Y NOMINA", "Service", "Non-Inventory", "", "", "", "", "PAGO DE QUINCENA EMPLEADOS CXP", "", "2107001 NOMINA POR PAGAR", "", "", "", "", "", "No VAT (0%)", "", "", ""],
   ["ANTICIPO DE CLIENTES", "Servicios", "Non-Inventory", "", "ABONO DE CLIENTE A CUOTA PENDIENTE", "", "2103001 ANTICIPOS DE CLIENTES", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""]];
 // Las categorías de gasto del contador (su columna A) con su cuenta de QuickBooks (columna "Cuenta de gastos"):
 var EGRESO_CATEGORIAS_CONTADOR = [

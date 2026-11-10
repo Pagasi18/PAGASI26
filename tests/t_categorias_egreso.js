@@ -18,7 +18,7 @@ ok('el nombre para mostrar, y una categoría desconocida se muestra tal cual', C
 const html=C.egresoCategoriasOpciones('alquiler-de-oficinas');
 ok('el selector va por grupos y marca la elegida', /<optgroup label="Generales">/.test(html) && /<optgroup label="Oficina y generales">/.test(html) && /value="alquiler-de-oficinas" selected/.test(html) && (html.match(/<option /g)||[]).length===41);
 ok('...con los nombres escapados', !/<option value="[^"]*<[^"]*"/.test(html) && /&amp;|&lt;|^[^<]*$/.test('x'));
-ok('el catálogo del contador (10-nov): 47 filas de 19 columnas, los 4 ingresos primero', C.QB_PLAN_SERVICIOS.length===47 && C.QB_PLAN_SERVICIOS.every(r=>r.length===19) && C.QB_PLAN_SERVICIOS.slice(1,4).every(r=>r[1]==='Income') && C.QB_PLAN_SERVICIOS.every(r=>r[2]==='Non-Inventory') && C.QB_PLAN_SERVICIOS[46][0]==='ANTICIPO DE CLIENTES');
+ok('el catálogo del contador (10-nov): 47 filas de 19 columnas, los 4 ingresos primero', C.QB_PLAN_SERVICIOS.length===47 && C.QB_PLAN_SERVICIOS.every(r=>r.length===19) && C.QB_PLAN_SERVICIOS.slice(1,4).every(r=>r[1]==='Income') && C.QB_PLAN_SERVICIOS.every(r=>r[2]==='Non-Inventory') && C.QB_PLAN_SERVICIOS[46][0]==='ANTICIPO DE CLIENTES' && C.QB_PLAN_SERVICIOS.find(r=>r[0]==='SALARIOS Y NOMINA')[15]==='No VAT (0%)');
 ok('...los ingresos de financiamiento, mora y Protect con sus cuentas 4101001, 4101003 y 4101002', C.QB_PLAN_SERVICIOS[1][6]==='4101001 INGRESOS POR INTERESES DE FINANCIAMIENTO' && C.QB_PLAN_SERVICIOS[2][6]==='4101003 INGRESOS POR PAGO MOROSO' && C.QB_PLAN_SERVICIOS[3][6]==='4101002 INGRESOS POR PAGASI PROTEC');
 
 // ── Dónde se usa ──────────────────────────────────────────────────────────────────────────────────────
