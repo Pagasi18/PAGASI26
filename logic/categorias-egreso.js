@@ -8,56 +8,63 @@
 //  · cuentaQB: la columna *Account de la factura de proveedor en QuickBooks (06). Sin cuenta, va el nombre y se avisa.
 //  · ivaCompra: el código de IVA de compra del contador, de referencia (la factura manda si trae base e IVA).
 
-// Generado desde "02. Servicios.xlsx" del contador (28-oct-2026). Las 19 columnas del 02 tal cual; no editar a mano:
-var QB_PLAN_SERVICIOS = [["CARTERA DE FINANCIAMIENTO", "Ingresos", "Sin Inventario", "", "FINANCIAMIENTO DE MOTO", "", "1108001 CARTERA DE FINANCIAMIENTO", "AMORTIZACION DE FINANCIAMIENTO", "", "1108001 CARTERA DE FINANCIAMIENTO", "", "", "", "No VAT (0%)", "", "No VAT (0%)", "", "", ""],
-  ["INTERESES DE FINANCIAMIENTO", "Ingresos", "Sin Inventario", "", "INTERESES POR FINANCIAMIENTO", "", "4101001 INGRESOS POR INTERESES DE FINANCIAMIENTO", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["COMISION POR MOROSIDAD", "Ingresos", "Sin Inventario", "", "INGRESOS POR PAGO MOROSO", "", "4101003 INGRESOS POR PAGO MOROSO", "", "", "", "", "", "", "16.0% S (16%)", "", "", "", "", ""],
-  ["INGRESOS POR PAGASI PROTEC", "Ingresos", "Sin Inventario", "", "INGRESOS POR PAGASI PROTEC", "", "4101002 INGRESOS POR PAGASI PROTEC", "", "", "", "", "", "", "16.0% S (16%)", "", "", "", "", ""],
-  ["HONORARIOS PROFESIONALES", "Servicios", "Sin Inventario", "", "", "", "", "HONORARIOS PROFESIONALES", "", "6101002 HONORARIOS PROFESIONALES", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["SERVICIOS DE TELEFONIA", "Servicios", "Sin Inventario", "", "", "", "", "SERVICIO DE TELEFONIA CELULAR", "", "6102001 SERVICIO DE TELEFONIA E INTERNET", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["ALQUILER DE OFICINAS", "Servicios", "Sin Inventario", "", "", "", "", "ARRENDAMIENTO DE OFICINA", "", "6101003 ALQUILER DE OFICINAS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["ESTACIONAMIENTOS", "Servicios", "Sin Inventario", "", "", "", "", "ESTACIONAMIENTOS", "", "6101004 ESTACIONAMIENTOS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["MATERIAL DE OFICINA", "Servicios", "Sin Inventario", "", "", "", "", "MATERIAL DE OFICINA", "", "6101006 MATERIAL DE OFICINA", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["MATERIAL DE LIMPIEZA", "Servicios", "Sin Inventario", "", "", "", "", "MATERIAL DE LIMPIEZA", "", "6101007 MATERIAL DE LIMPIEZA", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["GASTOS DE PUBLICIDAD", "Servicios", "Sin Inventario", "", "", "", "", "GASTOS DE PUBLICIDAD", "", "6101009 GASTOS DE PUBLICIDAD", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["SERVICIO DE INTERNET", "Servicios", "Sin Inventario", "", "", "", "", "SERVICIO DE INTERNET FIBRA OPTICA", "", "6102001 SERVICIO DE TELEFONIA E INTERNET", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["MTO. SERVIDORES", "Servicios", "Sin Inventario", "", "", "", "", "SERVICIO DE SERVIDORES", "", "6102002 SERVICIO DE SERVIDORES", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["DOMINIO PAGINA WEB", "Servicios", "Sin Inventario", "", "", "", "", "PAGINA WEB", "", "6102003 PAGINA WEB", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["GASTOS DE NOTARIA", "Servicios", "Sin Inventario", "", "", "", "", "COSTOS DE NOTARIA Y REGISTRO DE FINANCIAMIENTO", "", "5101002 COSTOS DE NOTARIA Y REGISTRO DE FINANCIAMIENTO", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["COSTOS DE FINANCIAMIENTO", "Servicios", "Sin Inventario", "", "", "", "", "COSTOS DE SERVICIO DE FINANCIAMIENTO", "", "5101001 COSTOS DE SERVICIO DE FINANCIAMIENTO", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["COSTOS DE INTERES FINANC.", "Servicios", "Sin Inventario", "", "", "", "", "INTERESES SOBRE PRESTAMOS BANCARIOS", "", "5101003 INTERESES SOBRE PRESTAMOS BANCARIOS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["UNIFORME DE PERSONAL", "Servicios", "Sin Inventario", "", "", "", "", "COSTOS DE IMPLEMENTOS Y UNIFORME DEL PERSONAL", "", "5202001 COSTOS DE IMPLEMENTOS Y UNIFORME DEL PERSONAL", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["ATENCION AL PERSONAL", "Servicios", "Sin Inventario", "", "", "", "", "ATENCION AL PERSONAL", "", "5202002 ATENCION AL PERSONAL", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["CURSOS Y CAPACITACION", "Servicios", "Sin Inventario", "", "", "", "", "CURSOS Y CAPACITACION", "", "5202005 CURSOS Y CAPACITACION", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["CONDOMINIOS", "Servicios", "Sin Inventario", "", "", "", "", "CONDOMINIOS", "", "6101005 CONDOMINIOS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["MANTENIMIENTO DE OFICINA", "Servicios", "Sin Inventario", "", "", "", "", "MANTENIMIENTO OFICINA Y EQUIPOS", "", "6104001 MANTENIMIENTO OFICINA Y EQUIPOS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["IMPUESTOS MUNICIPALES", "Servicios", "Sin Inventario", "", "", "", "", "IMPUESTO SOBRE ACTIVIDADES ECONÓMICAS (PATENTE MUNICIPAL)", "", "6105001 IMPUESTO SOBRE ACTIVIDADES ECONÓMICAS (PATENTE MUNICIPAL)", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["TIMBRE FISCAL", "Servicios", "Sin Inventario", "", "", "", "", "TIMBRE FISCAL", "", "6105002 TIMBRE FISCAL", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["MULTAS", "Servicios", "Sin Inventario", "", "", "", "", "MULTAS Y SANCIONES LABORALES, FISCALES Y PARA FISCALES", "", "6105006 MULTAS Y SANCIONES LABORALES, FISCALES Y PARA FISCALES", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["ING. INT. BANCARIO", "Servicios", "Sin Inventario", "", "INGRESOS POR INTERESES BANCARIOS", "", "7101001 INGRESOS POR INTERESES BANCARIOS NACIONALES", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["COMISIONES BANCARIAS", "Servicios", "Sin Inventario", "", "", "", "", "GASTOS Y COMISIONES BANCARIAS", "", "7102001 GASTOS Y COMISIONES BANCARIAS", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["GASTOS POR INTERESES", "Servicios", "Sin Inventario", "", "", "", "", "GASTOS POR INTERESES", "", "7102002 GASTOS POR INTERESES", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["PERD.DIF. CAMBIARIO (INTERES)", "Servicios", "Sin Inventario", "", "", "", "", "PERD. DIF. CAMBIARIO SOBRE PRESTAMOS BANCARIOS", "", "7102006 PERD. DIF. CAMBIARIO SOBRE PRESTAMOS BANCARIOS", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["ING. DIF. BANCARIO (INTERES)", "Servicios", "Sin Inventario", "", "INGRESO DIF. CAMBIARIO SOBRE INTERESES DEVENGADOS", "", "7101002 INGRESO DIF. CAMBIARIO SOBRE INTERESES DEVENGADOS", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["IMPUESTO SOBRE LA RENTA CORRIENTE", "Servicios", "Sin Inventario", "", "", "", "", "IMPUESTO SOBRE LA RENTA CORRIENTE", "", "8101001 IMPUESTO SOBRE LA RENTA CORRIENTE", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["IMPUESTO SOBRE LA RENTA DIFERIDO", "Servicios", "Sin Inventario", "", "", "", "", "IMPUESTO SOBRE LA RENTA DIFERIDO", "", "8101002 IMPUESTO SOBRE LA RENTA DIFERIDO", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["MULTAS EN IMPUESTO SOBRE LA RENTA", "Servicios", "Sin Inventario", "", "", "", "", "MULTAS EN IMPUESTO SOBRE LA RENTA", "", "8101003 MULTAS EN IMPUESTO SOBRE LA RENTA", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["VIATICOS AL PERSONAL", "Servicios", "Sin Inventario", "", "", "", "", "VIATICOS AL PERSONAL", "", "5202003 VIATICOS AL PERSONAL", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
-  ["POLIZA DE SEGURO", "Servicios", "Sin Inventario", "", "", "", "", "POLIZA DE SEGURO", "", "5202004 POLIZA DE SEGURO", "", "", "", "No VAT (0%)", "", "", "", "", ""],
-  ["IVSS y REG. PREST. EMPLEO", "Servicios", "Sin Inventario", "", "", "", "", "CUENTAS POR PAGAR IVSS  RÉGIMEN PRESTACIONAL DE EMPLEO", "", "2107001 CUENTAS POR PAGAR IVSS  RÉGIMEN PRESTACIONAL DE EMPLEO", "", "", "", "", "", "No VAT (0%)", "", "", ""],
-  ["BANAVIH", "Servicios", "Sin Inventario", "", "", "", "", "CUENTAS POR PAGAR FAOV (BANAVIH)", "", "2107002 CUENTAS POR PAGAR FAOV (BANAVIH)", "", "", "", "", "", "No VAT (0%)", "", "", ""],
-  ["INCES", "Servicios", "Sin Inventario", "", "", "", "", "CUENTAS POR PAGAR INCES", "", "2107003 CUENTAS POR PAGAR INCES", "", "", "", "", "", "No VAT (0%)", "", "", ""],
-  ["FONDO PENSIONES", "Servicios", "Sin Inventario", "", "", "", "", "CUENTAS POR PAGAR CONTRIBUCION ESPECIAL FONDO DE PENSIONES", "", "2107004 CUENTAS POR PAGAR CONTRIBUCION ESPECIAL FONDO DE PENSIONES", "", "", "", "", "", "No VAT (0%)", "", "", ""],
-  ["APORTE LOCTI", "Servicios", "Sin Inventario", "", "", "", "", "APORTE LOCTI", "", "6105003 APORTE LOCTI", "", "", "", "", "", "No VAT (0%)", "", "", ""],
-  ["LEY ORGANICA DEL DEPORTE", "Servicios", "Sin Inventario", "", "", "", "", "APORTE LEY ORGÁNICA DE DEPORTE", "", "6105004 APORTE LEY ORGÁNICA DE DEPORTE", "", "", "", "", "", "No VAT (0%)", "", "", ""],
-  ["LEY ORGANICA DE DROGAS (FONA)", "Servicios", "Sin Inventario", "", "", "", "", "APORTE LEY ORGÁNICA DE DROGAS (FONA)", "", "6105005 APORTE LEY ORGÁNICA DE DROGAS (FONA)", "", "", "", "", "", "No VAT (0%)", "", "", ""]];
+// Generado desde "01.Crear Servicios.xlsx" del contador (11-nov-2026: "creo que cambié algunos nombres… lo más sano es que
+// estén con el mismo nombre en ambos lados"), que reemplaza al "02. Servicios.xlsx" del 28-oct. Sus 10 columnas puestas en
+// las 19 de la plantilla del 02; no editar a mano:
+var QB_PLAN_SERVICIOS = [["CARTERA DE FINANCIAMIENTO", "Service", "Non-Inventory", "", "FINANCIAMIENTO 24 CUOTAS", "", "1107001 CARTERA DE FINANCIAMIENTO", "AMORTIZACION DE FINANCIAMIENTO", "", "1107001 CARTERA DE FINANCIAMIENTO", "", "", "", "No VAT (0%)", "", "No VAT (0%)", "", "", ""],
+  ["INTERESES DE FINANCIAMIENTO", "Income", "Non-Inventory", "", "INTERESES POR FINANCIAMIENTO", "", "4101001 INGRESOS POR INTERESES DE FINANCIAMIENTO", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["COMISION POR MOROSIDAD", "Income", "Non-Inventory", "", "INGRESOS POR PAGO MOROSO", "", "4101003 INGRESOS POR PAGO MOROSO", "", "", "", "", "", "", "16.0% S (16%)", "", "", "", "", ""],
+  ["INGRESOS POR PAGASI PROTEC", "Income", "Non-Inventory", "", "INGRESOS POR PAGASI PROTEC", "", "4101002 INGRESOS POR PAGASI PROTEC", "", "", "", "", "", "", "16.0% S (16%)", "", "", "", "", ""],
+  ["HONORARIOS PROFESIONALES", "Service", "Non-Inventory", "", "", "", "", "HONORARIOS PROFESIONALES", "", "6101003 HONORARIOS PROFESIONALES", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["SERVICIOS DE TELEFONIA", "Service", "Non-Inventory", "", "", "", "", "SERVICIO DE TELEFONIA CELULAR", "", "6102001 SERVICIO DE TELEFONIA E INTERNET", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["ALQUILER DE OFICINAS", "Service", "Non-Inventory", "", "", "", "", "ARRENDAMIENTO DE OFICINA", "", "6101004 ALQUILER DE OFICINAS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["ESTACIONAMIENTOS", "Service", "Non-Inventory", "", "", "", "", "ESTACIONAMIENTOS", "", "6101005 ESTACIONAMIENTOS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["MATERIAL DE OFICINA", "Service", "Non-Inventory", "", "", "", "", "MATERIAL DE OFICINA", "", "6101007 MATERIAL DE OFICINA", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["MATERIAL DE LIMPIEZA", "Service", "Non-Inventory", "", "", "", "", "MATERIAL DE LIMPIEZA", "", "6101008 MATERIAL DE LIMPIEZA", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["GASTOS DE PUBLICIDAD", "Service", "Non-Inventory", "", "", "", "", "GASTOS DE PUBLICIDAD", "", "6101010 GASTOS DE PUBLICIDAD", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["SERVICIO DE INTERNET", "Service", "Non-Inventory", "", "", "", "", "SERVICIO DE INTERNET FIBRA OPTICA", "", "6102001 SERVICIO DE TELEFONIA E INTERNET", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["MTO. SERVIDORES", "Service", "Non-Inventory", "", "", "", "", "SERVICIO DE SERVIDORES", "", "6102002 SERVICIO DE SERVIDORES", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["DOMINIO PAGINA WEB", "Service", "Non-Inventory", "", "", "", "", "PAGINA WEB", "", "6102003 PAGINA WEB", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["GASTOS DE NOTARIA", "Service", "Non-Inventory", "", "", "", "", "COSTOS DE NOTARIA Y REGISTRO DE FINANCIAMIENTO", "", "5101002 COSTOS DE NOTARIA Y REGISTRO DE FINANCIAMIENTO", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["COSTOS DE FINANCIAMIENTO", "Service", "Non-Inventory", "", "", "", "", "COSTOS DE SERVICIO DE FINANCIAMIENTO", "", "5101001 COSTOS DE SERVICIO DE FINANCIAMIENTO", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["COSTOS DE INTERES FINANC.", "Service", "Non-Inventory", "", "", "", "", "INTERESES SOBRE PRESTAMOS BANCARIOS", "", "5101003 INTERESES SOBRE PRESTAMOS BANCARIOS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["UNIFORME DE PERSONAL", "Service", "Non-Inventory", "", "", "", "", "COSTOS DE IMPLEMENTOS Y UNIFORME DEL PERSONAL", "", "5202001 IMPLEMENTO Y UNIFORME DEL PERSONAL", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["ATENCION AL PERSONAL", "Service", "Non-Inventory", "", "", "", "", "ATENCION AL PERSONAL", "", "5202002 ATENCION AL PERSONAL", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["CURSOS Y CAPACITACION", "Service", "Non-Inventory", "", "", "", "", "CURSOS Y CAPACITACION", "", "5202005 CURSOS Y CAPACITACION", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["CONDOMINIOS", "Service", "Non-Inventory", "", "", "", "", "CONDOMINIOS", "", "6101006 CONDOMINIOS", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["MANTENIMIENTO DE OFICINA", "Service", "Non-Inventory", "", "", "", "", "MANTENIMIENTO OFICINA Y EQUIPOS", "", "6101012 MANTENIMIENTO OFICINA", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["IMPUESTOS MUNICIPALES", "Service", "Non-Inventory", "", "", "", "", "IMPUESTO SOBRE ACTIVIDADES ECONÓMICAS (PATENTE MUNICIPAL)", "", "6104001 IMPUESTO SOBRE ACTIVIDADES ECONÓMICAS (PATENTE MUNICIPAL)", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["TIMBRE FISCAL", "Service", "Non-Inventory", "", "", "", "", "TIMBRE FISCAL", "", "6104002 TIMBRE FISCAL", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["MULTAS", "Service", "Non-Inventory", "", "", "", "", "MULTAS Y SANCIONES LABORALES, FISCALES Y PARA FISCALES", "", "6104006 MULTAS Y REPAROS", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["ING. INT. BANCARIO", "Income", "Non-Inventory", "", "INGRESOS POR INTERESES BANCARIOS", "", "7101001 INGRESOS POR INTERESES BANCARIOS NACIONALES", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["COMISIONES BANCARIAS", "Service", "Non-Inventory", "", "", "", "", "GASTOS Y COMISIONES BANCARIAS", "", "7102001 GASTOS Y COMISIONES BANCARIAS", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["GASTOS POR INTERESES", "Service", "Non-Inventory", "", "", "", "", "GASTOS POR INTERESES", "", "7102002 GASTOS POR INTERESES", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["PERD.DIF. CAMBIARIO (INTERES)", "Service", "Non-Inventory", "", "", "", "", "PERD. DIF. CAMBIARIO SOBRE PRESTAMOS BANCARIOS", "", "7102003 PERD. DIF. CAMBIARIO SOBRE PRESTAMOS BANCARIOS", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["ING. DIF. BANCARIO (INTERES)", "Service", "Non-Inventory", "", "INGRESO DIF. CAMBIARIO SOBRE INTERESES DEVENGADOS", "", "7101002 INGRESO DIF. CAMBIARIO SOBRE INTERESES DEVENGADOS", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["IMPUESTO SOBRE LA RENTA CORRIENTE", "Service", "Non-Inventory", "", "", "", "", "IMPUESTO SOBRE LA RENTA CORRIENTE", "", "8101001 IMPUESTO SOBRE LA RENTA CORRIENTE", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["IMPUESTO SOBRE LA RENTA DIFERIDO", "Service", "Non-Inventory", "", "", "", "", "IMPUESTO SOBRE LA RENTA DIFERIDO", "", "8101002 IMPUESTO SOBRE LA RENTA DIFERIDO", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["MULTAS EN IMPUESTO SOBRE LA RENTA", "Service", "Non-Inventory", "", "", "", "", "MULTAS EN IMPUESTO SOBRE LA RENTA", "", "8101003 MULTAS EN IMPUESTO SOBRE LA RENTA", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["VIATICOS AL PERSONAL", "Service", "Non-Inventory", "", "", "", "", "VIATICOS AL PERSONAL", "", "5202003 VIATICOS AL PERSONAL", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["POLIZA DE SEGURO", "Service", "Non-Inventory", "", "", "", "", "POLIZA DE SEGURO", "", "5202004 POLIZA DE SEGURO", "", "", "", "No VAT (0%)", "", "", "", "", ""],
+  ["IVSS y REG. PREST. EMPLEO", "Service", "Non-Inventory", "", "", "", "", "CUENTAS POR PAGAR IVSS RÉGIMEN PRESTACIONAL DE EMPLEO", "", "2107004 CUENTAS POR PAGAR IVSS Y RPE", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["BANAVIH", "Service", "Non-Inventory", "", "", "", "", "CUENTAS POR PAGAR FAOV (BANAVIH)", "", "2107005 CUENTAS POR PAGAR FAOV (BANAVIH)", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["INCES", "Service", "Non-Inventory", "", "", "", "", "CUENTAS POR PAGAR INCES", "", "2107006 CUENTAS POR PAGAR INCES", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["FONDO PENSIONES", "Service", "Non-Inventory", "", "", "", "", "CUENTAS POR PAGAR CONTRIBUCION ESPECIAL FONDO DE PENSIONES", "", "2107007 CUENTAS POR PAGAR CONT. FNDO. PENSIONES", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["APORTE LOCTI", "Service", "Non-Inventory", "", "", "", "", "APORTE LOCTI", "", "6104003 APORTE LOCTI", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["LEY ORGANICA DEL DEPORTE", "Service", "Non-Inventory", "", "", "", "", "APORTE LEY ORGÁNICA DE DEPORTE", "", "6104004 APORTE LEY ORGÁNICA DE DEPORTE", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["LEY ORGANICA DE DROGAS (FONA)", "Service", "Non-Inventory", "", "", "", "", "APORTE LEY ORGÁNICA DE DROGAS (FONA)", "", "6104005 APORTE LEY ORGÁNICA DE DROGAS (FONA)", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["INVENTARIO / MOTOS", "Service", "Non-Inventory", "", "", "", "", "ADQUISICION DE MOTO", "", "1201006 VEHICULOS", "", "", "", "", "", "No VAT (0%)", "", "", ""],
+  ["EQUIPOS (GPS)", "Service", "Non-Inventory", "", "", "", "", "SERVICIO DE GPS PARA MOTOS", "", "6101009 MANTENIMIENTO DE VEHICULO Y SERVICIO DE RASTREO", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["OFICINA Y SERVICIOS", "Service", "Non-Inventory", "", "", "", "", "COMPRA DE EQUIPO DE OFICINA Y SERVICIOS DE OFICINA", "", "1201008 MOBILIARIO Y EQUIPOS DE OFICINA", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["SALARIOS Y NOMINA", "Service", "Non-Inventory", "", "", "", "", "PAGO DE QUINCENA EMPLEADOS CXP", "", "2107001 NOMINA POR PAGAR", "", "", "", "", "", "16.0% S (16%)", "", "", ""],
+  ["ANTICIPO DE CLIENTES", "Servicios", "Non-Inventory", "", "ABONO DE CLIENTE A CUOTA PENDIENTE", "", "2103001 ANTICIPOS DE CLIENTES", "", "", "", "", "", "", "No VAT (0%)", "", "", "", "", ""]];
 // Las categorías de gasto del contador (su columna A) con su cuenta de QuickBooks (columna "Cuenta de gastos"):
 var EGRESO_CATEGORIAS_CONTADOR = [
  {
   "id": "honorarios-profesionales",
   "nombre": "HONORARIOS PROFESIONALES",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6101002 HONORARIOS PROFESIONALES",
+  "cuentaQB": "6101003 HONORARIOS PROFESIONALES",
   "descCompra": "HONORARIOS PROFESIONALES",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -73,7 +80,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "alquiler-de-oficinas",
   "nombre": "ALQUILER DE OFICINAS",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6101003 ALQUILER DE OFICINAS",
+  "cuentaQB": "6101004 ALQUILER DE OFICINAS",
   "descCompra": "ARRENDAMIENTO DE OFICINA",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -81,7 +88,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "estacionamientos",
   "nombre": "ESTACIONAMIENTOS",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6101004 ESTACIONAMIENTOS",
+  "cuentaQB": "6101005 ESTACIONAMIENTOS",
   "descCompra": "ESTACIONAMIENTOS",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -89,7 +96,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "material-de-oficina",
   "nombre": "MATERIAL DE OFICINA",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6101006 MATERIAL DE OFICINA",
+  "cuentaQB": "6101007 MATERIAL DE OFICINA",
   "descCompra": "MATERIAL DE OFICINA",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -97,7 +104,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "material-de-limpieza",
   "nombre": "MATERIAL DE LIMPIEZA",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6101007 MATERIAL DE LIMPIEZA",
+  "cuentaQB": "6101008 MATERIAL DE LIMPIEZA",
   "descCompra": "MATERIAL DE LIMPIEZA",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -105,7 +112,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "gastos-de-publicidad",
   "nombre": "GASTOS DE PUBLICIDAD",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6101009 GASTOS DE PUBLICIDAD",
+  "cuentaQB": "6101010 GASTOS DE PUBLICIDAD",
   "descCompra": "GASTOS DE PUBLICIDAD",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -161,7 +168,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "uniforme-de-personal",
   "nombre": "UNIFORME DE PERSONAL",
   "grupo": "Personal",
-  "cuentaQB": "5202001 COSTOS DE IMPLEMENTOS Y UNIFORME DEL PERSONAL",
+  "cuentaQB": "5202001 IMPLEMENTO Y UNIFORME DEL PERSONAL",
   "descCompra": "COSTOS DE IMPLEMENTOS Y UNIFORME DEL PERSONAL",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -185,7 +192,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "condominios",
   "nombre": "CONDOMINIOS",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6101005 CONDOMINIOS",
+  "cuentaQB": "6101006 CONDOMINIOS",
   "descCompra": "CONDOMINIOS",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -193,7 +200,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "mantenimiento-de-oficina",
   "nombre": "MANTENIMIENTO DE OFICINA",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6104001 MANTENIMIENTO OFICINA Y EQUIPOS",
+  "cuentaQB": "6101012 MANTENIMIENTO OFICINA",
   "descCompra": "MANTENIMIENTO OFICINA Y EQUIPOS",
   "ivaCompra": "16.0% S (16%)"
  },
@@ -201,7 +208,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "impuestos-municipales",
   "nombre": "IMPUESTOS MUNICIPALES",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6105001 IMPUESTO SOBRE ACTIVIDADES ECONÓMICAS (PATENTE MUNICIPAL)",
+  "cuentaQB": "6104001 IMPUESTO SOBRE ACTIVIDADES ECONÓMICAS (PATENTE MUNICIPAL)",
   "descCompra": "IMPUESTO SOBRE ACTIVIDADES ECONÓMICAS (PATENTE MUNICIPAL)",
   "ivaCompra": "No VAT (0%)"
  },
@@ -209,7 +216,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "timbre-fiscal",
   "nombre": "TIMBRE FISCAL",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6105002 TIMBRE FISCAL",
+  "cuentaQB": "6104002 TIMBRE FISCAL",
   "descCompra": "TIMBRE FISCAL",
   "ivaCompra": "No VAT (0%)"
  },
@@ -217,7 +224,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "multas",
   "nombre": "MULTAS",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6105006 MULTAS Y SANCIONES LABORALES, FISCALES Y PARA FISCALES",
+  "cuentaQB": "6104006 MULTAS Y REPAROS",
   "descCompra": "MULTAS Y SANCIONES LABORALES, FISCALES Y PARA FISCALES",
   "ivaCompra": "No VAT (0%)"
  },
@@ -241,7 +248,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "perd-dif-cambiario-interes",
   "nombre": "PERD.DIF. CAMBIARIO (INTERES)",
   "grupo": "Financieros",
-  "cuentaQB": "7102006 PERD. DIF. CAMBIARIO SOBRE PRESTAMOS BANCARIOS",
+  "cuentaQB": "7102003 PERD. DIF. CAMBIARIO SOBRE PRESTAMOS BANCARIOS",
   "descCompra": "PERD. DIF. CAMBIARIO SOBRE PRESTAMOS BANCARIOS",
   "ivaCompra": "No VAT (0%)"
  },
@@ -289,15 +296,15 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "ivss-y-reg-prest-empleo",
   "nombre": "IVSS y REG. PREST. EMPLEO",
   "grupo": "Obligaciones laborales",
-  "cuentaQB": "2107001 CUENTAS POR PAGAR IVSS  RÉGIMEN PRESTACIONAL DE EMPLEO",
-  "descCompra": "CUENTAS POR PAGAR IVSS  RÉGIMEN PRESTACIONAL DE EMPLEO",
+  "cuentaQB": "2107004 CUENTAS POR PAGAR IVSS Y RPE",
+  "descCompra": "CUENTAS POR PAGAR IVSS RÉGIMEN PRESTACIONAL DE EMPLEO",
   "ivaCompra": "No VAT (0%)"
  },
  {
   "id": "banavih",
   "nombre": "BANAVIH",
   "grupo": "Obligaciones laborales",
-  "cuentaQB": "2107002 CUENTAS POR PAGAR FAOV (BANAVIH)",
+  "cuentaQB": "2107005 CUENTAS POR PAGAR FAOV (BANAVIH)",
   "descCompra": "CUENTAS POR PAGAR FAOV (BANAVIH)",
   "ivaCompra": "No VAT (0%)"
  },
@@ -305,7 +312,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "inces",
   "nombre": "INCES",
   "grupo": "Obligaciones laborales",
-  "cuentaQB": "2107003 CUENTAS POR PAGAR INCES",
+  "cuentaQB": "2107006 CUENTAS POR PAGAR INCES",
   "descCompra": "CUENTAS POR PAGAR INCES",
   "ivaCompra": "No VAT (0%)"
  },
@@ -313,7 +320,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "fondo-pensiones",
   "nombre": "FONDO PENSIONES",
   "grupo": "Obligaciones laborales",
-  "cuentaQB": "2107004 CUENTAS POR PAGAR CONTRIBUCION ESPECIAL FONDO DE PENSIONES",
+  "cuentaQB": "2107007 CUENTAS POR PAGAR CONT. FNDO. PENSIONES",
   "descCompra": "CUENTAS POR PAGAR CONTRIBUCION ESPECIAL FONDO DE PENSIONES",
   "ivaCompra": "No VAT (0%)"
  },
@@ -321,7 +328,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "aporte-locti",
   "nombre": "APORTE LOCTI",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6105003 APORTE LOCTI",
+  "cuentaQB": "6104003 APORTE LOCTI",
   "descCompra": "APORTE LOCTI",
   "ivaCompra": "No VAT (0%)"
  },
@@ -329,7 +336,7 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "ley-organica-del-deporte",
   "nombre": "LEY ORGANICA DEL DEPORTE",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6105004 APORTE LEY ORGÁNICA DE DEPORTE",
+  "cuentaQB": "6104004 APORTE LEY ORGÁNICA DE DEPORTE",
   "descCompra": "APORTE LEY ORGÁNICA DE DEPORTE",
   "ivaCompra": "No VAT (0%)"
  },
@@ -337,19 +344,19 @@ var EGRESO_CATEGORIAS_CONTADOR = [
   "id": "ley-organica-de-drogas-fona",
   "nombre": "LEY ORGANICA DE DROGAS (FONA)",
   "grupo": "Oficina y generales",
-  "cuentaQB": "6105005 APORTE LEY ORGÁNICA DE DROGAS (FONA)",
+  "cuentaQB": "6104005 APORTE LEY ORGÁNICA DE DROGAS (FONA)",
   "descCompra": "APORTE LEY ORGÁNICA DE DROGAS (FONA)",
   "ivaCompra": "No VAT (0%)"
  }
 ];
 
-// Las cinco categorías de siempre. Inventario y nómina tienen cuenta clara en el plan del contador; las otras tres van
-// con su nombre y el 06 avisa que hay que recategorizar o que el contador diga la cuenta.
+// Las cinco categorías de siempre. Desde el 11-nov-2026 el contador les puso cuenta a cuatro (sus filas INVENTARIO / MOTOS,
+// EQUIPOS (GPS), OFICINA Y SERVICIOS y SALARIOS Y NOMINA); "otros" sigue sin cuenta: va con su nombre y el 06 lo avisa.
 var EGRESO_CATEGORIAS_BASE = [
-  { id: 'inventario', nombre: 'Inventario / Motos', grupo: 'Generales', cuentaQB: '1113 INVENTARIOS', ivaCompra: '16.0% S (16%)' },
-  { id: 'equipos', nombre: 'Equipos (GPS)', grupo: 'Generales', cuentaQB: '', ivaCompra: '16.0% S (16%)' },
-  { id: 'operativo', nombre: 'Oficina y servicios', grupo: 'Generales', cuentaQB: '', ivaCompra: '16.0% S (16%)' },
-  { id: 'nomina', nombre: 'Salarios / Nómina', grupo: 'Generales', cuentaQB: '5102001 SUELDOS Y SALARIOS PERSONAL', ivaCompra: 'No VAT (0%)' },
+  { id: 'inventario', nombre: 'Inventario / Motos', grupo: 'Generales', cuentaQB: '1201006 VEHICULOS', ivaCompra: 'No VAT (0%)' },
+  { id: 'equipos', nombre: 'Equipos (GPS)', grupo: 'Generales', cuentaQB: '6101009 MANTENIMIENTO DE VEHICULO Y SERVICIO DE RASTREO', ivaCompra: '16.0% S (16%)' },
+  { id: 'operativo', nombre: 'Oficina y servicios', grupo: 'Generales', cuentaQB: '1201008 MOBILIARIO Y EQUIPOS DE OFICINA', ivaCompra: '16.0% S (16%)' },
+  { id: 'nomina', nombre: 'Salarios / Nómina', grupo: 'Generales', cuentaQB: '2107001 NOMINA POR PAGAR', ivaCompra: 'No VAT (0%)' },
   { id: 'otros', nombre: 'Otros', grupo: 'Generales', cuentaQB: '', ivaCompra: 'No VAT (0%)' }
 ];
 var EGRESO_CATEGORIAS = EGRESO_CATEGORIAS_BASE.concat(EGRESO_CATEGORIAS_CONTADOR);
