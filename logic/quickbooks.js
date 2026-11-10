@@ -22,7 +22,7 @@ var QB_TERMINOS = 'Net 15', QB_DIAS_TERMINOS = 15;   // los términos de las dos
 var QB_MONEDA = 'USD';                               // créditos, pagos y gastos están en dólares
 var QB_PAIS = 'Venezuela';
 
-// El catálogo del contador: las 47 filas de su "01.Crear Servicios.xlsx" del 11-nov-2026 (QB_PLAN_SERVICIOS, en
+// El catálogo del contador: las 47 filas de su "01.Crear Servicios.xlsx" del 10-nov-2026 (QB_PLAN_SERVICIOS, en
 // logic/categorias-egreso.js). Ya trae la regla de Adam del 23-sep: INTERESES DE FINANCIAMIENTO sin IVA e INGRESOS POR
 // PAGASI PROTEC con el 16 %. Las facturas (03) y los recibos (04) usan exactamente esos nombres. Lo que no está en su catálogo y el sistema
 // necesita (solo si aparece): OTROS SERVICIOS (PAGASI 18, contratos hasta el CRED-498) e IGTF PERCIBIDO.
@@ -556,7 +556,7 @@ function qbDatos(ctx){
       { concepto: 'Créditos sin cuota o sin número de cuotas (su saldo es total − cobrado, como en Pagos)', estado: cuantos(C.sinCuota.length, true) },
       { concepto: 'Créditos sin cliente y con el nombre de dos personas distintas (ponles el cliente)', estado: cuantos(C.ambiguos.length, true) }
     ],
-    servicios: [{ concepto: 'El catálogo del contador tal cual (01.Crear Servicios.xlsx del 11-nov-2026): ' + (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS.length : 0) + ' servicios y categorías de gasto con su cuenta', estado: 'OK' }]
+    servicios: [{ concepto: 'El catálogo del contador tal cual (01.Crear Servicios.xlsx del 10-nov-2026): ' + (typeof QB_PLAN_SERVICIOS !== 'undefined' ? QB_PLAN_SERVICIOS.length : 0) + ' servicios y categorías de gasto con su cuenta', estado: 'OK' }]
       .concat(extras.map(function(s){ return { concepto: s.fila[0] + ': ' + s.cambio, estado: 'AVISO' }; })),
     facturas: [
       { concepto: 'Abonos del mes: cobros que no pagan cuotas completas (una factura por cada abono)', estado: F.docs.length + ' · ' + fmt(cobrado) },

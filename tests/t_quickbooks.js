@@ -145,7 +145,7 @@ ok('...y el "Estado" es la región (estado_ubi), no el estatus del cliente', jg[
 
 // 02 Servicios: la plantilla del contador, con los cambios a la vista
 const sv=D.filas.servicios;
-ok('02: las 19 columnas de la plantilla y las 47 filas del contador (11-nov)', G.QB_ARCHIVOS.servicios.enc.length===19 && sv.length===47 && sv.every(r=>r.length===19));
+ok('02: las 19 columnas de la plantilla y las 47 filas del contador (10-nov)', G.QB_ARCHIVOS.servicios.enc.length===19 && sv.length===47 && sv.every(r=>r.length===19));
 ok('...CARTERA DE FINANCIAMIENTO tal cual la del contador, con su cuenta', sv[0].join('|')==='CARTERA DE FINANCIAMIENTO|Service|Non-Inventory||FINANCIAMIENTO 24 CUOTAS||1107001 CARTERA DE FINANCIAMIENTO|AMORTIZACION DE FINANCIAMIENTO||1107001 CARTERA DE FINANCIAMIENTO||||No VAT (0%)||No VAT (0%)|||');
 ok('...INTERESES sin IVA (el contador ya adoptó la regla de Adam)', sv[1][0]==='INTERESES DE FINANCIAMIENTO' && sv[1][13]==='No VAT (0%)' && sv[1][6]==='4101001 INGRESOS POR INTERESES DE FINANCIAMIENTO');
 ok('...COMISION POR MOROSIDAD e INGRESOS POR PAGASI PROTEC con el 16 %, y los gastos con su cuenta', sv[2][0]==='COMISION POR MOROSIDAD' && sv[2][13]==='16.0% S (16%)' && sv[3][0]==='INGRESOS POR PAGASI PROTEC' && sv[3][13]==='16.0% S (16%)' && sv[4][0]==='HONORARIOS PROFESIONALES' && sv[4][9]==='6101003 HONORARIOS PROFESIONALES' && sv[4][15]==='16.0% S (16%)');
@@ -293,7 +293,7 @@ const cp=D.filas.compras;
 const lib=cp.filter(r=>r[0]==='A-77');
 ok('06: la factura con exento y base va en dos líneas, cada una con su código', lib.length===2 && lib[0][9]===10 && lib[0][10]==='No VAT (0%)' && lib[0][11]===0 && lib[1][9]===100 && lib[1][10]==='16.0% S (16%)' && lib[1][11]===16);
 ok('...fechas como en la plantilla 06 (mm/dd/aaaa) y vencimiento a 15 días', lib[0][2]==='10/02/2026' && lib[0][3]==='10/17/2026' && lib[0][4]==='Net 15');
-ok('...cada línea repite la cabecera, como la plantilla; la categoría "operativo" va a la cuenta que le puso el contador (11-nov)', lib[1][1]==='LIBRERIA EL SOL' && lib[1][12]==='USD' && lib[1][7]==='1201008 MOBILIARIO Y EQUIPOS DE OFICINA');
+ok('...cada línea repite la cabecera, como la plantilla; la categoría "operativo" va a la cuenta que le puso el contador (10-nov)', lib[1][1]==='LIBRERIA EL SOL' && lib[1][12]==='USD' && lib[1][7]==='1201008 MOBILIARIO Y EQUIPOS DE OFICINA');
 ok('...el mismo N° del mismo proveedor no se mezcla en una sola factura', cp.some(r=>r[0]==='A-77-2' && r[9]===50));
 const sede=cp.filter(r=>r[1]==='MOTOS DEL ESTE');
 ok('...la compra de la moto NO va al 06 (la sede no la factura a PAGASI); lo que la sede sí factura, sí', sede.length===1 && sede[0][0]==='S-1' && sede[0][9]===1200 && !cp.some(r=>/Compra de moto|EG-102|EG-103/.test(r.join(' '))));
