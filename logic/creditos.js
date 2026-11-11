@@ -1550,10 +1550,13 @@ function _wzPagoMotoHtml(costo, ini){
         ? 'Sale de <b>'+_wzEsc(f.cuenta)+'</b>, donde la pagó el cliente.'
         : '<span style="color:var(--amber);font-weight:700">Falta decir arriba dónde la pagó el cliente.</span>';
     } else if(f.que === 'anticipo'){
-      de = 'Sale del <b>anticipo de '+sedeNom+'</b>. '
+      // 11-nov-2026: si la sede comparte el saldo con otras del mismo dueño, la cuenta es la del grupo
+      var grupoSaldo = (WZ.concesionarioId && typeof _concSedesDeSaldo==='function' && _concSedesDeSaldo(WZ.concesionarioId).length > 1 && typeof _concGrupoNombreDe==='function')
+        ? _wzEsc(_concGrupoNombreDe(WZ.concesionarioId)) : '';
+      de = 'Sale del <b>anticipo de '+sedeNom+'</b>'+(grupoSaldo ? ' (saldo compartido del grupo <b>'+grupoSaldo+'</b>)' : '')+'. '
         + (plan.quedaDebiendo
-            ? 'Después de esta moto Pagasi le debe <b>'+_wzMoney(-plan.quedaAnticipo)+'</b> a la sede: se cubre con el próximo anticipo.'
-            : 'Le quedan '+_wzMoney(plan.quedaAnticipo)+' después de esta moto.');
+            ? 'Después de esta moto Pagasi le debe <b>'+_wzMoney(-plan.quedaAnticipo)+'</b> '+(grupoSaldo?'al grupo':'a la sede')+': se cubre con el próximo anticipo.'
+            : 'Le quedan '+_wzMoney(plan.quedaAnticipo)+(grupoSaldo?' al grupo':'')+' después de esta moto.');
     } else {
       de = '<label style="font-size:11px;display:block;margin:4px 0 3px">¿De qué cuenta sale? *</label>'
         + '<select class="fs" id="wz_mpago_resto" onchange="WZ._mpagoCuentaResto=this.value;_wzMpagoSync()">'

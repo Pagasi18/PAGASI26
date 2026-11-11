@@ -347,17 +347,23 @@ function _concRender(){
     var filasConc = lista.map(function(c){
       var st = statsDe(c.id);
       var fin = _concFinanzasDe(c.id);
-      totFin.env += fin.enviado; totFin.con += fin.consumido;
+      // Enviado y consumido son los de ESTA sede (asi el TOTAL no cuenta nada dos veces);
+      // el saldo, si la sede esta en un grupo, es el del grupo entero (11-nov-2026).
+      totFin.env += fin.propio.enviado; totFin.con += fin.propio.consumido;
       var saldoCol = fin.saldo > 0 ? 'var(--green)' : (fin.saldo < 0 ? 'var(--red)' : 'var(--ink3)');
+      var escT = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+      var marcaGrupo = fin.compartido
+        ? '<div class="conc-compartido" title="'+escT('Saldo compartido entre: '+fin.sedes.map(_concNombreSede).join(', '))+'" style="font-size:9.5px;font-weight:800;color:var(--p1);margin-top:2px;white-space:nowrap">⇄ compartido · '+escT(fin.grupo)+'</div>'
+        : '';
       return '<tr style="cursor:pointer" onclick="_concAbrirDetalle(\''+c.id+'\')">'
         + '<td class="tdm">'+(c.nombre||'—')+(c.activo===false?' <span class="bdg b-r" style="font-size:8.5px">INACTIVO</span>':'')
         + '<div class="tds" style="font-size:10.5px;margin-top:2px">'+(c.rif?'RIF '+String(c.rif).replace(/</g,'&lt;'):'<span style="color:var(--amber);font-weight:700">Sin RIF</span>')+'</div></td>'
         + '<td class="tds">'+(c.ciudad||'—')+'</td>'
         + '<td class="tds" style="text-align:right;font-family:var(--fd)">'+st.motos+'</td>'
         + '<td class="tds" style="text-align:right;font-family:var(--fd);color:var(--p1);font-weight:700">'+st.creds+'</td>'
-        + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--p1)">'+fmt(fin.enviado)+'</td>'
-        + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--amber)">−'+fmt(fin.consumido).replace('$','$')+'</td>'
-        + '<td style="text-align:right;font-family:var(--fd);font-weight:900;font-size:13.5px;color:'+saldoCol+'">'+fmt(fin.saldo)+'</td>'
+        + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--p1)">'+fmt(fin.propio.enviado)+'</td>'
+        + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--amber)">−'+fmt(fin.propio.consumido).replace('$','$')+'</td>'
+        + '<td style="text-align:right;font-family:var(--fd);font-weight:900;font-size:13.5px;color:'+saldoCol+'">'+fmt(fin.saldo)+marcaGrupo+'</td>'
         + '<td onclick="event.stopPropagation()"><div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">'
           + '<button class="btn btn-p btn-xs" onclick="_concOpenAnticipo(\''+c.id+'\')" title="Registrar dinero enviado a esta sede">＋ Anticipo</button>'
           + '<button class="btn btn-g btn-xs" onclick="_concAbrirDetalle(\''+c.id+'\')">Detalle</button>'
@@ -376,7 +382,9 @@ function _concRender(){
     html += _concAvisoMotosFueraDeSede() + _concAvisoAnticiposViejos() + _concAvisoAnticiposSueltos();
     html += '<div class="card">'
       + '<div class="ch"><div><div class="ct">Concesionarios</div><div class="cs">Saldo = anticipos enviados − lo que puso Pagasi en las motos que salieron</div></div>'
-      + '<button class="btn btn-p btn-sm" onclick="_concAbrirDetalleTotal()">Σ Detalle total</button></div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+      + '<button class="btn btn-g btn-sm" onclick="_concAbrirGrupos()" title="Sedes de un mismo dueño que llevan un solo saldo">⇄ Saldos compartidos</button>'
+      + '<button class="btn btn-p btn-sm" onclick="_concAbrirDetalleTotal()">Σ Detalle total</button></div></div>'
       + '<div class="tw"><table>'
       + '<thead><tr><th>Sede</th><th>Ciudad</th><th style="text-align:right">Motos</th><th style="text-align:right">Créditos</th><th style="text-align:right">Enviado</th><th style="text-align:right">Consumido</th><th style="text-align:right">Saldo</th><th style="text-align:right">Acciones</th></tr></thead>'
       + '<tbody>'+filasConc
@@ -419,8 +427,11 @@ function _concOpenEdit(id){
     + '<div class="fg"><label>Dirección</label><textarea class="fi" id="conc_direccion" rows="2" placeholder="Av. Bolívar, c/c Av. Sucre...">'+(c.direccion||'').replace(/</g,'&lt;')+'</textarea></div>'
     // 18-oct-2026 (Adam): las sedes de un mismo dueño son UN aliado en el portal (un nivel, un
     // saldo, un ranking). Mismo texto en cada sede = mismo grupo. Lo lee el robot de aliados.
-    + '<div class="fg"><label>Grupo de aliado <span style="font-weight:400;color:var(--ink3)">(mismo dueño: escribe el mismo nombre en cada sede, ej. EK)</span></label>'
-    + '<input class="fi" id="conc_grupo" value="'+(c.grupoAliado||'').replace(/"/g,'&quot;')+'" placeholder="Ej: EK" maxlength="40"></div>'
+    // 11-nov-2026: ese mismo grupo comparte el saldo aqui dentro. Se arma mas facil con
+    // casillas en "Saldos compartidos"; este campo queda para verlo y corregirlo.
+    + '<div class="fg"><label>Grupo de aliado <span style="font-weight:400;color:var(--ink3)">(mismo dueño: las sedes con el mismo nombre comparten el saldo y son un solo aliado en el portal)</span></label>'
+    + '<input class="fi" id="conc_grupo" value="'+(c.grupoAliado||'').replace(/"/g,'&quot;')+'" placeholder="Ej: EK" maxlength="40">'
+    + '<div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Se arma más fácil con casillas en <b>⇄ Saldos compartidos</b>, en la pantalla de Concesionarios.</div></div>'
     + '<div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="conc_activo" '+(c.activo!==false?'checked':'')+' style="accent-color:var(--green);transform:scale(1.15)"> Concesionario activo</label>'
     + '<div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Si está inactivo, no aparecerá en los selectores de creación de motos/créditos.</div></div>'
     + '</div>';
@@ -502,10 +513,20 @@ function _concAbrirDetalle(id){
   var _f = window._concDetF;
   var _rango = _concRangoDe(_f.tipo, _f.fecha); // null = todo
   var _enRango = function(fecha){ return !_rango || ((fecha||'') >= _rango.desde && (fecha||'') <= _rango.hasta); };
+  var esc = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
   var fin = _concFinanzasDe(id);
+  // 11-nov-2026: si la sede comparte el saldo, aqui se ve lo de TODO el grupo (anticipos,
+  // motos y saldo corrido) y cada linea dice de que sede es.
+  var comp = !!fin.compartido;
+  var otras = comp ? fin.sedes.filter(function(x){ return x !== String(id); }).map(_concNombreSede) : [];
+  // La columna de la sede va estrecha y en dos renglones, nunca cortada: las sedes de un
+  // mismo dueño empiezan igual ("EMPIRE Bello Monte", "EMPIRE La Yaguara") y lo que las
+  // distingue es el final. Con ella la tabla tiene una columna mas y el saldo no puede
+  // quedar cortado a la derecha.
+  var sedeTd = function(sid){ var n = esc(_concNombreSede(sid)); return comp ? '<td class="tds" title="'+n.replace(/"/g,'&quot;')+'" style="max-width:92px;font-size:10.5px;line-height:1.25;white-space:normal">'+n+'</td>' : ''; };
+  var sedeTh = comp ? '<th>Sede</th>' : '';
   var usuarios = (typeof _usersCache!=='undefined'&&_usersCache) ? _usersCache.filter(function(u){return (u.concesionarios||[]).indexOf(id)!==-1;}) : [];
   var saldoCol = fin.saldo > 0 ? 'var(--green)' : (fin.saldo < 0 ? 'var(--red)' : 'var(--ink3)');
-  var esc = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
   // Aplicar el filtro a anticipos y créditos (el saldo global NO cambia con el filtro)
   var antF = fin.anticipos.filter(function(a){ return _enRango(a.fecha); });
   var credsF = fin.creds.filter(function(cr){ return _enRango(cr.fecha); });
@@ -517,7 +538,8 @@ function _concAbrirDetalle(id){
     var costo = _concCostoSalida(cr);
     return '<tr style="cursor:pointer" onclick="closeM();openAmort(\''+cr.id+'\')">'
       + '<td class="tds" style="font-family:var(--fd)">'+cr.id+'</td>'
-      + '<td class="tds">'+(cr.fecha||'—')+'</td>'
+      + '<td class="tds" style="white-space:nowrap">'+(cr.fecha||'—')+'</td>'
+      + sedeTd(cr.concesionarioId)
       + '<td class="tdm">'+esc(cr.cli||'—')+'</td>'
       + '<td class="tds">'+esc(cr.modelo||'—')+'</td>'
       + '<td class="tds">'+esc(cr.placa||cr.serialMotor||'—')+'</td>'
@@ -528,8 +550,10 @@ function _concAbrirDetalle(id){
   // Anticipos — más recientes primero (filtrados por período)
   var antOrd = antF.slice().sort(function(a,b){ return String(b.fecha||'').localeCompare(String(a.fecha||'')); });
   var filasAnt = antOrd.map(function(a){
+    var duena = comp ? _concSedeDeAnticipo(fin, a) : id;   // el anticipo se borra de SU sede
     return '<tr>'
-      + '<td class="tds">'+(a.fecha||'—')+'</td>'
+      + '<td class="tds" style="white-space:nowrap">'+(a.fecha||'—')+'</td>'
+      + sedeTd(duena)
       + '<td style="text-align:right;font-family:var(--fd);font-weight:800;color:'+((parseFloat(a.monto)||0)>=0?'var(--green)':'var(--red)')+'">'+fmt(parseFloat(a.monto)||0)+'</td>'
       + '<td class="tds">'+esc(a.metodo||'—')+'</td>'
       + '<td class="tds">'+esc(a.ref||'—')+'</td>'
@@ -538,16 +562,16 @@ function _concAbrirDetalle(id){
       + '<td class="tds">'+(a.comprobante
           ? '<a href="'+esc(a.comprobante)+'" target="_blank" rel="noopener" style="color:var(--p1);font-weight:700;text-decoration:none">Ver</a>'
           : '<span style="color:var(--ink3)">—</span>')+'</td>'
-      + '<td><button class="btn btn-d btn-xs" onclick="_concDelAnticipo(\''+id+'\',\''+a.id+'\')" title="Eliminar anticipo">✕</button></td>'
+      + '<td><button class="btn btn-d btn-xs" onclick="_concDelAnticipo(\''+duena+'\',\''+a.id+'\')" title="Eliminar anticipo">✕</button></td>'
       + '</tr>';
   }).join('');
   // ── Kardex: TODAS las entradas (anticipos) y salidas (motos) con saldo acumulado ──
   // El saldo acumulado se calcula sobre el histórico COMPLETO (para que sea real);
   // el filtro de período solo decide qué filas se muestran.
   var movsAll = fin.anticipos.map(function(a){
-      return { fecha:a.fecha||'', det:'Anticipo · '+(a.metodo||'—')+(a.ref?' · '+a.ref:'')+(a.nota?' · '+a.nota:''), monto:parseFloat(a.monto)||0 };
+      return { fecha:a.fecha||'', sede: comp ? _concSedeDeAnticipo(fin, a) : id, det:'Anticipo · '+(a.metodo||'—')+(a.ref?' · '+a.ref:'')+(a.nota?' · '+a.nota:''), monto:parseFloat(a.monto)||0 };
     }).concat(fin.creds.map(function(cr){
-      return { fecha:cr.fecha||'', det:cr.id+' · '+(cr.cli||'')+' · '+(cr.modelo||''), monto:-_concCostoSalida(cr), credId:cr.id };
+      return { fecha:cr.fecha||'', sede: cr.concesionarioId, det:cr.id+' · '+(cr.cli||'')+' · '+(cr.modelo||''), monto:-_concCostoSalida(cr), credId:cr.id };
     })).sort(function(a,b){ return String(a.fecha).localeCompare(String(b.fecha)); });
   var _run = 0;
   movsAll.forEach(function(m){ _run += m.monto; m.saldo = _run; });
@@ -555,25 +579,33 @@ function _concAbrirDetalle(id){
   var filasMov = movs.slice().reverse().map(function(m){
     var esIn = m.monto >= 0;
     return '<tr'+(m.credId?' style="cursor:pointer" onclick="closeM();openAmort(\''+m.credId+'\')"':'')+'>'
-      + '<td class="tds">'+(m.fecha||'—')+'</td>'
+      + '<td class="tds" style="white-space:nowrap">'+(m.fecha||'—')+'</td>'
+      + sedeTd(m.sede)
       + '<td><span class="bdg '+(esIn?'b-g':'b-a')+'" style="font-size:8.5px">'+(esIn?'ENTRADA':'SALIDA')+'</span></td>'
-      + '<td class="tds" style="max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(m.det)+'">'+esc(m.det)+'</td>'
-      + '<td style="text-align:right;font-family:var(--fd);font-weight:800;color:var(--green)">'+(esIn?fmt(m.monto):'')+'</td>'
-      + '<td style="text-align:right;font-family:var(--fd);font-weight:800;color:var(--red)">'+(!esIn?'−'+fmt(Math.abs(m.monto)):'')+'</td>'
-      + '<td style="text-align:right;font-family:var(--fd);font-weight:900;color:'+(m.saldo>=0?'var(--green)':'var(--red)')+'">'+fmt(m.saldo)+'</td>'
+      + '<td class="tds" style="max-width:'+(comp?175:230)+'px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(m.det)+'">'+esc(m.det)+'</td>'
+      + '<td style="text-align:right;white-space:nowrap;font-family:var(--fd);font-weight:800;color:var(--green)">'+(esIn?fmt(m.monto):'')+'</td>'
+      + '<td style="text-align:right;white-space:nowrap;font-family:var(--fd);font-weight:800;color:var(--red)">'+(!esIn?'−'+fmt(Math.abs(m.monto)):'')+'</td>'
+      + '<td style="text-align:right;white-space:nowrap;font-family:var(--fd);font-weight:900;color:'+(m.saldo>=0?'var(--green)':'var(--red)')+'">'+fmt(m.saldo)+'</td>'
       + '</tr>';
   }).join('');
   setMicon('conces');
   $('mtt').textContent= c.nombre;
-  $('msb').textContent= 'Detalle del concesionario · saldo y movimientos';
+  $('msb').textContent= comp ? 'Saldo compartido del grupo '+fin.grupo+' · '+fin.sedes.length+' sedes' : 'Detalle del concesionario · saldo y movimientos';
   $('modal-box').className='modal modal-lg';
   $('mbd').innerHTML = ''
     // ── Finanzas: enviado / consumido / saldo ──
     + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:13px">'
-    + '<div style="background:var(--surf);padding:13px;border-radius:10px;text-align:center;border:1px solid var(--rim2)"><div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase">Enviado (anticipos)</div><div style="font-family:var(--fd);font-weight:900;font-size:20px;margin-top:3px;color:var(--p1)">'+fmt(fin.enviado)+'</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">'+fin.anticipos.length+' envío'+(fin.anticipos.length!==1?'s':'')+'</div></div>'
-    + '<div style="background:var(--surf);padding:13px;border-radius:10px;text-align:center;border:1px solid var(--rim2)"><div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase">Consumido (motos)</div><div style="font-family:var(--fd);font-weight:900;font-size:20px;margin-top:3px;color:var(--amber)">−'+fmt(fin.consumido)+'</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">'+fin.creds.length+' moto'+(fin.creds.length!==1?'s':'')+' vendida'+(fin.creds.length!==1?'s':'')+'</div></div>'
-    + '<div style="background:'+(fin.saldo>=0?'rgba(6,176,106,.08)':'rgba(232,51,90,.08)')+';padding:13px;border-radius:10px;text-align:center;border:1.5px solid '+saldoCol+'"><div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase">Saldo disponible</div><div style="font-family:var(--fd);font-weight:900;font-size:22px;margin-top:3px;color:'+saldoCol+'">'+fmt(fin.saldo)+'</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">'+(fin.saldo<0?'⚠ le debemos a la sede':'a favor en la sede')+'</div></div>'
+    + '<div style="background:var(--surf);padding:13px;border-radius:10px;text-align:center;border:1px solid var(--rim2)"><div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase">Enviado (anticipos)</div><div style="font-family:var(--fd);font-weight:900;font-size:20px;margin-top:3px;color:var(--p1)">'+fmt(fin.enviado)+'</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">'+fin.anticipos.length+' envío'+(fin.anticipos.length!==1?'s':'')+(comp?' · todo el grupo':'')+'</div></div>'
+    + '<div style="background:var(--surf);padding:13px;border-radius:10px;text-align:center;border:1px solid var(--rim2)"><div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase">Consumido (motos)</div><div style="font-family:var(--fd);font-weight:900;font-size:20px;margin-top:3px;color:var(--amber)">−'+fmt(fin.consumido)+'</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">'+fin.creds.length+' moto'+(fin.creds.length!==1?'s':'')+' vendida'+(fin.creds.length!==1?'s':'')+(comp?' · todo el grupo':'')+'</div></div>'
+    + '<div style="background:'+(fin.saldo>=0?'rgba(6,176,106,.08)':'rgba(232,51,90,.08)')+';padding:13px;border-radius:10px;text-align:center;border:1.5px solid '+saldoCol+'"><div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase">Saldo disponible</div><div style="font-family:var(--fd);font-weight:900;font-size:22px;margin-top:3px;color:'+saldoCol+'">'+fmt(fin.saldo)+'</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">'+(comp ? (fin.saldo<0?'⚠ le debemos al grupo':'a favor del grupo · compartido') : (fin.saldo<0?'⚠ le debemos a la sede':'a favor en la sede'))+'</div></div>'
     + '</div>'
+    // ── Aviso de saldo compartido ──
+    + (comp
+      ? '<div id="conc-det-compartido" style="background:rgba(6,92,255,.06);border:1px solid rgba(6,92,255,.25);border-radius:10px;padding:10px 13px;margin-bottom:13px;font-size:11.5px;color:var(--ink2);line-height:1.55">'
+        + '<b style="color:var(--p1)">⇄ Saldo compartido · '+esc(fin.grupo)+'.</b> '+esc(c.nombre||'Esta sede')+' lleva un solo saldo con <b>'+esc(otras.join(', '))+'</b>: '
+        + 'un anticipo a cualquiera le suma al grupo y una venta en cualquiera se lo descuenta. Aquí ves lo de todas; cada línea dice de qué sede es. '
+        + '<span style="color:var(--ink3)">De esta sede sola: enviado '+fmt(fin.propio.enviado)+' · consumido '+fmt(fin.propio.consumido)+'.</span></div>'
+      : '')
     // ── Info básica compacta ──
     + '<div style="background:var(--gs);padding:10px 13px;border-radius:9px;margin-bottom:13px;font-size:11.5px;color:var(--ink2);display:flex;gap:14px;flex-wrap:wrap">'
     + '<span><b>RIF:</b> '+(c.rif?esc(c.rif):'<span style="color:var(--amber);font-weight:700">falta (los contratos salen sin RIF)</span>')+'</span>'
@@ -597,7 +629,7 @@ function _concAbrirDetalle(id){
     + (movs.length===0
       ? '<div style="padding:14px;text-align:center;background:var(--gs);border-radius:9px;color:var(--ink3);font-size:11.5px;margin-bottom:13px">Sin movimientos todavía.</div>'
       : '<div class="tw tw-compact" style="max-height:240px;overflow-y:auto;margin-bottom:13px"><table>'
-        + '<thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th style="text-align:right">Entrada</th><th style="text-align:right">Salida</th><th style="text-align:right">Saldo</th></tr></thead>'
+        + '<thead><tr><th>Fecha</th>'+sedeTh+'<th>Tipo</th><th>Detalle</th><th style="text-align:right">Entrada</th><th style="text-align:right">Salida</th><th style="text-align:right">Saldo</th></tr></thead>'
         + '<tbody>'+filasMov+'</tbody></table></div>')
     // ── Anticipos enviados ──
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">'
@@ -607,14 +639,14 @@ function _concAbrirDetalle(id){
     + (antF.length===0
       ? '<div style="padding:14px;text-align:center;background:var(--gs);border-radius:9px;color:var(--ink3);font-size:11.5px;margin-bottom:13px">'+(_rango?'Sin anticipos en este período.':'Sin anticipos registrados. Usa "＋ Registrar anticipo" cuando le mandes dinero a esta sede.')+'</div>'
       : '<div class="tw tw-compact" style="max-height:180px;overflow-y:auto;margin-bottom:13px"><table>'
-        + '<thead><tr><th>Fecha</th><th style="text-align:right">Monto</th><th>Cuenta</th><th>Referencia</th><th>Nota</th><th>Por</th><th>Comprobante</th><th></th></tr></thead>'
+        + '<thead><tr><th>Fecha</th>'+sedeTh+'<th style="text-align:right">Monto</th><th>Cuenta</th><th>Referencia</th><th>Nota</th><th>Por</th><th>'+(comp?'Recibo':'Comprobante')+'</th><th></th></tr></thead>'
         + '<tbody>'+filasAnt+'</tbody></table></div>')
     // ── Motos que salieron ──
     + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Motos que salieron — contratos ('+credsF.length+')</div>'
     + (credsF.length===0
-      ? '<div style="padding:14px;text-align:center;background:var(--gs);border-radius:9px;color:var(--ink3);font-size:11.5px">'+(_rango?'Sin motos vendidas en este período.':'Aún no han salido motos de esta sede.')+'</div>'
+      ? '<div style="padding:14px;text-align:center;background:var(--gs);border-radius:9px;color:var(--ink3);font-size:11.5px">'+(_rango?'Sin motos vendidas en este período.':(comp?'Aún no han salido motos de estas sedes.':'Aún no han salido motos de esta sede.'))+'</div>'
       : '<div class="tw tw-compact" style="max-height:260px;overflow-y:auto"><table>'
-        + '<thead><tr><th>Crédito</th><th>Fecha</th><th>Cliente</th><th>Modelo</th><th>Placa/Serial</th><th style="text-align:right">Costo</th><th>Estado</th></tr></thead>'
+        + '<thead><tr><th>Crédito</th><th>Fecha</th>'+sedeTh+'<th>Cliente</th><th>Modelo</th><th>Placa/Serial</th><th style="text-align:right">Costo</th><th>Estado</th></tr></thead>'
         + '<tbody>'+filasCreds+'</tbody></table></div>');
   $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>'
     + '<button class="btn btn-g" onclick="_concOpenReporte(\''+c.id+'\')">Reporte PDF/Excel</button>'
@@ -895,7 +927,8 @@ function _concCostoSalida(cr){
   return puso > 0 ? Math.round(puso * 100) / 100 : 0;
 }
 
-function _concFinanzasDe(cid){
+// Lo de UNA sede sola: sus anticipos y sus motos, sin mirar a nadie mas.
+function _concFinanzasPropias(cid){
   var c = _concGetById(cid) || {};
   var anticipos = Array.isArray(c.anticipos) ? c.anticipos.filter(function(a){ return a && !a.eliminado; }) : [];
   var enviado = anticipos.reduce(function(s,a){ return s + (parseFloat(a.monto)||0); }, 0);
@@ -905,6 +938,85 @@ function _concFinanzasDe(cid){
   });
   var consumido = creds.reduce(function(s,cr){ return s + _concCostoSalida(cr); }, 0);
   return { anticipos: anticipos, creds: creds, enviado: enviado, consumido: consumido, saldo: enviado - consumido };
+}
+
+// ── Saldo compartido entre las sedes de un mismo dueño (11-nov-2026) ────────────────
+// Adam: "que concesionarios compartan el saldo... si yo meto un anticipo a cualquiera de
+// los tres, le suma a los tres. Y si sale una venta de cualquiera de ellos, se descuenta
+// del saldo de los tres". Y despues: "es el mismo aliado del portal".
+// Por eso no hay un dato nuevo: las sedes que tienen el mismo "Grupo de aliado"
+// (grupoAliado, lo que ya juntaba el robot del portal como UN aliado) llevan UN saldo.
+// Cada anticipo y cada venta sigue anotado en su sede de verdad; aqui solo cambia la
+// suma. No se reescribe nada, y al deshacer el grupo cada sede vuelve a su saldo propio.
+// La clave es la misma que usa el robot (grupoIdDe, sin el "G-"): "EK", "ek " y "Ék" son
+// el mismo grupo en los dos lados.
+function _concGrupoClave(nombre){
+  return String(nombre||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toUpperCase();
+}
+function _concGrupoNombreDe(cid){
+  var c = _concGetById(cid);
+  return String((c && c.grupoAliado) || '').trim();
+}
+// Las sedes que comparten saldo con esta, ella incluida. Sin grupo: solo ella.
+function _concSedesDeSaldo(cid){
+  var id = String(cid||'');
+  var k = _concGrupoClave(_concGrupoNombreDe(cid));
+  if(!k) return [id];
+  var todas = (typeof S!=='undefined' && S && S.concesionarios) || [];
+  var ids = todas.filter(function(c){ return c && !c.eliminado && _concGrupoClave(c.grupoAliado) === k; })
+                 .map(function(c){ return String(c.id); });
+  if(ids.indexOf(id) < 0) ids.push(id);
+  return ids;
+}
+// Todos los grupos que hay, por nombre: [{ clave, nombre, sedes:[concesionario, ...] }]
+function _concGrupos(){
+  var por = {};
+  ((typeof S!=='undefined' && S && S.concesionarios) || []).forEach(function(c){
+    if(!c || c.eliminado) return;
+    var k = _concGrupoClave(c.grupoAliado);
+    if(!k) return;
+    var g = por[k] || (por[k] = { clave:k, nombre:String(c.grupoAliado).trim(), sedes:[] });
+    g.sedes.push(c);
+  });
+  return Object.keys(por).map(function(k){ return por[k]; })
+    .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
+}
+function _concNombreSede(id){
+  var c = _concGetById(id);
+  return (c && c.nombre) || String(id||'');
+}
+// De cual sede es este anticipo (en un grupo vienen mezclados los de todas)
+function _concSedeDeAnticipo(fin, a){
+  var ids = (fin && fin.sedes) || [];
+  for(var i=0;i<ids.length;i++){
+    var c = _concGetById(ids[i]);
+    if(c && Array.isArray(c.anticipos) && c.anticipos.indexOf(a) > -1) return ids[i];
+  }
+  return ids[0] || '';
+}
+
+// El saldo que manda en todas las pantallas. Sede suelta: lo suyo. Sede de un grupo: lo
+// de TODO el grupo (anticipos, motos y saldo), y en `propio` lo que le toca a ella sola,
+// que es lo que se suma en los totales para no contar el mismo dinero tres veces.
+function _concFinanzasDe(cid){
+  var mio = _concFinanzasPropias(cid);
+  var propio = { enviado: mio.enviado, consumido: mio.consumido, saldo: mio.saldo };
+  var ids = _concSedesDeSaldo(cid);
+  if(ids.length < 2){
+    mio.propio = propio; mio.compartido = false; mio.grupo = ''; mio.sedes = [String(cid||'')];
+    return mio;
+  }
+  var out = { anticipos: [], creds: [], enviado: 0, consumido: 0, saldo: 0,
+              propio: propio, compartido: true, grupo: _concGrupoNombreDe(cid), sedes: ids };
+  ids.forEach(function(id){
+    var f = (id === String(cid||'')) ? mio : _concFinanzasPropias(id);
+    f.anticipos.forEach(function(a){ out.anticipos.push(a); });
+    f.creds.forEach(function(cr){ out.creds.push(cr); });
+    out.enviado += f.enviado; out.consumido += f.consumido;
+  });
+  out.saldo = out.enviado - out.consumido;
+  return out;
 }
 
 // Rango de fechas para el filtro del detalle: dia / quincena / mes / ano / todo (null)
@@ -955,19 +1067,23 @@ function _concAbrirDetalleTotal(keep){
   var totEnv = 0, totCon = 0, movsAll = [];
   var filasSedes = lista.map(function(c){
     var fin = _concFinanzasDe(c.id);
-    totEnv += fin.enviado; totCon += fin.consumido;
-    fin.anticipos.forEach(function(a){
+    // Cada sede aporta al total SOLO lo suyo: en un grupo, `fin` trae lo de todas y
+    // sumarlo aqui contaria el mismo anticipo una vez por sede (11-nov-2026).
+    var suyo = fin.compartido ? _concFinanzasPropias(c.id) : fin;
+    totEnv += suyo.enviado; totCon += suyo.consumido;
+    suyo.anticipos.forEach(function(a){
       movsAll.push({ fecha:a.fecha||'', sede:c.nombre||c.id, det:'Anticipo · '+(a.metodo||'—')+(a.ref?' · '+a.ref:''), monto:parseFloat(a.monto)||0 });
     });
-    fin.creds.forEach(function(cr){
+    suyo.creds.forEach(function(cr){
       movsAll.push({ fecha:cr.fecha||'', sede:c.nombre||c.id, det:cr.id+' · '+(cr.cli||'')+' · '+(cr.modelo||''), monto:-_concCostoSalida(cr), credId:cr.id });
     });
     var sc = fin.saldo > 0 ? 'var(--green)' : (fin.saldo < 0 ? 'var(--red)' : 'var(--ink3)');
     return '<tr style="cursor:pointer" onclick="_concAbrirDetalle(\''+c.id+'\')">'
       + '<td class="tdm">'+esc(c.nombre||'—')+'</td>'
-      + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--p1)">'+fmt(fin.enviado)+'</td>'
-      + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--amber)">−'+fmt(fin.consumido)+'</td>'
-      + '<td style="text-align:right;font-family:var(--fd);font-weight:900;color:'+sc+'">'+fmt(fin.saldo)+'</td>'
+      + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--p1)">'+fmt(suyo.enviado)+'</td>'
+      + '<td style="text-align:right;font-family:var(--fd);font-weight:700;color:var(--amber)">−'+fmt(suyo.consumido)+'</td>'
+      + '<td style="text-align:right;font-family:var(--fd);font-weight:900;color:'+sc+'">'+fmt(fin.saldo)
+        + (fin.compartido ? '<div style="font-size:9.5px;font-weight:800;color:var(--p1)">⇄ compartido · '+esc(fin.grupo)+'</div>' : '')+'</td>'
       + '</tr>';
   }).join('');
   var totSaldo = totEnv - totCon;
@@ -1037,9 +1153,14 @@ function _concOpenAnticipo(cid){
   var fin = _concFinanzasDe(cid);
   setMicon('conces');
   $('mtt').textContent = '＋ Anticipo — ' + c.nombre;
-  $('msb').textContent = 'Saldo actual: ' + fmt(fin.saldo);
+  $('msb').textContent = 'Saldo actual: ' + fmt(fin.saldo) + (fin.compartido ? ' · compartido del grupo ' + fin.grupo : '');
   $('modal-box').className = 'modal';
   $('mbd').innerHTML = ''
+    + (fin.compartido
+      ? '<div id="cant_compartido" style="background:rgba(6,92,255,.06);border:1px solid rgba(6,92,255,.25);border-radius:10px;padding:9px 12px;margin-bottom:11px;font-size:11.5px;color:var(--ink2);line-height:1.5">'
+        + '<b style="color:var(--p1)">⇄ Saldo compartido.</b> Este anticipo queda anotado en <b>'+String(c.nombre||'').replace(/</g,'&lt;')+'</b> y le suma al saldo de todo el grupo <b>'+String(fin.grupo).replace(/</g,'&lt;')+'</b> ('
+        + fin.sedes.map(_concNombreSede).join(', ').replace(/</g,'&lt;')+').</div>'
+      : '')
     + '<div class="fgr" style="gap:10px">'
     + '<div class="fg"><label>Fecha</label><input class="fi" id="cant_fecha" type="date" value="'+hoyLocalISO()+'"></div>'
     + '<div class="fg"><label>Monto (USD) <span style="color:var(--red)">*</span></label><input class="fi" id="cant_monto" type="number" step="0.01" placeholder="10000"></div>'
@@ -1092,7 +1213,7 @@ function _concOpenAnticipo(cid){
     _concAnticipoSubirComprobante(c, ant, ($('cant_comp') && $('cant_comp').files && $('cant_comp').files[0]) || null);
     if(typeof logActividad==='function') logActividad('Anticipo a concesionario','concesionarios',c.id,fmt(monto)+' · '+ant.metodo);
     closeM();
-    toast('Anticipo de '+fmt(monto)+' registrado en '+c.nombre,'success');
+    toast('Anticipo de '+fmt(monto)+' registrado en '+c.nombre+(fin.compartido ? ' · suma al saldo del grupo '+fin.grupo : ''),'success');
     nav('concesionarios');
     return true;
   };
@@ -1322,7 +1443,192 @@ function _concDelAnticipo(cid, antId){
   c.updatedAt = new Date().toISOString();
   if(DB && DB.saveConcesionario) DB.saveConcesionario(c);
   toast('Anticipo eliminado','info');
-  _concAbrirDetalle(cid);
+  // En un grupo el anticipo puede ser de otra sede que la que se estaba mirando
+  _concAbrirDetalle((window._concDetId && _concSedesDeSaldo(cid).indexOf(String(window._concDetId)) > -1) ? window._concDetId : cid);
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  SALDOS COMPARTIDOS (11-nov-2026)                          ║
+// ║  Adam: "quiero que lo crees y despues yo elijo los         ║
+// ║  concesionarios que comparten".                            ║
+// ╚══════════════════════════════════════════════════════════╝
+// Una ventana con casillas para armar el grupo, en vez de escribir el mismo nombre a mano
+// en la ficha de cada sede. Lo que guarda es el "Grupo de aliado" (grupoAliado) de cada
+// sede: el mismo dato que ya lee el robot del portal. Nada mas: ni anticipos ni creditos
+// se tocan, y deshacer el grupo devuelve a cada sede su saldo propio.
+//
+// Estas sedes ya salen como UN aliado en el portal sin estar marcadas en la base (lista
+// fija del robot, bot/aliados-resumen.js: GRUPOS_POR_DEFECTO). Aqui no se juntan solas:
+// se ofrecen con un boton, y Adam decide.
+var CONC_GRUPOS_PORTAL = { 'EK': ['CONC-1778507170776', 'CONC-1781627695646', 'CONC-1779891725132'] };
+
+function _concEscH(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Grupos que el portal ya junta y que aqui todavia no comparten saldo
+function _concGruposSugeridos(){
+  var hay = _concGrupos().map(function(g){ return g.clave; });
+  return Object.keys(CONC_GRUPOS_PORTAL).map(function(nombre){
+    var ids = CONC_GRUPOS_PORTAL[nombre].filter(function(id){ var c = _concGetById(id); return c && !c.eliminado; });
+    var libres = ids.every(function(id){ return !_concGrupoClave(_concGetById(id).grupoAliado); });
+    return { nombre: nombre, ids: ids, vale: ids.length >= 2 && libres && hay.indexOf(_concGrupoClave(nombre)) < 0 };
+  }).filter(function(x){ return x.vale; });
+}
+
+function _concAbrirGrupos(){
+  var grupos = _concGrupos();
+  var e = _concEscH;
+  setMicon('conces');
+  $('mtt').textContent = 'Saldos compartidos';
+  $('msb').textContent = 'Sedes de un mismo dueño que llevan un solo saldo';
+  $('modal-box').className = 'modal';
+  var html = '<div style="font-size:11.5px;color:var(--ink2);line-height:1.6;margin-bottom:12px">'
+    + 'Las sedes de un grupo llevan <b>un solo saldo</b>: un anticipo a cualquiera le suma al grupo y una venta en cualquiera se lo descuenta. '
+    + 'Cada anticipo y cada venta sigue anotado en su sede. Es el mismo grupo que sale como <b>un solo aliado en el portal</b>.</div>';
+  if(!grupos.length){
+    html += '<div id="cgr_vacio" style="padding:18px;text-align:center;background:var(--gs);border-radius:10px;color:var(--ink3);font-size:12px;margin-bottom:10px">'
+      + 'Todavía ninguna sede comparte saldo: cada una lleva el suyo.</div>';
+  }
+  grupos.forEach(function(g){
+    var fin = _concFinanzasDe(g.sedes[0].id);
+    var sola = g.sedes.length < 2;
+    var col = fin.saldo > 0 ? 'var(--green)' : (fin.saldo < 0 ? 'var(--red)' : 'var(--ink3)');
+    html += '<div class="cgr-grupo" style="border:1px solid var(--rim2);border-radius:11px;padding:11px 13px;margin-bottom:9px;background:var(--surf)">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">'
+      + '<div style="min-width:0"><div style="font-weight:900;font-size:13.5px">⇄ '+e(g.nombre)+'</div>'
+      + '<div style="font-size:10.5px;color:var(--ink3);margin-top:1px">'+g.sedes.length+' sede'+(g.sedes.length===1?'':'s')+(sola?' · con una sola sede no comparte con nadie':'')+'</div></div>'
+      + '<div style="text-align:right"><div style="font-size:9.5px;font-weight:800;color:var(--ink3);text-transform:uppercase">Saldo del grupo</div>'
+      + '<div style="font-family:var(--fd);font-weight:900;font-size:16px;color:'+col+'">'+fmt(fin.saldo)+'</div></div>'
+      + '</div>'
+      + '<div style="margin:8px 0 9px;font-size:11.5px;color:var(--ink2);line-height:1.7">'
+      + g.sedes.map(function(c){
+          var f = _concFinanzasPropias(c.id);
+          return '<div style="display:flex;justify-content:space-between;gap:10px;border-top:1px dashed var(--rim2);padding-top:3px"><span>'+e(c.nombre||c.id)+'</span>'
+            + '<span style="color:var(--ink3);white-space:nowrap">enviado '+fmt(f.enviado)+' · consumido '+fmt(f.consumido)+'</span></div>';
+        }).join('')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;justify-content:flex-end">'
+      + '<button class="btn btn-g btn-xs" onclick="_concGrupoDeshacer(\''+g.clave+'\')">Deshacer</button>'
+      + '<button class="btn btn-p btn-xs" onclick="_concGrupoEditar(\''+g.clave+'\')">Cambiar sedes</button>'
+      + '</div></div>';
+  });
+  _concGruposSugeridos().forEach(function(sg, i){
+    window._concGrupoSug = window._concGrupoSug || {};
+    window._concGrupoSug[i] = sg;
+    html += '<div class="cgr-sugerido" style="border:1px dashed var(--p1);border-radius:11px;padding:10px 13px;margin-bottom:9px;font-size:11.5px;color:var(--ink2);line-height:1.55">'
+      + 'En el portal ya salen como un solo aliado: <b>'+e(sg.ids.map(_concNombreSede).join(', '))+'</b>. Aquí cada una lleva su saldo todavía.'
+      + '<div style="margin-top:7px;text-align:right"><button class="btn btn-g btn-xs" onclick="_concGrupoEditar(\'\','+i+')">Que también compartan el saldo…</button></div></div>';
+  });
+  $('mbd').innerHTML = html;
+  $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>'
+    + '<button class="btn btn-p" onclick="_concGrupoEditar(\'\')">+ Nuevo grupo</button>';
+  $('ov').style.display='flex';
+}
+
+// Lo que se esta armando: { clave:'' si es nuevo, nombre, marcadas:{ idSede:true } }
+var _concGrupoEd = null;
+function _concGrupoEditar(clave, sugerido){
+  var g = clave ? _concGrupos().filter(function(x){ return x.clave === clave; })[0] : null;
+  var sg = (!g && sugerido != null && window._concGrupoSug) ? window._concGrupoSug[sugerido] : null;
+  _concGrupoEd = { clave: g ? g.clave : '', nombre: g ? g.nombre : (sg ? sg.nombre : ''), marcadas: {} };
+  (g ? g.sedes.map(function(c){ return String(c.id); }) : (sg ? sg.ids : [])).forEach(function(id){ _concGrupoEd.marcadas[id] = true; });
+  var ed = _concGrupoEd, e = _concEscH;
+  var lista = (S.concesionarios||[]).filter(function(c){ return c && !c.eliminado; })
+    .sort(function(a,b){ return String(a.nombre||'').localeCompare(String(b.nombre||'')); });
+  setMicon('conces');
+  $('mtt').textContent = g ? 'Grupo ' + g.nombre : 'Nuevo grupo de saldo compartido';
+  $('msb').textContent = 'Marca las sedes que llevan un solo saldo';
+  $('modal-box').className = 'modal';
+  $('mbd').innerHTML = ''
+    + '<div class="fg" style="margin-bottom:10px"><label>Nombre del grupo <span style="color:var(--red)">*</span> <span style="font-weight:400;color:var(--ink3)">(así sale también en el portal de aliados)</span></label>'
+    + '<input class="fi" id="cgr_nombre" value="'+e(ed.nombre)+'" placeholder="Ej: EK" maxlength="40"></div>'
+    + '<div style="font-size:10px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Sedes que comparten el saldo</div>'
+    + '<div id="cgr_sedes" style="max-height:290px;overflow-y:auto;border:1px solid var(--rim2);border-radius:10px">'
+    + lista.map(function(c){
+        var id = String(c.id), f = _concFinanzasPropias(c.id);
+        var k = _concGrupoClave(c.grupoAliado);
+        var enOtro = k && k !== ed.clave;
+        return '<label style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-bottom:1px solid var(--rim2);cursor:pointer">'
+          + '<input type="checkbox" class="cgr-chk" value="'+e(id)+'" '+(ed.marcadas[id]?'checked':'')+' onchange="_concGrupoMarcar(this.value,this.checked)" style="accent-color:var(--p1);transform:scale(1.15)">'
+          + '<span style="flex:1;min-width:0"><span style="font-weight:700;font-size:12.5px">'+e(c.nombre||id)+'</span>'
+          + (c.ciudad?' <span style="font-size:10.5px;color:var(--ink3)">· '+e(c.ciudad)+'</span>':'')
+          + (enOtro?'<div style="font-size:10.5px;color:var(--amber);font-weight:700">Hoy está en el grupo '+e(String(c.grupoAliado).trim())+': si la marcas, pasa a este.</div>':'')
+          + '</span>'
+          + '<span style="font-family:var(--fd);font-weight:800;font-size:12px;white-space:nowrap;color:'+(f.saldo<0?'var(--red)':'var(--ink2)')+'">'+fmt(f.saldo)+'</span>'
+          + '</label>';
+      }).join('')
+    + '</div>'
+    + '<div id="cgr_resumen" style="margin-top:11px;padding:10px 12px;border-radius:10px;background:var(--gs);font-size:12px;line-height:1.55"></div>';
+  $('mft').innerHTML = '<button class="btn btn-g" onclick="_concAbrirGrupos()">Volver</button>'
+    + '<button class="btn btn-p" onclick="_concGrupoGuardar()">Guardar grupo</button>';
+  $('ov').style.display='flex';
+  _concGrupoResumen();
+}
+function _concGrupoMarcadas(){
+  var ed = _concGrupoEd || { marcadas:{} };
+  return Object.keys(ed.marcadas).filter(function(id){ var c = _concGetById(id); return ed.marcadas[id] && c && !c.eliminado; });
+}
+function _concGrupoMarcar(id, on){
+  if(!_concGrupoEd) return;
+  _concGrupoEd.marcadas[String(id)] = !!on;
+  _concGrupoResumen();
+}
+// La cuenta, antes de guardar: el saldo del grupo es la suma de lo que cada sede tiene hoy
+function _concGrupoResumen(){
+  var caja = $('cgr_resumen'); if(!caja) return;
+  var ids = _concGrupoMarcadas();
+  if(ids.length < 2){ caja.innerHTML = '<span style="color:var(--ink3)">Marca al menos <b>dos</b> sedes.</span>'; return; }
+  var env = 0, con = 0;
+  ids.forEach(function(id){ var f = _concFinanzasPropias(id); env += f.enviado; con += f.consumido; });
+  var saldo = env - con;
+  caja.innerHTML = 'Saldo del grupo al guardar: <b style="font-family:var(--fd);font-size:14px;color:'+(saldo<0?'var(--red)':'var(--green)')+'">'+fmt(saldo)+'</b>'
+    + '<div style="font-size:11px;color:var(--ink3)">La suma de las '+ids.length+' sedes: enviado '+fmt(env)+' − consumido '+fmt(con)+'. No se mueve dinero ni se cambia ningún anticipo ni crédito.</div>';
+}
+function _concGrupoGuardar(){
+  var ed = _concGrupoEd; if(!ed) return;
+  var nombre = (($('cgr_nombre') && $('cgr_nombre').value) || '').trim();
+  var clave = _concGrupoClave(nombre);
+  if(!clave){ toast('Ponle un nombre al grupo','error'); return; }
+  var ids = _concGrupoMarcadas();
+  if(ids.length < 2){ toast('Marca al menos dos sedes: con una sola no hay nada que compartir','error'); return; }
+  if(_concGrupos().some(function(g){ return g.clave === clave && g.clave !== ed.clave; })){
+    toast('Ya hay un grupo con ese nombre: cámbiale las sedes a ese en vez de crear otro','error'); return;
+  }
+  var ahora = new Date().toISOString(), cambios = 0;
+  (S.concesionarios||[]).forEach(function(c){
+    if(!c || c.eliminado) return;
+    var id = String(c.id), nuevo = null;
+    if(ids.indexOf(id) > -1){ if(String(c.grupoAliado||'').trim() !== nombre) nuevo = nombre; }
+    else if(ed.clave && _concGrupoClave(c.grupoAliado) === ed.clave) nuevo = '';   // salio del grupo
+    if(nuevo === null) return;
+    c.grupoAliado = nuevo;
+    c.updatedAt = ahora;
+    if(DB && DB.saveConcesionario) DB.saveConcesionario(c);
+    cambios++;
+  });
+  if(typeof logActividad==='function') logActividad('Saldo compartido','concesionarios','', nombre+' · '+ids.map(_concNombreSede).join(', '));
+  _concGrupoEd = null;
+  toast(cambios ? 'Grupo '+nombre+': '+ids.length+' sedes comparten el saldo' : 'El grupo ya estaba así: no cambió nada', cambios ? 'success' : 'info');
+  if(typeof nav==='function') nav('concesionarios');
+  _concAbrirGrupos();
+}
+function _concGrupoDeshacer(clave){
+  var g = _concGrupos().filter(function(x){ return x.clave === clave; })[0];
+  if(!g){ toast('Ese grupo ya no existe','info'); _concAbrirGrupos(); return; }
+  // Las sedes de la lista fija del robot siguen juntas en el portal aunque aqui se separen
+  var fijas = Object.keys(CONC_GRUPOS_PORTAL).some(function(n){ return g.sedes.some(function(c){ return CONC_GRUPOS_PORTAL[n].indexOf(String(c.id)) > -1; }); });
+  if(!confirm('¿Deshacer el grupo "'+g.nombre+'"?\n\nCada sede vuelve a llevar su saldo propio ('+g.sedes.map(function(c){ return c.nombre||c.id; }).join(', ')+'). '
+    + 'No se borra ningún anticipo ni crédito. '
+    + (fijas ? 'En el portal de aliados siguen saliendo juntas, como estaban antes.' : 'En el portal también dejan de salir como un solo aliado.'))) return;
+  var ahora = new Date().toISOString();
+  g.sedes.forEach(function(c){
+    c.grupoAliado = '';
+    c.updatedAt = ahora;
+    if(DB && DB.saveConcesionario) DB.saveConcesionario(c);
+  });
+  if(typeof logActividad==='function') logActividad('Saldo compartido deshecho','concesionarios','', g.nombre);
+  toast('Grupo '+g.nombre+' deshecho: cada sede lleva su saldo','info');
+  if(typeof nav==='function') nav('concesionarios');
+  _concAbrirGrupos();
 }
 
 // ── Reportes por concesionario (diario / quincenal / mensual / rango) ──
@@ -1382,10 +1688,16 @@ function _concGenerarReporte(cid, formato){
   if(!c){ toast('Concesionario no encontrado','error'); return; }
   var r = _concRangoReporte();
   var fin = _concFinanzasDe(cid);
+  // 11-nov-2026: en un grupo el reporte sigue siendo de ESTA sede (sus motos y sus
+  // anticipos); lo que cambia es el saldo, que es el del grupo, con lo que pone cada sede
+  // para que la cuenta cierre.
+  var comp = !!fin.compartido;
+  var suyo = comp ? _concFinanzasPropias(cid) : fin;
+  var desglose = comp ? fin.sedes.map(function(sid){ var f = _concFinanzasPropias(sid); return { nombre:_concNombreSede(sid), enviado:f.enviado, consumido:f.consumido, saldo:f.saldo }; }) : [];
   var enR = function(fecha){ return (fecha||'') >= r.desde && (fecha||'') <= r.hasta; };
-  var credsP = fin.creds.filter(function(cr){ return enR(cr.fecha); })
+  var credsP = suyo.creds.filter(function(cr){ return enR(cr.fecha); })
     .sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
-  var antP = fin.anticipos.filter(function(a){ return enR(a.fecha); })
+  var antP = suyo.anticipos.filter(function(a){ return enR(a.fecha); })
     .sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
   var costoP = credsP.reduce(function(s,cr){ return s + _concCostoSalida(cr); }, 0);
   var ventaP = credsP.reduce(function(s,cr){ return s + (parseFloat(cr.precio)||0); }, 0);
@@ -1405,9 +1717,20 @@ function _concGenerarReporte(cid, formato){
     aoa.push(['Consumido del anticipo — lo que puso Pagasi (período)', n2(costoP)]);
     aoa.push(['Precio de venta total (período)', n2(ventaP)]);
     aoa.push(['Anticipos enviados (período)', n2(antTotalP)]);
-    aoa.push(['— SALDO GLOBAL DE LA SEDE —', n2(fin.saldo)]);
-    aoa.push(['Total enviado histórico', n2(fin.enviado)]);
-    aoa.push(['Total consumido histórico — lo que puso Pagasi', n2(fin.consumido)]);
+    if(comp){
+      aoa.push(['— SALDO COMPARTIDO DEL GRUPO '+String(fin.grupo).toUpperCase()+' —', n2(fin.saldo)]);
+      aoa.push(['Total enviado histórico (todo el grupo)', n2(fin.enviado)]);
+      aoa.push(['Total consumido histórico — lo que puso Pagasi (todo el grupo)', n2(fin.consumido)]);
+      aoa.push([]);
+      aoa.push(['LO QUE PONE CADA SEDE AL SALDO COMPARTIDO']);
+      aoa.push(['Sede','Enviado','Consumido','Diferencia']);
+      desglose.forEach(function(d){ aoa.push([d.nombre, n2(d.enviado), n2(d.consumido), n2(d.saldo)]); });
+      aoa.push(['TOTAL DEL GRUPO', n2(fin.enviado), n2(fin.consumido), n2(fin.saldo)]);
+    } else {
+      aoa.push(['— SALDO GLOBAL DE LA SEDE —', n2(fin.saldo)]);
+      aoa.push(['Total enviado histórico', n2(fin.enviado)]);
+      aoa.push(['Total consumido histórico — lo que puso Pagasi', n2(fin.consumido)]);
+    }
     aoa.push([]);
     aoa.push(['MOTOS QUE SALIERON']);
     // "Puso el cliente" y "Puso Pagasi" en vez de una sola columna "Costo": de la moto
@@ -1439,9 +1762,15 @@ function _concGenerarReporte(cid, formato){
     + '<h3>Resumen del período</h3>'
     + '<table><tr><th>Motos que salieron</th><th>Costo consumido</th><th>Venta total</th><th>Anticipos enviados</th></tr>'
     + '<tr><td>'+credsP.length+'</td><td>$'+costoP.toFixed(2)+'</td><td>$'+ventaP.toFixed(2)+'</td><td>$'+antTotalP.toFixed(2)+'</td></tr></table>'
-    + '<h3>Saldo global de la sede</h3>'
+    + '<h3>'+(comp ? 'Saldo compartido del grupo '+esc(fin.grupo) : 'Saldo global de la sede')+'</h3>'
+    + (comp ? '<div style="font-size:11px;color:#555;margin-bottom:6px">Estas sedes llevan un solo saldo: un anticipo a cualquiera le suma al grupo y una venta en cualquiera se lo descuenta.</div>' : '')
     + '<table><tr><th>Total enviado</th><th>Consumido (lo que puso Pagasi)</th><th>SALDO DISPONIBLE</th></tr>'
     + '<tr><td>$'+fin.enviado.toFixed(2)+'</td><td>−$'+fin.consumido.toFixed(2)+'</td><td style="font-weight:900;'+(fin.saldo<0?'color:#c0392b':'color:#0a7a4b')+'">$'+fin.saldo.toFixed(2)+'</td></tr></table>'
+    + (comp
+      ? '<table><tr><th>Sede</th><th>Enviado</th><th>Consumido</th><th>Diferencia</th></tr>'
+        + desglose.map(function(d){ return '<tr><td>'+esc(d.nombre)+'</td><td>$'+d.enviado.toFixed(2)+'</td><td>−$'+d.consumido.toFixed(2)+'</td><td>$'+d.saldo.toFixed(2)+'</td></tr>'; }).join('')
+        + '<tr><td style="font-weight:800">TOTAL DEL GRUPO</td><td style="font-weight:800">$'+fin.enviado.toFixed(2)+'</td><td style="font-weight:800">−$'+fin.consumido.toFixed(2)+'</td><td style="font-weight:900">$'+fin.saldo.toFixed(2)+'</td></tr></table>'
+      : '')
     + '<h3>Motos que salieron ('+credsP.length+')</h3>'
     + (credsP.length===0 ? '<div style="color:#777;font-size:11px">Sin ventas en el período.</div>'
       : '<table><tr><th>Crédito</th><th>Fecha</th><th>Cliente</th><th>Cédula</th><th>Teléfono</th><th>Modelo</th><th>Placa/Serial</th><th>Puso el cliente</th><th>Puso Pagasi</th><th>Estado</th></tr>'

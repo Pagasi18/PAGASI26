@@ -14,7 +14,7 @@ function _mpagoMetodosOpts(){
   var ant = (typeof anticiposConSaldo==='function') ? anticiposConSaldo() : [];
   var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
   var opcAnt = ant.map(function(a){
-    return '<option value="ANT:'+esc(a.id)+'">Anticipo — '+esc(a.nombre)+' ('+fmt(a.saldo)+' disponible)</option>';
+    return '<option value="ANT:'+esc(a.id)+'">Anticipo — '+esc(a.nombre)+' ('+fmt(a.saldo)+' disponible'+(a.grupo?', compartido del grupo '+esc(a.grupo):'')+')</option>';
   }).join('');
   if(!(_cuentasBanc && _cuentasBanc.length) && !opcAnt)
     return '<option value="" selected>— No hay cuentas cargadas —</option>';

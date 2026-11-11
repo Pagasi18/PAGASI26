@@ -36,12 +36,16 @@ var CUENTA_ANTICIPOS = 'Anticipos en concesionarios';
 
 // Lo que queda del anticipo de UNA sede: lo que se le mando menos lo que ya se uso
 // en motos suyas.
+// 11-nov-2026, Adam: las sedes de un mismo dueño comparten el saldo ("si yo meto un
+// anticipo a cualquiera de los tres, le suma a los tres"). Si la sede esta en un grupo,
+// la cuenta es la de todas sus sedes juntas; cada movimiento sigue anotado en la suya.
 function saldoAnticipoDe(concesionarioId){
   if(!concesionarioId) return 0;
+  var ids = (typeof _concSedesDeSaldo==='function') ? _concSedesDeSaldo(concesionarioId) : [String(concesionarioId)];
   var s = 0;
   (S.movimientos||[]).forEach(function(m){
     if(!m || m.eliminado) return;
-    if(String(m.concesionarioId||'') !== String(concesionarioId)) return;
+    if(ids.indexOf(String(m.concesionarioId||'')) < 0) return;
     var v = montoMov(m);
     if(m.cuentaDestino === CUENTA_ANTICIPOS) s += v;
     if(m.cuentaOrigen  === CUENTA_ANTICIPOS) s -= v;
@@ -58,7 +62,9 @@ function anticiposConSaldo(){
   });
   return Object.keys(por).map(function(cid){
     var c = (typeof _concGetById==='function') ? (_concGetById(cid)||{}) : {};
-    return { id: cid, nombre: c.nombre || cid, saldo: saldoAnticipoDe(cid) };
+    // En un grupo todas sus sedes muestran el mismo saldo: se dice, para que nadie lo sume
+    var grupo = (typeof _concSedesDeSaldo==='function' && _concSedesDeSaldo(cid).length > 1 && typeof _concGrupoNombreDe==='function') ? _concGrupoNombreDe(cid) : '';
+    return { id: cid, nombre: c.nombre || cid, saldo: saldoAnticipoDe(cid), grupo: grupo };
   }).filter(function(x){ return x.saldo > 0.004; })
     .sort(function(a,b){ return b.saldo - a.saldo; });
 }

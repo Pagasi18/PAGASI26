@@ -18,7 +18,8 @@ const PROYECTOS = { '18': 'pagasi-v2', '26': 'pagasi26-65ced' };
 const DESTINO = 'pagasi26-65ced';          // donde vive la cuenta del aliado y el portal
 const DIAS_GRACIA = 5;
 // Grupos de aliados: varias sedes de un mismo dueno cuentan como UN aliado (un nivel, un saldo,
-// una posicion en el ranking). Se marca en la ficha del concesionario ("Grupo de aliado"); mientras
+// una posicion en el ranking). Desde el 11-nov-2026 ese mismo grupo comparte el saldo DENTRO del
+// sistema (Concesionarios -> "Saldos compartidos" escribe este mismo campo). Se marca en la ficha del concesionario ("Grupo de aliado"); mientras
 // no este marcado en la base, estos ids se agrupan por defecto (Adam, 18-oct-2026: "el portal de
 // EK Bello Monte, EK Trujillo y Haojin deberia ser uno solo, es un mismo dueno").
 const GRUPOS_POR_DEFECTO = { 'EK': ['CONC-1778507170776', 'CONC-1781627695646', 'CONC-1779891725132'] };
@@ -86,7 +87,7 @@ function resumenSede(datos, hoy) {
       const a = atrasoDe(c, (datos.pagosPorCred || {})[c.id] || [], hoy);
       return { empresa: c.empresa, id: c.id, fecha: fechaDe(c), modelo: [c.marca, c.modelo].filter(Boolean).join(' ').trim() || 'Moto',
         nombre: nombreCorto(c.cli), fin: r2(c.fin || costoSalida(c)), dias: a.dias, completado: a.completado,
-        creado: c.creado || '', aprobadoEn: c.aprobadoEn || '', vendedor: String(c.vendedorNombre || '').split(/\s+/)[0] || '' };
+        creado: c.creado || '', aprobadoEn: c.aprobadoEn || '', vendedor: String(c.vendedorNombre || '').split(/\s+/)[0] || '', sede: c.concesionarioId || '' };
     })
     .sort((x, y) => (y.fecha + y.creado).localeCompare(x.fecha + x.creado));
 
@@ -105,10 +106,14 @@ function resumenSede(datos, hoy) {
   const enviado = r2(anticipos.reduce((s, a) => s + (parseFloat(a.monto) || 0), 0));
   const salidas = ventas.filter(v => empresasConDeposito.includes(v.empresa));
   const consumido = r2(salidas.reduce((s, v) => s + costoSalida(creditos.find(c => c.id === v.id && c.empresa === v.empresa) || {}), 0));
-  const movs = anticipos.map(a => ({ fecha: String(a.fecha || '').slice(0, 10), detalle: 'Depósito de Pagasi', monto: r2(a.monto), empresa: a.empresa }))
-    .concat(salidas.map(v => ({ fecha: v.fecha, detalle: v.modelo + ' · ' + v.nombre, monto: -costoSalida(creditos.find(c => c.id === v.id && c.empresa === v.empresa) || {}), empresa: v.empresa })))
+  // Cada movimiento dice de que sede es (11-nov-2026): en un grupo el saldo es UNO para todas
+  // sus sedes, y el portal muestra el saldo corrido del grupo con la sede de cada linea.
+  const movs = anticipos.map(a => ({ fecha: String(a.fecha || '').slice(0, 10), detalle: 'Depósito de Pagasi', monto: r2(a.monto), empresa: a.empresa, sede: a.sede || '' }))
+    .concat(salidas.map(v => ({ fecha: v.fecha, detalle: v.modelo + ' · ' + v.nombre, monto: -costoSalida(creditos.find(c => c.id === v.id && c.empresa === v.empresa) || {}), empresa: v.empresa, sede: v.sede || '' })))
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
   let acum = 0; movs.forEach(m => { acum = r2(acum + m.monto); m.saldo = acum; });
+  // Un grupo guarda mas lineas: son las de todas sus sedes juntas
+  const nMovs = 15 * Math.max(1, (datos.sedes || []).length);
 
   // Solicitudes de los vendedores: pendientes y las ultimas aprobadas con sus minutos
   const aprobadas = ventas.filter(v => v.aprobadoEn && v.creado).map(v => ({ ...v, minutos: Math.max(0, Math.round((Date.parse(v.aprobadoEn) - Date.parse(v.creado)) / 60000)) }))
@@ -135,7 +140,7 @@ function resumenSede(datos, hoy) {
     mes: { ym: mes, motos: delMes.length, motosAnt: delMesAnt.length, vol, nivel: nivel.id, nivelNom: nivel.nom, pct: nivel.pct,
       siguiente: nivel.siguiente, falta: nivel.siguiente ? r2(nivel.siguiente.min - vol) : 0, base, mult, comision: r2(base * mult / 100) },
     calidad: { cartera: cartera.length, atrasados: atrasados.length, atrasoPct, aldiaPct: r2(100 - atrasoPct), mult },
-    deposito: { empresas: empresasConDeposito, enviado, consumido, saldo: r2(enviado - consumido), movimientos: movs.slice(-15).reverse() },
+    deposito: { empresas: empresasConDeposito, enviado, consumido, saldo: r2(enviado - consumido), movimientos: movs.slice(-nMovs).reverse() },
     ventas: ventas.slice(0, 25).map(v => ({ empresa: v.empresa, fecha: v.fecha, modelo: v.modelo, nombre: v.nombre, fin: v.fin, dias: v.dias, completado: v.completado })),
     solicitudes: { pendientes: pendientes.slice(0, 10).map(c => ({ empresa: c.empresa, creado: c.creado || '', modelo: [c.marca, c.modelo].filter(Boolean).join(' ').trim() || 'Moto', nombre: nombreCorto(c.cli), vendedor: String(c.vendedorNombre || '').split(/\s+/)[0] || '' })),
       ultimas: aprobadas.map(a => ({ empresa: a.empresa, fecha: a.aprobadoEn.slice(0, 10), modelo: a.modelo, nombre: a.nombre, minutos: a.minutos })), prom, rec },
@@ -170,7 +175,7 @@ function armarSedes(porEmpresa) {
       const s = sedes[c.id] || (sedes[c.id] = { id: c.id, nombre: '', ciudad: '', grupo: '', creditos: [], pagosPorCred: {}, anticipos: [] });
       if (emp === '26' || !s.nombre) { s.nombre = c.nombre || s.nombre; s.ciudad = c.ciudad || s.ciudad; }
       if (c.grupoAliado && String(c.grupoAliado).trim()) s.grupo = String(c.grupoAliado).trim();
-      (Array.isArray(c.anticipos) ? c.anticipos : []).forEach(a => { if (a && !a.eliminado) s.anticipos.push({ empresa: emp, fecha: a.fecha, monto: a.monto }); });
+      (Array.isArray(c.anticipos) ? c.anticipos : []).forEach(a => { if (a && !a.eliminado) s.anticipos.push({ empresa: emp, fecha: a.fecha, monto: a.monto, sede: c.id }); });
     });
     (d.creditos || []).forEach(cr => {
       if (!cr || cr.eliminado || !cr.concesionarioId || !sedes[cr.concesionarioId]) return;

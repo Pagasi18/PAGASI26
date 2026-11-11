@@ -130,6 +130,15 @@
       D.NOM.todas = D.nombre;
       D.MODELOS.todas = modelosDe(grupoDoc).length ? modelosDe(grupoDoc) : D.MODELOS.todas;
       var ini = grupoDoc.desde && grupoDoc.desde.inicio; if(ini) D.desde = mesNombre(ini.slice(0, 7)) + ' de ' + ini.slice(0, 4);
+      // 11-nov-2026 (Adam): las sedes de un mismo dueño llevan UN saldo. En la pestaña de cada
+      // sede se ve el del grupo, y los movimientos traen el saldo corrido del grupo (no el que
+      // tendría cada sede por separado, que ya no existe).
+      rs.forEach(function(r){ var sd = D.SEDES[r.concId]; sd.dep = g.dep; sd.saldo = g.saldo; sd.saldoCompartido = true; });
+      var gmovs = (grupoDoc.deposito || {}).movimientos || [];
+      if(gmovs.length){
+        D.MOVS = gmovs.map(function(mv){ return [fechaCorta(mv.fecha), (mv.sede && D.SEDES[mv.sede]) ? mv.sede : 'todas', mv.detalle, mv.monto, mv.saldo, mv.fecha, mv.empresa || '']; });
+        D.MOVS.sort(function(a, b){ return String(b[5]).localeCompare(String(a[5])); });
+      }
     }
     return D;
   }
@@ -168,7 +177,8 @@
     var debe = s.saldo < 0;
     $('k-saldo-et').textContent = debe ? 'Pagasi te repone' : 'Saldo a tu favor';
     cuenta('k-saldo', Math.abs(s.saldo), USD);
-    $('k-saldo-sub').textContent = !s.dep ? 'Sin depósito registrado todavía' : (debe ? 'ya se consumió el depósito de ' + USD(s.dep) : 'de ' + USD(s.dep) + ' depositados por Pagasi');
+    $('k-saldo-sub').textContent = (!s.dep ? 'Sin depósito registrado todavía' : (debe ? 'ya se consumió el depósito de ' + USD(s.dep) : 'de ' + USD(s.dep) + ' depositados por Pagasi'))
+      + (s.saldoCompartido && k !== 'todas' ? ' · saldo compartido entre tus sedes' : '');
     $('b-saldo').style.width = (s.dep ? Math.max(0, Math.min(100, Math.round(s.saldo / s.dep * 100))) : 0) + '%';
     cuenta('k-motos', s.motos, function(v){ return String(Math.round(v)); }); $('k-motos-sub').textContent = s.motosDelta;
     var n = nivelDe(s.vol), m = multDe(s.atraso), base = s.vol * n[1] / 100;
