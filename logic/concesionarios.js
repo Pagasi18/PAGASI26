@@ -1458,21 +1458,12 @@ function _concDelAnticipo(cid, antId){
 // se tocan, y deshacer el grupo devuelve a cada sede su saldo propio.
 //
 // Estas sedes ya salen como UN aliado en el portal sin estar marcadas en la base (lista
-// fija del robot, bot/aliados-resumen.js: GRUPOS_POR_DEFECTO). Aqui no se juntan solas:
-// se ofrecen con un boton, y Adam decide.
+// fija del robot, bot/aliados-resumen.js: GRUPOS_POR_DEFECTO). Aqui no se juntan solas ni
+// se ofrecen: la ventana no las menciona (Adam, 11-nov-2026: "esto no... necesito que
+// quites esto"). La lista solo sirve para decir la verdad al deshacer un grupo.
 var CONC_GRUPOS_PORTAL = { 'EK': ['CONC-1778507170776', 'CONC-1781627695646', 'CONC-1779891725132'] };
 
 function _concEscH(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-// Grupos que el portal ya junta y que aqui todavia no comparten saldo
-function _concGruposSugeridos(){
-  var hay = _concGrupos().map(function(g){ return g.clave; });
-  return Object.keys(CONC_GRUPOS_PORTAL).map(function(nombre){
-    var ids = CONC_GRUPOS_PORTAL[nombre].filter(function(id){ var c = _concGetById(id); return c && !c.eliminado; });
-    var libres = ids.every(function(id){ return !_concGrupoClave(_concGetById(id).grupoAliado); });
-    return { nombre: nombre, ids: ids, vale: ids.length >= 2 && libres && hay.indexOf(_concGrupoClave(nombre)) < 0 };
-  }).filter(function(x){ return x.vale; });
-}
 
 function _concAbrirGrupos(){
   var grupos = _concGrupos();
@@ -1511,13 +1502,6 @@ function _concAbrirGrupos(){
       + '<button class="btn btn-p btn-xs" onclick="_concGrupoEditar(\''+g.clave+'\')">Cambiar sedes</button>'
       + '</div></div>';
   });
-  _concGruposSugeridos().forEach(function(sg, i){
-    window._concGrupoSug = window._concGrupoSug || {};
-    window._concGrupoSug[i] = sg;
-    html += '<div class="cgr-sugerido" style="border:1px dashed var(--p1);border-radius:11px;padding:10px 13px;margin-bottom:9px;font-size:11.5px;color:var(--ink2);line-height:1.55">'
-      + 'En el portal ya salen como un solo aliado: <b>'+e(sg.ids.map(_concNombreSede).join(', '))+'</b>. Aquí cada una lleva su saldo todavía.'
-      + '<div style="margin-top:7px;text-align:right"><button class="btn btn-g btn-xs" onclick="_concGrupoEditar(\'\','+i+')">Que también compartan el saldo…</button></div></div>';
-  });
   $('mbd').innerHTML = html;
   $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>'
     + '<button class="btn btn-p" onclick="_concGrupoEditar(\'\')">+ Nuevo grupo</button>';
@@ -1526,11 +1510,10 @@ function _concAbrirGrupos(){
 
 // Lo que se esta armando: { clave:'' si es nuevo, nombre, marcadas:{ idSede:true } }
 var _concGrupoEd = null;
-function _concGrupoEditar(clave, sugerido){
+function _concGrupoEditar(clave){
   var g = clave ? _concGrupos().filter(function(x){ return x.clave === clave; })[0] : null;
-  var sg = (!g && sugerido != null && window._concGrupoSug) ? window._concGrupoSug[sugerido] : null;
-  _concGrupoEd = { clave: g ? g.clave : '', nombre: g ? g.nombre : (sg ? sg.nombre : ''), marcadas: {} };
-  (g ? g.sedes.map(function(c){ return String(c.id); }) : (sg ? sg.ids : [])).forEach(function(id){ _concGrupoEd.marcadas[id] = true; });
+  _concGrupoEd = { clave: g ? g.clave : '', nombre: g ? g.nombre : '', marcadas: {} };
+  (g ? g.sedes : []).forEach(function(c){ _concGrupoEd.marcadas[String(c.id)] = true; });
   var ed = _concGrupoEd, e = _concEscH;
   var lista = (S.concesionarios||[]).filter(function(c){ return c && !c.eliminado; })
     .sort(function(a,b){ return String(a.nombre||'').localeCompare(String(b.nombre||'')); });

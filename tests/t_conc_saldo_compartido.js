@@ -126,7 +126,7 @@ datos(); grupo('MARCA', ['C-YAG']); grupo(' marca ', ['C-CHA']); grupo('Márca',
 ok('"MARCA", " marca " y "Márca" son el mismo grupo', TRES.every(id => fin(id).compartido && fin(id).saldo === 3000));
 const R = require(path.join(ROOT, 'bot', 'aliados-resumen.js'));
 ok('...con la misma regla que usa el robot del portal', ['EK', 'Grupo Bera · Chacao', ' ék  motos '].every(n => 'G-' + ctx._concGrupoClave(n) === R.grupoIdDe(n)));
-ok('los grupos que el portal ya junta por su cuenta son los mismos que aquí se ofrecen', JSON.stringify(ctx.CONC_GRUPOS_PORTAL) === JSON.stringify(R.GRUPOS_POR_DEFECTO));
+ok('los grupos que el portal ya junta por su cuenta son los mismos que aquí se conocen', JSON.stringify(ctx.CONC_GRUPOS_PORTAL) === JSON.stringify(R.GRUPOS_POR_DEFECTO));
 datos(); grupo('MARCA', ['C-YAG']);
 ok('un grupo de una sola sede no comparte con nadie', fin('C-YAG').compartido === false && fin('C-YAG').saldo === 4400);
 
@@ -236,18 +236,25 @@ ok('al deshacer, cada sede vuelve a su saldo de siempre', guardados.length === 3
   && fin('C-YAG').saldo === 4400 && fin('C-CHA').saldo === -800 && fin('C-TOR').saldo === 1400 && [fin('C-YAG'), fin('C-CHA'), fin('C-TOR')].every(f => !f.compartido));
 ok('...y los anticipos y créditos siguen intactos', JSON.stringify(S.concesionarios.map(c => c.anticipos)) === antesAnt && JSON.stringify(S.creds) === antesCreds);
 
-// Las sedes que el portal ya junta por su cuenta se OFRECEN, no se juntan solas
+// Las sedes que el portal ya junta por su cuenta NO se juntan solas ni se ofrecen
+// (Adam, 11-nov-2026, sobre el recuadro que las ofrecía: "esto no... necesito que quites esto")
 datos();
 const fijas = R.GRUPOS_POR_DEFECTO.EK;
 fijas.forEach((id, i) => S.concesionarios.push({ id, nombre:'EK SEDE ' + (i + 1), anticipos: i === 0 ? [ant('ANT-EK', 900, '2026-11-01')] : [] }));
 ok('las sedes que el portal junta por su lista fija NO comparten saldo solas', fijas.every(id => fin(id).compartido === false) && fin(fijas[0]).saldo === 900 && fin(fijas[1]).saldo === 0);
 ctx._concAbrirGrupos();
-ok('...la ventana las ofrece con un botón', /En el portal ya salen como un solo aliado/.test(form.mbd.innerHTML) && /EK SEDE 1, EK SEDE 2, EK SEDE 3/.test(form.mbd.innerHTML));
-ctx._concGrupoEditar('', 0);
-ok('...que abre el grupo ya armado con su nombre, y Adam decide si lo guarda', form.mbd.innerHTML.indexOf('value="EK"') > -1 && (form.mbd.innerHTML.match(/class="cgr-chk" value="[^"]*" checked/g) || []).length === 3 && fijas.every(id => fin(id).compartido === false));
+ok('...y la ventana ya no las ofrece: ni el recuadro ni el botón', !/En el portal ya salen/.test(form.mbd.innerHTML) && !/Que también compartan el saldo/.test(form.mbd.innerHTML)
+  && !/EK SEDE/.test(form.mbd.innerHTML) && !/cgr-sugerido/.test(form.mbd.innerHTML) && /Todavía ninguna sede comparte saldo/.test(form.mbd.innerHTML));
+ok('...ni queda nada de eso en el código', !/_concGruposSugeridos|_concGrupoSug|cgr-sugerido|Que también compartan/.test(src('logic/concesionarios.js')));
+ctx._concGrupoEditar('');
+ok('...el grupo nuevo abre vacío: sin nombre y sin ninguna sede marcada', form.mbd.innerHTML.indexOf('id="cgr_nombre" value=""') > -1 && !/class="cgr-chk" value="[^"]*" checked/.test(form.mbd.innerHTML));
 form.cgr_nombre.value = 'EK'; guardados.length = 0;
+fijas.forEach(id => ctx._concGrupoMarcar(id, true));
 ctx._concGrupoGuardar();
-ok('...al guardar comparten, y ya no se vuelve a ofrecer', guardados.length === 3 && fijas.every(id => fin(id).saldo === 900) && !/En el portal ya salen/.test(form.mbd.innerHTML));
+ok('...si Adam las marca él mismo, comparten como cualquier otro grupo', guardados.length === 3 && fijas.every(id => fin(id).saldo === 900));
+preguntas = []; respuestaConfirm = false;
+ctx._concGrupoDeshacer('EK');
+ok('...y al deshacerlas se avisa que en el portal siguen juntas', preguntas.length === 1 && /En el portal de aliados siguen saliendo juntas/.test(preguntas[0]));
 
 // ════════ 6. La ficha de la sede sigue mostrando el grupo ════════
 const cs = src('logic/concesionarios.js');
