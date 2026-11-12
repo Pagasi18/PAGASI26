@@ -369,7 +369,7 @@ details summary::-webkit-details-marker{display:none}
 .gps-meta{font-size:13.5px;font-weight:700;color:var(--ink-2);margin-bottom:12px;line-height:1.45}
 .gps-meta small{display:block;font-size:12px;font-weight:600;color:var(--ink-4);margin-top:2px}
 </style>
-<link rel="stylesheet" href="assets/public/site.css?v=26-20261111-1738"><link rel="stylesheet" href="assets/public/account.css?v=26-20261111-1738"><link rel="stylesheet" href="assets/public/hero-motion.css?v=26-20261111-1738">
+<link rel="stylesheet" href="assets/public/site.css?v=26-20261111-2303"><link rel="stylesheet" href="assets/public/account.css?v=26-20261111-2303"><link rel="stylesheet" href="assets/public/hero-motion.css?v=26-20261111-2303">
 <style>
 /* ══ Mi cuenta como el panel de aliados (15-oct-2026) ══ */
 :root{--azul:#065cff;--azul-2:#0048dc;--azul-claro:#e8f0ff;--cielo:#00b4ff;--fg:#101a35;--fg-2:#4b5875;--fg-3:#7c88a6;--linea:#dfe7f3;--bien:#0e9f6e;--bien-bg:#e6f7f0;--ojo:#d97706;--ojo-bg:#fff4e0;--mal:#dc2626;--mal-bg:#fdecec;--bronce:#c2733a;--plata:#8d9bb5;--oro:#e0a200;--platino:#2fc0ff}
@@ -699,16 +699,23 @@ details summary::-webkit-details-marker{display:none}
     <div id="pgErr" class="err hide"></div>
     <div class="fgr">
       <div class="fg"><label for="pMonto">Monto pagado (USD)</label><input id="pMonto" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
-      <div class="fg"><label for="pFecha">Fecha del pago</label><input id="pFecha" type="date"></div>
+      <div class="fg"><label for="pFecha">Fecha del pago</label><input id="pFecha" type="date" onchange="pagoBsCalc()"></div>
     </div>
     <div class="fg">
       <label for="pMetodo">¿Cómo pagaste?</label>
-      <select id="pMetodo">
+      <select id="pMetodo" onchange="pagoMoneda()">
         <option value="Binance">Binance</option>
         <option value="Transferencia USD">Transferencia o depósito en dólares</option>
+        <option value="Pago móvil Bs">Pago móvil (bolívares)</option>
+        <option value="Transferencia Bs">Transferencia en bolívares</option>
         <option value="Efectivo">Efectivo</option>
         <option value="Otro">Otro</option>
       </select>
+    </div>
+    <div class="fg hide" id="pBsBox">
+      <label for="pBs">Monto que pagaste en bolívares (Bs)</label>
+      <input id="pBs" type="number" step="0.01" inputmode="decimal" placeholder="0,00" oninput="pagoBsCalc()">
+      <div id="pBsInfo" style="font-size:12px;line-height:1.45;margin-top:6px;opacity:.85"></div>
     </div>
     <div class="fg"><label for="pRef">N° de referencia (opcional)</label><input id="pRef" type="text" placeholder="Referencia del banco o Binance"></div>
     <div class="fg">
@@ -732,9 +739,9 @@ details summary::-webkit-details-marker{display:none}
 <script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <!-- Mismo motor de calculo que usa el admin: el cliente ve exactamente las
      mismas cifras que el cobrador, sin posibilidad de divergencia. -->
-<script src="assets/public/catalog.js?v=26-20261111-1738"></script>
-<script src="logic/credito-ledger.js?v=26-20261111-1738"></script>
-<script src="logic/gamificacion.js?v=26-20261111-1738"></script>
+<script src="assets/public/catalog.js?v=26-20261111-2303"></script>
+<script src="logic/credito-ledger.js?v=26-20261111-2303"></script>
+<script src="logic/gamificacion.js?v=26-20261111-2303"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
    PORTAL DEL CLIENTE — Pagasi
@@ -780,6 +787,27 @@ function $(id){ return document.getElementById(id); }
 function soloDigitos(s){ return String(s||'').replace(/\D/g,''); }
 function fmt(n){ return '$' + (parseFloat(n)||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function hoyISO(){ var d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+/* Bolívares (11-nov-2026): el crédito es en dólares. Aquí se muestra cuánto es en bolívares a la tasa del dólar BCV
+   (data/tasas-bcv.json, el archivo que guarda el robot cada día) y el cliente puede reportar un pago en bolívares.
+   Es de referencia: vale la tasa del día en que paga, y el equipo la confirma al revisar el comprobante. */
+var _TASAS = null;
+function cargarTasas(){
+  return fetch('data/tasas-bcv.json?nc=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; })
+    .then(function(t){ _TASAS = (t && typeof t === 'object') ? t : {}; return _TASAS; });
+}
+function tasaDe(fecha){   // el dólar BCV de esa fecha o, si no hay, el último anterior
+  var t = _TASAS || {}, ks = Object.keys(t).filter(function(k){ return /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= fecha && parseFloat(t[k] && t[k].usd) > 1; }).sort();
+  var k = ks[ks.length - 1];
+  return k ? { tasa: parseFloat(t[k].usd), fecha: k } : null;
+}
+function fmtBs(n){ return 'Bs ' + (Math.round((parseFloat(n)||0)*100)/100).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtTasa(t){ return (parseFloat(t)||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function enBsHtml(usd){
+  var t = tasaDe(hoyISO()); usd = parseFloat(usd) || 0;
+  if(!t || !(usd > 0)) return '';
+  return '<div class="sub" style="margin-top:6px">En bolívares hoy: <b>' + fmtBs(usd * t.tasa) + '</b> (tasa BCV ' + fmtTasa(t.tasa) + '). Si pagas en bolívares, vale la tasa del día en que pagues.</div>';
+}
+cargarTasas().then(function(){ try { if(typeof render === 'function' && S && S.creditos && S.creditos.length && !$('scApp').classList.contains('hide')) render(); } catch(e){} });
 function fechaLarga(iso){
   if(!iso) return '';
   // Estas funciones se concatenan directo en innerHTML. Si la fecha no tiene el
@@ -2073,6 +2101,7 @@ function creditoHTML(c){
     + '<section class="card c3 rev"><div class="et">' + (completado ? 'Crédito pagado' : (atrasado ? 'Debes ahora' : 'Tu próximo pago')) + '</div>'
     +   '<div class="num money" data-cuenta="' + (parseFloat(monto)||0) + '">' + fmt(monto) + '</div>'
     +   '<div class="sub">' + sub + '</div>'
+    +   (completado ? '' : enBsHtml(monto))
     +   '<div class="sub" style="margin-top:8px"><span class="pill ' + (completado ? 'azul' : atrasado ? 'mal' : 'bien') + '">' + (completado?'Completado':(atrasado?'En atraso':'Al día')) + '</span></div></section>'
     + '<section class="card c3 rev"><div class="et">Ya pagaste</div><div class="num money" style="color:var(--bien)" data-cuenta="' + (parseFloat(est.totalPagado)||0) + '">' + fmt(est.totalPagado) + '</div><div class="sub">' + est.cuotasPagadas + ' de ' + est.totalCuotas + ' cuotas</div><div class="barra-p"><i style="width:' + (est.totalCuotas ? Math.round(est.cuotasPagadas/est.totalCuotas*100) : 0) + '%"></i></div></section>'
     + '<section class="card c3 rev"><div class="et">Te falta</div><div class="num money" data-cuenta="' + (parseFloat(est.saldoPendiente)||0) + '">' + fmt(est.saldoPendiente) + '</div><div class="sub">' + Math.max(0, est.totalCuotas - est.cuotasPagadas) + ' cuotas por pagar</div></section>'
@@ -2229,10 +2258,33 @@ function abrirPago(credId){
   $('pFile').value='';
   var est = estadoDe(S.creditos.find(function(c){return c.id===credId;}));
   if(est){ $('pMonto').value = (est._nVencidas>0 ? est._vencido : (est._prox ? est._prox.saldo : '')) || ''; }
+  $('pBs').value=''; $('pMetodo').selectedIndex=0; pagoMoneda();
   $('ovPago').classList.remove('hide');
   document.body.style.overflow='hidden';
 }
 function cerrarPago(){ $('ovPago').classList.add('hide'); document.body.style.overflow=''; }
+/* Pago en bolívares: el cliente escribe los bolívares y el monto en dólares sale con la tasa BCV de la fecha del pago */
+function pagoEsBs(){ return / Bs$/.test($('pMetodo').value || ''); }
+function pagoMoneda(){
+  var bs = pagoEsBs();
+  $('pBsBox').classList.toggle('hide', !bs);
+  $('pMonto').readOnly = bs && !!tasaDe($('pFecha').value || hoyISO());
+  pagoBsCalc();
+}
+function pagoBsCalc(){
+  var info = $('pBsInfo'); if(!info) return;
+  if(!pagoEsBs()){ info.textContent = ''; return; }
+  var t = tasaDe($('pFecha').value || hoyISO()), bs = parseFloat($('pBs').value) || 0, usd = parseFloat($('pMonto').value) || 0;
+  $('pMonto').readOnly = !!t;
+  if(!t){ info.textContent = 'No tenemos la tasa de ese día. Escribe arriba el monto en dólares y nuestro equipo lo verifica con tu comprobante.'; return; }
+  if(bs > 0){
+    usd = Math.round(bs / t.tasa * 100) / 100;
+    $('pMonto').value = usd.toFixed(2);
+    info.textContent = fmtBs(bs) + ' a la tasa BCV del ' + fechaCorta(t.fecha) + ' (' + fmtTasa(t.tasa) + ') son ' + fmt(usd) + '. Nuestro equipo lo confirma al revisar tu comprobante.';
+  } else if(usd > 0){
+    info.textContent = 'Para ' + fmt(usd) + ' son ' + fmtBs(usd * t.tasa) + ' a la tasa BCV del ' + fechaCorta(t.fecha) + ' (' + fmtTasa(t.tasa) + ').';
+  } else info.textContent = '';
+}
 
 function prevFile(inp){
   var f = inp.files && inp.files[0];
@@ -2259,6 +2311,13 @@ function enviarComprobante(){
   if(!monto || monto<=0){ showErr('pgErr','Escribe el monto que pagaste.'); return; }
   if(!fecha){ showErr('pgErr','Indica la fecha del pago.'); return; }
   if(!_file){ showErr('pgErr','Sube la foto del comprobante para que podamos verificarlo.'); return; }
+  // En bolívares: los Bs y la tasa van escritos en la referencia, para que el equipo los vea al revisar
+  var refTxt = ($('pRef').value||'').trim();
+  if(pagoEsBs()){
+    var bsPag = parseFloat($('pBs').value) || 0, tPag = tasaDe(fecha);
+    if(tPag && !(bsPag > 0)){ showErr('pgErr','Escribe el monto que pagaste en bolívares.'); return; }
+    if(bsPag > 0) refTxt = (fmtBs(bsPag) + (tPag ? ' a ' + fmtTasa(tPag.tasa) + ' (BCV ' + tPag.fecha + ')' : '') + (refTxt ? ' · ' + refTxt : '')).slice(0, 190);
+  }
 
   var b=$('btnEnviar'); b.disabled=true; b.innerHTML='<span class="spin"></span> Enviando...';
 
@@ -2278,7 +2337,7 @@ function enviarComprobante(){
       monto: monto,
       fecha: fecha,
       metodo: $('pMetodo').value || 'Otro',
-      referencia: ($('pRef').value||'').trim(),
+      referencia: refTxt,
       fotoUrl: url,
       fotoPath: path,
       estado: 'pendiente',
@@ -2314,6 +2373,6 @@ function enviarCodigoWhatsApp(cedula){
   return Promise.reject(new Error('pendiente-aprobacion-meta'));
 }
 </script>
-<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a><a href="privacidad.html">Privacidad</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20con%20mi%20cuenta%20Pagasi">+58 422-2285526</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer><script src="assets/public/site.js?v=26-20261111-1738"></script>
-<script src="assets/public/hero-motion.js?v=26-20261111-1738"></script></body>
+<footer class="pg-footer"><div class="pg-container"><div class="pg-footer-main"><div class="pg-footer-brand"><a href="index.html"><img src="assets/pagasi-logo.png" width="955" height="256" alt="Pagasi"></a><p>Tu moto. Tus planes. Tu próximo paso.</p></div><nav class="pg-footer-links" aria-label="Enlaces del pie"><a href="catalogo.html">Explorar motos</a><a href="simulador.html">Calcular cuotas</a><a href="nosotros.html">Conoce Pagasi</a><a href="nosotros.html#concesionarios">Concesionarios</a><a href="solicitar.html">Solicitar mi moto</a><a href="micuenta.html">Mi cuenta</a><a href="privacidad.html">Privacidad</a></nav><div class="pg-footer-contact"><strong>Estamos para ayudarte.</strong><a href="https://wa.me/584222285526?text=Hola%2C%20necesito%20ayuda%20con%20mi%20cuenta%20Pagasi">+58 422-2285526</a><a href="mailto:info@pagasi.io">info@pagasi.io</a><span>Venezuela</span></div></div><div class="pg-footer-bottom"><span>© <span data-year>2026</span> Pagasi. Todos los derechos reservados.</span><span>Financiamiento sujeto a evaluación y disponibilidad.</span></div></div></footer><script src="assets/public/site.js?v=26-20261111-2303"></script>
+<script src="assets/public/hero-motion.js?v=26-20261111-2303"></script></body>
 </html>

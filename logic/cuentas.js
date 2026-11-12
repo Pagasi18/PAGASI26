@@ -257,6 +257,9 @@ function renderTabCuentasBanc(){
       // Saldo
       +'<div style="font-family:var(--fd);font-weight:900;font-size:22px;letter-spacing:-1px;color:var(--ink);line-height:1;margin-bottom:10px">'+fmt(saldo)+'</div>'
 
+      // Cuenta de bolívares: saldo real en Bs, lo que vale hoy y la diferencia con los libros (logic/multimoneda.js)
+      +(typeof mmTarjetaHtml==='function' ? mmTarjetaHtml(c.nombre) : '')
+
       // Barra de porcentaje
       +'<div style="height:4px;background:var(--rim);border-radius:2px;overflow:hidden;margin-bottom:10px">'
         +'<div style="height:100%;width:'+pctTotal+'%;background:'+accentColor+';border-radius:2px"></div>'
@@ -301,6 +304,7 @@ function renderTabCuentasBanc(){
   return '<div>'
     + kpisHTML
     + chartHTML
+    + (typeof mmResumenHtml==='function' ? mmResumenHtml(mesKey) : '')
     + toolbar
     + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">'
     + cardsHTML
@@ -389,7 +393,7 @@ function renderDetalleCuenta(nombre){
       +'<td style="font-size:11.5px;color:var(--ink2)">'+(m.tipo==='transferencia'?(esIng?'Desde: ':'Hacia: ')+contrap:contrap)+'</td>'
       +'<td style="font-size:11px;color:var(--ink3)">'+(m.referencia||'—')+'</td>'
       +'<td style="font-size:11px;color:var(--ink3)">'+(m.realizadoPor||'—')+'</td>'
-      +'<td style="text-align:right;font-family:var(--fd);font-weight:800;font-size:14px;color:'+iconColor+';'+(anulado?'text-decoration:line-through;':'')+'">'+monto+'</td>'
+      +'<td style="text-align:right;font-family:var(--fd);font-weight:800;font-size:14px;color:'+iconColor+';'+(anulado?'text-decoration:line-through;':'')+'">'+monto+(typeof mmEtiquetaHtml==='function'?mmEtiquetaHtml(m):'')+'</td>'
       +'<td style="width:36px">'+accionCell+'</td>'
       +'</tr>';
   }
@@ -1086,8 +1090,6 @@ function openDeposito(cuentaNombre){
     +'<div class="fg"><label>Monto *</label><input class="fi" id="dep_monto" type="number" step="0.01" placeholder="0.00"></div>'
     +'<div class="fg"><label>Fecha</label><input class="fi" id="dep_fecha" type="date" value="'+hoyLocalISO()+'"></div></div>'
     +'<div class="fg"><label>Referencia / Comprobante</label><input class="fi" id="dep_ref" placeholder="Opcional"></div>'
-    +'<div class="fgr" style="gap:8px"><div class="fg"><label>Tasa Bs./$</label><input class="fi" id="dep_tasa" type="number" step="0.01" placeholder="Ej: 478.58" value="'+(window._tasaBsGlobal||1)+'"></div>'
-    +'<div class="fg"><label>Moneda</label><select class="fs" id="dep_moneda"><option value="USD">USD $</option><option value="BS">Bs.</option></select></div></div>'
     +'</div>';
   S.saveFn=function(){
     var cnombre=($('dep_cuenta')&&$('dep_cuenta').value)||cuentaNombre||'';
@@ -1100,15 +1102,18 @@ function openDeposito(cuentaNombre){
       fecha:($('dep_fecha')&&$('dep_fecha').value)||hoyLocalISO(),
       hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false}),
       referencia:($('dep_ref')&&$('dep_ref').value)||'',
-      tasaBs:parseFloat(($('dep_tasa')&&$('dep_tasa').value))||window._tasaBsGlobal||1,
-      monedaMov:($('dep_moneda')&&$('dep_moneda').value)||'USD',
+      tasaBs:window._tasaBsGlobal||1,
+      monedaMov:'USD',
       realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin'};
+    if(typeof mmSellar==='function'){ mmSellar(mov,'dep'); if(mov.moneda==='BS') mov.monedaMov='BS'; }
     S.movimientos.push(mov); DB.saveMovimiento(mov);
     closeM(); nav('cuentas'); toast('Depósito registrado · '+fmt(monto),'success'); return true;
   };
   $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cancelar</button>'
     +'<button class="btn btn-p" onclick="saveM()">Registrar Depósito</button>';
   $('ov').style.display='flex';
+  // Multimoneda (11-nov-2026): la moneda la decide la cuenta. En una de bolívares se escriben los Bs y la tasa.
+  if(typeof mmEnganchar==='function') mmEnganchar({ p:'dep', monto:'dep_monto', cuentas:['dep_cuenta'], fecha:'dep_fecha', titulo:'Cuenta de bolívares: escribe lo que entró en Bs y elige la tasa' });
 }
 
 // ── RETIRO ──
@@ -1129,8 +1134,6 @@ function openRetiro(cuentaNombre){
     +'<div class="fg"><label>Monto *</label><input class="fi" id="ret_monto" type="number" step="0.01" placeholder="0.00"></div>'
     +'<div class="fg"><label>Fecha</label><input class="fi" id="ret_fecha" type="date" value="'+hoyLocalISO()+'"></div></div>'
     +'<div class="fg"><label>Referencia</label><input class="fi" id="ret_ref" placeholder="Opcional"></div>'
-    +'<div class="fgr" style="gap:8px"><div class="fg"><label>Tasa Bs./$</label><input class="fi" id="ret_tasa" type="number" step="0.01" placeholder="Ej: 478.58" value="'+(window._tasaBsGlobal||1)+'"></div>'
-    +'<div class="fg"><label>Moneda</label><select class="fs" id="ret_moneda"><option value="USD">USD $</option><option value="BS">Bs.</option></select></div></div>'
     +'</div>';
   S.saveFn=function(){
     var cnombre=($('ret_cuenta')&&$('ret_cuenta').value)||cuentaNombre||'';
@@ -1143,15 +1146,17 @@ function openRetiro(cuentaNombre){
       fecha:($('ret_fecha')&&$('ret_fecha').value)||hoyLocalISO(),
       hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false}),
       referencia:($('ret_ref')&&$('ret_ref').value)||'',
-      tasaBs:parseFloat(($('ret_tasa')&&$('ret_tasa').value))||window._tasaBsGlobal||1,
-      monedaMov:($('ret_moneda')&&$('ret_moneda').value)||'USD',
+      tasaBs:window._tasaBsGlobal||1,
+      monedaMov:'USD',
       realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin'};
+    if(typeof mmSellar==='function'){ mmSellar(mov,'ret'); if(mov.moneda==='BS') mov.monedaMov='BS'; }
     S.movimientos.push(mov); DB.saveMovimiento(mov);
     closeM(); nav('cuentas'); toast('Retiro registrado · '+fmt(monto),'success'); return true;
   };
   $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cancelar</button>'
     +'<button class="btn btn-d" onclick="saveM()">Registrar Retiro</button>';
   $('ov').style.display='flex';
+  if(typeof mmEnganchar==='function') mmEnganchar({ p:'ret', monto:'ret_monto', cuentas:['ret_cuenta'], fecha:'ret_fecha', titulo:'Cuenta de bolívares: escribe lo que salió en Bs y elige la tasa' });
 }
 
 // ── TRANSFERENCIA ──
@@ -1174,7 +1179,6 @@ function openTransferencia(cuentaNombre){
     +'<div class="fg"><label>Fecha</label><input class="fi" id="tr_fecha" type="date" value="'+hoyLocalISO()+'"></div></div>'
     +'<div class="fg"><label>Concepto</label><input class="fi" id="tr_conc" placeholder="Ej: Traspaso operativo..."></div>'
     +'<div class="fg"><label>Referencia</label><input class="fi" id="tr_ref" placeholder="Opcional"></div>'
-    +'<div class="fg"><label>Tasa Bs./$</label><input class="fi" id="tr_tasa" type="number" step="0.01" placeholder="Ej: 478.58" value="'+(window._tasaBsGlobal||1)+'"></div>'
     +'</div>';
   S.saveFn=function(){
     var orig=($('tr_origen')&&$('tr_origen').value)||'';
@@ -1189,15 +1193,32 @@ function openTransferencia(cuentaNombre){
       fecha:($('tr_fecha')&&$('tr_fecha').value)||hoyLocalISO(),
       hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false}),
       referencia:($('tr_ref')&&$('tr_ref').value)||'',
-      tasaBs:parseFloat(($('tr_tasa')&&$('tr_tasa').value))||window._tasaBsGlobal||1,
+      tasaBs:window._tasaBsGlobal||1,
       monedaMov:'USD',
       realizadoPor:(S.currentUser&&S.currentUser.nombre)||'Admin'};
+    // Multimoneda (11-nov-2026): si una de las dos cuentas es de bolívares, el movimiento lleva los Bs y la tasa del
+    // cambio. Al cambiar bolívares por dólares, lo que se perdió (o ganó) frente a lo que esos bolívares valían en
+    // libros queda anotado en la cuenta de bolívares como diferencia cambiaria.
+    var difCambio=0;
+    if(typeof mmSellar==='function'){
+      var antesBs=(mmCuentaEsBs(orig) && !mmCuentaEsBs(dest)) ? mmValorCuenta(orig) : null;
+      mmSellar(mov,'tr');
+      if(mov.moneda==='BS'){ mov.monedaMov='BS'; mov.cambioMoneda=mmCuentaEsBs(orig)!==mmCuentaEsBs(dest); }
+      if(antesBs && mov.moneda==='BS') difCambio=mmDiferenciaCambio(antesBs, mov.montoBs, monto);
+    }
     S.movimientos.push(mov); DB.saveMovimiento(mov);
-    closeM(); nav('cuentas'); toast('Transferencia registrada · '+fmt(monto),'success'); return true;
+    if(Math.abs(difCambio)>=0.01){
+      var movDif=mmMovDiferencia(orig, difCambio, mov.fecha, mov.tasaBs, mov.realizadoPor, Date.now()+1, 'cambio a '+dest);
+      movDif.cambioDe=mov.id;
+      S.movimientos.push(movDif); DB.saveMovimiento(movDif);
+    }
+    closeM(); nav('cuentas');
+    toast((mov.cambioMoneda?'Cambio registrado · ':'Transferencia registrada · ')+fmt(monto)+(Math.abs(difCambio)>=0.01?' · '+(difCambio<0?'pérdida':'ganancia')+' cambiaria '+fmt(Math.abs(difCambio)):''),'success'); return true;
   };
   $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cancelar</button>'
     +'<button class="btn btn-p" onclick="saveM()">Transferir</button>';
   $('ov').style.display='flex';
+  if(typeof mmEnganchar==='function') mmEnganchar({ p:'tr', monto:'tr_monto', cuentas:['tr_origen','tr_destino'], fecha:'tr_fecha', libre:true, titulo:'Una de las cuentas es de bolívares: escribe los bolívares y la tasa del cambio (o los dólares, y la tasa sale sola)' });
 }
 
 

@@ -110,12 +110,27 @@ function telWhatsapp(tel) {
 /* ── Los mensajes al cliente: las plantillas del sistema (logic/notificaciones.js) ── */
 const dinero = n => '$' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',');
 
+// Multimoneda (11-nov-2026): el aviso dice también cuánto es en bolívares a la tasa del dólar BCV del día (el archivo
+// data/tasas-bcv.json que guarda el robot de la tasa). Sin tasa, el mensaje sale igual que siempre.
+let _TASA_BS = 0;
+function fijarTasaBs(t) { _TASA_BS = Number(t) > 1 ? Number(t) : 0; }
+function tasaDelDia(hoyISO, tasas) {       // la de hoy o, si no hay, la última anterior
+  const ks = Object.keys(tasas || {}).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= hoyISO && Number(tasas[k] && tasas[k].usd) > 1).sort();
+  return ks.length ? Number(tasas[ks[ks.length - 1]].usd) : 0;
+}
+const bolivares = n => 'Bs ' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+function lineaBs(o) {
+  const t = Number(o.tasaBs) > 1 ? Number(o.tasaBs) : _TASA_BS;
+  return t > 1 && Number(o.monto) > 0 ? '• En bolívares hoy: ' + bolivares(o.monto * t) + ' (tasa BCV ' + t.toFixed(2).replace('.', ',') + ')' : '';
+}
+
 function mensajeRecordatorio(o) {        // plantilla "Recordatorio cuota"
   return [
     'Hola ' + o.nombre + ',',
     '',
     o.hoyMismo ? 'Tu cuota de la moto vence HOY:' : 'Te recordamos tu próxima cuota de la moto:',
     '• Monto: ' + dinero(o.monto),
+    lineaBs(o),
     '• Fecha: ' + lindo(o.fechaVence),
     o.numero && o.totalCuotas ? '• Cuota N°: ' + o.numero + ' de ' + o.totalCuotas : '',
     '',
@@ -136,6 +151,7 @@ function mensajeMora(o) {                // plantilla "Aviso de mora"
     '',
     '• Crédito: ' + o.cred,
     '• Monto vencido: ' + dinero(o.monto),
+    ...(lineaBs(o) ? [lineaBs(o)] : []),
     '• Días de atraso: ' + o.dias,
     '',
     'Le solicitamos respetuosamente que regularice su situación lo antes posible para evitar cargos adicionales y el inicio de un proceso de recuperación.',
@@ -155,6 +171,7 @@ function mensajeMoraGrave(o) {           // plantilla "Aviso urgente de mora"
     'Su cuenta N° ' + o.cred + ' registra ' + o.dias + ' días de atraso, lo cual representa una situación grave que requiere atención INMEDIATA.',
     '',
     '• Monto vencido: ' + dinero(o.monto),
+    ...(lineaBs(o) ? [lineaBs(o)] : []),
     '• Días de atraso: ' + o.dias,
     '',
     'De no regularizarse esta situación en un plazo de 72 horas, nos veremos en la obligación de iniciar el proceso legal de recuperación del vehículo'
@@ -513,6 +530,10 @@ async function main() {
   const { Firestore } = require('@google-cloud/firestore');
   const db = new Firestore({ projectId: _proyecto() });
   const hoyISO = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+  try {   // la tasa del dólar BCV de hoy, para la línea en bolívares de cada aviso
+    const tasas = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'data', 'tasas-bcv.json'), 'utf8'));
+    fijarTasaBs(tasaDelDia(hoyISO, tasas));
+  } catch (e) { console.log('Sin archivo de tasas: los avisos salen solo en dólares'); }
 
   const [credSnap, pagoSnap, cliSnap, cfgSnap] = await Promise.all([
     db.collection('creditos').get(),
@@ -563,6 +584,6 @@ if (require.main === module) {
   main().catch(e => { console.error('ERROR', e.message); process.exit(1); });
 }
 
-module.exports = { calcularAvisos, armarMensajes, armarPorDestino, armarResumen, destinos, mensajeCliente, telWhatsapp, fechasDe, repartidor, claveCliente, duenas,
+module.exports = { fijarTasaBs, tasaDelDia, lineaBs, calcularAvisos, armarMensajes, armarPorDestino, armarResumen, destinos, mensajeCliente, telWhatsapp, fechasDe, repartidor, claveCliente, duenas,
   textoVisible, entidades, partirEnDos, enviarTelegram, DIAS_AVISO, DIAS_CRITICO, TELEGRAM_MAX, TELEGRAM_MAX_ENTIDADES,
   PREVENTIVA_DEFECTO, CRITICA_DEFECTO, COBRADORAS_DEFECTO };

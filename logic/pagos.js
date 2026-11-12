@@ -110,6 +110,7 @@ function openAddPago(preCredId){
       tasaBs:window._tasaBsGlobal||1,
       concesionarioId: cred.concesionarioId || _concDefaultId()
     };
+    if(typeof mmSellar==='function') mmSellar(newPago,'p');   // los bolívares y la tasa elegida, si se recibió en una cuenta de Bs
     S.pagos.push(newPago);
     DB.savePago(newPago);
     if(cred.fechaCompromiso) _acuerdoRodarTrasPago(cred);
@@ -133,6 +134,7 @@ function openAddPago(preCredId){
         tasaBs:window._tasaBsGlobal||1,
         hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false})
       };
+      if(typeof mmCopiar==='function') mmCopiar(mov,newPago);
       S.movimientos.push(mov);
       DB.saveMovimiento(mov);
     }
@@ -260,6 +262,8 @@ function openAddPago(preCredId){
   };
   $('mft').innerHTML=`<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" onclick="saveM()">Registrar Pago</button>`;
   $('ov').style.display='flex';
+  // Multimoneda (11-nov-2026): si se recibe en una cuenta de bolívares, se escriben los Bs y la tasa (logic/multimoneda.js)
+  if(typeof mmEnganchar==='function') mmEnganchar({ p:'p', monto:'p_monto', cuentas:['p_forma'], fecha:'p_fecha', reinicia:['p_cred'], titulo:'Se recibe en una cuenta de bolívares: escribe lo que entró en Bs y elige la tasa' });
 }
 
 var _cuentas = ['Bancamiga Cta. 0172-xxxx','Banesco Cta. 0134-xxxx'];
@@ -925,6 +929,8 @@ function openLiquidarAnticipado(credId){
   window._liqCredId=credId;
   $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-s" onclick="ejecutarLiquidacionAnticipada()">Liquidar ahora</button>';
   $('ov').style.display='flex';
+  // Multimoneda (11-nov-2026): la liquidación recibida en una cuenta de bolívares
+  if(typeof mmEnganchar==='function') mmEnganchar({ p:'liq', monto:'liq_monto_final', cuentas:['liq_cuenta'], fecha:'liq_fecha', reinicia:['liq_descuento'], sinSaveFn:true, titulo:'Se recibe en una cuenta de bolívares: escribe lo que entró en Bs y elige la tasa' });
 }
 
 function updLiquidacionFinal(){
@@ -958,6 +964,7 @@ function ejecutarLiquidacionAnticipada(){
     toast('Este crédito no se puede liquidar: '+_noLiq,'info');
     return;
   }
+  if(typeof mmRevisar==='function' && !mmRevisar('liq')) return;   // en bolívares hacen falta los Bs y la tasa
   var saldo=getSaldoPendienteCredito(credId);
   var descuento=parseFloat(($('liq_descuento')&&$('liq_descuento').value)||0)||0;
   var montoFinal=parseFloat(($('liq_monto_final')&&$('liq_monto_final').value)||0)||0;
@@ -1009,6 +1016,8 @@ function ejecutarLiquidacionAnticipada(){
       tasaBs:window._tasaBsGlobal||1,
       creadoEn:new Date().toISOString()   // cuando se registró (la fecha de arriba es la elegida); lo usa "solo lo nuevo" de QuickBooks
     };
+    // Los bolívares solo si lo guardado es lo que se escribió (un ajuste de centavos del formulario los descarta)
+    if(typeof mmSello==='function' && mmSello('liq') && Math.abs(mmSello('liq').usd-pago.monto)<0.005) mmSellar(pago,'liq');
     S.pagos.push(pago);
     DB.savePago(pago);
     var mov={
@@ -1029,6 +1038,7 @@ function ejecutarLiquidacionAnticipada(){
       tasaBs:window._tasaBsGlobal||1,
       hora:new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false})
     };
+    if(typeof mmCopiar==='function') mmCopiar(mov,pago);
     S.movimientos.push(mov);
     DB.saveMovimiento(mov);
   }
@@ -1362,10 +1372,12 @@ function openEditPago(pagoId){
     S.pagos[pi].cobrador = ($('ep_cobrador')&&$('ep_cobrador').value)||p.cobrador;
     S.pagos[pi].editadoPor = (S.currentUser&&S.currentUser.nombre)||'Admin';
     S.pagos[pi].editadoEn = new Date().toISOString();
+    if(typeof mmSellar==='function') mmSellar(S.pagos[pi],'ep');   // en una cuenta de Bs quedan los bolívares y la tasa; en una de dólares se quitan
     DB.savePago(S.pagos[pi]);
 
     var mi = (S.movimientos||[]).findIndex(function(m){ return !m.eliminado && m.conceptoPago===pagoId; });
     if(mi>=0){
+      if(typeof mmCopiar==='function') mmCopiar(S.movimientos[mi],S.pagos[pi]);
       S.movimientos[mi].monto = nuevoMonto;
       S.movimientos[mi].fecha = S.pagos[pi].fecha;
       S.movimientos[mi].cuentaDestino = S.pagos[pi].metodo || S.movimientos[mi].cuentaDestino;
@@ -1380,6 +1392,8 @@ function openEditPago(pagoId){
   $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cancelar</button>'
     +'<button class="btn btn-p" onclick="saveM()">Guardar cambios</button>';
   $('ov').style.display='flex';
+  // Multimoneda (11-nov-2026): un pago en una cuenta de bolívares se corrige en bolívares, con su tasa guardada
+  if(typeof mmEnganchar==='function') mmEnganchar({ p:'ep', monto:'ep_monto', cuentas:['ep_metodo'], fecha:'ep_fecha', registro:p, titulo:'Recibido en una cuenta de bolívares: los Bs que entraron y la tasa' });
 }
 
 function confirmarPago(pagoId){
@@ -1412,11 +1426,13 @@ function confirmarPago(pagoId){
         tasaBs: pago.tasaBs || window._tasaBsGlobal || 1,
         hora: new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit',hour12:false})
       };
+      if(typeof mmCopiar==='function') mmCopiar(mov,pago);
       if(!S.movimientos) S.movimientos = [];
       S.movimientos.push(mov);
       DB.saveMovimiento(mov);
     }
   }else{
+    if(typeof mmCopiar==='function') mmCopiar(movExistente,pago);
     movExistente.monto = pago.monto;
     movExistente.fecha = pago.fecha;
     movExistente.cuentaDestino = pago.cuenta || pago.metodo || movExistente.cuentaDestino;

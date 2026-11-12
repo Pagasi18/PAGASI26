@@ -97,6 +97,12 @@ function openAddEgreso(eg){
     +(editar && (eg.historial||[]).length ? '<div style="font-size:10.5px;color:var(--ink3)">Corregido '+eg.historial.length+(eg.historial.length===1?' vez':' veces')+' · última: '+esc(eg.editadoPor||'')+' el '+esc(String(eg.editadoEn||'').slice(0,10))+'</div>' : '')
     +'</div>';
     if(typeof _lbTasaEscrita!=='undefined'){ _lbTasaEscrita.egf=false; _lbTasaReq.egf=(_lbTasaReq.egf||0)+1; }
+    // Multimoneda (11-nov-2026, Adam: "si pongo que la salida fue de la cuenta de bolívares, fue en bolívares"): al
+    // elegir una cuenta de bolívares el gasto pasa a bolívares y la moneda no se puede cambiar. Con una cuenta en
+    // dólares la moneda sigue siendo libre: una factura en Bs se puede pagar desde una cuenta en dólares.
+    var _egForma=$('eg_forma');
+    if(_egForma && _egForma.addEventListener) _egForma.addEventListener('change', egMonedaSegunCuenta);
+    if(!editar) setTimeout(egMonedaSegunCuenta,0);
     if(typeof _lbRepExcluir!=='undefined') _lbRepExcluir.egf=editar?[eg.id]:[];   // al corregir, su propia factura no cuenta como repetida
     // Al corregir, el reparto en categorías que ya tenía vuelve a salir (la primera parte es la categoría de arriba)
     if(editar) (eg.reparto||[]).slice(1).forEach(function(x){ egAgregarCategoria(x.categoria, enBsEg && x.montoBs!=null ? x.montoBs : x.monto); });
@@ -222,6 +228,12 @@ function _egLeerPartes(montoIn, enBs, tasaEg){
   var totalUsd=enBs ? bsAUsd(montoIn, tasaEg) : r2(montoIn), dif=r2(totalUsd-enUsd.reduce(function(a,x){ return a+x.monto; },0));
   if(dif) enUsd[0].monto=r2(enUsd[0].monto+dif);
   return enUsd;
+}
+function egMonedaSegunCuenta(){
+  var f=$('eg_forma'), m=$('egf_mon'); if(!f || !m || typeof mmCuentaEsBs!=='function') return;
+  var bs=mmCuentaEsBs(f.value);
+  if(bs && m.value!=='BS' && !m.disabled){ m.value='BS'; if(typeof lbMonedaCambio==='function') lbMonedaCambio('egf'); }
+  if(!f.disabled){ m.disabled=bs; m.title=bs?'La cuenta es de bolívares: el gasto se registra en bolívares':''; }
 }
 // Un gasto repartido en varias categorías (el contador, 10-nov-2026: "agregarle dos gastos": una factura con cosas de
 // categorías distintas, para que en QuickBooks cada parte vaya a su cuenta). Igual que las cuentas de arriba: filas con

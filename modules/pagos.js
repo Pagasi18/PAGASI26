@@ -554,7 +554,7 @@ PG.pagos = function(){
       <td class="tdm">${pgEsc(p.cli)}</td>
       <td class="tds">${p.cred}</td>
       <td class="tds" style="white-space:nowrap">${p.fecha}${(function(){var h=_pagoHoraTxt(p);return h?`<div style="font-size:9.5px;opacity:.75">${h}</div>`:'';})()}</td>
-      <td style="color:var(--green);font-weight:800;font-family:var(--fd)">${fmt(p.monto)}</td>
+      <td style="color:var(--green);font-weight:800;font-family:var(--fd)">${fmt(p.monto)}${typeof mmEtiquetaHtml==='function'?mmEtiquetaHtml(p):''}</td>
       <td>${_tipoPagoBdg(_tp)}</td>
       <td class="tds">${p.metodo}</td>
       <td class="tds">${p.cobrador}</td>

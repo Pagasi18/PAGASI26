@@ -2622,6 +2622,10 @@ DB.anotarDescargaQuickbooks = function(clave, reg){
   if(clave){ o.porClave = {}; o.porClave[clave] = r; o.porArchivo = {}; o.porArchivo[reg.tipo] = r; }
   return _dbSilent(function(){ return db.collection('config').doc('quickbooks').set(o, { merge: true }); });
 };
+// Multimoneda (config/multimoneda, 11-nov-2026): el saldo real en bolívares que se cuadró con el banco, por cuenta.
+// Con merge: cuadrar una cuenta no pisa las otras.
+DB.getMultimoneda = function(){ if(!db) return Promise.resolve(null); return db.collection('config').doc('multimoneda').get().then(function(d){ return d.exists ? d.data() : null; }); };
+DB.guardarAperturaBs = function(nombre, ap){ if(!db) return Promise.resolve(false); var o = { aperturas: {}, actualizado: new Date().toISOString() }; o.aperturas[nombre] = clean(ap); return _dbSilent(function(){ return db.collection('config').doc('multimoneda').set(o, { merge: true }); }); };
 DB.saveInventarioOficina = function(){ if(!db) return Promise.resolve(false); return _dbSilent(function(){ return db.collection('config').doc('inventarioOficina').set({items:(S.inventarioOficina||[]), actualizado:new Date().toISOString()}); }); };
 // Gestiones de cobranza guardadas en el propio crédito (creditos/{id}.gestiones)
 // — evita una colección aparte bloqueada por las reglas; cargan junto con S.creds.
