@@ -93,6 +93,8 @@ function openAddPago(preCredId){
     if(!cred){toast('Selecciona un crédito','error');return false;}
     const monto=parseFloat(($('p_monto')&&$('p_monto').value))||0;
     if(monto<=0){toast('Ingresa un monto válido','error');return false;}
+    // Pago duplicado (12-nov-2026): la misma referencia, o el mismo crédito con el mismo monto y la misma fecha. Avisa y pregunta.
+    if(!_pagoDuplicadoConfirmar({ cred:credId, monto:monto, fecha:($('p_fecha')&&$('p_fecha').value)||hoyLocalISO(), referencia:($('p_ref')&&$('p_ref').value)||'' })) return false;
     const newPago={
       id:'PAG-'+Date.now(),
       cli:cred.cli,cred:credId,
@@ -269,6 +271,29 @@ function openAddPago(preCredId){
 var _cuentas = ['Bancamiga Cta. 0172-xxxx','Banesco Cta. 0134-xxxx'];
 
 
+// PAGO DUPLICADO (Adam, 12-nov-2026: "acabaron de poner un pago duplicado sin querer y pasó"). La alerta de duplicado
+// que existía era la de los gastos (misma factura del mismo proveedor, 27-oct); al registrar el pago de un cliente no
+// había ninguna. Ahora avisa si ya hay un pago vivo con la misma referencia (en cualquier crédito: una referencia de
+// banco no se repite), o del mismo crédito con el mismo monto y la misma fecha. No bloquea: muestra cuál es y pregunta,
+// porque un cliente sí puede hacer dos pagos iguales el mismo día.
+function _pagoRefNorm(r){ return String(r==null?'':r).toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^0+/,''); }
+function pagosDuplicadosDe(nuevo, pagos, excluirId){
+  var ref=_pagoRefNorm(nuevo.referencia), monto=Math.round((parseFloat(nuevo.monto)||0)*100)/100, out=[];
+  (pagos||[]).forEach(function(p){
+    if(!p || p.eliminado || (excluirId && p.id===excluirId)) return;
+    var pref=_pagoRefNorm(p.referencia);
+    if(ref.length>=4 && ref!=='LIQANT' && pref===ref){ out.push({ pago:p, motivo:'misma referencia' }); return; }
+    if(p.cred===nuevo.cred && !p.esInicial && Math.abs((parseFloat(p.monto)||0)-monto)<0.005 && String(p.fecha||'').slice(0,10)===String(nuevo.fecha||'').slice(0,10))
+      out.push({ pago:p, motivo:'mismo crédito, mismo monto y misma fecha' });
+  });
+  return out;
+}
+function _pagoDuplicadoConfirmar(nuevo){
+  var d=pagosDuplicadosDe(nuevo, S.pagos||[]);
+  if(!d.length) return true;
+  var lista=d.slice(0,5).map(function(x){ var p=x.pago; return '• '+(p.cli||'')+' · '+(p.cred||'')+' · '+fmt(p.monto)+' · '+(p.fecha||'')+(p.referencia?' · ref. '+p.referencia:'')+(p.realizadoPor?' · lo registró '+p.realizadoPor:'')+' ('+x.motivo+')'; }).join('\n');
+  return (typeof confirm==='function') ? confirm('🚨 PAGO DUPLICADO: ya hay un pago registrado que parece el mismo.\n'+lista+'\n\n¿Registrarlo otra vez de todas formas?') : true;
+}
 function updPagoMonto(sel){
   const opt=(sel&&sel.options)&&sel.options[sel.selectedIndex];if(!opt)return;
   const cuotaBase=parseFloat(opt.dataset.cuotaq||opt.dataset.cuota)||0;

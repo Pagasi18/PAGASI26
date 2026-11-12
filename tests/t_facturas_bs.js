@@ -159,6 +159,16 @@ ok('...y el resultado en las dos monedas, como lo va a mostrar el libro', /Bs 2.
   G7._dom.el('lbf_mon').value='BS'; G7._dom.el('lbf_tasa').value=''; G7._tasasCache={}; G7.lbMonedaCambio('lbf'); await new Promise(r=>setTimeout(r,20)); G7._dom.el('lbf_mon').value='USD'; G7.lbMonedaCambio('lbf');
   ok('sin tasa, al cambiar de moneda los montos se vacían y avisa (no se leen en la moneda equivocada)', G7.$('lbf_base').value==='' && G7.avisos.some(a=>/escríbelos de nuevo/.test(a[1])));
 
+  // En un gasto NUEVO cambiar de moneda no convierte lo ya escrito (12-nov-2026: siete gastos entraron 900 veces más grandes)
+  const G7n=entorno({ lbf_mon:'USD', lbf_base:'82949', lbf_exe:'', lbf_ret:'', lbf_alic:'0.16', lbf_fecha:'2026-10-23' });
+  G7n._tasasCache['2026-10-23']={ fecha:'2026-10-23', usd:886.23, fuente:'ve.dolarapi.com' };
+  G7n._lbSinConvertir.lbf=true;
+  G7n._dom.el('lbf_mon').value='BS'; G7n.lbMonedaCambio('lbf'); await new Promise(r=>setTimeout(r,20));
+  ok('gasto nuevo, de $ a Bs: lo escrito se queda igual (Bs 82.949, no 73 millones) y avisa', G7n.$('lbf_base').value==='82949' && G7n.$('lbf_tasa').value==='886.23' && G7n.avisos.some(a=>/no se convirtieron/.test(a[1])));
+  ok('...y al guardar son los dólares de verdad (82.949 ÷ 886,23 = $93,60)', G7n.lbLeerCamposFiscales('lbf').base===93.6);
+  G7n._dom.el('lbf_mon').value='USD'; G7n.lbMonedaCambio('lbf');
+  ok('...de Bs a $ tampoco convierte', G7n.$('lbf_base').value==='82949');
+
   // Búsquedas que llegan tarde no pisan la vigente ni lo que el analista escribió
   const G8=entorno({ lbf_mon:'BS', lbf_tasasel:'usd', lbf_fecha:'2026-10-20' });
   let resolver1; G8.tasaParaFecha=(f,m)=> f==='2026-10-20' ? new Promise(r=>{ resolver1=r; }) : Promise.resolve({ tasa:886.23, fechaTasa:'2026-10-23', fuente:'ve.dolarapi.com', aproximada:false, nota:'' });

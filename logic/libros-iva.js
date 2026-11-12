@@ -499,6 +499,12 @@ function _lbCamposConvertir(p, fn){
   var ids = _LB_CAMPOS_MONTO.map(function(k){ return p + '_' + k; }); if(p === 'egf') ids.push('eg_monto');
   ids.forEach(function(id){ var el = _lbEl(id); if(!el || el.value === '' || !(parseFloat(el.value) >= 0)) return; var v = fn(parseFloat(el.value)); el.value = v === '' ? '' : String(v); });
 }
+// En un gasto NUEVO los montos no se convierten al cambiar de moneda (12-nov-2026). Quien registra escribe primero el
+// monto, tal como viene en la factura en bolívares, y después elige "Bolívares": el sistema lo tomaba por dólares y lo
+// multiplicaba por la tasa. Así entraron siete gastos el 10 y el 11 de noviembre unas 900 veces más grandes (una
+// carpeta de Bs 96.220,84 quedó como $96.220,84). En un gasto nuevo lo escrito se queda como está y se lee en la
+// moneda elegida; la conversión sigue solo al corregir algo ya guardado, donde sí se sabe en qué moneda estaba.
+var _lbSinConvertir = {};
 function lbMonedaCambio(p, sinBuscar){
   var bs = lbMonedaEs(p), box = _lbEl(p + '_tasabox'), sel = _lbEl(p + '_mon');
   var antes = sel ? (sel.getAttribute('data-prev') || (bs ? 'BS' : 'USD')) : (bs ? 'BS' : 'USD');
@@ -507,6 +513,12 @@ function lbMonedaCambio(p, sinBuscar){
   var lbls = document.querySelectorAll('.lb-lblmon-' + p); for(var i = 0; i < lbls.length; i++) lbls[i].textContent = bs ? 'Bs' : '$';
   var lm = _lbEl(p + '_lblmonto'); if(lm) lm.textContent = bs ? 'Bs' : '$';
   var cambio = antes !== (bs ? 'BS' : 'USD');
+  if(cambio && _lbSinConvertir[p]){
+    var _hay = _LB_CAMPOS_MONTO.map(function(k){ return p + '_' + k; }).concat(p === 'egf' ? ['eg_monto'] : []).some(function(id){ var el = _lbEl(id); return !!el && parseFloat(el.value) > 0; });
+    if(_hay && typeof toast === 'function') toast('Los montos que ya escribiste ahora se leen en ' + (bs ? 'bolívares' : 'dólares') + ': no se convirtieron. Revísalos.', 'info');
+    if(bs && !sinBuscar) lbTasaBuscar(p, function(){ lbFiscalCalc(p); }); else lbFiscalCalc(p);
+    return;
+  }
   if(cambio && !bs){   // Bs → $: con la tasa que había
     var t = lbTasaDe(p);
     _lbCamposConvertir(p, function(v){ return t ? bsAUsd(v, t) : ''; });

@@ -97,6 +97,7 @@ function openAddEgreso(eg){
     +(editar && (eg.historial||[]).length ? '<div style="font-size:10.5px;color:var(--ink3)">Corregido '+eg.historial.length+(eg.historial.length===1?' vez':' veces')+' · última: '+esc(eg.editadoPor||'')+' el '+esc(String(eg.editadoEn||'').slice(0,10))+'</div>' : '')
     +'</div>';
     if(typeof _lbTasaEscrita!=='undefined'){ _lbTasaEscrita.egf=false; _lbTasaReq.egf=(_lbTasaReq.egf||0)+1; }
+    if(typeof _lbSinConvertir!=='undefined') _lbSinConvertir.egf=!editar;   // gasto nuevo: cambiar de moneda no multiplica lo ya escrito
     // Multimoneda (11-nov-2026, Adam: "si pongo que la salida fue de la cuenta de bolívares, fue en bolívares"): al
     // elegir una cuenta de bolívares el gasto pasa a bolívares y la moneda no se puede cambiar. Con una cuenta en
     // dólares la moneda sigue siendo libre: una factura en Bs se puede pagar desde una cuenta en dólares.
@@ -122,6 +123,9 @@ function openAddEgreso(eg){
     if(enBs && !(tasaEg>1)){ toast('Falta la tasa BCV (Bs por $) para pasar el monto a dólares','error'); return false; }
     var monto = enBs ? bsAUsd(montoIn, tasaEg) : montoIn;
     if(monto<=0){toast('El monto en dólares queda en cero: revisa la tasa','error');return false;}
+    // El monto del gasto frente al total de su factura (12-nov-2026): si uno es más de cinco veces el otro, casi
+    // seguro hay un error de moneda (bolívares escritos como dólares, o al revés). Avisa y pregunta; no bloquea.
+    if(!_egMontoCuadraConFactura(monto)) return false;
     // Factura repetida (mismo N° del mismo proveedor): avisa y pregunta (Adam, 27-oct-2026); no bloquea
     if(typeof lbRepetidaConfirmar==='function' && !lbRepetidaConfirmar('egf')) return false;
     var reparto=_egLeerReparto(montoIn, enBs, tasaEg);
@@ -228,6 +232,18 @@ function _egLeerPartes(montoIn, enBs, tasaEg){
   var totalUsd=enBs ? bsAUsd(montoIn, tasaEg) : r2(montoIn), dif=r2(totalUsd-enUsd.reduce(function(a,x){ return a+x.monto; },0));
   if(dif) enUsd[0].monto=r2(enUsd[0].monto+dif);
   return enUsd;
+}
+// true si se puede guardar: el monto cuadra con la factura, no hay factura, o el usuario confirmó
+function egMontoFueraDeFactura(montoUsd, fis){
+  if(!fis || fis.noAplica) return 0;
+  var n=function(v){ return parseFloat(v)||0; }, fac=Math.round((n(fis.base)+n(fis.iva)+n(fis.exento))*100)/100;
+  if(!(fac>0) || !(montoUsd>0)) return 0;
+  return (montoUsd > fac*5 || montoUsd < fac/5) ? fac : 0;   // devuelve el total de la factura si no cuadra
+}
+function _egMontoCuadraConFactura(montoUsd){
+  var fis=(typeof lbLeerCamposFiscales==='function') ? lbLeerCamposFiscales('egf') : null, fac=egMontoFueraDeFactura(montoUsd, fis);
+  if(!fac) return true;
+  return (typeof confirm==='function') ? confirm('⚠️ REVISA LA MONEDA\n\nEl gasto queda en '+fmt(montoUsd)+', pero su factura suma '+fmt(fac)+'.\nSi el monto está en bolívares, la moneda del gasto tiene que decir "Bolívares (Bs)".\n\n¿Guardarlo así de todas formas?') : true;
 }
 function egMonedaSegunCuenta(){
   var f=$('eg_forma'), m=$('egf_mon'); if(!f || !m || typeof mmCuentaEsBs!=='function') return;
