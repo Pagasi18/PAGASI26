@@ -1801,7 +1801,7 @@ function _acuerdoRodarTrasPago(cred){
 // ese nombre (saldoCuenta) y renombrarlas dejaria huerfanos los movimientos.
 var _ORDEN_PAGO = [
   { match:'pago movil', label:'Pago móvil' },
-  { match:'100% banco', label:'Depósito en efectivo a 100% Banco' },
+  { match:'100% banco', label:'Depósito a 100% Banco' },
   { match:'binance',    label:'Binance: Pagos@pagasi.io' },
   { match:'efectivo',   label:'Efectivo' }
 ];
