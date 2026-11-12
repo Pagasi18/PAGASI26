@@ -163,6 +163,7 @@ ok('...y el resultado en las dos monedas, como lo va a mostrar el libro', /Bs 2.
   const G7n=entorno({ lbf_mon:'USD', lbf_base:'82949', lbf_exe:'', lbf_ret:'', lbf_alic:'0.16', lbf_fecha:'2026-10-23' });
   G7n._tasasCache['2026-10-23']={ fecha:'2026-10-23', usd:886.23, fuente:'ve.dolarapi.com' };
   G7n._lbSinConvertir.lbf=true;
+  G7n.lbMonedaCambio('lbf');   // el formulario abre en dólares
   G7n._dom.el('lbf_mon').value='BS'; G7n.lbMonedaCambio('lbf'); await new Promise(r=>setTimeout(r,20));
   ok('gasto nuevo, de $ a Bs: lo escrito se queda igual (Bs 82.949, no 73 millones) y avisa', G7n.$('lbf_base').value==='82949' && G7n.$('lbf_tasa').value==='886.23' && G7n.avisos.some(a=>/no se convirtieron/.test(a[1])));
   ok('...y al guardar son los dólares de verdad (82.949 ÷ 886,23 = $93,60)', G7n.lbLeerCamposFiscales('lbf').base===93.6);
