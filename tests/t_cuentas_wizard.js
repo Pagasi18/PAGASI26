@@ -29,10 +29,10 @@ const conCuentas = opts([{nombre:'Binance 26',tipo:'Billetera digital',moneda:'U
 ok('con cuentas cargadas salen las dos, en la compra de la moto',
   conCuentas.moto.indexOf('>Binance 26<')>-1 && conCuentas.moto.indexOf('>100% Banco 26<')>-1);
 ok('...y en el cobro de la inicial',
-  conCuentas.inicial.indexOf('>Binance 26<')>-1 && conCuentas.inicial.indexOf('>100% Banco 26<')>-1);
-ok('...y ninguna viene elegida de antemano (el dinero no se anota solo)',
+  conCuentas.inicial.indexOf('>Binance 26 (el cliente le pagó a Pagasi)<')>-1 && conCuentas.inicial.indexOf('>100% Banco 26 (el cliente le pagó a Pagasi)<')>-1);
+ok('...en la compra ninguna viene elegida; la inicial viene "en el concesionario" y ninguna cuenta de Pagasi elegida (Adam, 12-nov-2026)',
   /<option value="" selected>— Elegir cuenta —<\/option>/.test(conCuentas.moto)
-  && /<option value=""[^>]* selected>— Elegir cuenta —<\/option>/.test(conCuentas.inicial));
+  && /^<option value="Inicial en concesionario" selected>En el concesionario/.test(conCuentas.inicial) && (conCuentas.inicial.match(/ selected/g)||[]).length===1);
 ok('...sin cuentas inventadas', conCuentas.moto.indexOf('Efectivo USD')===-1 && conCuentas.inicial.indexOf('Efectivo USD')===-1);
 ok('...y sin el aviso rojo', conCuentas.bloque.indexOf('No hay cuentas cargadas')===-1);
 
@@ -41,7 +41,8 @@ ok('sin cuentas NO se inventa "Efectivo USD" en la compra de la moto',
   sinCuentas.moto.indexOf('Efectivo USD')===-1);
 ok('...ni en el cobro de la inicial', sinCuentas.inicial.indexOf('Efectivo USD')===-1);
 ok('...se dice que no hay cuentas',
-  sinCuentas.moto.indexOf('No hay cuentas cargadas')>-1 && sinCuentas.inicial.indexOf('No hay cuentas cargadas')>-1);
+  sinCuentas.moto.indexOf('No hay cuentas cargadas')>-1);
+ok('...y la inicial se puede registrar igual: la recibió el concesionario', /^<option value="Inicial en concesionario" selected>/.test(sinCuentas.inicial));
 ok('...la opción no vale nada, así que no se puede guardar por descuido',
   /<option value=""[^>]*>— No hay cuentas cargadas —<\/option>/.test(sinCuentas.moto));
 ok('...y la pantalla dice dónde cargarlas',

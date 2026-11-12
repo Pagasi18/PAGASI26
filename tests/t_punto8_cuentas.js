@@ -59,7 +59,7 @@ ok('pago dividido con las dos cuentas: pasa', ctx._mpagoValidarContraCosto('wzmp
 // ── Cobro de inicial en el wizard ──
 ctx.WZ.iniMetodo = '';
 let io = ctx._wzIniMetodoOpts();
-ok('la inicial arranca en "— Elegir cuenta —"', /^<option value="" selected>— Elegir cuenta —<\/option>/.test(io) && io.indexOf('value="Zelle" selected') === -1);
+ok('la inicial arranca "en el concesionario", sin ninguna cuenta de Pagasi elegida (Adam, 12-nov-2026)', /^<option value="Inicial en concesionario" selected>En el concesionario/.test(io) && io.indexOf('value="Zelle" selected') === -1);
 ctx.WZ.iniMetodo = 'Binance';
 io = ctx._wzIniMetodoOpts();
 ok('si ya se eligio una, queda esa', io.indexOf('value="Binance" selected') > -1 && io.indexOf('value="" selected') === -1);

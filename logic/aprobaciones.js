@@ -108,10 +108,14 @@ function _aprAprobar(credId){
   var cuentas = (typeof _cuentasBanc !== 'undefined' && _cuentasBanc && _cuentasBanc.length) ? _cuentasBanc : [];
   // Arranca en "— Elegir cuenta —": antes venia "Efectivo USD", que no es ninguna de
   // las cuentas, y la inicial no aparecia en ningun saldo (punto 8, 19-sep)
-  var opts = (cuentas.length ? '<option value="" selected>— Elegir cuenta —</option>' : '<option value="" selected>— No hay cuentas cargadas —</option>')
+  // 12-nov-2026: la inicial la recibe el concesionario, directo del cliente. Viene elegido así, salvo que el vendedor
+  // haya dicho que entró a una cuenta de Pagasi.
+  var _concIni = (typeof CUENTA_INICIAL_CONC!=='undefined') ? CUENTA_INICIAL_CONC : 'Inicial en concesionario';
+  var _enPagasi = !!c.inicialCuenta && cuentas.some(function(cu){ return cu.nombre===c.inicialCuenta; });
+  var opts = '<option value="'+_concIni+'"'+(_enPagasi ? '' : ' selected')+'>En el concesionario (el cliente le pagó a la sede)</option>'
     + cuentas.map(function(cu){ return '<option value="'+String(cu.nombre).replace(/"/g,'')+'"'+(c.inicialCuenta && cu.nombre===c.inicialCuenta ? ' selected' : '')+'>'+String(cu.nombre).replace(/[<>]/g,'')+'</option>'; }).join('');
   // Lo que el vendedor contesto en la solicitud sale precargado (24-sep-2026)
-  var _dijo = c.inicialCuenta ? '<div style="font-size:11.5px;color:var(--ink2);margin-bottom:10px">El vendedor indicó que la inicial entró a <b>'+String(c.inicialCuenta).replace(/[<>]/g,'')+'</b>'+(c.inicialRef ? ' (ref. '+String(c.inicialRef).replace(/[<>]/g,'')+')' : '')+'. Confirma o corrige.</div>' : '';
+  var _dijo = c.inicialCuenta ? '<div style="font-size:11.5px;color:var(--ink2);margin-bottom:10px">El vendedor indicó que la inicial '+(c.inicialCuenta===_concIni ? 'la recibió <b>el concesionario</b>' : 'entró a <b>'+String(c.inicialCuenta).replace(/[<>]/g,'')+'</b>')+(c.inicialRef ? ' (ref. '+String(c.inicialRef).replace(/[<>]/g,'')+')' : '')+'. Confirma o corrige.</div>' : '';
   $('mic').textContent='OK';
   $('mtt').textContent='Aprobar crédito '+credId;
   $('msb').textContent=(c.cli||'—')+' · '+(c.modelo||'—');

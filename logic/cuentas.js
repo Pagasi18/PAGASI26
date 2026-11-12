@@ -34,6 +34,14 @@ function montoMov(m){ var v = parseFloat(m && m.monto); return isNaN(v) ? 0 : Ma
 // deja de ser efectivo y se convierte en un credito por cobrar.
 var CUENTA_ANTICIPOS = 'Anticipos en concesionarios';
 
+// LA INICIAL QUE EL CLIENTE LE PAGA DIRECTO AL CONCESIONARIO (Adam, 12-nov-2026: "la inicial siempre el cliente la paga
+// al concesionario; ese dinero entra al concesionario"). Hasta hoy el asistente de créditos obligaba a decir en qué
+// cuenta de Pagasi había entrado la inicial: se anotaba una entrada y una salida en Binance o en el banco por dinero
+// que nunca pasó por ahí. Ahora esa entrada y esa salida van a esta cuenta puente, que no es un banco ni está en
+// Configuración: siempre queda en cero y no toca el saldo de ninguna cuenta real. Los registros de la inicial (el
+// pago y el gasto de la moto) siguen existiendo igual, así que ningún reporte cambia.
+var CUENTA_INICIAL_CONC = 'Inicial en concesionario';
+
 // Lo que queda del anticipo de UNA sede: lo que se le mando menos lo que ya se uso
 // en motos suyas.
 // 11-nov-2026, Adam: las sedes de un mismo dueño comparten el saldo ("si yo meto un

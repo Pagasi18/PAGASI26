@@ -1424,7 +1424,7 @@ function _wzDineroHtml(){
     + '</div>'
     + (esVendConc ? '' : '<div id="wz-ini-extras">'+_wzIniExtrasHtml()+'</div>')
     + '<div style="font-size:11px;color:var(--ink3);margin-top:4px">'
-    +   (esVendConc ? 'La inicial queda registrada cuando se apruebe la solicitud.' : 'La inicial entra a esa cuenta al guardar el crédito.')
+    +   (esVendConc ? 'La inicial queda registrada cuando se apruebe la solicitud.' : 'Si la recibió el concesionario, no entra ni sale de ninguna cuenta de Pagasi. Si eliges una cuenta de Pagasi, la inicial entra a esa cuenta al guardar el crédito.')
     + '</div>'
     + '<div id="wz-mpago-wrap" style="display:none;margin-top:12px"></div>'
     + '</div>';
@@ -1547,7 +1547,7 @@ function _wzPagoMotoHtml(costo, ini){
     var de;
     if(f.que === 'inicial'){
       de = f.cuenta
-        ? 'Sale de <b>'+_wzEsc(f.cuenta)+'</b>, donde la pagó el cliente.'
+        ? (_wzIniEsConc(f.cuenta) ? 'La recibió el concesionario directamente del cliente: no sale de ninguna cuenta de Pagasi.' : 'Sale de <b>'+_wzEsc(f.cuenta)+'</b>, donde la pagó el cliente.')
         : '<span style="color:var(--amber);font-weight:700">Falta decir arriba dónde la pagó el cliente.</span>';
     } else if(f.que === 'anticipo'){
       // 11-nov-2026: si la sede comparte el saldo con otras del mismo dueño, la cuenta es la del grupo
@@ -1653,6 +1653,7 @@ function _wzResumenDineroHTML(r){
     if(ini > 0.005){
       filas.push(['Inicial '+_wzMoney(ini), esVendConc ? 'se registra al aprobar la solicitud'
         : (_wzIniPartes(ini) ? _wzIniPartes(ini).map(function(p){ return _wzMoney(p.monto)+' en <b>'+_wzEsc(p.cuenta)+'</b>'+(p.ref ? ' · ref. '+_wzEsc(p.ref) : ''); }).join(' + ')
+        : _wzIniEsConc(WZ.iniMetodo) ? 'la recibió <b>el concesionario</b>, directo del cliente'+(WZ.iniRef ? ' · ref. '+_wzEsc(WZ.iniRef) : '')
         : WZ.iniMetodo ? 'entra a <b>'+_wzEsc(WZ.iniMetodo)+'</b>'+(WZ.iniRef ? ' · ref. '+_wzEsc(WZ.iniRef) : '')
                         : '<span style="color:var(--red)">falta la cuenta — vuelve al paso 3</span>')]);
     }
@@ -2851,16 +2852,19 @@ function _wzConfirmarCambios(difs, credId){
 // ── Guardar solicitud ──
 // Cuentas para el cobro de la inicial: arranca en "— Elegir cuenta —" (antes venia
 // elegida la primera de la lista y la inicial quedaba anotada ahi; punto 8, 19-sep)
+// La inicial la recibe el concesionario, directo del cliente (Adam, 12-nov-2026): viene elegido así. Las cuentas de
+// Pagasi quedan en la lista para el caso raro en que el cliente le pague la inicial a Pagasi.
 function _wzIniMetodoOpts(){
   if(typeof _cuentasRecargarSiVacio==='function') setTimeout(_cuentasRecargarSiVacio, 0);
   var cuentas = (_cuentasBanc&&_cuentasBanc.length) ? _cuentasBanc : [];
-  // Sin cuentas no se inventa ninguna: la inicial quedaria anotada en una cuenta que
-  // no existe y ese dinero no aparece en ningun saldo (23-sep-2026).
-  if(!cuentas.length) return '<option value="" selected>— No hay cuentas cargadas —</option>';
+  var conc = _wzCuentaIniConc();
   var elegida = cuentas.some(function(c){ return WZ.iniMetodo && WZ.iniMetodo===c.nombre; });
-  return '<option value=""'+(elegida?'':' selected')+'>— Elegir cuenta —</option>'
-    + cuentas.map(function(c){ return '<option value="'+c.nombre+'"'+(WZ.iniMetodo&&WZ.iniMetodo===c.nombre?' selected':'')+'>'+c.nombre+'</option>'; }).join('');
+  if(!elegida) WZ.iniMetodo = conc;   // predeterminado: en el concesionario
+  return '<option value="'+conc+'"'+(elegida?'':' selected')+'>En el concesionario (el cliente le pagó a la sede)</option>'
+    + cuentas.map(function(c){ return '<option value="'+c.nombre+'"'+(WZ.iniMetodo&&WZ.iniMetodo===c.nombre?' selected':'')+'>'+c.nombre+' (el cliente le pagó a Pagasi)</option>'; }).join('');
 }
+function _wzCuentaIniConc(){ return (typeof CUENTA_INICIAL_CONC!=='undefined') ? CUENTA_INICIAL_CONC : 'Inicial en concesionario'; }
+function _wzIniEsConc(cuenta){ return !!cuenta && cuenta === _wzCuentaIniConc(); }
 // true si hay que registrar la inicial y nadie eligio la cuenta. Solo aplica al crear un
 // credito directo: las solicitudes de concesionario la registran al aprobarse y al editar
 // no se vuelve a cobrar.
