@@ -185,11 +185,11 @@ function abrirDetallePago(pagoId){
     var facLabel = fac.anulada ? 'ANULADA' : 'EMITIDA';
     facBlock = '<div style="margin-top:14px;padding:12px;background:rgba(0,184,118,0.08);border:1px solid rgba(0,184,118,0.25);border-radius:9px">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-      + '<div style="font-size:11px;color:var(--ink3);font-weight:700;letter-spacing:.5px">FACTURA ASOCIADA</div>'
+      + '<div style="font-size:11px;color:var(--ink3);font-weight:700;letter-spacing:.5px">RECIBO DE CAJA ASOCIADO</div>'
       + '<span class="bdg" style="background:'+facColor+';color:#fff;font-size:9px;padding:2px 7px;border-radius:4px">'+facLabel+'</span>'
       + '</div>'
       + '<div style="font-family:var(--fd);font-weight:800;font-size:15px">N° '+fac.numero+'</div>'
-      + '<div style="font-size:11px;color:var(--ink3)">Control SENIAT: '+fac.numeroControl+'</div>'
+      + (fac.numeroControl ? '<div style="font-size:11px;color:var(--ink3)">Control SENIAT: '+fac.numeroControl+'</div>' : '')
       + '<div style="font-size:11px;color:var(--ink3);margin-top:3px">Emitida: '+fmtFechaHora(fac.fechaEmision)+'</div>'
       + (fac.anulada ? '<div style="font-size:11px;color:var(--red);margin-top:5px">Anulada: '+fmtFechaHora(fac.fechaAnulacion)+'<br>Razón: '+(fac.razonAnulacion||'—')+'</div>' : '')
       + '</div>';
@@ -213,11 +213,11 @@ function abrirDetallePago(pagoId){
   var ftHtml = '<button class="btn btn-g" onclick="closeM()">Cerrar</button>';
   if(p.estado === 'confirmado'){
     if(fac && !fac.anulada){
-      ftHtml += '<button class="btn btn-p" onclick="abrirVerFactura(\''+fac.id+'\')">Ver Factura</button>';
+      ftHtml += '<button class="btn btn-p" onclick="abrirVerFactura(\''+fac.id+'\')">Ver Recibo de Caja</button>';
     } else if(!fac){
-      ftHtml += '<button class="btn btn-p" onclick="abrirGenerarFactura(\''+p.id+'\')">Generar Factura</button>';
+      ftHtml += '<button class="btn btn-p" onclick="abrirGenerarFactura(\''+p.id+'\')">Generar Recibo de Caja</button>';
     } else {
-      ftHtml += '<button class="btn btn-d" disabled style="opacity:.6">Factura Anulada</button>';
+      ftHtml += '<button class="btn btn-d" disabled style="opacity:.6">Recibo Anulado</button>';
     }
   }
   $('mft').innerHTML = ftHtml;
@@ -265,7 +265,7 @@ function _facCuotasDePago(p, cred){
 function abrirGenerarFactura(pagoId){
   var p = (S.pagos||[]).find(function(x){ return x.id === pagoId; });
   if(!p){ toast('Pago no encontrado','error'); return; }
-  if(_facGetByPagoId(p.id)){ toast('Este pago ya tiene factura emitida','warning'); return; }
+  if(_facGetByPagoId(p.id)){ toast('Este pago ya tiene recibo de caja emitido','warning'); return; }
   var cred = (S.creds||[]).find(function(x){ return x.id === p.cred; });
   // Buscar el cliente para autocompletar sus datos en la factura.
   // 1) por el clienteId/cliId guardado en el crédito (lo más confiable);
@@ -280,19 +280,22 @@ function abrirGenerarFactura(pagoId){
   }
   var emp = getEmpresa();
   var nextNum = _facSiguienteNumeroFactura();
-  var nextCtrl = _facSiguienteNumeroControl();
+  // RECIBO DE CAJA (el contador, 13-nov-2026): "con la nueva providencia el número de control vendrá determinado por un
+  // agente externo… en este caso sí se debe quitar del formulario. El IVA se tiene que seguir calculando y guardando
+  // dentro… no quiero cambiar ningún atributo ni cálculo del sistema, solo la estructura del reporte". Por eso el
+  // formulario ya no pide N° de control (se guarda vacío) y todo lo demás (base, IVA, IGTF, total) se calcula y se
+  // guarda exactamente igual: lo leen el Libro de Ventas y Exportar a QuickBooks.
   setMicon('factura');
-  $('mtt').textContent='Generar Factura';
+  $('mtt').textContent='Generar Recibo de Caja';
   $('msb').textContent='Pago '+p.id;
   $('modal-box').className='modal';
   $('mbd').innerHTML =
     '<div style="background:rgba(74,107,255,0.08);border:1px solid rgba(74,107,255,0.25);border-radius:9px;padding:11px;margin-bottom:14px;font-size:11.5px;color:var(--ink2)">'
-    + '<strong style="color:var(--p1)">⚠ Importante:</strong> Una vez creada, la factura será inmutable. Solo podrá ser anulada (no eliminada) según las normas SENIAT.'
+    + '<strong style="color:var(--p1)">⚠ Importante:</strong> Una vez creado, el recibo de caja no se puede modificar ni eliminar: solo anular. El recibo muestra el total; la base y el IVA de abajo se calculan y se guardan para el Libro de Ventas y QuickBooks, pero no salen impresos.'
     + '</div>'
-    + '<div style="font-size:10.5px;color:var(--ink3);font-weight:700;letter-spacing:.5px;margin-bottom:8px">NÚMEROS LEGALES</div>'
+    + '<div style="font-size:10.5px;color:var(--ink3);font-weight:700;letter-spacing:.5px;margin-bottom:8px">NÚMERO Y FECHA</div>'
     + '<div class="fgr" style="gap:10px">'
-    + '<div class="fg"><label>N° de Factura</label><input class="fi" id="fac_numero" value="'+nextNum+'" style="font-family:var(--fd);font-weight:700"></div>'
-    + '<div class="fg"><label>N° de Control SENIAT</label><input class="fi" id="fac_control" value="'+nextCtrl+'" style="font-family:var(--fd);font-weight:700"></div>'
+    + '<div class="fg"><label>N° de Recibo de Caja</label><input class="fi" id="fac_numero" value="'+nextNum+'" style="font-family:var(--fd);font-weight:700"></div>'
     + '<div class="fg"><label>Fecha de Emisión</label><input class="fi" id="fac_fecha" type="date" value="'+(hoyLocalISO())+'"></div>'
     + '</div>'
     + '<div style="font-size:10.5px;color:var(--ink3);font-weight:700;letter-spacing:.5px;margin:14px 0 8px">DATOS DEL EMISOR (EMPRESA)</div>'
@@ -341,7 +344,7 @@ function abrirGenerarFactura(pagoId){
     + '</div>';
   $('mft').innerHTML =
     '<button class="btn btn-g" onclick="abrirDetallePago(\''+p.id+'\')">Cancelar</button>'
-    + '<button class="btn btn-p" onclick="crearFactura(\''+p.id+'\')">Crear Factura</button>';
+    + '<button class="btn btn-p" onclick="crearFactura(\''+p.id+'\')">Crear Recibo de Caja</button>';
   $('ov').style.display='flex';
   if(typeof _facRecalcImpuestos==='function') _facRecalcImpuestos();
 }
@@ -389,13 +392,12 @@ function crearFactura(pagoId){
   var p = (S.pagos||[]).find(function(x){ return x.id === pagoId; });
   if(!p){ toast('Pago no encontrado','error'); return; }
   var numero = ($('fac_numero')&&$('fac_numero').value||'').trim();
-  var control = ($('fac_control')&&$('fac_control').value||'').trim();
-  if(!numero){ toast('El N° de factura es obligatorio','error'); return; }
-  if(!control){ toast('El N° de control SENIAT es obligatorio','error'); return; }
+  var control = ($('fac_control')&&$('fac_control').value||'').trim();   // el formulario ya no lo pide: queda vacío (lo asignará el agente externo)
+  if(!numero){ toast('El N° de recibo de caja es obligatorio','error'); return; }
   // Validar que el número no esté ya usado
   var dupN = (S.facturas||[]).find(function(f){ return f.numero === numero; });
-  if(dupN){ toast('El N° '+numero+' ya está usado en otra factura','error'); return; }
-  var dupC = (S.facturas||[]).find(function(f){ return f.numeroControl === control; });
+  if(dupN){ toast('El N° '+numero+' ya está usado en otro recibo','error'); return; }
+  var dupC = control ? (S.facturas||[]).find(function(f){ return f.numeroControl === control; }) : null;
   if(dupC){ toast('El N° de control '+control+' ya está usado','error'); return; }
   var emp = getEmpresa();
   // Leer interruptores de IVA / IGTF del formulario y calcular el desglose
@@ -438,28 +440,28 @@ function crearFactura(pagoId){
   };
   S.facturas.push(fac);
   DB.saveFactura(fac);
-  toast('Factura '+fac.numero+' emitida ✓','success');
+  toast('Recibo de caja '+fac.numero+' emitido ✓','success');
   abrirVerFactura(fac.id);
 }
 
 // Modal: ver factura ya emitida
 function abrirVerFactura(facId){
   var fac = (S.facturas||[]).find(function(x){ return x.id === facId; });
-  if(!fac){ toast('Factura no encontrada','error'); return; }
+  if(!fac){ toast('Recibo de caja no encontrado','error'); return; }
   setMicon('factura');
-  $('mtt').textContent='Factura '+fac.numero;
-  $('msb').textContent='Control: '+fac.numeroControl;
+  $('mtt').textContent='Recibo de Caja '+fac.numero;
+  $('msb').textContent=fac.numeroControl ? 'Control: '+fac.numeroControl : 'Pago '+(fac.pagoId||'');
   $('modal-box').className='modal';
   var anuladaBlock = fac.anulada
-    ? '<div style="background:rgba(255,71,87,0.12);border:1px solid rgba(255,71,87,0.35);border-radius:9px;padding:11px;margin-bottom:12px"><div style="color:var(--red);font-weight:800;font-size:13px;margin-bottom:4px"> FACTURA ANULADA</div><div style="font-size:11.5px;color:var(--ink2)">Anulada: '+fmtFechaHora(fac.fechaAnulacion)+' por '+(fac.anuladaPor||'—')+'</div><div style="font-size:11.5px;color:var(--ink2);margin-top:3px">Razón: '+(fac.razonAnulacion||'—')+'</div></div>'
+    ? '<div style="background:rgba(255,71,87,0.12);border:1px solid rgba(255,71,87,0.35);border-radius:9px;padding:11px;margin-bottom:12px"><div style="color:var(--red);font-weight:800;font-size:13px;margin-bottom:4px"> RECIBO DE CAJA ANULADO</div><div style="font-size:11.5px;color:var(--ink2)">Anulada: '+fmtFechaHora(fac.fechaAnulacion)+' por '+(fac.anuladaPor||'—')+'</div><div style="font-size:11.5px;color:var(--ink2);margin-top:3px">Razón: '+(fac.razonAnulacion||'—')+'</div></div>'
     : '';
   $('mbd').innerHTML =
     anuladaBlock
     + '<div style="background:var(--surf);padding:14px;border-radius:9px;margin-bottom:12px">'
     + '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px">'
-    + '<div><div style="font-size:13px;color:var(--ink3);font-weight:700;letter-spacing:.5px">FACTURA</div>'
+    + '<div><div style="font-size:13px;color:var(--ink3);font-weight:700;letter-spacing:.5px">RECIBO DE CAJA</div>'
     + '<div style="font-family:var(--fd);font-weight:800;font-size:22px;color:var(--p1)">N° '+fac.numero+'</div>'
-    + '<div style="font-size:11px;color:var(--ink3);margin-top:2px">Control SENIAT: '+fac.numeroControl+'</div></div>'
+    + (fac.numeroControl ? '<div style="font-size:11px;color:var(--ink3);margin-top:2px">Control SENIAT: '+fac.numeroControl+'</div>' : '')+'</div>'
     + '<div style="text-align:right">'
     + '<div style="font-weight:800;font-size:14px">'+(fac.emisor&&fac.emisor.nombre||'—')+'</div>'
     + '<div style="font-family:var(--fd);font-size:11px;color:var(--ink2)">'+(fac.emisor&&fac.emisor.rif||'—')+'</div>'
@@ -468,7 +470,7 @@ function abrirVerFactura(facId){
     + '</div></div>'
     + '<hr style="border:none;border-top:1px dashed var(--ln);margin:10px 0">'
     + '<div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:10px">'
-    + '<div style="flex:1"><div style="font-size:10px;color:var(--ink3);font-weight:700;letter-spacing:.5px">FACTURAR A</div>'
+    + '<div style="flex:1"><div style="font-size:10px;color:var(--ink3);font-weight:700;letter-spacing:.5px">RECIBO DE CAJA A</div>'
     + '<div style="font-weight:700;font-size:13px;margin-top:2px">'+(fac.cliente&&fac.cliente.nombre||'—')+'</div>'
     + (fac.cliente&&fac.cliente.ci?'<div style="font-family:var(--fd);font-size:11px;color:var(--ink2)">C.I./RIF: '+fac.cliente.ci+'</div>':'')
     + (fac.cliente&&fac.cliente.tel?'<div style="font-size:11px;color:var(--ink2)">Tel: '+fac.cliente.tel+'</div>':'')
@@ -483,13 +485,14 @@ function abrirVerFactura(facId){
     + '<hr style="border:none;border-top:1px dashed var(--ln);margin:10px 0">'
     + '<div style="display:flex;justify-content:flex-end;margin-top:10px">'
     + '<div style="min-width:240px">'
+    + '<div style="font-size:9.5px;color:var(--ink3);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:2px">Desglose interno (no sale en el recibo)</div>'
     + '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span>Subtotal:</span><span style="font-family:var(--fd)">'+fmt(fac.subtotal)+'</span></div>'
     + '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ink3)"><span>IVA '+(fac.ivaAplica?('('+(fac.ivaRate||16)+'%)'):'(no aplica)')+':</span><span style="font-family:var(--fd)">'+fmt(fac.iva||0)+'</span></div>'
     + ((fac.igtfAplica||((fac.igtf||0)>0))?'<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ink3)"><span>IGTF ('+(fac.igtfRate||3)+'%):</span><span style="font-family:var(--fd)">'+fmt(fac.igtf||0)+'</span></div>':'')
     + '<div style="display:flex;justify-content:space-between;font-size:15px;padding:6px 0;font-weight:800;border-top:2px solid var(--ln);margin-top:5px"><span>TOTAL:</span><span style="font-family:var(--fd);color:var(--green)">'+fmt(fac.total)+'</span></div>'
     + '</div></div>'
     + '<div style="font-size:10px;color:var(--ink3);text-align:center;margin-top:14px;padding-top:10px;border-top:1px dashed var(--ln);font-style:italic">Son: '+_numeroALetras(fac.total)+'</div>'
-    + '<div style="font-size:9.5px;color:var(--ink3);text-align:center;margin-top:5px">Emitida el '+fmtFechaHora(fac.fechaCreacion)+' · Método: '+(fac.metodo||'—')+(fac.referencia?' · Ref: '+fac.referencia:'')+'</div>'
+    + '<div style="font-size:9.5px;color:var(--ink3);text-align:center;margin-top:5px">Emitido el '+fmtFechaHora(fac.fechaCreacion)+' · Método: '+(fac.metodo||'—')+(fac.referencia?' · Ref: '+fac.referencia:'')+'</div>'
     + '</div>';
   var ftHtml = '<button class="btn btn-g" onclick="abrirDetallePago(\''+fac.pagoId+'\')">← Volver al pago</button>';
   if(!fac.anulada){
@@ -505,9 +508,9 @@ function abrirVerFactura(facId){
 // Modal: elegir formato de impresión
 function abrirImprimirFactura(facId){
   var fac = (S.facturas||[]).find(function(x){ return x.id === facId; });
-  if(!fac){ toast('Factura no encontrada','error'); return; }
+  if(!fac){ toast('Recibo de caja no encontrado','error'); return; }
   setMicon('imprimir');
-  $('mtt').textContent='Imprimir Factura';
+  $('mtt').textContent='Imprimir Recibo de Caja';
   $('msb').textContent='N° '+fac.numero;
   $('modal-box').className='modal';
   $('mbd').innerHTML =
@@ -519,7 +522,7 @@ function abrirImprimirFactura(facId){
     + '</button>'
     + '<button class="btn btn-p" style="padding:14px;text-align:left;display:flex;align-items:center;gap:12px" onclick="imprimirFactura(\''+fac.id+'\',\'media\')">'
     + '<span style="font-family:var(--fd);font-weight:800;font-size:18px;width:60px;text-align:center"></span>'
-    + '<span><div style="font-weight:700;font-size:13.5px">Media Carta (8.5\" x 5.5\")</div><div style="font-size:11px;color:rgba(255,255,255,.85);font-weight:400">2 facturas por hoja — Ahorro de papel</div></span>'
+    + '<span><div style="font-weight:700;font-size:13.5px">Media Carta (8.5\" x 5.5\")</div><div style="font-size:11px;color:rgba(255,255,255,.85);font-weight:400">2 recibos por hoja — Ahorro de papel</div></span>'
     + '</button>'
     + '<button class="btn btn-p" style="padding:14px;text-align:left;display:flex;align-items:center;gap:12px" onclick="imprimirFactura(\''+fac.id+'\',\'ticket\')">'
     + '<span style="font-family:var(--fd);font-weight:800;font-size:18px;width:60px;text-align:center"></span>'
@@ -533,7 +536,7 @@ function abrirImprimirFactura(facId){
 // Genera HTML imprimible y abre ventana de impresión
 function imprimirFactura(facId, formato){
   var fac = (S.facturas||[]).find(function(x){ return x.id === facId; });
-  if(!fac){ toast('Factura no encontrada','error'); return; }
+  if(!fac){ toast('Recibo de caja no encontrado','error'); return; }
   var tasaBs = window._tasaBsGlobal || 0;
   var totalBs = tasaBs ? (fac.total * tasaBs).toFixed(2) : '';
   // Si el pago se recibió en bolívares (multimoneda, 11-nov-2026), el recibo dice los bolívares que entraron de verdad
@@ -654,32 +657,32 @@ function imprimirFactura(facId, formato){
 // Modal: anular factura
 function abrirAnularFactura(facId){
   var fac = (S.facturas||[]).find(function(x){ return x.id === facId; });
-  if(!fac){ toast('Factura no encontrada','error'); return; }
-  if(fac.anulada){ toast('Esta factura ya está anulada','warning'); return; }
+  if(!fac){ toast('Recibo de caja no encontrado','error'); return; }
+  if(fac.anulada){ toast('Este recibo de caja ya está anulado','warning'); return; }
   setMicon('anular');
-  $('mtt').textContent='Anular Factura';
+  $('mtt').textContent='Anular Recibo de Caja';
   $('msb').textContent='N° '+fac.numero;
   $('modal-box').className='modal';
   $('mbd').innerHTML =
     '<div style="background:rgba(255,71,87,0.12);border:1px solid rgba(255,71,87,0.35);border-radius:9px;padding:12px;margin-bottom:14px">'
     + '<div style="font-weight:800;color:var(--red);font-size:13px;margin-bottom:5px">⚠ Acción irreversible</div>'
-    + '<div style="font-size:11.5px;color:var(--ink2);line-height:1.55">Una factura anulada queda registrada permanentemente como tal. Por exigencia SENIAT:</div>'
+    + '<div style="font-size:11.5px;color:var(--ink2);line-height:1.55">Un recibo de caja anulado queda registrado permanentemente como tal:</div>'
     + '<ul style="font-size:11.5px;color:var(--ink2);margin-top:6px;padding-left:20px;line-height:1.5">'
-    + '<li>El número de la factura ('+fac.numero+') no podrá reutilizarse</li>'
-    + '<li>El número de control ('+fac.numeroControl+') no podrá reutilizarse</li>'
-    + '<li>La factura permanecerá en el sistema con estado "ANULADA"</li>'
+    + '<li>El número del recibo ('+fac.numero+') no podrá reutilizarse</li>'
+    + (fac.numeroControl ? '<li>El número de control ('+fac.numeroControl+') no podrá reutilizarse</li>' : '')
+    + '<li>El recibo permanecerá en el sistema con estado "ANULADO"</li>'
     + '</ul></div>'
     + '<div class="fg"><label>Razón de anulación <span style="color:var(--red)">*</span></label>'
     + '<textarea class="fi" id="anu_razon" rows="3" placeholder="Ej: Error en datos del cliente, monto incorrecto, etc."></textarea></div>';
   $('mft').innerHTML =
     '<button class="btn btn-g" onclick="abrirVerFactura(\''+fac.id+'\')">Cancelar</button>'
-    + '<button class="btn btn-d" onclick="confirmarAnularFactura(\''+fac.id+'\')">Anular Factura</button>';
+    + '<button class="btn btn-d" onclick="confirmarAnularFactura(\''+fac.id+'\')">Anular Recibo de Caja</button>';
   $('ov').style.display='flex';
 }
 
 function confirmarAnularFactura(facId){
   var fi = (S.facturas||[]).findIndex(function(x){ return x.id === facId; });
-  if(fi < 0){ toast('Factura no encontrada','error'); return; }
+  if(fi < 0){ toast('Recibo de caja no encontrado','error'); return; }
   var razon = ($('anu_razon')&&$('anu_razon').value||'').trim();
   if(!razon){ toast('Debes indicar la razón de anulación','error'); return; }
   S.facturas[fi].anulada = true;
@@ -688,7 +691,7 @@ function confirmarAnularFactura(facId){
   S.facturas[fi].anuladaPor = (S.currentUser&&S.currentUser.nombre)||'Admin';
   S.facturas[fi].anuladaPorUid = (S.currentUser&&S.currentUser.uid)||'';
   DB.saveFactura(S.facturas[fi]);
-  toast('Factura '+S.facturas[fi].numero+' anulada','info');
+  toast('Recibo de caja '+S.facturas[fi].numero+' anulado','info');
   abrirVerFactura(facId);
 }
 

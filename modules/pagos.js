@@ -532,7 +532,7 @@ PG.pagos = function(){
       ${_thSort(_ps,'setPagosSort','metodo','Recibido en')}
       ${_thSort(_ps,'setPagosSort','cobrador','Cobrador')}
       ${_thSort(_ps,'setPagosSort','estado','Estado')}
-      <th>Factura</th><th></th>
+      <th>Recibo</th><th></th>
     </tr></thead>
     <tbody>${(()=>{const _pp=pgGet('pagos');return filtered.slice((_pp-1)*50,_pp*50).map(p=>{
       var fac = (S.facturas||[]).find(function(f){ return f.pagoId === p.id; });
@@ -544,7 +544,7 @@ PG.pagos = function(){
           facCol = '<span class="bdg" style="background:rgba(0,184,118,.18);color:var(--green);font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;font-family:var(--fd)">'+fac.numero+'</span>';
         }
       } else if(p.estado==='confirmado'){
-        facCol = '<span style="color:var(--ink3);font-size:10.5px">— sin factura —</span>';
+        facCol = '<span style="color:var(--ink3);font-size:10.5px">— sin recibo —</span>';
       } else {
         facCol = '<span style="color:var(--ink3);font-size:10.5px">—</span>';
       }
