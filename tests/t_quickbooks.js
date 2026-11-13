@@ -153,7 +153,9 @@ ok('...ninguna fila trae el "N/A" de la plantilla vieja: es el archivo del conta
 ok('..."OTROS SERVICIOS" no sale donde no hay contratos viejos (PAGASI 26)', !sv.some(r=>r[0]==='OTROS SERVICIOS'));
 const D18=G.qbDatos({ creds:[VIEJO], pagos:[], clientes:[], facturas:[], egresos:[], periodo:'2026-10', corte:'2026-09-30' });
 ok('...y sí sale donde los hay (PAGASI 18), como fila 48', D18.filas.servicios.length===48 && D18.filas.servicios.some(r=>r[0]==='OTROS SERVICIOS'));
-ok('...las facturas (03) y los recibos (04) usan exactamente los nombres del 02', D.filas.facturas.every(r=>sv.some(s=>s[0]===r[5])) && D.filas.contado.every(r=>sv.some(s=>s[0]===r[6])));
+const RUTAS={ 'Income:CARTERA DE FINANCIAMIENTO':1, 'Service ( 59 ):INTERESES DE FINANCIAMIENTO':1, 'Service ( 60 ):INGRESOS POR PAGASI PROTEC':1, 'Service ( 60 ):16.0% S (16%)':1 };
+ok('...las facturas (03) y los recibos (04) llevan el servicio con su ruta completa de QuickBooks (el contador, 13-nov), carácter por carácter', D.filas.facturas.every(r=>RUTAS[r[5]]) && D.filas.contado.every(r=>RUTAS[r[6]]) && D.filas.facturas.some(r=>r[5]==='Income:CARTERA DE FINANCIAMIENTO') && D.filas.contado.some(r=>r[6]==='Service ( 59 ):INTERESES DE FINANCIAMIENTO'));
+ok('...y la parte después de los dos puntos es el nombre del 02', Object.keys(RUTAS).filter(k=>!/16\.0%/.test(k)).every(k=>sv.some(s=>s[0]===k.slice(k.indexOf(':')+1))));
 
 // 03 Facturas
 // 03 Facturas a crédito (los abonos) y 04 Recibos de contado (cuotas completas de una vez), el contador 29-oct-2026
@@ -168,8 +170,9 @@ const f2=fc.find(r=>r[0]==='PAG-2');
 ok('...03: la fecha es la del cobro aunque tenga factura fiscal, con vencimiento a 15 días y Net 15', f2[2]==='20/10/2026' && f2[3]==='04/11/2026' && f2[4]==='Net 15');
 ok('...03: Service Date = vencimiento de la cuota que pagó (el abono de 30 es de la cuota 2)', f2[13]==='23/10/2026');
 const f1=ct.filter(r=>r[0]==='PAG-1');
-ok('04: la primera línea con todo: cliente, fecha dd/mm/aaaa, cuenta de depósito, Memo, moneda y Service Date', f1[0].join(';')==='PAG-1;JESUS GALARRAGA;08/10/2026;1103001 100% BANCO CTA. CTE Nº 68129;;CONTRATO Nº M-154;CARTERA DE FINANCIAMIENTO;AMORTIZACION DE FINANCIAMIENTO;1;25.01;25.01;No VAT (0%);0;USD;08/10/2026');
-ok('...las siguientes con el N°, la cuenta de depósito (como la plantilla) y la línea', f1[1].join(';')==='PAG-1;;;1103001 100% BANCO CTA. CTE Nº 68129;;;INTERESES DE FINANCIAMIENTO;INTERESES POR FINANCIAMIENTO;1;3.17;3.17;No VAT (0%);0;;' && f1[2].join(';')==='PAG-1;;;1103001 100% BANCO CTA. CTE Nº 68129;;;INGRESOS POR PAGASI PROTEC;INGRESOS POR PAGASI PROTEC;1;21.4;21.4;16.0% S (16%);3.42;;');
+ok('04: la primera línea con todo: cliente, fecha dd/mm/aaaa, cuenta de depósito, Memo, moneda y Service Date', f1[0].join(';')==='PAG-1;JESUS GALARRAGA;08/10/2026;1103001 100% BANCO CTA. CTE Nº 68129;;CONTRATO Nº M-154;Income:CARTERA DE FINANCIAMIENTO;AMORTIZACION DE FINANCIAMIENTO;1;25.01;25.01;No VAT (0%);0;USD;08/10/2026');
+ok('...las siguientes con el N°, la cuenta de depósito (como la plantilla) y la línea', f1[1].join(';')==='PAG-1;;;1103001 100% BANCO CTA. CTE Nº 68129;;;Service ( 59 ):INTERESES DE FINANCIAMIENTO;INTERESES POR FINANCIAMIENTO;1;3.17;3.17;No VAT (0%);0;;' && f1[2].join(';')==='PAG-1;;;1103001 100% BANCO CTA. CTE Nº 68129;;;Service ( 60 ):INGRESOS POR PAGASI PROTEC;INGRESOS POR PAGASI PROTEC;1;21.4;21.4;No VAT (0%);0;;');
+ok('...el IVA ya no va como impuesto: es una línea más, "Service ( 60 ):16.0% S (16%)" · IVA DEBITO FISCAL, y el recibo suma lo mismo que el cobro', f1.length===4 && f1[3].join(';')==='PAG-1;;;1103001 100% BANCO CTA. CTE Nº 68129;;;Service ( 60 ):16.0% S (16%);IVA DEBITO FISCAL;1;3.42;3.42;No VAT (0%);0;;' && cerca(f1.reduce((a,r)=>a+r[10],0), 53) && f1.every(r=>r[11]==='No VAT (0%)' && r[12]===0));
 ok('...la cuenta de depósito sale del "Recibido en" del pago: Binance → 1105001, Efectivo → 1102001', ct.find(r=>r[0]==='PAG-5')[3]==='1105001 BINANCE' && ct.find(r=>r[0]==='PAG-10')[3]==='1102001 CAJA EN MONEDA EXTRANJERA USD');
 ok('...un "Recibido en" que QuickBooks no conoce sale con su nombre y el control lo avisa', ct.find(r=>r[0]==='PAG-6')[3]==='ZELLE PAGASI' && D.controles.contado.some(c=>/Cuenta de depósito/.test(c.concepto) && c.estado==='REVISAR: 1 sin cuenta'));
 const f10=ct.filter(r=>r[0]==='PAG-10');
@@ -227,13 +230,13 @@ const desc={ porClave:{ 'facturas|2026-10':regF, 'compras|2026-10':regC, 'contad
 ok('...el 04 anota hasta el último recibo y el 01 el corte; la clave lleva el período en 03/04/06 y solo el archivo en las fichas', regCt.hasta==='PAG-D3 del 27/10/2026' && regCt.cantidad===2 && regCl.corte==='2026-09-30' && regCl.cantidad===1 && regF.clave==='facturas|2026-10' && regCl.clave==='clientes');
 const DNu=Object.assign({}, DD, { st:Object.assign({}, DD.st, { modo:'nuevo' }), descargas:desc });
 const VN=G._qbVer(DNu,'facturas'), VCn=G._qbVer(DNu,'contado'), V6n=G._qbVer(DNu,'compras'), V1n=G._qbVer(DNu,'clientes');
-ok('"solo lo nuevo": del 03 queda el abono editado el lunes; el anotado el 20 ya estaba en la descarga del viernes', VN.nuevo && VN.docs===1 && VN.totalDocs===2 && VN.filas.length===3 && VN.filas.every(r=>r[0]==='PAG-D4') && VN.desde===viernes);
+ok('"solo lo nuevo": del 03 queda el abono editado el lunes; el anotado el 20 ya estaba en la descarga del viernes', VN.nuevo && VN.docs===1 && VN.totalDocs===2 && VN.filas.length===4 && VN.filas.every(r=>r[0]==='PAG-D4') && VN.desde===viernes);
 ok('...del 04 queda la cuota anotada el lunes aunque sea del 27; la vieja sin hora de registro, fechada antes, no', VCn.docs===1 && VCn.filas.every(r=>r[0]==='PAG-D3'));
 ok('...del 06 quedan el gasto anotado el lunes y el que completó su factura el lunes; el viejo no', V6n.docs===2 && V6n.filas.every(r=>r[0]==='2' || r[0]==='3'));
 ok('...el 01 no trae clientes nuevos (su crédito es anterior a la descarga)', V1n.nuevo && V1n.docs===0 && V1n.totalDocs===1);
-ok('...y sin descarga previa de ese archivo, "solo lo nuevo" muestra todo (no hay desde dónde contar)', (()=>{ const V=G._qbVer(Object.assign({}, DNu, { descargas:{ porClave:{}, porArchivo:{}, historial:[] } }),'facturas'); return !V.nuevo && V.filas.length===6; })());
+ok('...y sin descarga previa de ese archivo, "solo lo nuevo" muestra todo (no hay desde dónde contar)', (()=>{ const V=G._qbVer(Object.assign({}, DNu, { descargas:{ porClave:{}, porArchivo:{}, historial:[] } }),'facturas'); return !V.nuevo && V.filas.length===8; })());
 ok('...el corte es por archivo Y período: con noviembre elegido, la descarga de octubre no cuenta y se muestra todo', !G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { periodo:'2026-11' }) }),'facturas').nuevo);
-ok('...la búsqueda sigue funcionando encima del modo nuevo', G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { q:'PAG-D2' }) }),'facturas').filas.length===0 && G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { q:'PAG-D4' }) }),'facturas').filas.length===3);
+ok('...la búsqueda sigue funcionando encima del modo nuevo', G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { q:'PAG-D2' }) }),'facturas').filas.length===0 && G._qbVer(Object.assign({}, DNu, { st:Object.assign({}, DNu.st, { q:'PAG-D4' }) }),'facturas').filas.length===4);
 const regN=G.qbDescargaRegistro('facturas','csv',DNu,VN,'2026-11-02T15:00:00.000Z','JESUS');
 ok('...la descarga de lo nuevo anota desde cuándo y cuántas fueron', regN.modo==='nuevo' && regN.desde===viernes && regN.cantidad===1 && regN.hasta==='PAG-D4 del 09/10/2026');
 ok('...el 02 (catálogo) no se filtra nunca', G.qbNuevosDesde(DNu,'servicios',viernes)===null && G._qbVer(DNu,'servicios').filas.length===DNu.filas.servicios.length);
@@ -306,9 +309,9 @@ ok('...y cuentan las compras de motos del mes que no van (2 egresos, $1.200), pa
 // ── Los archivos ───────────────────────────────────────────────────────────────────────────────────────────
 const csv=G.qbCsvTexto(G.QB_ARCHIVOS.facturas.enc, fc);
 ok('CSV: separado por ";" con CRLF y CRLF al final, como el del contador', csv.split('\r\n').length===fc.length+2 && csv.endsWith('\r\n') && !/[^\r]\n/.test(csv));
-ok('...el encabezado exacto de la plantilla 03', csv.split('\r\n')[0]==='Nº Factura;Cliente;Fecha Factura;Fecha Vcmto.;Terminos;Producto / Servicio;Descripcion;ItemQuantity;ItemRate;*ItemAmount;*ItemTaxCode;ItemTaxAmount;Currency;Service Date;Note to customer');
+ok('...el encabezado exacto de la plantilla 03', csv.split('\r\n')[0]==='* Invoice No;*Customer;* Invoice Date;* Due Date;Terms;Item(Product/Service);ItemDescription;ItemQuantity;ItemRate;*ItemAmount;*ItemTaxCode;ItemTaxAmount;Currency;Service Date;Note to customer');
 const b=G.qbWin1252(csv);
-ok('...en Windows-1252: "Nº" es N + byte BA, como en el archivo del contador', b[0]===0x4E && b[1]===0xBA && b[2]===0x20 && b.length===csv.length);
+ok('...en Windows-1252: el "Nº" de "CONTRATO Nº" es N + byte BA, como en el archivo del contador, y el encabezado nuevo es solo ASCII', b.length===csv.length && Array.from(b).some((x,i)=>x===0xBA && b[i-1]===0x4E) && b[0]===0x2A && !/[^\x00-\x7F]/.test(csv.split('\r\n')[0]));
 const raro=G.qbWin1252('ÑÁé€—😀');
 ok('...Ñ, acentos, € y raya larga a su byte; lo que no existe en 1252 queda "?"', [...raro].join(',')===[0xD1,0xC1,0xE9,0x80,0x97,0x3F].join(','));
 ok('...un texto con ";" va entre comillas para no romper las columnas', G.qbCsvTexto(['a','b'], [['x;y','z"w']]).split('\r\n')[1]==='"x;y";"z""w"');
@@ -326,9 +329,9 @@ ok('...cada archivo con la hoja de su plantilla', G.qbHoja('servicios',[]).name=
 
 // ── La búsqueda elige facturas enteras ─────────────────────────────────────────────────────────────────────
 const V=G._qbVer(Object.assign({}, D, { st:{ q:'M-154' } }), 'facturas');
-ok('buscar un contrato trae sus facturas con todas sus líneas', V.filtrado && V.filas.length===6 && V.filas.every(r=>/^(PAG-2|PAG-3)$/.test(r[0])));
+ok('buscar un contrato trae sus facturas con todas sus líneas', V.filtrado && V.filas.length===8 && V.filas.every(r=>/^(PAG-2|PAG-3)$/.test(r[0])));
 const VC=G._qbVer(Object.assign({}, D, { st:{ q:'M-154' } }), 'contado');
-ok('...y en el 04 sus recibos enteros', VC.filtrado && VC.filas.length===3 && VC.filas.every(r=>r[0]==='PAG-1'));
+ok('...y en el 04 sus recibos enteros', VC.filtrado && VC.filas.length===4 && VC.filas.every(r=>r[0]==='PAG-1'));
 const V6=G._qbVer(Object.assign({}, D, { st:{ q:'papeleria' } }), 'compras');
 ok('...y en el 06 también (ignorando acentos)', V6.filas.length===2 && V6.filas.every(r=>r[0]==='A-77'));
 
@@ -473,6 +476,23 @@ ok('cada archivo lleva el rótulo verde "YA DESCARGADO A QUICKBOOKS" o gris "NO 
   ok('06 reparto: el total de la factura no cambia', cerca(bR.monto,30) && cerca(bR.iva,4.8));
   const partes=G._qbRepartirLineas([{ monto:100, codigo:'x', iva:16 }], [{ categoria:'material-de-limpieza', monto:1 }, { categoria:'material-de-oficina', monto:1 }, { categoria:'condominios', monto:1 }], []);
   ok('06 reparto: los centavos del redondeo quedan en la primera parte (33,34 + 33,33 + 33,33)', partes.length===3 && partes[0].monto===33.34 && partes[1].monto===33.33 && cerca(partes.reduce((a,l)=>a+l.monto,0),100) && cerca(partes.reduce((a,l)=>a+l.iva,0),16));
+}
+
+// ── 03 y 04 como los pide QuickBooks (el contador, 13-nov-2026): ruta completa del servicio y el IVA como una línea ──
+{
+  const ej=[{ k:'cartera', servicio:'CARTERA DE FINANCIAMIENTO', desc:'AMORTIZACION DE FINANCIAMIENTO', monto:39.35, iva:0, codigo:'No VAT (0%)' },
+    { k:'intereses', servicio:'INTERESES DE FINANCIAMIENTO', desc:'INTERESES POR FINANCIAMIENTO', monto:3.45, iva:0, codigo:'No VAT (0%)' },
+    { k:'protect', servicio:'INGRESOS POR PAGASI PROTEC', desc:'INGRESOS POR PAGASI PROTEC', monto:27.76, iva:4.44, codigo:'16.0% S (16%)' }];
+  const filas=G._qbFilasFactura({ numero:'PAG-1790710635282', cliente:'JEAN MANUEL DURAN GODOY', fecha:'2026-09-29', vence:'2026-10-14', servicio:'2026-10-08', nota:'CONTRATO Nº M-011', lineas:ej });
+  const txt=G.qbCsvTexto(G.QB_ARCHIVOS.facturas.enc, filas).split('\r\n');
+  ok('03: el ejemplo del contador sale igual que su archivo, línea por línea (fechas con dos dígitos)', txt[0]==='* Invoice No;*Customer;* Invoice Date;* Due Date;Terms;Item(Product/Service);ItemDescription;ItemQuantity;ItemRate;*ItemAmount;*ItemTaxCode;ItemTaxAmount;Currency;Service Date;Note to customer'
+    && txt[1]==='PAG-1790710635282;JEAN MANUEL DURAN GODOY;29/09/2026;14/10/2026;Net 15;Income:CARTERA DE FINANCIAMIENTO;AMORTIZACION DE FINANCIAMIENTO;1;39.35;39.35;No VAT (0%);0;USD;08/10/2026;CONTRATO Nº M-011'
+    && txt[2]==='PAG-1790710635282;;;;;Service ( 59 ):INTERESES DE FINANCIAMIENTO;INTERESES POR FINANCIAMIENTO;1;3.45;3.45;No VAT (0%);0;;;'
+    && txt[3]==='PAG-1790710635282;;;;;Service ( 60 ):INGRESOS POR PAGASI PROTEC;INGRESOS POR PAGASI PROTEC;1;27.76;27.76;No VAT (0%);0;;;'
+    && txt[4]==='PAG-1790710635282;;;;;Service ( 60 ):16.0% S (16%);IVA DEBITO FISCAL;1;4.44;4.44;No VAT (0%);0;;;');
+  ok('...la factura suma lo mismo que antes: 39,35 + 3,45 + 27,76 + 4,44 de IVA = 75,00', cerca(filas.reduce((a,r)=>a+r[9],0), 75) && filas.every(r=>r[11]===0));
+  ok('...un servicio que no está en la lista (mora, otros servicios, IGTF) sale con su nombre de siempre, y sin IVA no hay línea extra', G.qbLineasArchivo([{ servicio:'COMISION POR MOROSIDAD', desc:'x', monto:5, iva:0, codigo:'No VAT (0%)' }]).map(l=>l.item).join()==='COMISION POR MOROSIDAD');
+  ok('...el reparto y el IVA se calculan igual que siempre: qbLineas no cambió (el Protect sigue con su IVA de 16%)', L[2].codigo==='16.0% S (16%)' && cerca(L[2].iva, 3.42) && D.controles.facturas.concat(D.controles.contado).some(c=>/IVA/.test(c.concepto)));
 }
 
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');

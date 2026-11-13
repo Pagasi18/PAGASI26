@@ -64,7 +64,8 @@ var QB_ARCHIVOS = {
     enc: ['Nombre del Servicio', 'Categoria', 'Tipo de Servicio', 'Unidad en stock', 'Descripcion de Ventas', 'Tarifa', 'Cuenta de ingresos', 'Descripcion en Compras', 'Costo de compra', 'Cuenta de gastos', 'Existencias', 'Cantidad a la fecha', 'Punto de reabastecimiento', 'Codigo IVA Ventas', 'La tasa de ventas incluye impuestos', 'Codigo IVA Compra', 'La tasa de compra incluye impuestos', 'Proveedor preferido', 'Cuenta de activos de inventario'],
     anchos: [26.33, 11.55, 19.11, 11.55, 38.55, 11.55, 46.22, 29, 15.44, 46.22, 11.55, 17.66, 24.11, 16.55, 32.11, 17.44, 33.22, 17.89, 27.89], montos: [] },
   facturas:    { n: '03', titulo: 'Factura de Servicios a clientes · Crédito', archivo: '03. Factura de Servicios a clientes Credito', hoja: '03. Facturas a Credito', fmt: 'csv',
-    enc: ['Nº Factura', 'Cliente', 'Fecha Factura', 'Fecha Vcmto.', 'Terminos', 'Producto / Servicio', 'Descripcion', 'ItemQuantity', 'ItemRate', '*ItemAmount', '*ItemTaxCode', 'ItemTaxAmount', 'Currency', 'Service Date', 'Note to customer'],
+    // Encabezados en inglés, tal cual los del archivo del contador del 13-nov-2026 (con sus espacios): así QuickBooks los reconoce solo
+    enc: ['* Invoice No', '*Customer', '* Invoice Date', '* Due Date', 'Terms', 'Item(Product/Service)', 'ItemDescription', 'ItemQuantity', 'ItemRate', '*ItemAmount', '*ItemTaxCode', 'ItemTaxAmount', 'Currency', 'Service Date', 'Note to customer'],
     anchos: [19, 34, 12, 12, 9, 26, 30, 8, 10, 11, 15, 11, 9, 12, 40], montos: [8, 9, 11] },
   // La plantilla "03. Factura de Servicios a clientes Contado.csv" del contador (29-oct-2026): un recibo de venta
   // (Sales Receipt) lleva el cobro y la cuenta donde entró el dinero en un solo movimiento
@@ -388,19 +389,40 @@ function qbFacturas(ctx){
   return { docs: docs, contado: contado, iniciales: iniciales, sinCredito: sinCredito, credsFacturados: credsFacturados };
 }
 
+// CÓMO SALEN LAS LÍNEAS EN LOS ARCHIVOS 03 Y 04 (el contador, 13-nov-2026, "Quickbooks cambios para factura de
+// servicios.csv"). Dos cosas que pide QuickBooks, y que son solo del archivo: el reparto y el IVA se calculan igual.
+//  · El servicio va con su ruta completa, como quedó creado en QuickBooks. Hay que respetar cada carácter y cada espacio.
+//  · "Como el sistema está configurado en pleno con moneda USD, el IVA no se puede manejar como un tax": la línea
+//    gravada sale sin impuesto (No VAT) y su IVA va en una línea aparte, como un servicio más: IVA DEBITO FISCAL.
+// Un servicio que no esté en esta lista sale con su nombre de siempre.
+var QB_ITEM_RUTA = {
+  'CARTERA DE FINANCIAMIENTO': 'Income:CARTERA DE FINANCIAMIENTO',
+  'INTERESES DE FINANCIAMIENTO': 'Service ( 59 ):INTERESES DE FINANCIAMIENTO',
+  'INGRESOS POR PAGASI PROTEC': 'Service ( 60 ):INGRESOS POR PAGASI PROTEC'
+};
+var QB_ITEM_IVA_PREFIJO = 'Service ( 60 ):', QB_ITEM_IVA_DESC = 'IVA DEBITO FISCAL';
+function qbLineasArchivo(lineas){
+  var out = [];
+  (lineas || []).forEach(function(l){
+    var iva = _qbR2(l.iva);
+    out.push({ item: QB_ITEM_RUTA[l.servicio] || l.servicio, desc: l.desc, monto: l.monto });
+    if(iva > 0.004) out.push({ item: QB_ITEM_IVA_PREFIJO + l.codigo, desc: QB_ITEM_IVA_DESC, monto: iva });
+  });
+  return out;
+}
 function _qbFilasFactura(d){
-  return d.lineas.map(function(l, i){
+  return qbLineasArchivo(d.lineas).map(function(l, i){
     var cab = i === 0;
-    return [d.numero, cab ? d.cliente : '', cab ? _qbDMY(d.fecha) : '', cab ? _qbDMY(d.vence) : '', cab ? QB_TERMINOS : '', l.servicio, l.desc, 1, l.monto, l.monto, l.codigo, l.iva,
+    return [d.numero, cab ? d.cliente : '', cab ? _qbDMY(d.fecha) : '', cab ? _qbDMY(d.vence) : '', cab ? QB_TERMINOS : '', l.item, l.desc, 1, l.monto, l.monto, QB_SIN_IVA, 0,
       cab ? QB_MONEDA : '', cab ? _qbDMY(d.servicio) : '', cab ? d.nota : ''];
   });
 }
 // El recibo de venta (04): como la factura, pero sin términos ni vencimiento y con la cuenta de depósito en cada línea
 // (así viene en la plantilla del contador). N° = el del pago; fecha = la del cobro; Memo = contrato y factura fiscal.
 function _qbFilasContado(d){
-  return d.lineas.map(function(l, i){
+  return qbLineasArchivo(d.lineas).map(function(l, i){
     var cab = i === 0;
-    return [d.numero, cab ? d.cliente : '', cab ? _qbDMY(d.fecha) : '', d.deposito.cuenta, '', cab ? d.nota : '', l.servicio, l.desc, 1, l.monto, l.monto, l.codigo, l.iva,
+    return [d.numero, cab ? d.cliente : '', cab ? _qbDMY(d.fecha) : '', d.deposito.cuenta, '', cab ? d.nota : '', l.item, l.desc, 1, l.monto, l.monto, QB_SIN_IVA, 0,
       cab ? QB_MONEDA : '', cab ? _qbDMY(d.servicio) : ''];
   });
 }
@@ -1171,4 +1193,4 @@ function qbDescargarTodo(){
 
 if(typeof module !== 'undefined' && module.exports) module.exports = { qbPartirPago: qbPartirPago, qbLineas: qbLineas, qbSaldoCredito: qbSaldoCredito, qbClientes: qbClientes, qbFacturas: qbFacturas,
   qbProveedores: qbProveedores, qbCompras: qbCompras, qbDatos: qbDatos, qbCsvTexto: qbCsvTexto, qbWin1252: qbWin1252, qbHoja: qbHoja, QB_ARCHIVOS: QB_ARCHIVOS, QB_SERVICIOS: QB_SERVICIOS,
-  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde, qbPdfFactura: qbPdfFactura, qbPdfFilasFactura: qbPdfFilasFactura, qbPdfsCompras: qbPdfsCompras, _qbMonto: _qbMonto };
+  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde, qbLineasArchivo: qbLineasArchivo, qbPdfFactura: qbPdfFactura, qbPdfFilasFactura: qbPdfFilasFactura, qbPdfsCompras: qbPdfsCompras, _qbMonto: _qbMonto };
