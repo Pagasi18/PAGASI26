@@ -444,6 +444,15 @@ ok('cada archivo lleva el rótulo verde "YA DESCARGADO A QUICKBOOKS" o gris "NO 
   const b0=D.compras.bills[0], p0=pdfs[0].data;
   ok('06 zip: el PDF es el reporte horizontal con las columnas de QuickBooks y una sola factura, montos como 1,234.56', p0.indexOf('('+G._qbMonto(b0.lineas[0].monto)+')')>-1 && p0.indexOf('('+b0.numero+')')>-1 && /\(\*BillNo\)/.test(p0) && /\(\*Supplier\)/.test(p0) && /792 612/.test(p0));
   ok('formato de moneda 1,234.56 (miles con comas, céntimos con punto)', G._qbMonto(1234.56)==='1,234.56' && G._qbMonto(1234567.5)==='1,234,567.50' && G._qbMonto(0.1+0.2)==='0.30' && G._qbMonto(999)==='999.00');
+  // El contador (13-nov-2026): el PDF es solo la tabla, sin membrete de Pagasi, y separa el gasto del IVA en dos movimientos
+  ok('06 zip: el PDF no lleva logo, nombre ni RIF de la empresa, ni título, período o aviso (QuickBooks tomaba a Pagasi por el proveedor)', pdfs.every(x=>!/Pagasi|PAGASI|QUICKBOOKS|QuickBooks|RIF|REPORTE|Per\\355odo|CONFIDENCIAL|Generado/.test(x.data)));
+  const FF=G.qbPdfFilasFactura(b0);
+  ok('06 zip: columnas Category, Category2 y LineAmount2 en lugar de *Account, *LineTaxCode y LineTaxAmount', FF.enc.join('|')==='*BillNo|*Supplier|*BillDate|*DueDate|Terms|Location|Memo|Category|LineDescription|*LineAmount|Category2|LineAmount2|Currency' && /\(Category\)/.test(p0) && /\(Category2\)/.test(p0) && /\(LineAmount2\)/.test(p0) && !/LineTaxCode|LineTaxAmount|\(\*Account\)/.test(p0));
+  const conIva=D.compras.bills.find(b=>b.lineas.some(l=>l.iva>0)), Fi=G.qbPdfFilasFactura(conIva), li=Fi.filas.find(r=>r[11]>0);
+  ok('06 zip: la línea con IVA lleva la cuenta 1113004 IVA CREDITO FISCAL y su monto, en vez del código 16.0% S (16%)', li[10]==='1113004 IVA CREDITO FISCAL' && li[11]>0 && !Fi.filas.some(r=>/16\.0%/.test(String(r[10]))));
+  const sinIva=G.qbPdfFilasFactura({ numero:'X', proveedor:'P', fecha:'2026-10-01', vence:'2026-10-16', cuenta:'C', desc:'d', lineas:[{ monto:10, codigo:'No VAT (0%)', iva:0 }] }).filas[0];
+  ok('06 zip: una línea sin IVA deja Category2 y LineAmount2 vacíos (un solo movimiento)', sinIva[10]==='' && sinIva[11]==='' && sinIva[9]===10);
+  ok('06 zip: el CSV y la lista del 06 siguen con las columnas de la plantilla de QuickBooks', G.QB_ARCHIVOS.compras.enc.indexOf('*Account')===7 && G.QB_ARCHIVOS.compras.enc.indexOf('*LineTaxCode')===10 && D.filas.compras.some(r=>r[10]==='16.0% S (16%)'));
   const zip=G._zipStore(pdfs), total=zip.reduce((a,c)=>a+c.length,0);
   ok('06 zip: el zip trae todos los PDF', total>pdfs.reduce((a,x)=>a+x.data.length,0));
   if(process.env.QB_ZIP_OUT) fs.writeFileSync(process.env.QB_ZIP_OUT, Buffer.concat(zip.map(c=>Buffer.from(c))));

@@ -1086,25 +1086,25 @@ function _qbPdfPartir(s, ancho, tam){   // parte un texto en líneas que caben e
   if(l) out.push(l);
   return out;
 }
-// El mismo reporte del botón "PDF" del 06 (hoja horizontal, las 13 columnas de la plantilla de QuickBooks), pero con una
-// sola factura: el formato que el contador probó y QuickBooks le reconoce (Adam, 10-nov-2026: "el formato exacto").
-// b: una factura de qbCompras; D: lo de qbDatos con .empresa y .st; generado: el texto de fecha y hora
-function qbPdfFactura(b, D, generado){
-  var A = QB_ARCHIVOS.compras, emp = (D && D.empresa) || {}, per = _lbPeriodoVE(((D && D.st) || {}).periodo), ops = [];
-  var titulo = 'QuickBooks · ' + A.n + '. ' + A.titulo + (per ? ' ' + per : '');
-  var t = function(x, y, txt, tam, negrita, color){ ops.push((color || '0.07 0.07 0.07') + ' rg BT /' + (negrita ? 'F2' : 'F1') + ' ' + tam + ' Tf ' + (+x).toFixed(2) + ' ' + (+y).toFixed(2) + ' Td (' + _qbPdfTxt(txt) + ') Tj ET'); };
-  var GRIS = '0.42 0.45 0.50', AZUL = '0.145 0.388 0.922';
-  t(30, 568, 'Pagasi', 22, true, AZUL); t(112, 578, 'Pagasi', 9, true, AZUL); t(112, 566, 'SISTEMA DE GESTIÓN DE CRÉDITO', 6.5, false, GRIS);
-  t(30, 546, 'REPORTE', 6.5, true, GRIS);
-  t(30, 528, titulo, 15, true);
-  if(generado) t(30, 514, 'Generado: ' + generado, 8, false, GRIS);
-  ops.push(AZUL + ' RG 1.2 w 30 505 m 762 505 l S');
-  t(30, 490, _qbTxt(emp.nombre), 10.5, true);
-  t(30, 478, 'RIF: ' + _qbTxt(emp.rif), 8.5);
-  t(30, 466, 'QUICKBOOKS · ' + A.n + '. ' + A.titulo.toUpperCase(), 8.5, true);
-  t(30, 454, 'Período: ' + per + ' · Cifras en dólares (USD)', 8.5);
-  // la tabla: los mismos encabezados y las mismas filas del CSV, con los montos como 1,234.56
-  var W = [46, 112, 46, 46, 30, 36, 28, 90, 95, 50, 57, 58, 38], TAM = 6.5, ALTO = 8, y = 440;
+// El PDF de UNA factura de proveedor para que QuickBooks lo lea al subirlo. El contador (13-nov-2026): con el membrete
+// de Pagasi arriba, QuickBooks a veces tomaba a Pagasi por el proveedor, y no separaba el gasto del IVA. Ahora el
+// documento es SOLO la tabla, sin logo, sin nombre ni RIF de la empresa, sin título ni período, y con los nombres de
+// columna que él pidió para que QuickBooks registre dos movimientos: el gasto (Category + LineAmount) y el IVA
+// (Category2 + LineAmount2, a la cuenta 1113004 IVA CREDITO FISCAL). Una línea sin IVA deja Category2 y LineAmount2 vacíos.
+// Esto es solo el PDF del zip: el CSV, el Excel y el PDF de lista del 06 siguen con las columnas de la plantilla.
+var QB_PDF_CUENTA_IVA = '1113004 IVA CREDITO FISCAL';
+var QB_PDF_COLUMNAS = { '*Account': 'Category', '*LineTaxCode': 'Category2', 'LineTaxAmount': 'LineAmount2' };
+function qbPdfFilasFactura(b){   // { enc, filas } tal como salen en el PDF
+  var A = QB_ARCHIVOS.compras;
+  return { enc: A.enc.map(function(e){ return QB_PDF_COLUMNAS[e] || e; }),
+    filas: _qbFilasCompra(b).map(function(r){ var x = r.slice(), conIva = typeof x[11] === 'number' && x[11] > 0; x[10] = conIva ? QB_PDF_CUENTA_IVA : ''; if(!conIva) x[11] = ''; return x; }) };
+}
+// b: una factura de qbCompras
+function qbPdfFactura(b){
+  var A = QB_ARCHIVOS.compras, ops = [];
+  var t = function(x, y, txt, tam, negrita){ ops.push('0.07 0.07 0.07 rg BT /' + (negrita ? 'F2' : 'F1') + ' ' + tam + ' Tf ' + (+x).toFixed(2) + ' ' + (+y).toFixed(2) + ' Td (' + _qbPdfTxt(txt) + ') Tj ET'); };
+  // la tabla: una fila de encabezados y las líneas de la factura, con los montos como 1,234.56
+  var W = [44, 96, 44, 44, 28, 34, 26, 88, 84, 48, 100, 52, 44], TAM = 6.5, ALTO = 8, y = 572;
   var fila = function(celdas, cab){
     var lineas = celdas.map(function(c, i){ var l = _qbPdfPartir(c.txt, W[i] - 6, TAM * (cab ? 1.07 : 1)); return l.length ? l : ['']; });
     var h = Math.max.apply(null, lineas.map(function(l){ return l.length; })) * ALTO + 5, x = 30;
@@ -1118,15 +1118,9 @@ function qbPdfFactura(b, D, generado){
     });
     y -= h;
   };
-  fila(A.enc.map(function(e){ return { txt: e }; }), true);
-  _qbFilasCompra(b).forEach(function(r){ fila(r.map(function(v, i){ var num = typeof v === 'number'; return { txt: v === '' || v == null ? '' : (num && A.montos.indexOf(i) > -1 ? _qbMonto(v) : String(v)), der: num }; })); });
-  // el aviso y el pie del reporte
-  y -= 22;
-  ops.push('0.97 0.98 0.99 rg 0.89 0.91 0.94 RG 0.5 w 30 ' + (y - 40) + ' 732 40 re B 0.86 0.15 0.15 rg 30 ' + (y - 40) + ' 2.5 40 re f');
-  t(42, y - 15, 'DOCUMENTO CONFIDENCIAL', 7.5, true, '0.86 0.15 0.15');
-  t(42, y - 28, 'Este reporte contiene información financiera reservada de Pagasi. Prohibida su divulgación, copia o distribución total o parcial sin autorización. Generado en tiempo real desde el sistema Pagasi.', 7, false, GRIS);
-  t(30, 28, 'Pagasi · ' + titulo, 7, false, GRIS);
-  if(generado){ var pie = 'Confidencial · ' + generado; t(762 - _qbPdfAncho(pie, 7), 28, pie, 7, false, GRIS); }
+  var F = qbPdfFilasFactura(b);
+  fila(F.enc.map(function(e){ return { txt: e }; }), true);
+  F.filas.forEach(function(r){ fila(r.map(function(v, i){ var num = typeof v === 'number'; return { txt: v === '' || v == null ? '' : (num && A.montos.indexOf(i) > -1 ? _qbMonto(v) : String(v)), der: num }; })); });
   var cont = ops.join('\n');
   var objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
@@ -1142,12 +1136,12 @@ function qbPdfFactura(b, D, generado){
 }
 // Los PDF de lo que se ve en el 06 (respeta "solo lo nuevo" y la búsqueda): [{ name, data }]
 function qbPdfsCompras(D, V){
-  var ver = {}, usados = {}, generado = typeof Intl !== 'undefined' ? new Date().toLocaleString('es-VE').replace(/[\u00A0\u202F]/g, ' ') : '';
+  var ver = {}, usados = {};
   V.filas.forEach(function(r){ ver[r[0] + '|' + r[1]] = 1; });
   return ((D.compras || {}).bills || []).filter(function(b){ return ver[b.numero + '|' + b.proveedor]; }).map(function(b){
     var base = (b.proveedor + ' - Factura ' + b.numero).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ._-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 110) || 'Factura';
     var n = usados[base.toUpperCase()] = (usados[base.toUpperCase()] || 0) + 1;
-    return { name: base + (n > 1 ? ' (' + n + ')' : '') + '.pdf', data: qbPdfFactura(b, D, generado) };
+    return { name: base + (n > 1 ? ' (' + n + ')' : '') + '.pdf', data: qbPdfFactura(b) };
   });
 }
 function qbZipFacturasProveedor(D){
@@ -1177,4 +1171,4 @@ function qbDescargarTodo(){
 
 if(typeof module !== 'undefined' && module.exports) module.exports = { qbPartirPago: qbPartirPago, qbLineas: qbLineas, qbSaldoCredito: qbSaldoCredito, qbClientes: qbClientes, qbFacturas: qbFacturas,
   qbProveedores: qbProveedores, qbCompras: qbCompras, qbDatos: qbDatos, qbCsvTexto: qbCsvTexto, qbWin1252: qbWin1252, qbHoja: qbHoja, QB_ARCHIVOS: QB_ARCHIVOS, QB_SERVICIOS: QB_SERVICIOS,
-  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde, qbPdfFactura: qbPdfFactura, qbPdfsCompras: qbPdfsCompras, _qbMonto: _qbMonto };
+  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde, qbPdfFactura: qbPdfFactura, qbPdfFilasFactura: qbPdfFilasFactura, qbPdfsCompras: qbPdfsCompras, _qbMonto: _qbMonto };

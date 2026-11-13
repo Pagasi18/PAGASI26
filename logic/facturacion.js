@@ -536,6 +536,13 @@ function imprimirFactura(facId, formato){
   if(!fac){ toast('Factura no encontrada','error'); return; }
   var tasaBs = window._tasaBsGlobal || 0;
   var totalBs = tasaBs ? (fac.total * tasaBs).toFixed(2) : '';
+  // Si el pago se recibió en bolívares (multimoneda, 11-nov-2026), el recibo dice los bolívares que entraron de verdad
+  var _pagoFac = (S.pagos||[]).find(function(x){ return x.id === fac.pagoId; });
+  if(_pagoFac && typeof mmEsBs==='function' && mmEsBs(_pagoFac) && Math.abs((parseFloat(_pagoFac.monto)||0) - (parseFloat(fac.total)||0)) < 0.005) totalBs = (parseFloat(_pagoFac.montoBs)||0).toFixed(2);
+  // RECIBO DE CAJA (Adam, 13-nov-2026: "sean recibos de caja, no factura, y den el monto total, no con el IVA").
+  // El documento que se imprime ya no dice FACTURA ni N° de control, ni desglosa subtotal, IVA o IGTF: solo el total
+  // y su equivalente en bolívares. El registro guardado no cambia.
+  var AZ = '#2563EB';
   var anuladaWatermark = fac.anulada
     ? '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:80px;color:rgba(255,0,0,.18);font-weight:900;letter-spacing:8px;pointer-events:none;z-index:9999;white-space:nowrap">ANULADA</div>'
     : '';
@@ -564,9 +571,8 @@ function imprimirFactura(facId, formato){
       + (fac.emisor.tel ? '<div style="font-size:9px">Tel: '+fac.emisor.tel+'</div>' : '')
       + '</div>'
       + '<div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:2mm 0;text-align:center;margin-bottom:3mm">'
-      + '<div style="font-weight:900;font-size:12px">FACTURA</div>'
+      + '<div style="font-weight:900;font-size:12px">RECIBO DE CAJA</div>'
       + '<div style="font-size:11px;font-weight:700">N° '+fac.numero+'</div>'
-      + '<div style="font-size:9px">Control: '+fac.numeroControl+'</div>'
       + '</div>'
       + '<div style="font-size:9.5px;line-height:1.5;margin-bottom:3mm">'
       + '<div><strong>Fecha:</strong> '+fmtFecha(fac.fechaEmision)+'</div>'
@@ -576,13 +582,11 @@ function imprimirFactura(facId, formato){
       + '</div>'
       + '<div style="border-top:1px dashed #000;padding-top:2mm;margin-bottom:3mm;font-size:10px">'+fac.concepto+'</div>'
       + '<div style="border-top:1px dashed #000;padding-top:2mm;font-size:10px">'
-      + '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>$'+parseFloat(fac.subtotal).toFixed(2)+'</span></div>'
-      + '<div style="display:flex;justify-content:space-between;color:#666"><span>IVA '+(fac.ivaAplica?('('+(fac.ivaRate||16)+'%)'):'(no aplica)')+':</span><span>$'+parseFloat(fac.iva||0).toFixed(2)+'</span></div>'
-      + ((fac.igtfAplica||((fac.igtf||0)>0))?'<div style="display:flex;justify-content:space-between;color:#666"><span>IGTF ('+(fac.igtfRate||3)+'%):</span><span>$'+parseFloat(fac.igtf||0).toFixed(2)+'</span></div>':'')
-      + '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:12px;border-top:1px solid #000;padding-top:1mm;margin-top:1mm"><span>TOTAL:</span><span>$'+parseFloat(fac.total).toFixed(2)+'</span></div>'
+      + '<div style="display:flex;justify-content:space-between;font-weight:900;font-size:12px"><span>TOTAL:</span><span>$'+parseFloat(fac.total).toFixed(2)+'</span></div>'
       + (totalBs ? '<div style="display:flex;justify-content:space-between;font-size:9px;color:#666"><span>Total Bs:</span><span>'+totalBs+'</span></div>' : '')
       + '</div>'
       + '<div style="text-align:center;font-size:8.5px;margin-top:4mm;font-style:italic">Son: '+_numeroALetras(fac.total)+'</div>'
+      + ((fac.metodo||fac.referencia) ? '<div style="text-align:center;font-size:8.5px;margin-top:2mm">'+(fac.metodo?'Método: '+fac.metodo:'')+(fac.metodo&&fac.referencia?' · ':'')+(fac.referencia?'Ref: '+fac.referencia:'')+'</div>' : '')
       + '<div style="text-align:center;font-size:8.5px;margin-top:2mm;color:#666">'+fmtFechaHora(fac.fechaCreacion)+'</div>'
       + '<div style="text-align:center;font-size:8px;margin-top:3mm">¡Gracias por su pago!</div>';
   } else {
@@ -596,15 +600,14 @@ function imprimirFactura(facId, formato){
       + (fac.emisor.tel ? '<div style="font-size:'+fontSize+'">Tel: '+fac.emisor.tel+'</div>' : '')
       + (fac.emisor.email ? '<div style="font-size:'+fontSize+'">'+fac.emisor.email+'</div>' : '')
       + '</td><td style="vertical-align:top;text-align:right">'
-      + '<div style="border:2px solid #1a1a1a;padding:8px 14px;display:inline-block">'
-      + '<div style="font-weight:900;font-size:'+headSize+';letter-spacing:1px">FACTURA</div>'
-      + '<div style="font-family:monospace;font-weight:700;font-size:'+headSize+';margin-top:2px">N° '+fac.numero+'</div>'
-      + '<div style="font-family:monospace;font-size:'+fontSize+';margin-top:2px">Control: '+fac.numeroControl+'</div>'
+      + '<div style="border:2px solid '+AZ+';border-radius:8px;padding:9px 16px;display:inline-block;text-align:center">'
+      + '<div style="font-weight:900;font-size:'+headSize+';letter-spacing:1px;color:'+AZ+';white-space:nowrap">RECIBO DE CAJA</div>'
+      + '<div style="font-family:monospace;font-weight:700;font-size:'+headSize+';margin-top:3px;white-space:nowrap">N° '+fac.numero+'</div>'
       + '</div>'
       + '</td></tr></table>'
       + '<table style="width:100%;border-collapse:collapse;margin-bottom:'+ (formato==='media'?'8px':'14px') +';font-size:'+fontSize+'">'
       + '<tr><td style="vertical-align:top;padding-right:12px;width:60%">'
-      + '<div style="font-weight:700;color:#666;font-size:9px;letter-spacing:.5px;margin-bottom:3px">FACTURAR A:</div>'
+      + '<div style="font-weight:700;color:#666;font-size:9px;letter-spacing:.5px;margin-bottom:3px">RECIBO DE CAJA A:</div>'
       + '<div style="font-weight:700;font-size:'+headSize+'">'+fac.cliente.nombre+'</div>'
       + (fac.cliente.ci ? '<div>C.I./RIF: '+fac.cliente.ci+'</div>' : '')
       + (fac.cliente.tel ? '<div>Tel: '+fac.cliente.tel+'</div>' : '')
@@ -614,7 +617,7 @@ function imprimirFactura(facId, formato){
       + '<div style="font-weight:700;font-size:'+headSize+'">'+fmtFecha(fac.fechaEmision)+'</div>'
       + '</td></tr></table>'
       + '<table style="width:100%;border-collapse:collapse;margin-bottom:'+ (formato==='media'?'8px':'14px') +';font-size:'+fontSize+'">'
-      + '<thead><tr style="background:#f0f0f0"><th style="text-align:left;padding:8px;border:1px solid #ccc">CONCEPTO / DESCRIPCIÓN</th><th style="text-align:right;padding:8px;border:1px solid #ccc;width:120px">MONTO</th></tr></thead>'
+      + '<thead><tr style="background:#EFF4FF"><th style="text-align:left;padding:8px;border:1px solid #ccc">CONCEPTO / DESCRIPCIÓN</th><th style="text-align:right;padding:8px;border:1px solid #ccc;width:120px">MONTO</th></tr></thead>'
       + '<tbody><tr><td style="padding:10px;border:1px solid #ccc;vertical-align:top">'+fac.concepto+'</td><td style="padding:10px;border:1px solid #ccc;text-align:right;font-family:monospace;font-weight:700">$'+parseFloat(fac.total).toFixed(2)+'</td></tr></tbody>'
       + '</table>'
       + '<table style="width:100%;border-collapse:collapse;font-size:'+fontSize+'">'
@@ -624,15 +627,13 @@ function imprimirFactura(facId, formato){
       + (fac.referencia ? '<div style="font-size:9.5px"><strong>Referencia:</strong> '+fac.referencia+'</div>' : '')
       + '</td><td style="vertical-align:top;text-align:right;width:200px">'
       + '<table style="width:100%;border-collapse:collapse">'
-      + '<tr><td style="text-align:left;padding:3px 8px">Subtotal:</td><td style="text-align:right;padding:3px 8px;font-family:monospace">$'+parseFloat(fac.subtotal).toFixed(2)+'</td></tr>'
-      + '<tr><td style="text-align:left;padding:3px 8px;color:#666">IVA '+(fac.ivaAplica?('('+(fac.ivaRate||16)+'%)'):'(no aplica)')+':</td><td style="text-align:right;padding:3px 8px;font-family:monospace;color:#666">$'+parseFloat(fac.iva||0).toFixed(2)+'</td></tr>'
-      + ((fac.igtfAplica||((fac.igtf||0)>0))?'<tr><td style="text-align:left;padding:3px 8px;color:#666">IGTF ('+(fac.igtfRate||3)+'%):</td><td style="text-align:right;padding:3px 8px;font-family:monospace;color:#666">$'+parseFloat(fac.igtf||0).toFixed(2)+'</td></tr>':'')
-      + '<tr style="border-top:2px solid #1a1a1a"><td style="text-align:left;padding:6px 8px;font-weight:900;font-size:'+headSize+'">TOTAL:</td><td style="text-align:right;padding:6px 8px;font-family:monospace;font-weight:900;font-size:'+headSize+'">$'+parseFloat(fac.total).toFixed(2)+'</td></tr>'
+      + '<tr><td style="text-align:left;padding:6px 8px;font-weight:900;font-size:'+headSize+'">TOTAL:</td><td style="text-align:right;padding:6px 8px;font-family:monospace;font-weight:900;font-size:'+headSize+'">$'+parseFloat(fac.total).toFixed(2)+'</td></tr>'
       + (totalBs ? '<tr><td style="text-align:left;padding:3px 8px;color:#666;font-size:9.5px">Total en Bs:</td><td style="text-align:right;padding:3px 8px;font-family:monospace;color:#666;font-size:9.5px">'+totalBs+'</td></tr>' : '')
+      + '<tr><td colspan="2" style="border-top:2px solid '+AZ+';padding:0"></td></tr>'
       + '</table></td></tr></table>'
       + '<div style="text-align:center;font-size:8.5px;color:#999;margin-top:'+(formato==='media'?'8px':'18px')+';padding-top:'+(formato==='media'?'4px':'8px')+';border-top:1px solid #ddd">Emitida el '+fmtFechaHora(fac.fechaCreacion)+'</div>';
   }
-  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Factura '+fac.numero+'</title>'
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Recibo de caja '+fac.numero+'</title>'
     + '<style>'
     + '@page{size:'+pageSize+';margin:0}'
     + '*{box-sizing:border-box;margin:0;padding:0}'
