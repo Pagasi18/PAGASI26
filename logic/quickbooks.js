@@ -356,6 +356,84 @@ function _qbTipoCobro(p, cobrado, cuota, tocadas){
   return { contado: entero, mixto: !entero && cobrado > cuota + QB_TOLERANCIA_CONTADO, liquidacion: false, sinAplicar: false, cuotasPagadas: entero ? k : 0, redondeo: entero ? dif : 0 };
 }
 
+// ══════════════ N° DE FACTURA CORRELATIVO (el contador, 16-nov-2026) ══════════════
+// "Tenemos que comenzar a generar las facturas de número correlativo (10 dígitos)… este número [PAG-1790710635282] no
+// podrá servir como correlativo… esta factura sería la Factura Nº 0000000001 (la primera emitida en pagasi 26)".
+// Decidido con Adam el 16-nov-2026:
+//  · Solo PAGASI 26 (la que va a QuickBooks). PAGASI 18 sigue con el número del cobro hasta que Coromoto confirme.
+//  · Una sola numeración para el 03 y el 04, en el orden en que salen: por fecha del cobro y, el mismo día, por registro.
+//  · El número se asigna una vez y no cambia nunca: un cobro eliminado deja su hueco, y uno anotado después con fecha
+//    atrasada toma el siguiente número libre. Renumerar cambiaría números que ya están en QuickBooks.
+//  · El Recibo de Caja impreso NO lleva este número ("el recibo de caja es una cosa y la factura otra").
+// Los números NO se guardan en el pago: viven en contadores/facturas-AAAA ({ ultimo, nros: { idDelPago: n } }), donde
+// las Reglas no dejan borrar ni bajar el contador, y editar un pago no los puede pisar. Los pagos no se tocan.
+var QB_NRO_DIGITOS = 10;
+var _qbNros = null, _qbNrosLeyendo = false, _qbNrosError = false;   // null = todavía no se leyeron
+function qbCorrelativoActivo(){ try { var m = typeof _marcaEmpresa === 'function' ? _marcaEmpresa() : null; return !!(m && m.marca === '26'); } catch(e){ return false; } }
+function _qbNroTxt(n){ n = parseInt(n, 10); return n > 0 ? String(n).padStart(QB_NRO_DIGITOS, '0') : ''; }
+function _qbNroUltimo(nros){ var u = 0; Object.keys(nros || {}).forEach(function(k){ var n = parseInt(nros[k], 10); if(n > u) u = n; }); return u; }
+// Los cobros que van al 03 o al 04 (de cualquier mes) y todavía no tienen número, en el orden en que se numeran
+function qbSinNumerar(ctx){
+  var credPorId = {}, nros = ctx.nros || {};
+  (ctx.creds || []).forEach(function(c){ if(c) credPorId[String(c.id)] = c; });
+  return (ctx.pagos || []).filter(function(p){ return p && !p.eliminado && p.estado === 'confirmado' && !_qbEsInicial(p) && credPorId[String(p.cred || p.creditoId)] && !(parseInt(nros[p.id], 10) > 0); })
+    .sort(function(a, b){ return String(a.fecha).localeCompare(String(b.fecha)) || String(a.id).localeCompare(String(b.id)); });
+}
+// Qué número le tocaría a cada uno (para mostrarlo antes de guardar; el definitivo lo da la base, en una transacción)
+function qbNumerarPlan(ctx){
+  var u = _qbNroUltimo(ctx.nros);
+  return qbSinNumerar(ctx).map(function(p, i){ return { id: p.id, fecha: _qbISO(p.fecha), cred: p.cred || p.creditoId, cli: p.cli || '', monto: _qbR2(p.monto), nro: u + i + 1 }; });
+}
+function _qbCtxNros(){ return { creds: S.creds || [], pagos: S.pagos || [], nros: _qbNros || {} }; }
+function _qbCargarNros(){
+  if(!qbCorrelativoActivo() || _qbNros || _qbNrosLeyendo || typeof DB === 'undefined' || !DB.getNrosFactura) return;
+  _qbNrosLeyendo = true;
+  DB.getNrosFactura().then(function(n){ _qbNros = n || {}; _qbNrosError = false; }).catch(function(){ _qbNrosError = true; })
+    .then(function(){ _qbNrosLeyendo = false; _qbRepintarTodo(); });
+}
+// El aviso de arriba del 03 y del 04
+function _qbNrosAvisoHtml(D){
+  if(!qbCorrelativoActivo()) return '';
+  var caja = function(color, html){ return '<div style="margin:0 0 8px;padding:9px 11px;border-radius:8px;background:rgba(' + color + ',.10);border:1px solid rgba(' + color + ',.35);font-size:11.5px;color:var(--ink2);display:flex;gap:10px;align-items:center;flex-wrap:wrap">' + html + '</div>'; };
+  if(!_qbNros) return caja('245,158,11', _qbNrosError ? '<b>No se pudieron leer los números de factura</b> (¿sin conexión?). <a href="javascript:void(0)" onclick="_qbNrosError=false;_qbCargarNros()" style="font-weight:700">Reintentar</a>' : 'Leyendo los números de factura…');
+  var pend = qbSinNumerar(_qbCtxNros()), u = _qbNroUltimo(_qbNros), admin = typeof isAdminUser === 'function' && isAdminUser();
+  if(!pend.length) return '<div style="margin:0 0 8px;font-size:11px;color:var(--ink3)">N° de factura correlativo: todos los cobros están numerados' + (u ? ', hasta la ' + _qbNroTxt(u) : '') + '.</div>';
+  return caja('245,158,11', '<div style="flex:1;min-width:220px"><b>' + pend.length + ' cobro' + (pend.length === 1 ? '' : 's') + ' sin N° de factura.</b> El 03 y el 04 no se pueden bajar para QuickBooks hasta numerarlos' + (u ? ' (siguen desde la ' + _qbNroTxt(u + 1) + ')' : ' (empiezan en la ' + _qbNroTxt(1) + ')') + '. El número queda fijo: no se puede cambiar después.</div>'
+    + (admin ? '<button class="btn btn-p btn-sm" onclick="qbNumerarAbrir()">Numerar facturas</button>' : '<span style="font-weight:700">Lo hace un administrador.</span>'));
+}
+function qbNumerarAbrir(){
+  if(!(typeof isAdminUser === 'function' && isAdminUser())){ toast('Solo un administrador puede numerar las facturas', 'error'); return; }
+  if(!_qbNros){ toast('Todavía no se leyeron los números de factura', 'error'); return; }
+  var plan = qbNumerarPlan(_qbCtxNros());
+  if(!plan.length){ toast('No hay cobros por numerar', 'info'); return; }
+  var td = 'padding:4px 7px;border-bottom:1px solid var(--rim2);font-size:11px;white-space:nowrap';
+  if(typeof setMicon === 'function') setMicon('factura');
+  $('mtt').textContent = 'Numerar facturas';
+  $('msb').textContent = plan.length + ' cobro' + (plan.length === 1 ? '' : 's') + ' · de la ' + _qbNroTxt(plan[0].nro) + ' a la ' + _qbNroTxt(plan[plan.length - 1].nro);
+  $('modal-box').className = 'modal';
+  $('mbd').innerHTML = '<div style="background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:9px;padding:11px;margin-bottom:12px;font-size:11.5px;color:var(--ink2);line-height:1.55"><b>El número queda fijo.</b> Una vez guardado no se puede cambiar ni reutilizar: si después se elimina un cobro, su número queda como hueco. Se numeran por fecha del cobro y, el mismo día, por orden de registro.</div>'
+    + '<div style="max-height:340px;overflow:auto;border:1px solid var(--rim);border-radius:9px"><table style="border-collapse:collapse;width:100%"><thead><tr>'
+    + ['N° de factura', 'Fecha', 'Contrato', 'Cliente', 'Monto'].map(function(h){ return '<th style="position:sticky;top:0;background:var(--gs);padding:6px 7px;font-size:10px;text-align:left">' + h + '</th>'; }).join('') + '</tr></thead><tbody>'
+    + plan.map(function(x){ return '<tr><td style="' + td + ';font-family:var(--fd);font-weight:700">' + _qbNroTxt(x.nro) + '</td><td style="' + td + '">' + _qbDMY(x.fecha) + '</td><td style="' + td + '">' + _lbEsc(x.cred) + '</td><td style="' + td + '">' + _lbEsc(x.cli) + '</td><td style="' + td + ';text-align:right">' + fmt(x.monto) + '</td></tr>'; }).join('')
+    + '</tbody></table></div>';
+  $('mft').innerHTML = '<button class="btn btn-g" onclick="closeM()">Cancelar</button><button class="btn btn-p" id="qb-numerar-btn" onclick="qbNumerarGuardar()">Numerar ' + plan.length + ' factura' + (plan.length === 1 ? '' : 's') + '</button>';
+  $('ov').style.display = 'flex';
+}
+function qbNumerarGuardar(){
+  if(!(typeof isAdminUser === 'function' && isAdminUser()) || !_qbNros) return;
+  var ids = qbNumerarPlan(_qbCtxNros()).map(function(x){ return x.id; }), b = document.getElementById('qb-numerar-btn');
+  if(!ids.length){ closeM(); return; }
+  if(b){ if(b.disabled) return; b.disabled = true; b.textContent = 'Guardando…'; }
+  DB.numerarFacturas(ids).then(function(nros){
+    _qbNros = nros || _qbNros;
+    closeM(); toast('Facturas numeradas hasta la ' + _qbNroTxt(_qbNroUltimo(_qbNros)), 'success'); _qbRepintarTodo();
+  }).catch(function(e){
+    console.error('[QuickBooks] numerar facturas:', e);
+    if(b){ b.disabled = false; b.textContent = 'Reintentar'; }
+    toast('No se pudieron guardar los números. No se numeró nada: inténtalo de nuevo.', 'error');
+  });
+}
+
 function qbFacturas(ctx){
   var credPorId = {}, facPorPago = {}, venc = {};
   (ctx.creds || []).forEach(function(c){ if(c) credPorId[String(c.id)] = c; });
@@ -376,7 +454,8 @@ function qbFacturas(ctx){
     if(igtf) partes.igtf = igtf;
     var lineas = qbLineas(partes), v = venc[c.id].pagos[p.id] || {}, fecha = _qbISO(p.fecha), edi = [p.editadoEn, p.restauradoEn].filter(Boolean).sort().pop() || '';
     var tipo = _qbTipoCobro(p, cobrado, venc[c.id].cuota, (v.cuotas || []).length);
-    var d = { numero: String(p.id), pagoId: p.id, factura: fac ? String(fac.numero) : '', cred: c.id, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS),
+    var nro = _qbNroTxt((ctx.nros || {})[p.id]);
+    var d = { numero: nro || String(p.id), sinNumero: !nro, pagoId: p.id, factura: fac ? String(fac.numero) : '', cred: c.id, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS),
       servicio: v.fechaVence || fecha, cuotas: v.cuotas || [], nota: 'CONTRATO Nº ' + c.id + (fac ? ' · FACTURA FISCAL Nº ' + fac.numero : ''),
       cobrado: cobrado, igtf: igtf, como: partes.como, lineas: lineas,
       monto: _qbR2(lineas.reduce(function(a, l){ return a + l.monto; }, 0)), iva: _qbR2(lineas.reduce(function(a, l){ return a + l.iva; }, 0)),
@@ -889,7 +968,7 @@ function _qbEstado(){
 function _qbCalcular(){
   var st = _qbEstado();
   var D = qbDatos({ creds: S.creds || [], pagos: S.pagos || [], clientes: S.clientes || [], facturas: S.facturas || [], egresos: S.egresos || [],
-    motos: S.motos || [], concesionarios: S.concesionarios || [], periodo: st.periodo, corte: st.corte });
+    motos: S.motos || [], concesionarios: S.concesionarios || [], periodo: st.periodo, corte: st.corte, nros: qbCorrelativoActivo() ? (_qbNros || {}) : {} });
   D.st = st; D.empresa = (typeof getEmpresa === 'function' ? getEmpresa() : {}) || {}; D.descargas = _qbDescargasDe(null);
   return D;
 }
@@ -978,8 +1057,8 @@ function _qbCuerpoHtml(D){
   var nota = {
     clientes: 'Balance de Apertura = lo que cada cliente debe al ' + _qbDMY(D.st.corte) + ' (fecha de corte): las cuotas que le faltan con los pagos hechos hasta ese día, con el mismo motor contable de Pagos. Un cliente sin saldo va con el balance y la fecha en blanco. Las cuotas que se cobren después del corte ya están dentro de ese saldo: si también se importan los cobros de después del corte (03 y 04), en QuickBooks hay que aplicarlos contra ese saldo (las facturas del 03 como pago del saldo; los recibos del 04 no lo rebajan por sí solos).',
     servicios: 'El catálogo del contador tal cual (su 02. Servicios.xlsx): servicios de ingreso y categorías de gasto con su cuenta. Lo marcado en amarillo no estaba en su catálogo. Las facturas (03) y los recibos (04) usan exactamente estos nombres.',
-    facturas: 'A crédito van los abonos: los cobros que no pagan cuotas completas (convenios, mora: varios pagos a una cuota). Una factura por cada abono, partida como en la Nueva metodología: Cartera de financiamiento (lo que recupera del precio de la moto), Intereses (12 % anual, sin IVA) y Pagasi Protect, con el IVA del 16 % por dentro. Lo facturado (montos + IVA) es igual a lo cobrado. N° y Fecha Factura = los del cobro · Service Date = el vencimiento de la cuota que pagó. El pago de estas facturas se registra aparte en QuickBooks. Si un mes ya se importó y después se registró o editó un cobro de ese mes, el control de abajo lo cuenta: revísalo allá antes de volver a importar.',
-    contado: 'De contado van los cobros que pagan una o varias cuotas completas de una sola vez (la mayoría; con hasta ' + fmt(QB_TOLERANCIA_CONTADO) + ' de diferencia por redondeo) y las liquidaciones anticipadas. Un recibo de venta por cobro, con las mismas líneas de la factura y la cuenta de QuickBooks donde entró el dinero según el "Recibido en" del pago (100% Banco, Binance o Efectivo): el cobro y su depósito quedan en un solo movimiento. N° y fecha = los del cobro · Memo = contrato y factura fiscal · Service Date = el vencimiento de la cuota que pagó. Si un mes ya se importó y después se registró o editó un cobro de ese mes, el control de abajo lo cuenta.',
+    facturas: 'A crédito van los abonos: los cobros que no pagan cuotas completas (convenios, mora: varios pagos a una cuota). Una factura por cada abono, partida como en la Nueva metodología: Cartera de financiamiento (lo que recupera del precio de la moto), Intereses (12 % anual, sin IVA) y Pagasi Protect, con el IVA del 16 % por dentro. Lo facturado (montos + IVA) es igual a lo cobrado. N° = el correlativo de la factura (en PAGASI 26; si no, el del cobro) · Fecha Factura = la del cobro · Service Date = el vencimiento de la cuota que pagó. El pago de estas facturas se registra aparte en QuickBooks. Si un mes ya se importó y después se registró o editó un cobro de ese mes, el control de abajo lo cuenta: revísalo allá antes de volver a importar.',
+    contado: 'De contado van los cobros que pagan una o varias cuotas completas de una sola vez (la mayoría; con hasta ' + fmt(QB_TOLERANCIA_CONTADO) + ' de diferencia por redondeo) y las liquidaciones anticipadas. Un recibo de venta por cobro, con las mismas líneas de la factura y la cuenta de QuickBooks donde entró el dinero según el "Recibido en" del pago (100% Banco, Binance o Efectivo): el cobro y su depósito quedan en un solo movimiento. N° = el correlativo de la factura (en PAGASI 26; si no, el del cobro) · fecha = la del cobro · Memo = contrato y factura fiscal · Service Date = el vencimiento de la cuota que pagó. Si un mes ya se importó y después se registró o editó un cobro de ese mes, el control de abajo lo cuenta.',
     proveedores: 'Los proveedores salen de los datos fiscales de cada gasto (Libro de Compras). Las compras de motos no van: la sede no le factura cada moto a PAGASI. Si un gasto trae el RIF o el nombre de una sede, la ficha toma su teléfono, dirección y ciudad. Fe. Creación = la de la sede o la del primer gasto.',
     compras: 'Los gastos del mes con factura de proveedor (por su fecha), como en el Libro de Compras de ' + _lbPeriodoVE(D.st.periodo) + ': la parte exenta va en una línea "' + QB_SIN_IVA + '" y la base en otra con su IVA. La cuenta (*Account) es la de la categoría del gasto en el plan del contador. Las compras de motos, la nómina y las comisiones no van.'
   }[tipo];
@@ -991,7 +1070,8 @@ function _qbCuerpoHtml(D){
   }
   var lineaDesc = _qbSello(ult) + ' ' + (ult ? '<b>Última descarga' + (porMes ? ' de ' + que : '') + ':</b> ' + _lbEsc(_qbDescargaTexto(ult))
     : '<b>' + (porMes ? 'Este período todavía no se ha descargado' : 'Todavía no se ha descargado') + '</b>' + (ultArch ? ' · última del archivo: ' + _lbEsc(_qbDescargaTexto(ultArch)) : ''));
-  return (_qbDescargasError ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)"><b>No se pudo leer el registro de descargas</b> (¿sin conexión?): lo que se ve es solo lo de esta sesión. Se vuelve a intentar al abrir la pestaña.</div>' : '')
+  return ((tipo === 'facturas' || tipo === 'contado') ? _qbNrosAvisoHtml(D) : '')
+    + (_qbDescargasError ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)"><b>No se pudo leer el registro de descargas</b> (¿sin conexión?): lo que se ve es solo lo de esta sesión. Se vuelve a intentar al abrir la pestaña.</div>' : '')
     + (V.nuevo ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)"><b>Solo lo nuevo</b> desde la última descarga de este archivo' + (porMes ? ' y ' + que : '') + ' (' + _lbEsc(_qbFechaHora(V.desde)) + '): ' + V.docs + ' de ' + V.totalDocs + '. Los totales y lo que se exporta son solo de lo que se ve.</div>'
       : (D.st.modo === 'nuevo' && tipo !== 'servicios' ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:11.5px;color:var(--ink2)"><b>Solo lo nuevo:</b> ' + (porMes ? que : 'este archivo') + ' todavía no se ha descargado, así que se muestra todo.</div>' : ''))
     + (V.filtrado && D.st.q ? '<div style="margin:0 0 8px;padding:8px 11px;border-radius:8px;background:rgba(37,99,235,.07);font-size:11.5px;color:var(--ink2)">Filtrado: los totales y lo que se exporta son solo de lo que se ve.</div>' : '')
@@ -1008,6 +1088,7 @@ function _qbCuerpoHtml(D){
 
 function _renderQuickBooks(){
   _qbCargarDescargas();   // la primera vez lee config/quickbooks y repinta cuando llega
+  _qbCargarNros();        // y los números de factura correlativos (solo PAGASI 26)
   var st = _qbEstado(), emp = (typeof getEmpresa === 'function' ? getEmpresa() : {}) || {};
   var D = _qbCalcular();
   var descargas = QB_ORDEN.map(function(t){
@@ -1178,6 +1259,10 @@ function qbZipFacturasProveedor(D){
 function qbExportar(tipo, formato, D){
   D = D || _qbCalcular();
   var A = QB_ARCHIVOS[tipo], V = _qbVer(D, tipo), nombre = _qbNombreArchivo(tipo, D.st);
+  if(formato !== 'pdf' && (tipo === 'facturas' || tipo === 'contado') && qbCorrelativoActivo()){
+    var sinN = _qbNros ? (tipo === 'facturas' ? D.facturas.docs : D.facturas.contado).filter(function(d){ return d.sinNumero; }).length : -1;
+    if(sinN){ toast(sinN < 0 ? 'Todavía no se leyeron los números de factura: espera un momento y vuelve a bajar el ' + A.n : 'El ' + A.n + ' tiene ' + sinN + ' cobro' + (sinN === 1 ? '' : 's') + ' sin N° de factura: numéralos primero (botón "Numerar facturas")', 'error'); return; }
+  }
   // Los archivos que le entran a QuickBooks (CSV y Excel) quedan anotados como descarga; el PDF es para leer
   if(formato === 'csv'){ _qbDescargar(nombre + '.csv', qbWin1252(qbCsvTexto(A.enc, V.filas)), 'text/csv;charset=windows-1252'); _qbAnotarDescarga(tipo, formato, D, V); return; }
   if(formato === 'excel'){ xlsxEscribir(nombre + '.xlsx', [qbHoja(tipo, V.filas)]); _qbAnotarDescarga(tipo, formato, D, V); return; }
@@ -1193,4 +1278,4 @@ function qbDescargarTodo(){
 
 if(typeof module !== 'undefined' && module.exports) module.exports = { qbPartirPago: qbPartirPago, qbLineas: qbLineas, qbSaldoCredito: qbSaldoCredito, qbClientes: qbClientes, qbFacturas: qbFacturas,
   qbProveedores: qbProveedores, qbCompras: qbCompras, qbDatos: qbDatos, qbCsvTexto: qbCsvTexto, qbWin1252: qbWin1252, qbHoja: qbHoja, QB_ARCHIVOS: QB_ARCHIVOS, QB_SERVICIOS: QB_SERVICIOS,
-  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde, qbLineasArchivo: qbLineasArchivo, qbPdfFactura: qbPdfFactura, qbPdfFilasFactura: qbPdfFilasFactura, qbPdfsCompras: qbPdfsCompras, _qbMonto: _qbMonto };
+  qbDescargaRegistro: qbDescargaRegistro, qbNuevosDesde: qbNuevosDesde, qbLineasArchivo: qbLineasArchivo, qbSinNumerar: qbSinNumerar, qbNumerarPlan: qbNumerarPlan, _qbNroTxt: _qbNroTxt, _qbNroUltimo: _qbNroUltimo, qbCorrelativoActivo: qbCorrelativoActivo, qbPdfFactura: qbPdfFactura, qbPdfFilasFactura: qbPdfFilasFactura, qbPdfsCompras: qbPdfsCompras, _qbMonto: _qbMonto };

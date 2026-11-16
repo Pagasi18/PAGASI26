@@ -2622,6 +2622,39 @@ DB.anotarDescargaQuickbooks = function(clave, reg){
   if(clave){ o.porClave = {}; o.porClave[clave] = r; o.porArchivo = {}; o.porArchivo[reg.tipo] = r; }
   return _dbSilent(function(){ return db.collection('config').doc('quickbooks').set(o, { merge: true }); });
 };
+// N° de factura correlativo (el contador, 16-nov-2026; solo lo usa PAGASI 26). Los números viven en
+// contadores/facturas-AAAA ({ ultimo, nros: { idDelPago: n } }) y el último dado en contadores/facturas: ahí las Reglas
+// no dejan borrar ni bajar "ultimo". Todo en UNA transacción: dos personas a la vez no repiten ni saltan números, y un
+// cobro que ya tiene número conserva el suyo. Si falla, rechaza y no queda nada a medias.
+var _NROS_FACTURA_DESDE = 2026;
+function _nrosFacturaRefs(){
+  var refs = [], hasta = Math.max(new Date().getFullYear(), _NROS_FACTURA_DESDE);
+  for(var a = _NROS_FACTURA_DESDE; a <= hasta; a++) refs.push(db.collection('contadores').doc('facturas-' + a));
+  return refs;
+}
+DB.getNrosFactura = function(){
+  if(!db) return Promise.resolve({});
+  return Promise.all(_nrosFacturaRefs().map(function(r){ return r.get(); })).then(function(ds){
+    var nros = {}; ds.forEach(function(d){ if(d.exists) Object.assign(nros, d.data().nros || {}); }); return nros;
+  });
+};
+DB.numerarFacturas = function(ids){
+  if(!db) return Promise.reject(new Error('sin conexión'));
+  var refs = _nrosFacturaRefs(), cRef = db.collection('contadores').doc('facturas'), lRef = refs[refs.length - 1];
+  return db.runTransaction(function(tx){
+    return Promise.all([tx.get(cRef)].concat(refs.map(function(r){ return tx.get(r); }))).then(function(ds){
+      var nros = {}, n = (ds[0].exists && typeof ds[0].data().ultimo === 'number') ? ds[0].data().ultimo : 0, nuevos = {}, cuantos = 0;
+      ds.slice(1).forEach(function(d){ if(d.exists) Object.assign(nros, d.data().nros || {}); });
+      Object.keys(nros).forEach(function(k){ if(nros[k] > n) n = nros[k]; });
+      (ids || []).forEach(function(id){ id = String(id || ''); if(!id || nros[id] > 0 || nuevos[id]) return; nuevos[id] = ++n; cuantos++; });
+      if(!cuantos) return nros;
+      var ahora = new Date().toISOString(), por = (S.currentUser && S.currentUser.nombre) || '';
+      tx.set(cRef, { ultimo: n, actualizado: ahora, por: por }, { merge: true });
+      tx.set(lRef, { ultimo: n, nros: nuevos, actualizado: ahora, por: por }, { merge: true });
+      return Object.assign(nros, nuevos);
+    });
+  });
+};
 // Multimoneda (config/multimoneda, 11-nov-2026): el saldo real en bolívares que se cuadró con el banco, por cuenta.
 // Con merge: cuadrar una cuenta no pisa las otras.
 DB.getMultimoneda = function(){ if(!db) return Promise.resolve(null); return db.collection('config').doc('multimoneda').get().then(function(d){ return d.exists ? d.data() : null; }); };
