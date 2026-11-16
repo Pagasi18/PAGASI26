@@ -115,7 +115,11 @@ const dinero = n => '$' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).
 let _TASA_BS = 0;
 function fijarTasaBs(t) { _TASA_BS = Number(t) > 1 ? Number(t) : 0; }
 function tasaDelDia(hoyISO, tasas) {       // la de hoy o, si no hay, la última anterior
-  const ks = Object.keys(tasas || {}).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= hoyISO && Number(tasas[k] && tasas[k].usd) > 1).sort();
+  // Sábado y domingo rige la que el BCV publicó el viernes en la tarde, guardada bajo el lunes (el contador, 16-nov-2026)
+  const dia = new Date(hoyISO + 'T12:00:00Z').getUTCDay(), finde = dia === 0 || dia === 6;
+  const tope = finde ? new Date(Date.parse(hoyISO + 'T12:00:00Z') + 4 * 864e5).toISOString().slice(0, 10) : hoyISO;
+  const ks = Object.keys(tasas || {}).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= tope && Number(tasas[k] && tasas[k].usd) > 1).sort();
+  if (finde) { const sig = ks.find(k => k > hoyISO); if (sig) return Number(tasas[sig].usd); }
   return ks.length ? Number(tasas[ks[ks.length - 1]].usd) : 0;
 }
 const bolivares = n => 'Bs ' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');

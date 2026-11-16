@@ -46,6 +46,15 @@ ok('hay tasa del día: esa, exacta', r.tasa===886.23 && r.fechaTasa==='2026-10-2
 ok('...el euro de ese día también', G0.tasasElegir('2026-10-23', mapa, 'eur', '2026-10-26').tasa===993.09);
 r=G0.tasasElegir('2026-10-24', mapa, 'usd', '2026-10-26');   // sábado
 ok('sábado sin tasa: rige la del siguiente día hábil registrado… pero solo hasta hoy; como no hay, la última de antes', r.tasa===886.23 && r.fechaTasa==='2026-10-23' && r.aproximada===true);
+// El contador, 16-nov-2026: el cobro anotado el mismo fin de semana lleva la tasa del viernes en la tarde (fecha valor lunes)
+const mapaFinde={ '2026-11-13':{fecha:'2026-11-13',usd:911.6243}, '2026-11-16':{fecha:'2026-11-16',usd:914.0218} };
+r=G0.tasasElegir('2026-11-14', mapaFinde, 'usd', '2026-11-14');
+ok('sábado, anotado el mismo sábado: la publicada el viernes en la tarde (914,02), exacta', r.tasa===914.0218 && r.fechaTasa==='2026-11-16' && r.aproximada===false);
+r=G0.tasasElegir('2026-11-15', mapaFinde, 'usd', '2026-11-15');
+ok('domingo, anotado el mismo domingo: igual', r.tasa===914.0218 && r.aproximada===false);
+ok('anotado el lunes con fecha del sábado: la misma', G0.tasasElegir('2026-11-14', mapaFinde, 'usd', '2026-11-16').tasa===914.0218);
+ok('el viernes sigue con su propia tasa aunque ya esté publicada la del lunes', G0.tasasElegir('2026-11-13', mapaFinde, 'usd', '2026-11-13').tasa===911.6243);
+ok('un día hábil sin tasa no toma una tasa de una fecha futura', G0.tasasElegir('2026-11-12', mapaFinde, 'usd', '2026-11-12')===null);
 const mapa2=Object.assign({}, mapa, { '2026-10-26':{fecha:'2026-10-26',usd:889}, '2026-10-27':{fecha:'2026-10-27',usd:890} });
 const mapa3=Object.assign({}, mapa, { '2026-10-27':{fecha:'2026-10-27',usd:890} });
 r=G0.tasasElegir('2026-10-25', mapa2, 'usd', '2026-10-28');   // domingo, y el lunes 26 sí está

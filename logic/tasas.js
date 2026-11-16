@@ -26,6 +26,9 @@ function usdABs(usd, tasa){ return Math.round(((parseFloat(usd) || 0) * (parseFl
 //  · Día hábil con tasa registrada: esa, exacta.
 //  · Sábado o domingo: rige la del día hábil siguiente (Ley de IVA, art. 25); si ese día no está registrado, la
 //    siguiente que haya se da como aproximada. Una tasa puesta a mano para ese mismo sábado o domingo sí se respeta.
+//    También cuando el cobro se anota el mismo sábado o domingo (el contador, 16-nov-2026: "el tipo de cambio del
+//    viernes en la tarde es para el fin de semana"): esa tasa ya está publicada, con fecha valor del lunes. Antes,
+//    anotando en el fin de semana, salía la del viernes en la mañana.
 //  · Día hábil sin tasa: la siguiente registrada (hasta 4 días después y nunca después de hoy), aproximada.
 //  · Si tampoco: la última registrada antes, hasta 7 días atrás, aproximada, para que la revisen.
 //  · Nada: null (el analista la escribe a mano y queda guardada para esa fecha).
@@ -38,7 +41,7 @@ function tasasElegir(fecha, mapa, moneda, hoy){
   if(r && (!finde || r.manual)){ r.aproximada = false; r.nota = ''; return r; }
   for(var d = 1; d <= 4; d++){
     var f = _tasasMasDias(fecha, d);
-    if(f > hoy) break;
+    if(f > hoy && !finde) break;   // el sábado y el domingo sí: la del lunes ya la publicó el BCV el viernes en la tarde
     r = de(f);
     if(r){
       if(finde && f === habil){ r.aproximada = false; r.nota = 'El ' + _tasasFechaVE(fecha) + ' no es día hábil: rige la tasa del ' + _tasasFechaVE(f) + ' (Ley de IVA, art. 25)'; }
