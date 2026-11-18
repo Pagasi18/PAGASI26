@@ -281,6 +281,88 @@ function _comCalcCorte(u, desde, hasta){
   return { ventas:v, cobranzas:c, porVenta:pv, porCobranza:pc, total:pv+pc };
 }
 
+// ── Ventas que NO generan comisión (17-nov-2026) ──
+// Adam: "¡que comisiones avisen!". Una venta puede estar bien anotada a nombre de alguien y no
+// generarle nada: basta con que esa persona tenga la comisión apagada, o que su usuario esté
+// suspendido o ya no exista. El módulo solo cuenta a quien SÍ gana comisión, así que esas ventas no
+// salían en ningún lado: en la primera quincena de noviembre una vendedora tenía 4 ventas a su
+// nombre y no aparecía en el corte, y la cuenta de la oficina no cuadraba con la del sistema.
+// La venta se le reconoce a su vendedor con la MISMA regla de _comCalcGenerado: por identificador
+// y, en los créditos viejos que no lo traen, por el nombre.
+// Devuelve, por vendedor: [{ uid, nombre, motivo, texto, ventas:[{credId, fecha, cliente, modelo}] }].
+var COM_MOTIVO_TXT = { apagada:'tiene la comisión apagada', suspendido:'su usuario está suspendido', sin_usuario:'no corresponde a ningún usuario' };
+function _comVentasSinComision(desde, hasta){
+  var lista = (typeof _usersCache !== 'undefined' && Array.isArray(_usersCache)) ? _usersCache : [];
+  if(!lista.length) return [];   // sin la lista de usuarios no se sabe de quién es cada venta: mejor callar que acusar a todos
+  var porUid = {}, porNombre = {};
+  lista.forEach(function(u){
+    if(!u) return;
+    if(u.uid) porUid[String(u.uid)] = u;
+    var n = String(u.nombre || u.email || '').trim().toLowerCase();
+    if(n && !porNombre[n]) porNombre[n] = u;
+  });
+  var grupos = {}, orden = [];
+  ((typeof S !== 'undefined' && S && S.creds) || []).forEach(function(c){
+    if(!c || c.eliminado || c.estado === 'cancelado') return;
+    var f = String(c.fecha || c.creadoEn || '').slice(0,10);
+    if(desde && f < desde) return;
+    if(hasta && f > hasta) return;
+    var u = null, escrito = '';
+    if(c.vendedorUid){
+      u = porUid[String(c.vendedorUid)] || null;
+      escrito = String(c.vendedorNombre || '').trim();
+    } else {
+      escrito = String(c.vendedorNombre || c.creadoPor || '').trim();
+      if(escrito.toLowerCase() === 'usuario') escrito = String(c.creadoPor || '').trim();
+      u = porNombre[escrito.toLowerCase()] || null;
+    }
+    var motivo = !u ? 'sin_usuario' : (u.suspendido ? 'suspendido' : ((u.comisiones && u.comisiones.activo === true) ? '' : 'apagada'));
+    if(!motivo) return;
+    var clave = u ? 'u:' + String(u.uid || u.nombre || u.email) : 'x:' + escrito.toLowerCase();
+    if(!grupos[clave]){
+      grupos[clave] = { uid: u ? (u.uid || '') : '', nombre: u ? (u.nombre || u.email || 'Usuario') : (escrito || 'Sin vendedor'), motivo: motivo, texto: COM_MOTIVO_TXT[motivo], ventas: [] };
+      orden.push(clave);
+    }
+    grupos[clave].ventas.push({ credId: c.id, fecha: f, cliente: c.cli || '', modelo: c.modelo || '' });
+  });
+  return orden.map(function(k){ return grupos[k]; }).sort(function(a,b){
+    return b.ventas.length - a.ventas.length || String(a.nombre).localeCompare(String(b.nombre));
+  });
+}
+// La ventana del aviso en la pestaña Vendedores: la quincena en curso y la anterior. Lo más viejo
+// ya se pagó o ya se discutió; avisarlo siempre sería ruido.
+function _comRangoAviso(){
+  var q = _concRangoDe('quincena', hoyLocalISO());
+  var d = new Date(parseInt(q.desde.slice(0,4),10), parseInt(q.desde.slice(5,7),10)-1, parseInt(q.desde.slice(8,10),10), 12);
+  d.setDate(d.getDate() - 1);
+  var antes = _concRangoDe('quincena', fechaLocalISO(d));
+  return { desde: antes.desde, hasta: q.hasta };
+}
+// El recuadro que se ve en la pantalla. Vacío si no hay nada que avisar.
+function _comAvisoSinComisionHtml(desde, hasta, cuando){
+  var grupos = _comVentasSinComision(desde, hasta);
+  if(!grupos.length) return '';
+  var e = (typeof pgEsc === 'function') ? pgEsc : function(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var total = grupos.reduce(function(a,g){ return a + g.ventas.length; }, 0);
+  var filas = grupos.map(function(g){
+    var ids = g.ventas.map(function(v){ return String(v.credId); });
+    var lista = ids.slice(0,12).join(', ') + (ids.length > 12 ? ' y ' + (ids.length - 12) + ' más' : '');
+    var uid = String(g.uid || '').replace(/[^A-Za-z0-9_-]/g, '');
+    var boton = (g.motivo === 'apagada' && uid)
+      ? '<button class="btn btn-p btn-xs" style="flex-shrink:0" onclick="_comConfigRapida(\''+uid+'\')">⚙ Activar comisión</button>' : '';
+    return '<div class="com-sin-fila" style="display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px dashed var(--rim2);padding:7px 0">'
+      + '<div style="min-width:0"><div style="font-size:12.5px"><b>'+e(g.nombre)+'</b> · '+g.ventas.length+' venta'+(g.ventas.length===1?'':'s')+' · '+e(g.texto)+'</div>'
+      + '<div style="font-size:10.5px;color:var(--ink3);margin-top:1px">'+e(lista)+'</div></div>'
+      + boton + '</div>';
+  }).join('');
+  return '<div id="com-aviso-sin" style="border:1px solid var(--amber);background:rgba(245,158,11,.08);border-radius:12px;padding:12px 14px;margin-bottom:14px">'
+    + '<div style="font-weight:900;font-size:13px;color:var(--amber)">⚠ '+total+' venta'+(total===1?'':'s')+' de '+e(cuando)+' no genera'+(total===1?'':'n')+' comisión</div>'
+    + '<div style="font-size:11.5px;color:var(--ink2);margin:3px 0 7px;line-height:1.5">Están a nombre de alguien que no gana comisión, por eso no salen en la lista ni en el corte.</div>'
+    + filas
+    + '<div style="font-size:10.5px;color:var(--ink3);margin-top:7px;line-height:1.5">Si la venta es de otra persona, se corrige editando el crédito y cambiando el vendedor.</div>'
+    + '</div>';
+}
+
 // Navegar entre quincenas (dir: -1 anterior, +1 siguiente)
 function _comCorteMove(dir){
   var ref = window._comCorteRef || hoyLocalISO();
@@ -315,6 +397,7 @@ function _comCorteExport(formato){
     return { nombre:(u.nombre||u.email||'Usuario'), cc:cc, saldo:s.saldo };
   });
   var totCorte = filas.reduce(function(a,x){ return a+x.cc.total; },0);
+  var sinCom = _comVentasSinComision(rq.desde, rq.hasta);   // ventas del período a nombre de quien no gana comisión
   if(formato === 'excel'){
     var n2=function(v){return Math.round((parseFloat(v)||0)*100)/100;};
     var aoa=[];
@@ -334,6 +417,12 @@ function _comCorteExport(formato){
       x.cc.ventas.forEach(function(v){ aoa.push([x.nombre,v.sabado?'Venta (sábado)':'Venta',String(v.fecha||'').slice(0,10),v.credId,v.cliente,n2(v.precio),n2(v.comision)]); });
       x.cc.cobranzas.forEach(function(c){ aoa.push([x.nombre,'Cobranza',String(c.fecha||'').slice(0,10),c.pagoId,c.cliente,n2(c.monto),n2(c.comision)]); });
     });
+    if(sinCom.length){
+      aoa.push([]);
+      aoa.push(['VENTAS DEL PERÍODO QUE NO GENERAN COMISIÓN']);
+      aoa.push(['Vendedor','Motivo','Fecha','Crédito','Cliente','Modelo']);
+      sinCom.forEach(function(g){ g.ventas.forEach(function(v){ aoa.push([g.nombre, g.texto, v.fecha, v.credId, v.cliente, v.modelo]); }); });
+    }
     if(typeof _xlsxDownload==='function') _xlsxDownload('corte-comisiones-'+rq.desde+'_'+rq.hasta+'.xlsx', [{name:'Corte', rows:aoa}]);
     toast('Excel (.xlsx) del corte exportado ✓','success');
     return;
@@ -360,6 +449,14 @@ function _comCorteExport(formato){
           }).join('');
       }).join('')
     + '</table>'
+    + (sinCom.length
+        ? '<h3>Ventas del período que no generan comisión</h3>'
+          + '<table><tr><th>Vendedor</th><th>Motivo</th><th>Fecha</th><th>Crédito</th><th>Cliente</th><th>Modelo</th></tr>'
+          + sinCom.map(function(g){ return g.ventas.map(function(v){
+              return '<tr><td>'+esc(g.nombre)+'</td><td>'+esc(g.texto)+'</td><td>'+esc(v.fecha)+'</td><td>'+esc(v.credId)+'</td><td>'+esc(v.cliente)+'</td><td>'+esc(v.modelo)+'</td></tr>';
+            }).join(''); }).join('')
+          + '</table>'
+        : '')
     + '<div style="margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:40px">'
     + '<div style="border-top:1px solid #94a3b8;padding-top:6px;text-align:center;font-size:10.5px">Preparado por</div>'
     + '<div style="border-top:1px solid #94a3b8;padding-top:6px;text-align:center;font-size:10.5px">Aprobado por</div>'
@@ -416,6 +513,8 @@ function _comisionesRender(){
 
   // ── Tab: Vendedores ──
   if(tab === 'vendedores'){
+    var _rAv = _comRangoAviso();
+    html += _comAvisoSinComisionHtml(_rAv.desde, _rAv.hasta, 'esta quincena y la anterior');
     html += '<div style="margin-bottom:14px"><div class="srch"><span class="srch-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input type="text" id="com-search" placeholder="Buscar vendedor..." oninput="_comFiltrar()"></div></div>';
     if(!usuarios.length){
       html += '<div class="empty"><div class="e-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;opacity:.4"><circle cx="12" cy="8" r="4"/><path d="M5 21v-1a7 7 0 0 1 14 0v1"/></svg></div><div class="e-tt">Sin usuarios con comisiones activas</div><button class="btn btn-p btn-sm" style="margin-top:14px" onclick="nav(&quot;users&quot;)">Ir a Usuarios</button></div>';
@@ -496,6 +595,7 @@ function _comisionesRender(){
       + '<div class="stat"><div class="st-v" style="font-size:24px">'+conMov+'</div><div class="st-l">Empleados con comisión</div></div>'
       + '<div class="stat"><div class="st-v" style="font-size:24px;color:var(--amber)">'+fmt(totalDebe)+'</div><div class="st-l">Por pagar global (todas las quincenas)</div></div>'
       + '</div>';
+    html += _comAvisoSinComisionHtml(rq.desde, rq.hasta, 'este corte');
     if(!usuarios.length){
       html += '<div class="empty"><div class="e-tt">Sin usuarios con comisiones activas</div></div>';
     } else {
