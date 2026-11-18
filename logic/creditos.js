@@ -1114,7 +1114,7 @@ function _wzHydrate(){
     // Vendedor: default al usuario actual si no hay uno elegido; sincronizar WZ
     var _vs = document.getElementById('wz_vendedor');
     if(_vs){
-      if(!WZ.vendedorUid && S.currentUser && S.currentUser.uid){ _vs.value = S.currentUser.uid; }
+      if(!WZ.vendedorUid && !window._wzEditando && S.currentUser && S.currentUser.uid){ _vs.value = S.currentUser.uid; }
       if(_vs.value){ _wzSetVendedor(_vs); }
     }
     // Poblar el resto de vendedores en segundo plano si el cache está vacío
@@ -1756,7 +1756,10 @@ function _wzVendedorOpts(){
   if(cu && cu.uid && !lista.some(function(u){ return u && String(u.uid)===String(cu.uid); })){
     lista.push({ uid:cu.uid, nombre:cu.nombre, email:cu.email, rol:cu.rol });
   }
-  var sel = WZ.vendedorUid || (cu && cu.uid) || '';
+  // Al EDITAR un crédito que no trae identificador de vendedor (los viejos) no se marca a quien
+  // edita: antes, con solo abrir y guardar, la venta —y su comisión— pasaba a nombre del que la
+  // estaba corrigiendo (17-nov-2026).
+  var sel = WZ.vendedorUid || (window._wzEditando ? '' : (cu && cu.uid)) || '';
   var esc = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); };
   var opts = '<option value="">— Seleccionar vendedor —</option>';
   lista.filter(function(u){ return u && !u.suspendido; })
@@ -1833,7 +1836,7 @@ function _wzEnsureVendedores(){
     if(Array.isArray(lista) && lista.length){ _usersCache = lista; }
     var _vs = document.getElementById('wz_vendedor');
     if(!_vs) return;
-    var keep = WZ.vendedorUid || _vs.value || (S.currentUser && S.currentUser.uid) || '';
+    var keep = WZ.vendedorUid || _vs.value || (window._wzEditando ? '' : (S.currentUser && S.currentUser.uid)) || '';
     _vs.innerHTML = _wzVendedorOpts();
     if(keep){ _vs.value = keep; _wzSetVendedor(_vs); }
   }).catch(function(){});
@@ -3889,6 +3892,56 @@ function ejecutarDelCred(audit){
   toast(modo==='completo' ? 'Crédito eliminado por completo: pagos y cuentas también fueron eliminados' : 'Crédito cancelado: pagos y cuentas se conservaron','info');
 }
 
+// ── Cambiar el vendedor de una venta ya guardada (17-nov-2026) ──
+// Adam: "que salga predeterminado el nombre del usuario que hizo la solicitud, pero que se puedan
+// cambiar luego si se necesita". La mitad de las ventas las carga una sola persona a nombre de los
+// demás, y cuando se le pasa cambiar la casilla la venta queda a su nombre. Mientras el contrato no
+// estaba firmado se podía corregir desde el asistente; firmado, no había dónde. Ahora el vendedor
+// se cambia en esta ventana. Como de eso depende la comisión, solo lo cambia un administrador o un
+// gerente, y queda anotado quién lo cambió, cuándo y quién estaba antes.
+function _credPuedeCambiarVendedor(){
+  var r = (S.currentUser && S.currentUser.rol) || '';
+  return r === 'Administrador' || r === 'Gerente';
+}
+// A quién le cuenta hoy la venta, con la misma regla de Comisiones: por identificador y, en los
+// créditos viejos que no lo traen, por el nombre.
+function _credVendedorActual(c){
+  var lista = (typeof _usersCache!=='undefined' && Array.isArray(_usersCache)) ? _usersCache : [];
+  var escrito = String((c && c.vendedorNombre) || '').trim(), u = null;
+  if(c && c.vendedorUid){
+    u = lista.find(function(x){ return x && String(x.uid)===String(c.vendedorUid); }) || null;
+  } else if(c){
+    var n = (escrito && escrito.toLowerCase()!=='usuario') ? escrito : String(c.creadoPor||'').trim();
+    if(n) u = lista.find(function(x){ return x && String(x.nombre||x.email||'').trim().toLowerCase()===n.toLowerCase(); }) || null;
+    if(!escrito || escrito.toLowerCase()==='usuario') escrito = n;
+  }
+  return { uid: u ? String(u.uid) : '', nombre: u ? (u.nombre||u.email||'') : escrito, usuario: u };
+}
+function _credVendedorOpts(c){
+  var esc = function(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); };
+  var lista = (typeof _usersCache!=='undefined' && Array.isArray(_usersCache)) ? _usersCache.slice() : [];
+  var act = _credVendedorActual(c);
+  // El vendedor de hoy sale siempre, aunque su usuario esté suspendido: si no, al abrir la ventana
+  // parecería que la venta es de otro.
+  lista = lista.filter(function(u){ return u && (!u.suspendido || String(u.uid)===act.uid); })
+    .sort(function(a,b){ return String(a.nombre||a.email||'').localeCompare(String(b.nombre||b.email||'')); });
+  var opts = act.uid ? '' : '<option value="" selected>'+(act.nombre ? esc(act.nombre)+' (sin usuario en el sistema)' : '— Sin vendedor —')+'</option>';
+  lista.forEach(function(u){
+    var nm = u.nombre || u.email || 'Usuario';
+    opts += '<option value="'+esc(u.uid)+'"'+(String(u.uid)===act.uid?' selected':'')+'>'+esc(nm)+((u.cargo||u.rol)?' · '+esc(u.cargo||u.rol):'')+(u.suspendido?' · suspendido':'')+'</option>';
+  });
+  return opts;
+}
+// Debajo de la lista: si la persona elegida no gana comisión, se dice ahí mismo.
+function _credVendedorNota(){
+  var el = $('ec_vendedor_nota'), vs = $('ec_vendedor'); if(!el || !vs) return;
+  var lista = (typeof _usersCache!=='undefined' && Array.isArray(_usersCache)) ? _usersCache : [];
+  var u = vs.value ? lista.find(function(x){ return x && String(x.uid)===String(vs.value); }) : null;
+  var base = 'La comisión de esta venta es de quien salga aquí.' + (_credPuedeCambiarVendedor() ? '' : ' Solo lo cambia un administrador o un gerente.');
+  el.innerHTML = base + ((u && !(u.comisiones && u.comisiones.activo))
+    ? ' <span style="color:var(--amber);font-weight:700">'+String(u.nombre||u.email||'Esta persona').replace(/</g,'&lt;')+' tiene la comisión apagada: la venta no le va a generar nada.</span>' : '');
+}
+
 function openEditCred(credId){
   var c = S.creds.find(function(x){return x.id===credId;}); if(!c) return;
   setMicon('editar'); $('mtt').textContent='Editar Crédito'; $('msb').textContent=c.id+' · '+c.cli;
@@ -3910,6 +3963,9 @@ function openEditCred(credId){
     +getCobradoresList().map(function(u){return '<option '+(c.cobrador===u?'selected':'')+'>'+u+'</option>';}).join('')
     +'</select></div>'
     +'</div>'
+    +'<div class="fg"><label>Vendedor (para comisión)</label>'
+    +'<select class="fs" id="ec_vendedor" onchange="_credVendedorNota()"'+(_credPuedeCambiarVendedor()?'':' disabled')+'>'+_credVendedorOpts(c)+'</select>'
+    +'<div id="ec_vendedor_nota" style="font-size:10.5px;color:var(--ink3);margin-top:4px;line-height:1.45"></div></div>'
     +'<div class="fgr" style="gap:8px">'
     +'<div class="fg"><label>Fecha de inicio</label><input class="fi" id="ec_fecha" type="date" value="'+(c.fecha||'')+'"></div>'
     +'<div class="fg"><label>GPS instalado</label><select class="fs" id="ec_gps"><option value="si" '+(c.gps?'selected':'')+'>Sí</option><option value="no" '+(!c.gps?'selected':'')+'>No</option></select></div>'
@@ -3924,13 +3980,40 @@ function openEditCred(credId){
       gps: ($('ec_gps')&&$('ec_gps').value)==='si',
       notas: ($('ec_notas')&&$('ec_notas').value)||''
     };
+    // El vendedor: solo si quien guarda puede cambiarlo y de verdad eligió a otra persona
+    var _vs = $('ec_vendedor'), _cambioVend = null;
+    if(_vs && _credPuedeCambiarVendedor() && _vs.value){
+      var _antes = _credVendedorActual(c);
+      var _uNuevo = ((typeof _usersCache!=='undefined' && Array.isArray(_usersCache)) ? _usersCache : []).find(function(x){ return x && String(x.uid)===String(_vs.value); });
+      if(_uNuevo && String(_uNuevo.uid) !== _antes.uid){
+        upd.vendedorUid = String(_uNuevo.uid);
+        upd.vendedorNombre = _uNuevo.nombre || _uNuevo.email || '';
+        upd.vendedorNombreAntes = _antes.nombre || '';
+        upd.vendedorCambiadoPor = (S.currentUser && (S.currentUser.nombre || S.currentUser.email)) || '';
+        upd.vendedorCambiadoEn = new Date().toISOString();
+        _cambioVend = { antes: _antes.nombre || '(sin vendedor)', ahora: upd.vendedorNombre };
+      }
+    }
     var ci = S.creds.findIndex(function(x){return x.id===credId;});
     if(ci>=0){ Object.assign(S.creds[ci], upd); DB.updateCred(credId, upd); }
-    closeM(); nav('creditos'); toast('Crédito actualizado','success'); return true;
+    if(_cambioVend && typeof logActividad==='function') logActividad('vendedor_cambiado','creditos',String(credId),_cambioVend);
+    closeM(); nav('creditos');
+    toast(_cambioVend ? 'Vendedor cambiado: '+_cambioVend.antes+' → '+_cambioVend.ahora : 'Crédito actualizado','success'); return true;
   };
   $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cancelar</button>'
     +'<button class="btn btn-p" onclick="saveM()">Guardar cambios</button>';
   $('ov').style.display='flex';
+  _credVendedorNota();
+  // Quien entra directo a Créditos puede no tener cargada la lista de usuarios: se trae y se
+  // vuelve a pintar la casilla, sin tocar lo que ya esté elegido.
+  if((typeof _usersCache==='undefined' || !Array.isArray(_usersCache) || !_usersCache.length) && typeof DB!=='undefined' && DB.getUsuarios){
+    DB.getUsuarios().then(function(lista){
+      if(!Array.isArray(lista) || !lista.length) return;
+      _usersCache = lista;
+      var vs = $('ec_vendedor'); if(!vs) return;
+      vs.innerHTML = _credVendedorOpts(c); _credVendedorNota();
+    }).catch(function(){});
+  }
 }
 
 function openAddCredConMoto(motoId){openAddCred(motoId);}
