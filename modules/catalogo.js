@@ -50,7 +50,7 @@ function _catCuando(iso){
 PG.catalogo = function(){
   if(!catPuedeEditar()) return '<div class="page"><div class="empty" style="padding:60px 20px;text-align:center">Pídele a un administrador el permiso de <b>Catálogo web</b>.</div></div>';
   if(!_cat.cargado && !_cat.cargando && !_cat.error) catCargar();
-  var E = _catEsc, admin = catEsAdmin(), c = catCondiciones(), lista = catLista(), faltan = _cat.cargado ? catFaltantes() : [];
+  var E = _catEsc, c = catCondiciones(), lista = catLista(), faltan = _cat.cargado ? catFaltantes() : [];
   var M = function(v){ return '$' + (+v || 0).toLocaleString('en-US'); };
   var seg = String(c.seguroPct).replace('.', ',');
   // Sin seguro aparte (desde el 14-oct va dentro del precio) las columnas Seguro y Al firmar sobran
@@ -72,14 +72,19 @@ PG.catalogo = function(){
       + '<button class="btn btn-p" onclick="catImportar()">Cargar los ' + PagasiCatalog.base.length + ' modelos de la web</button></div></div>';
   }
 
-  // Condiciones (tasa, seguro, inicial, plazos): solo administradores (Adam, 13-oct-2026)
-  var condiciones = !admin ? '' : '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Condiciones del plan</div></div><div style="padding:0 16px 14px">'
+  // Condiciones (tasa, seguro, inicial, plazos): administradores (Adam, 13-oct-2026) y quien tenga
+  // el permiso «Cambiar condiciones del plan» (20-nov-2026)
+  var condiciones = !catPuedeCondiciones() ? '' : '<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Condiciones del plan</div></div><div style="padding:0 16px 14px">'
     + '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">'
     + '<div class="fg" style="min-width:150px"><label>Tasa anual (FDC)</label><input class="fi" id="cat_apy" type="number" step="0.01" value="' + c.apy + '" style="width:130px"></div>'
     + '<div class="fg" style="min-width:150px"><label>Seguro (% del precio de contado)</label><input class="fi" id="cat_seguro" type="number" step="0.01" value="' + c.seguroPct + '" style="width:130px"></div>'
-    + '<div style="font-size:12px;color:var(--ink2);line-height:1.7;padding-bottom:6px">Inicial desde <b>' + c.inicialMin + '%</b> · plazos de <b>' + c.plazos.join(', ') + ' meses</b><br>El seguro se paga junto con la inicial.</div>'
+    // 20-nov-2026, Adam: "aquí necesito un botón para también cambiar las iniciales... quiero la
+    // posibilidad de cambiarlo cuando quiera". La inicial mínima ya salía de aquí para la web, la
+    // calculadora, el asistente de créditos y Paola; faltaba la casilla para cambiarla.
+    + '<div class="fg" style="min-width:150px"><label>Inicial mínima (% del precio)</label><input class="fi" id="cat_inicial" type="number" min="1" max="99" step="1" value="' + c.inicialMin + '" style="width:130px"></div>'
+    + '<div style="font-size:12px;color:var(--ink2);line-height:1.7;padding-bottom:6px">Plazos de <b>' + c.plazos.join(', ') + ' meses</b><br>El seguro se paga junto con la inicial.</div>'
     + '<button class="btn btn-p btn-sm" style="margin-left:auto" onclick="catGuardarCondiciones()">Guardar condiciones</button>'
-    + '</div>' + (!_cat.cond ? '<div style="font-size:11.5px;color:var(--amber);margin-top:8px">Todavía no están guardadas: se usan las de la web (' + c.apy + '% y ' + seg + '%). Guárdalas una vez.</div>' : '')
+    + '</div>' + (!_cat.cond ? '<div style="font-size:11.5px;color:var(--amber);margin-top:8px">Todavía no están guardadas: se usan las de la web (tasa ' + c.apy + '%, seguro ' + seg + '% e inicial ' + c.inicialMin + '%). Guárdalas una vez.</div>' : '')
     + '</div></div>';
 
   // Lo que falta, de un vistazo: cada chip filtra la tabla

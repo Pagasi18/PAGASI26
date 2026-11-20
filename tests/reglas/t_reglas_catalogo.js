@@ -5,6 +5,8 @@
 //  · Las condiciones (_condiciones) las crea un administrador; la tasa, la inicial y los
 //    plazos solo los cambia un administrador. Liz si puede cambiar el seguro.
 //  · Nadie sin sesion, ni un empleado sin el permiso, ni uno suspendido escribe.
+//  · 20-nov-2026: quien tenga el permiso extra "perm_condiciones" (Maria Fernanda) tambien
+//    cambia y crea las condiciones, sin ser administrador y sin ganar nada mas.
 const fs = require('fs'), path = require('path');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 const { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection } = require('firebase/firestore');
@@ -27,6 +29,9 @@ const moto = (id, extra) => Object.assign({ id, modelo: 'NEW HORSE 150', name: '
     await setDoc(doc(db, 'usuarios/liz'), { rol: 'Empleado', nombre: 'Liz', permisos: ['dash', 'catalogo'] });
     await setDoc(doc(db, 'usuarios/emp1'), { rol: 'Empleado', nombre: 'Samantha', permisos: ['dash', 'pagos'] });
     await setDoc(doc(db, 'usuarios/lizSusp'), { rol: 'Empleado', nombre: 'Liz vieja', permisos: ['catalogo'], suspendido: true });
+    await setDoc(doc(db, 'usuarios/mafe'), { rol: 'Gerente', nombre: 'Maria Fernanda', permisos: ['dash', 'catalogo', 'perm_condiciones'] });
+    await setDoc(doc(db, 'usuarios/soloCond'), { rol: 'Empleado', nombre: 'Solo condiciones', permisos: ['dash', 'perm_condiciones'] });
+    await setDoc(doc(db, 'usuarios/mafeSusp'), { rol: 'Gerente', nombre: 'Suspendida', permisos: ['catalogo', 'perm_condiciones'], suspendido: true });
     await setDoc(doc(db, 'catalogo/1'), moto(1));
     await setDoc(doc(db, 'catalogo/_condiciones'), { apy: 650, seguroPct: 4.5, inicialMin: 40, inicialMax: 60, plazos: [6, 9, 12] });
   });
@@ -36,6 +41,9 @@ const moto = (id, extra) => Object.assign({ id, modelo: 'NEW HORSE 150', name: '
   const liz = env.authenticatedContext('liz').firestore();
   const emp = env.authenticatedContext('emp1').firestore();
   const susp = env.authenticatedContext('lizSusp').firestore();
+  const mafe = env.authenticatedContext('mafe').firestore();
+  const soloCond = env.authenticatedContext('soloCond').firestore();
+  const mafeSusp = env.authenticatedContext('mafeSusp').firestore();
 
   // ── Leer: la web, sin sesion ──
   await prueba('la web sin sesión lee el catálogo completo', assertSucceeds(getDocs(collection(publico, 'catalogo'))));
@@ -61,12 +69,31 @@ const moto = (id, extra) => Object.assign({ id, modelo: 'NEW HORSE 150', name: '
   await prueba('...pero sí lo puede leer', assertSucceeds(getDoc(doc(emp, 'catalogo/1'))));
   await prueba('alguien suspendido con el permiso ya no escribe', assertFails(updateDoc(doc(susp, 'catalogo/1'), { precio: 1 })));
 
+  // ── Permiso "perm_condiciones" (Maria Fernanda, 20-nov-2026) ──
+  await prueba('María Fernanda cambia la inicial mínima', assertSucceeds(updateDoc(doc(mafe, 'catalogo/_condiciones'), { inicialMin: 30, actualizadoPor: 'Maria Fernanda' })));
+  await prueba('...como guarda la pantalla: tasa, seguro e inicial juntos, sin pisar los plazos', assertSucceeds(setDoc(doc(mafe, 'catalogo/_condiciones'), { apy: 500, seguroPct: 0, inicialMin: 40, actualizadoPor: 'Maria Fernanda', actualizadoEn: '2026-11-20T12:00:00.000Z' }, { merge: true })));
+  await prueba('...y la inicial máxima cuando la mínima la pasa', assertSucceeds(updateDoc(doc(mafe, 'catalogo/_condiciones'), { inicialMin: 70, inicialMax: 70 })));
+  await prueba('María Fernanda sigue cambiando precios, como cualquiera con "catalogo"', assertSucceeds(updateDoc(doc(mafe, 'catalogo/1'), { precio: 1410 })));
+  await prueba('María Fernanda NO borra documentos del catálogo', assertFails(deleteDoc(doc(mafe, 'catalogo/_condiciones'))));
+  await prueba('...ni se da permisos a sí misma', assertFails(updateDoc(doc(mafe, 'usuarios/mafe'), { permisos: ['dash', 'catalogo', 'perm_condiciones', 'perm_delete', 'users'] })));
+  await prueba('...ni se los da a otra persona', assertFails(updateDoc(doc(mafe, 'usuarios/liz'), { permisos: ['dash', 'catalogo', 'perm_condiciones'] })));
+  await prueba('el permiso solo, sin "catalogo", cambia las condiciones', assertSucceeds(updateDoc(doc(soloCond, 'catalogo/_condiciones'), { inicialMin: 40, inicialMax: 60 })));
+  await prueba('...pero no los precios de las motos', assertFails(updateDoc(doc(soloCond, 'catalogo/1'), { precio: 1 })));
+  await prueba('...ni agrega modelos', assertFails(setDoc(doc(soloCond, 'catalogo/49'), moto(49))));
+  await prueba('suspendida, con el permiso, ya no cambia las condiciones', assertFails(updateDoc(doc(mafeSusp, 'catalogo/_condiciones'), { inicialMin: 10 })));
+  await prueba('Liz, sin el permiso nuevo, sigue sin cambiar la inicial', assertFails(updateDoc(doc(liz, 'catalogo/_condiciones'), { inicialMin: 20 })));
+  await prueba('un empleado sin ningún permiso del catálogo tampoco', assertFails(updateDoc(doc(emp, 'catalogo/_condiciones'), { inicialMin: 20 })));
+  await prueba('sin sesión no se cambian las condiciones', assertFails(updateDoc(doc(publico, 'catalogo/_condiciones'), { inicialMin: 20 })));
+  await prueba('la sesión anónima de la web tampoco', assertFails(updateDoc(doc(anon, 'catalogo/_condiciones'), { inicialMin: 20 })));
+
   // ── Administrador ──
   await prueba('el administrador cambia la tasa', assertSucceeds(updateDoc(doc(admin, 'catalogo/_condiciones'), { apy: 650, seguroPct: 4.5 })));
   await prueba('el administrador borra un documento', assertSucceeds(deleteDoc(doc(admin, 'catalogo/47'))));
   await env.withSecurityRulesDisabled(async ctx => { await deleteDoc(doc(ctx.firestore(), 'catalogo/_condiciones')); });
   await prueba('Liz NO crea las condiciones desde cero', assertFails(setDoc(doc(liz, 'catalogo/_condiciones'), { apy: 650, seguroPct: 4.5 })));
   await prueba('el administrador sí las crea', assertSucceeds(setDoc(doc(admin, 'catalogo/_condiciones'), { apy: 650, seguroPct: 4.5, inicialMin: 40, inicialMax: 60, plazos: [6, 9, 12] })));
+  await env.withSecurityRulesDisabled(async ctx => { await deleteDoc(doc(ctx.firestore(), 'catalogo/_condiciones')); });
+  await prueba('María Fernanda también las crea si no existen', assertSucceeds(setDoc(doc(mafe, 'catalogo/_condiciones'), { apy: 500, seguroPct: 0, inicialMin: 40, inicialMax: 60, plazos: [6, 9, 12] })));
 
   await env.cleanup();
   console.log(''); console.log(pass + ' pruebas OK, ' + fail + ' fallas');

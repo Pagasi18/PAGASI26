@@ -304,7 +304,7 @@ function _usersRenderList(){
     var initials = nombre.split(' ').slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase();
     var info = ROLES_INFO[u.rol] || {color:'#888', icon:'?'};
     var esMio = S.currentUser && S.currentUser.uid === u.uid;
-    var mods = (u.permisos||[]).filter(function(p){return p!=='perm_delete' && p!=='whatsapp' && p!=='instagram';}).length;
+    var mods = (u.permisos||[]).filter(function(p){return !EXTRA_PERMS[p] && p!=='whatsapp' && p!=='instagram';}).length;
     var lastTxt = 'Nunca';
     var lastColor = 'var(--ink3)';
     var isOnline = false;
@@ -496,7 +496,7 @@ function openUserPanel(uid){
   }
 
   var perms = Array.isArray(u.permisos) ? u.permisos : [];
-  var permCount = perms.filter(function(p){return p!=='perm_delete' && p!=='whatsapp' && p!=='instagram';}).length;
+  var permCount = perms.filter(function(p){return !EXTRA_PERMS[p] && p!=='whatsapp' && p!=='instagram';}).length;
 
   var stats = el('div', { cls:'up-stats' });
   function addStat(label, value, color){
@@ -589,7 +589,7 @@ function openUserPanel(uid){
   secPerms.appendChild(permsTitleRow);
 
   var chipsWrap = el('div', { cls:'up-perms-grid' });
-  perms.filter(function(p){ return p !== 'perm_delete' && p !== 'whatsapp' && p !== 'instagram'; }).forEach(function(pId){
+  perms.filter(function(p){ return !EXTRA_PERMS[p] && p !== 'whatsapp' && p !== 'instagram'; }).forEach(function(pId){
     var mod = MODULOS.find(function(m){ return m.id === pId; });
     var lbl = mod ? mod.label : pId;
     var chip = el('span', { cls:'up-perm-chip has', text: lbl });
@@ -1227,6 +1227,18 @@ window.editarPerfilPersonal = editarPerfilPersonal;
 // perdía. El valor por defecto es solo para quien nunca lo tuvo; un campo vacío es 0.
 function _euComVal(v, def){ return (v==null || v==='') ? def : v; }
 function _euComNum(el){ var v = el ? String(el.value==null?'':el.value).trim() : ''; return v==='' ? 0 : (parseFloat(v)||0); }
+// Las Condiciones del plan viven en Catalogo web: quien tiene el permiso de cambiarlas necesita
+// tambien el modulo, o no veria la pantalla (20-nov-2026).
+function _permisosConCatalogo(permisos){
+  var p = (permisos || []).slice();
+  if(p.indexOf('perm_condiciones') > -1 && p.indexOf('catalogo') < 0) p.push('catalogo');
+  return p;
+}
+function _euCondicionesToggle(cb){
+  if(!cb || !cb.checked) return;
+  var cat = document.querySelector('#mbd input[type=checkbox][value="catalogo"]');
+  if(cat) cat.checked = true;
+}
 function editarUsuario(uid){
   if(!db){ toast('Requiere Firebase activo','error'); return; }
   db.collection('usuarios').doc(uid).get().then(function(doc){
@@ -1240,7 +1252,10 @@ function editarUsuario(uid){
       var checked=(u.permisos||[]).includes(key);
       return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;cursor:pointer">'
         +'<input type="checkbox" value="'+key+'" '+(checked?'checked':'')+' style="accent-color:var(--p1)"> '+PGL[key]+'</label>';
-    }).join('') + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" value="perm_delete" '+(((u.permisos||[]).includes('perm_delete'))?'checked':'')+' style="accent-color:var(--p1)"> '+EXTRA_PERMS.perm_delete+'</label>';
+    }).join('') + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" value="perm_delete" '+(((u.permisos||[]).includes('perm_delete'))?'checked':'')+' style="accent-color:var(--p1)"> '+EXTRA_PERMS.perm_delete+'</label>'
+      // 20-nov-2026: cambiar las Condiciones del plan sin ser administrador. Al marcarla se marca
+      // tambien Catalogo web, que es la pantalla donde estan.
+      + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;cursor:pointer;grid-column:1/-1"><input type="checkbox" id="eu_perm_condiciones" value="perm_condiciones" '+(((u.permisos||[]).includes('perm_condiciones'))?'checked':'')+' onchange="_euCondicionesToggle(this)" style="accent-color:var(--p1)"> '+EXTRA_PERMS.perm_condiciones+'</label>';
     // Sección Comisiones
     var comActivo = !!(u.comisiones && u.comisiones.activo);
     var comV = (u.comisiones && u.comisiones.venta) || {tipo:'fijo',valor:5};
@@ -1342,6 +1357,7 @@ function editarUsuario(uid){
         if(cb.checked) permisos.push(cb.value);
       });
       permisos = permisosConCanales(permisos);   // los canales de las Reglas salen de Redes Ventas / Redes Cobranza
+      permisos = _permisosConCatalogo(permisos); // quien cambia las condiciones entra al Catalogo web
       // Recoger concesionarios asignados
       var concesAsig = [];
       document.querySelectorAll('.eu-conc-cb:checked').forEach(function(cb){

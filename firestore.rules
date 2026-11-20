@@ -646,6 +646,10 @@ service cloud.firestore {
       allow create: if esAdmin() || (permiso('catalogo') && id != '_condiciones');
       allow update: if esAdmin() || (permiso('catalogo') && (id != '_condiciones'
                       || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['apy','inicialMin','inicialMax','plazos'])));
+      // 20-nov-2026, Adam: "necesito darle acceso a Maria Fernanda para que ella pueda cambiar
+      // tambien". Las condiciones (tasa, seguro, inicial) las cambia ademas quien tenga el permiso
+      // extra "perm_condiciones", que solo un administrador marca en Usuarios.
+      allow create, update: if id == '_condiciones' && permiso('perm_condiciones');
       allow delete: if esAdmin();
     }
 

@@ -2991,7 +2991,10 @@ const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
 const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Canal WhatsApp',instagram:'Canal Instagram',redes:'Redes Ventas',redescob:'Redes Cobranza',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
 
-const EXTRA_PERMS={perm_delete:'Permiso para eliminar'};
+// perm_condiciones (20-nov-2026, Adam: "necesito darle acceso a María Fernanda para que ella pueda
+// cambiar también"): deja cambiar las Condiciones del plan del Catálogo web (tasa, seguro e inicial)
+// sin ser administrador. Se marca en Usuarios → Editar permisos; las Reglas de Firestore piden lo mismo.
+const EXTRA_PERMS={perm_delete:'Permiso para eliminar', perm_condiciones:'Cambiar condiciones del plan (tasa, seguro e inicial)'};
 function getCurrentPerms(){ return (S.currentUser&&Array.isArray(S.currentUser.permisos)) ? S.currentUser.permisos : []; }
 function isAdminUser(){ return !!(S.currentUser && S.currentUser.rol==='Administrador'); }
 // Permisos de Redes (1-nov-2026): se marcan 'redes' (Redes Ventas: Instagram y el WhatsApp de ventas) y
@@ -3071,7 +3074,7 @@ function _consultaSede(col, sedes){
 
 // Permisos efectivos del usuario actual
 function getPermsEfectivos(){
-  if(isAdminUser()) return Object.keys(PGL).concat(['perm_delete']);
+  if(isAdminUser()) return Object.keys(PGL).concat(Object.keys(EXTRA_PERMS));
   // Todos los demás roles (incluido Empleado / Cobrador / Vendedor):
   // respetar los permisos configurados por el administrador
   return getCurrentPerms();

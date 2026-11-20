@@ -11,10 +11,17 @@ var _cat = { cargado: false, cargando: false, motos: [], cond: null, error: '' }
 var CAT_PLAZOS_EXCEL = [6, 9, 12];
 
 function catEsAdmin(){ return typeof isAdminUser === 'function' && isAdminUser(); }
+function _catPermisos(){ return (typeof getPermsEfectivos === 'function') ? getPermsEfectivos() : ((S.currentUser && S.currentUser.permisos) || []); }
 function catPuedeEditar(){
   if(catEsAdmin()) return true;
-  var p = (typeof getPermsEfectivos === 'function') ? getPermsEfectivos() : ((S.currentUser && S.currentUser.permisos) || []);
-  return p.indexOf('catalogo') > -1;
+  return _catPermisos().indexOf('catalogo') > -1;
+}
+// Las Condiciones del plan (tasa, seguro, inicial): un administrador, o quien tenga el permiso
+// extra «perm_condiciones» (20-nov-2026, Adam: "necesito darle acceso a María Fernanda para que
+// ella pueda cambiar también"). Se marca en Usuarios → Editar permisos y las Reglas piden lo mismo.
+function catPuedeCondiciones(){
+  if(catEsAdmin()) return true;
+  return _catPermisos().indexOf('perm_condiciones') > -1;
 }
 function _catQuien(){ return (S.currentUser && (S.currentUser.nombre || S.currentUser.email)) || 'Sistema'; }
 function _catEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(m){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]; }); }
@@ -147,24 +154,39 @@ function catEliminar(id){
 }
 
 function catGuardarCondiciones(){
-  // Solo administradores: tasa, seguro, inicial y plazos (Adam, 13-oct-2026)
-  if(!catEsAdmin()){ toast('Las condiciones del plan las cambia un administrador', 'error'); return; }
+  // Tasa, seguro, inicial y plazos: administradores (Adam, 13-oct-2026) y, desde el 20-nov-2026,
+  // quien tenga el permiso «Cambiar condiciones del plan».
+  if(!catPuedeCondiciones()){ toast('Las condiciones del plan las cambia un administrador o quien tenga ese permiso', 'error'); return; }
   var c = catCondiciones(), datos = {};
   var seg = parseFloat(String(($('cat_seguro') && $('cat_seguro').value) || '').replace(',', '.'));
   if(!(seg >= 0 && seg < 50)){ toast('El seguro va en porcentaje, entre 0 y 50', 'error'); return; }
   datos.seguroPct = Math.round(seg * 100) / 100;
-  if(catEsAdmin()){
+  if(catPuedeCondiciones()){
     var apy = parseFloat(String(($('cat_apy') && $('cat_apy').value) || '').replace(',', '.'));
     if(!(apy > 0 && apy < 5000)){ toast('Revisa la tasa anual', 'error'); return; }
     datos.apy = Math.round(apy * 100) / 100;
-    if(!_cat.cond){ datos.inicialMin = c.inicialMin; datos.inicialMax = c.inicialMax; datos.plazos = c.plazos.slice(); }
+    // Inicial mínima (20-nov-2026): la casilla nueva. Si viene vacía (una pantalla vieja que todavía
+    // no la tiene) se deja la que estaba: nunca se guarda una inicial por descuido.
+    var iniTxt = String(($('cat_inicial') && $('cat_inicial').value) || '').replace(',', '.').trim();
+    var ini = iniTxt === '' ? c.inicialMin : parseFloat(iniTxt);
+    if(!(ini >= 1 && ini <= 99)){ toast('La inicial mínima va en porcentaje, entre 1 y 99', 'error'); return; }
+    ini = Math.round(ini * 100) / 100;
+    if(!_cat.cond){ datos.inicialMin = ini; datos.inicialMax = Math.max(c.inicialMax, ini); datos.plazos = c.plazos.slice(); }
+    else if(ini !== c.inicialMin){
+      datos.inicialMin = ini;
+      // La máxima (hasta dónde llega la barra de la web) no tiene casilla: solo acompaña a la mínima
+      // cuando esta la pasa, y vuelve a la de siempre si la mínima baja otra vez.
+      var maxBase = PagasiCatalog.COND_BASE.inicialMax;
+      if(ini > c.inicialMax) datos.inicialMax = ini;
+      else if(c.inicialMax > maxBase && c.inicialMax === c.inicialMin) datos.inicialMax = Math.max(ini, maxBase);
+    }
   } else if(!_cat.cond){
     toast('Las condiciones las crea primero un administrador', 'error'); return;
   }
   return _catGuardar('_condiciones', datos).then(function(){
     _cat.cond = Object.assign({}, _cat.cond || {}, datos);
     if(typeof logActividad === 'function') logActividad('catalogo_condiciones', 'catalogo', '_condiciones', datos);
-    toast('Condiciones guardadas: ya se ven en la web', 'success');
+    toast('Condiciones guardadas: ya se ven en la web' + (datos.inicialMin != null && _cat.cond && datos.inicialMin !== c.inicialMin ? ' · inicial mínima ' + datos.inicialMin + '%' : ''), 'success');
     nav('catalogo');
   }).catch(_catError);
 }
