@@ -110,12 +110,17 @@ PG.catalogo = function(){
         + '<div style="display:flex;gap:4px;margin-top:4px"><button class="btn btn-g btn-xs" onclick="catElegirFoto(' + id + ')" title="Cambiar la foto">Cambiar</button><button class="btn btn-g btn-xs" onclick="catQuitarFoto(' + id + ')" title="Quitar la foto">✕</button></div>'
       : '<button class="btn btn-g btn-xs" onclick="catElegirFoto(' + id + ')" style="width:64px;height:48px;white-space:normal;line-height:1.2;border-color:var(--amber)">＋ Foto</button>';
   };
-  var grupoAnt = null, nGrupo = 0;
+  var grupoAnt = null, nGrupo = 0, folletoDer = (typeof window !== 'undefined' && +window.innerWidth >= 900);
   var filas = lista.map(function(m){
     var id = _catId(m.id), sinPrecio = catSinPrecio(m), b = catPlan(m, 12, c.inicialMin / 100), visible = m.disponible !== false;
     var busca = (typeof PagasiCatalog !== 'undefined' ? PagasiCatalog.normalize(m.modelo + ' ' + (m.name || '') + ' ' + (m.sedeName || '')) : '');
     var titulo = '';
-    if(m.sedeName !== grupoAnt){ grupoAnt = m.sedeName; nGrupo++; titulo = '<tr class="cat-grupo" data-grupo="' + nGrupo + '"><td colspan="' + nCols + '" style="background:var(--surf2);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);padding:8px 12px">' + E(m.sedeName || 'Sin concesionario') + (m.concesionarioId ? '' : ' <button class="btn btn-g btn-xs" style="margin-left:10px;text-transform:none;letter-spacing:0" onclick="catAsignarGrupo(' + JSON.stringify(String(m.sedeName || '')).replace(/"/g, '&quot;') + ')" title="Estos modelos todavía no están atados a un concesionario del sistema">Asignar concesionario del sistema</button>') + '</td></tr>'; }
+    if(m.sedeName !== grupoAnt){ grupoAnt = m.sedeName; nGrupo++; titulo = '<tr class="cat-grupo" data-grupo="' + nGrupo + '"><td colspan="' + nCols + '" style="background:var(--surf2);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);padding:8px 12px">' + E(m.sedeName || 'Sin concesionario') + (m.concesionarioId ? '' : ' <button class="btn btn-g btn-xs" style="margin-left:10px;text-transform:none;letter-spacing:0" onclick="catAsignarGrupo(' + JSON.stringify(String(m.sedeName || '')).replace(/"/g, '&quot;') + ')" title="Estos modelos todavía no están atados a un concesionario del sistema">Asignar concesionario del sistema</button>')
+      // 20-nov-2026, Adam: "aquí necesito que me pongas un botón que diga crear folleto y se cree un
+      // folleto con los precios de cada concesionario". A la derecha de la franja (sobre Editar /
+      // Copiar); en pantallas angostas, pegado al nombre, porque la tabla se corre de lado.
+      + ' <button class="btn btn-g btn-xs" data-cat-folleto="' + E(_catFolletoClave(m)) + '" style="' + (folletoDer ? 'float:right;' : 'margin-left:10px;') + 'text-transform:none;letter-spacing:0" onclick="catFolleto(' + JSON.stringify(_catFolletoClave(m)).replace(/"/g, '&quot;') + ')" title="Una imagen con los modelos de este concesionario, su inicial y sus cuotas, lista para WhatsApp e Instagram">Crear folleto</button>'
+      + '</td></tr>'; }
     var cambio = m.actualizadoPor ? '<div class="tds" style="font-size:10.5px;opacity:.8">Cambió ' + E(m.actualizadoPor) + (m.actualizadoEn ? ' · ' + E(_catCuando(m.actualizadoEn)) : '') + '</div>' : '';
     var verWeb = (visible && !sinPrecio) ? ' · <a href="simulador.html?moto=' + id + '" target="_blank" rel="noopener" style="font-weight:700">Ver en la web ↗</a>' : '';
     var raya = '<span style="color:var(--ink3)">—</span>';
