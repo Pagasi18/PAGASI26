@@ -1894,7 +1894,8 @@ if (auth) {
 var QV_GRUPOS = ['Principal','Gestión','Operaciones','Análisis','Sistema'];
 // Fuera de la tabla: Centro (escondido del menú), Aprobaciones (sale sola con Créditos) y Files (lo ven todos)
 var QV_FUERA = { centro:1, aprobaciones:1, recursos:1 };
-var QV_ESPECIALES = [{ id:'perm_delete', label:'Borrar registros' }, { id:'perm_condiciones', label:'Condiciones del plan' }];
+var QV_ESPECIALES = [{ id:'perm_delete', label:'Borrar registros' }, { id:'perm_condiciones', label:'Condiciones del plan', corto:'Condiciones' }];
+var QV_GRUPO_CORTO = { Principal:'Inicio' };   // un grupo de una sola columna no cabe con su nombre largo
 // Claves viejas que hoy abren la misma pantalla: se dan y se quitan junto con la de la columna
 var QV_GEMELOS = { pagos:'cobranza', reportes:'conta' };
 var QV_VC = ['motos','clientes','creditos','calculadora'];
@@ -1907,7 +1908,7 @@ function _qvColumnas(){
   QV_GRUPOS.forEach(function(g){
     MODULOS.forEach(function(m){ if(m.grupo === g && !QV_FUERA[m.id]) cols.push({ id:m.id, label:m.label, grupo:g }); });
   });
-  QV_ESPECIALES.forEach(function(e){ cols.push({ id:e.id, label:e.label, grupo:'Especiales' }); });
+  QV_ESPECIALES.forEach(function(e){ cols.push({ id:e.id, label:e.label, corto:e.corto, grupo:'Especiales' }); });
   return cols;
 }
 function _qvEtiqueta(key){ var c = _qvColumnas().find(function(x){ return x.id === key; }); return c ? c.label : (PGL[key] || key); }
@@ -2013,7 +2014,7 @@ function _qvSub(u){ return _qvEsc(u.cargo || u.rol || '') + (u.suspendido ? ' ·
 function _qvCelda(u, c, chip){
   var si = qvTiene(u, c.id), bloq = _qvBloqueo(u), ocupado = !!_qv.guardando[u.uid];
   var cls = (chip ? 'qv-chip ' : 'qv-c ') + (si ? 'qv-si' : 'qv-no') + (bloq ? ' qv-fijo' : '') + (ocupado ? ' qv-ocupado' : '');
-  var dentro = chip ? (si ? '✓ ' : '') + _qvEsc(c.label) : (si ? '✓' : '');
+  var dentro = chip ? (si ? '✓ ' : '') + _qvEsc(c.label) : (si ? '✓' : '<i></i>');
   var dice = _qvEsc(_qvNombre(u)) + ': ' + _qvEsc(c.label) + (si ? ', tiene acceso' : ', no tiene acceso');
   if(bloq) return '<span class="' + cls + '" title="' + _qvEsc(bloq) + '" aria-label="' + dice + '">' + dentro + '</span>';
   return '<button type="button" class="' + cls + '" aria-pressed="' + si + '" aria-label="' + dice + '. Tocar para ' + (si ? 'quitar' : 'dar') + '"'
@@ -2023,29 +2024,80 @@ function _qvAvisoHTML(){
   var x = _qv.ultimo; if(!x) return '';
   return '<span>' + x.texto + '</span>' + (x.deshacer ? '' : '<button type="button" class="btn btn-g btn-xs" onclick="qvDeshacer()">Deshacer</button>');
 }
+// Las personas por rol, como se piensa el equipo (21-nov-2026, Adam: "mejóralo"). Los
+// administradores van en una sola línea: tienen todo y sus filas llenas de ✓ solo estorbaban.
+var QV_ORDEN_ROL = ['Administrador','Gerente','Empleado','Vendedor','Cobrador','Contador','Vendedor Concesionario'];
+var QV_PLURAL = { Administrador:'Administradores', Gerente:'Gerentes', Empleado:'Empleados', Vendedor:'Vendedores', Cobrador:'Cobradores', Contador:'Contadores', 'Vendedor Concesionario':'Vendedores de concesionario' };
+function _qvSecciones(gente){
+  var sec = {}, orden = [];
+  gente.forEach(function(u){
+    var k = u.suspendido ? '~susp' : (_qvEsAdmin(u) ? 'Administrador' : (u.rol || 'Sin rol'));
+    if(!sec[k]){ sec[k] = []; orden.push(k); }
+    sec[k].push(u);
+  });
+  var pos = function(k){ var i = QV_ORDEN_ROL.indexOf(k); return k === '~susp' ? 999 : (i < 0 ? 500 : i); };
+  return orden.sort(function(a, b){ return pos(a) - pos(b) || a.localeCompare(b, 'es'); })
+    .map(function(k){ return { rol: k, titulo: k === '~susp' ? 'Suspendidos' : (QV_PLURAL[k] || k), gente: sec[k], admin: k === 'Administrador' }; });
+}
+var QV_ICONO_EXTRA = {
+  perm_delete: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>',
+  perm_condiciones: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10"/><path d="M18 6h2"/><circle cx="16" cy="6" r="2"/><path d="M4 12h4"/><path d="M12 12h8"/><circle cx="10" cy="12" r="2"/><path d="M4 18h12"/><circle cx="18" cy="18" r="2"/></svg>'
+};
+function _qvIcono(id){ return QV_ICONO_EXTRA[id] || (typeof pgNavIcon === 'function' ? pgNavIcon(id) : ''); }
+function _qvIniciales(u){ return _qvNombre(u).replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9 ]/g, ' ').trim().split(/\s+/).slice(0, 2).map(function(w){ return (w[0] || '').toUpperCase(); }).join('') || '?'; }
+function _qvColorRol(u){ return ((typeof ROLES_INFO !== 'undefined' && ROLES_INFO[_qvEsAdmin(u) ? 'Administrador' : u.rol]) || { color: '#64748B' }).color; }
+function _qvAvatar(u){ return '<span class="qv-av" style="background:' + _qvColorRol(u) + '">' + _qvEsc(_qvIniciales(u)) + '</span>'; }
+// Al pasar el mouse se iluminan la fila (CSS) y la columna (esto): con 24 columnas el ojo se pierde
+function qvCruz(ev){
+  var st = document.getElementById('qv-cruz-css'); if(!st) return;
+  var el = ev && ev.target && ev.target.closest ? ev.target.closest('[data-c]') : null;
+  st.textContent = el ? '.qv-t [data-c="' + el.getAttribute('data-c') + '"]{background:linear-gradient(var(--qv-cruz),var(--qv-cruz)),var(--surf)!important}' : '';
+}
 function _qvCuerpoHTML(){
   var cols = _qvColumnas(), gente = _qvGente();
-  var todos = (_usersCache || []).filter(function(u){ return u && u.rol !== 'Aliado' && !u.eliminado; }).length;
+  var todosLista = (_usersCache || []).filter(function(u){ return u && u.rol !== 'Aliado' && !u.eliminado; });
+  var todos = todosLista.length, activos = todosLista.filter(function(u){ return !u.suspendido; });
   var cab = '<div class="qv-nota">' + (gente.length === todos ? todos + ' personas' : gente.length + ' de ' + todos + ' personas')
     + (isAdminUser() ? ' · toca un cuadrito para dar o quitar ese permiso; toca el nombre para ver todo lo demás' : ' · solo un administrador cambia permisos') + '</div>';
   if(!gente.length) return cab + '<div class="qv-vacio">' + (todos ? 'Nadie coincide con la búsqueda.' : 'Cargando…') + '</div>';
-  // Computadora: la tabla
-  var grupos = [];
-  cols.forEach(function(c){ var g = grupos[grupos.length - 1]; if(g && g.n === c.grupo) g.k++; else grupos.push({ n: c.grupo, k: 1 }); });
-  var tabla = '<div class="qv-tabla-wrap"><table class="qv-t"><thead>'
-    + '<tr><th class="qv-n qv-esq" rowspan="2">Persona</th>' + grupos.map(function(g){ return '<th class="qv-g" colspan="' + g.k + '">' + _qvEsc(g.n) + '</th>'; }).join('') + '</tr>'
-    + '<tr>' + cols.map(function(c){ return '<th class="qv-m' + (c.id === _qv.mod ? ' qv-mod-on' : '') + '" title="' + _qvEsc(c.label) + '"><span>' + _qvEsc(c.label) + '</span></th>'; }).join('') + '</tr></thead><tbody>'
-    + gente.map(function(u){
-        return '<tr class="' + (u.suspendido ? 'qv-susp' : '') + '"><th class="qv-n" scope="row"><button type="button" class="qv-nom" onclick="' + _qvAbrir(u.uid) + '">' + _qvEsc(_qvNombre(u)) + '</button><small>' + _qvSub(u) + '</small></th>'
-          + cols.map(function(c){ return '<td>' + _qvCelda(u, c, false) + '</td>'; }).join('') + '</tr>';
+  var secciones = _qvSecciones(gente), N = cols.length;
+  // Los grupos de columnas, con franjas alternas para que el ojo no se pierda
+  var grupos = [], zebra = {}, inicio = {};
+  cols.forEach(function(c, i){
+    var g = grupos[grupos.length - 1];
+    if(g && g.n === c.grupo) g.k++; else { grupos.push({ n: c.grupo, k: 1 }); inicio[i] = 1; }
+    zebra[i] = (grupos.length % 2 === 0);
+  });
+  var cls = function(i){ return (zebra[i] ? ' qv-z' : '') + (inicio[i] ? ' qv-ini' : ''); };
+  var cuantos = cols.map(function(c){ return activos.filter(function(u){ return qvTiene(u, c.id); }).length; });
+  var tabla = '<style id="qv-cruz-css"></style><div class="qv-tabla-wrap"><table class="qv-t" onmouseover="qvCruz(event)" onmouseleave="qvCruz()">'
+    + '<colgroup><col class="qv-col-n">' + cols.map(function(){ return '<col>'; }).join('') + '</colgroup><thead>'
+    + '<tr class="qv-h1"><th class="qv-n qv-esq" rowspan="3">Persona</th>' + grupos.map(function(g, k){ return '<th class="qv-g' + (k % 2 ? ' qv-z' : '') + ' qv-ini" colspan="' + g.k + '" title="' + _qvEsc(g.n) + '">' + _qvEsc(g.k === 1 && QV_GRUPO_CORTO[g.n] ? QV_GRUPO_CORTO[g.n] : g.n) + '</th>'; }).join('') + '</tr>'
+    + '<tr class="qv-h2">' + cols.map(function(c, i){ return '<th class="qv-m' + cls(i) + (c.id === _qv.mod ? ' qv-mod-on' : '') + '" data-c="' + i + '" title="' + _qvEsc(c.label) + '"><span class="qv-lbl">' + _qvEsc(c.corto || c.label) + '</span><span class="qv-ico" aria-hidden="true">' + _qvIcono(c.id) + '</span></th>'; }).join('') + '</tr>'
+    + '<tr class="qv-h3">' + cols.map(function(c, i){ return '<th class="qv-k' + cls(i) + '" data-c="' + i + '" title="' + cuantos[i] + ' persona' + (cuantos[i] === 1 ? '' : 's') + ' ven ' + _qvEsc(c.label) + '">' + cuantos[i] + '</th>'; }).join('') + '</tr>'
+    + '</thead><tbody>'
+    + secciones.map(function(s){
+        if(s.admin) return '<tr class="qv-adm"><th class="qv-n" scope="row"><div class="qv-per"><span class="qv-avs">' + s.gente.slice(0, 4).map(_qvAvatar).join('') + '</span><div class="qv-per-t"><div class="qv-nom-t">Administradores · ' + s.gente.length + '</div>'
+          + '<small>' + s.gente.map(function(u){ return '<button type="button" class="qv-nom qv-nom-s" onclick="' + _qvAbrir(u.uid) + '">' + _qvEsc(_qvNombre(u)) + '</button>'; }).join(', ') + '</small></div></div></th>'
+          + '<td class="qv-adm-td" colspan="' + N + '"><span class="qv-c qv-si qv-fijo">✓</span> Tienen todo, en todos los módulos · para quitarles algo hay que cambiarles el rol</td></tr>';
+        return '<tr class="qv-sec"><th class="qv-sec-t" colspan="' + (N + 1) + '"><span>' + _qvEsc(s.titulo) + '</span> <em>' + s.gente.length + '</em></th></tr>'
+          + s.gente.map(function(u){
+              var n = cols.filter(function(c){ return qvTiene(u, c.id); }).length;
+              return '<tr class="' + (u.suspendido ? 'qv-susp' : '') + '"><th class="qv-n" scope="row"><div class="qv-per">' + _qvAvatar(u) + '<div class="qv-per-t"><button type="button" class="qv-nom" onclick="' + _qvAbrir(u.uid) + '">' + _qvEsc(_qvNombre(u)) + '</button><small>' + _qvSub(u) + '</small></div>'
+                + '<span class="qv-cnt" title="Tiene ' + n + ' de ' + N + '">' + n + '</span></div></th>'
+                + cols.map(function(c, i){ return '<td class="' + cls(i).trim() + '" data-c="' + i + '">' + _qvCelda(u, c, false) + '</td>'; }).join('') + '</tr>';
+            }).join('');
       }).join('')
     + '</tbody></table></div>';
-  // Teléfono: una tarjeta por persona
-  var tarjetas = '<div class="qv-cards">' + gente.map(function(u){
-      var n = cols.filter(function(c){ return qvTiene(u, c.id); }).length;
-      return '<div class="qv-card' + (u.suspendido ? ' qv-susp' : '') + '"><div class="qv-card-h"><div><button type="button" class="qv-nom" onclick="' + _qvAbrir(u.uid) + '">' + _qvEsc(_qvNombre(u)) + '</button><small>' + _qvSub(u) + '</small></div>'
-        + '<span class="qv-cuenta">' + n + ' de ' + cols.length + '</span></div>'
-        + '<div class="qv-chips">' + cols.map(function(c){ return _qvCelda(u, c, true); }).join('') + '</div></div>';
+  // Teléfono: una tarjeta por persona (los administradores, en una sola)
+  var tarjetas = '<div class="qv-cards">' + secciones.map(function(s){
+      if(s.admin) return '<div class="qv-card qv-card-adm"><div class="qv-card-h"><div><b>Administradores · ' + s.gente.length + '</b><small>' + s.gente.map(function(u){ return _qvEsc(_qvNombre(u)); }).join(', ') + '</small></div></div><div class="qv-adm-txt">✓ Tienen todo · para quitarles algo hay que cambiarles el rol</div></div>';
+      return '<div class="qv-card-sec">' + _qvEsc(s.titulo) + ' · ' + s.gente.length + '</div>' + s.gente.map(function(u){
+        var n = cols.filter(function(c){ return qvTiene(u, c.id); }).length;
+        return '<div class="qv-card' + (u.suspendido ? ' qv-susp' : '') + '"><div class="qv-card-h"><div class="qv-per">' + _qvAvatar(u) + '<div><button type="button" class="qv-nom" onclick="' + _qvAbrir(u.uid) + '">' + _qvEsc(_qvNombre(u)) + '</button><small>' + _qvSub(u) + '</small></div></div>'
+          + '<span class="qv-cuenta">' + n + ' de ' + N + '</span></div>'
+          + '<div class="qv-chips">' + cols.map(function(c){ return _qvCelda(u, c, true); }).join('') + '</div></div>';
+      }).join('');
     }).join('') + '</div>';
   return cab + tabla + tarjetas;
 }

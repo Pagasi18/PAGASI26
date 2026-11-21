@@ -17,7 +17,16 @@
         'u-ernesto': u('Ernesto Prueba', 'Vendedor', 'Vendedor', ['dash','clientes','creditos','motos','redes','instagram','whatsapp']),
         'u-vc':      u('Vendedor Sede Prueba', 'Vendedor Concesionario', '', ['motos','clientes','creditos']),
         'u-ana':     u('Ana Prueba', 'Empleado', 'Recepción', ['dash','clientes'], { suspendido:true }),
-        'u-aliado':  u('Aliado Prueba', 'Aliado', '', [])
+        'u-aliado':  u('Aliado Prueba', 'Aliado', '', []),
+        'u-adm2':    u('Abraham Prueba', 'Administrador', '', []),
+        'u-adm3':    u('Alejandro Prueba', 'Administrador', '', []),
+        'u-coro':    u('Coromoto Prueba', 'Gerente', 'Analista Contable', ['dash','clientes','motos','creditos','pagos','cobranza','contratos','notif','reportes','conta','cuentas','concesionarios','plan']),
+        'u-dani':    u('Daniela Prueba', 'Gerente', 'Cobranza', ['dash','clientes','motos','creditos','pagos','cobranza','contratos','notif','calculadora','reportes','conta','cuentas','plan','config','users','perm_delete']),
+        'u-daimar':  u('Daimar Prueba', 'Empleado', 'Asesor Comercial', ['clientes','motos','creditos','pagos','cobranza','contratos','notif']),
+        'u-debora':  u('Debora Prueba', 'Empleado', 'Asesor Comercial', ['creditos','pagos','cobranza','contratos','notif']),
+        'u-edi':     u('EDIANGELA DEL VALLE PRUEBA', 'Vendedor', 'Vendedor', ['dash','clientes','motos','creditos','redes','instagram','whatsapp']),
+        'u-mf':      u('María Fernanda Prueba', 'Gerente', 'Gerente de Operaciones', ['dash','clientes','motos','creditos','pagos','cobranza','contratos','notif','catalogo','perm_condiciones','grupo']),
+        'u-oliver':  u('Oliver Prueba', 'Vendedor', 'Vendedor', ['dash','clientes','motos','creditos','redes','instagram','whatsapp','calculadora'])
       },
       config: { plan: { factor:1.2, inicial:0.45, tasaMensual:0.05, plazo:12, apy:60, diasGracia:5 } },
       concesionarios: {}, clientes: {}, motos: {}, creditos: {},
