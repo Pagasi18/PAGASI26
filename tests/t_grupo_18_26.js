@@ -154,8 +154,69 @@ ok('...y nunca queda negativo', uno('U').cartera === 0);
 ok('una cuota a medias: lo vencido es lo que falta de esa cuota y las siguientes vencidas', uno('E').vencido > 0 && uno('E').vencido === Math.round(uno('E').vencido * 100) / 100);
 ok('sin el ledger, lo vencido cae a una cuota por crédito atrasado (como el Dashboard cuando falla)', grupoResumen(clon(CREDS.filter(c => c.id === 'D')), clon(PAGOS), { hoy: HOY, ledger: {} }).vencido === 80);
 ok('las fechas se leen en hora de Venezuela', diaDe('2026-11-21') === diaDe('2026-11-21T03:59:59.000Z') + 1 && diaDe('2026-11-21') === diaDe('2026-11-21T04:00:00.000Z') && diaDe('') === null && diaDe('no es fecha') === null);
-ok('listas vacías dan ceros', JSON.stringify(grupoResumen([], [], { hoy: HOY })) === JSON.stringify({ creditos:0, cartera:0, alDia:0, enMora:0, vencido:0 }) && grupoResumen(null, null, {}).creditos === 0);
+ok('listas vacías dan ceros', (() => { const v = grupoResumen([], [], { hoy: HOY }); return ['creditos', 'cartera', 'alDia', 'enMora', 'vencido'].every(k => v[k] === 0) && v.meses.length === 12 && v.meses.every(m => !m.cuotas && !m.iniciales && !m.ventas) && v.tramos.every(t => !t.creditos) && !v.semana.cuotas && !v.historico.vendidos && Object.keys(v.cobro).every(k => !v.cobro[k].cuotas && !v.cobro[k].iniciales); })() && grupoResumen(null, null, {}).creditos === 0 && grupoResumen(null, null, {}).meses.length === 0);
 ok('las dos juntas son la suma', JSON.stringify(grupoSumar([{ creditos:10, cartera:1000.1, alDia:8, enMora:2, vencido:50.25 }, { creditos:5, cartera:500.2, alDia:5, enMora:0, vencido:0 }])) === JSON.stringify({ creditos:15, cartera:1500.3, alDia:13, enMora:2, vencido:50.25 }));
+
+// ══ 1b. Lo que se agregó el 21-nov (Adam: "dame más data… está muy vacío") ══
+const MES = HOY.slice(0, 7), mesMas = n => { const d = new Date(HOY + 'T12:00:00Z'); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 7); };
+const MES_ANT = mesMas(-1);
+// unos pagos más, para que haya de todo: hoy, el mes pasado antes y después de esta fecha, y uno viejo
+const PAGOS2 = PAGOS.concat([
+  pago('X1', 'B', 25, { fecha: HOY }), pago('X2', 'O', 100, { fecha: HOY, esInicial:true }),
+  pago('X3', 'B', 40, { fecha: MES_ANT + '-01' }), pago('X4', 'B', 70, { fecha: MES_ANT + '-28' }),
+  pago('X5', 'B', 9, { fecha: '2020-01-05' }), pago('X6', 'B', 33, { fecha: '' }),
+  pago('X7', 'B', 500, { fecha: HOY, estado:'pendiente' }), pago('X8', 'B', 500, { fecha: HOY, eliminado:true }),
+  pago('X9', 'B', 12, { fecha: HOY + 'T15:30:00' }),
+]);
+const R2 = grupoResumen(clon(CREDS), clon(PAGOS2), { hoy: HOY, ledger });
+const conf = PAGOS2.filter(p => !p.eliminado && p.estado === 'confirmado'), esIni = p => !!(p.esInicial || p.tipoOperacion === 'inicial_credito');
+const suma = (lista, f) => Math.round(lista.filter(f).reduce((a, p) => a + (parseFloat(p.monto) || 0), 0) * 100) / 100;
+const f10 = p => String(p.fecha || '').slice(0, 10);
+const ultDia = (() => { const d = new Date(Date.UTC(+MES_ANT.slice(0, 4), +MES_ANT.slice(5, 7), 0)).getUTCDate(); return MES_ANT + '-' + String(Math.min(+HOY.slice(8, 10), d)).padStart(2, '0'); })();
+ok('lo cobrado hoy: pagos confirmados de hoy, cuotas e iniciales por separado (un pago con hora también cuenta)', R2.cobro.hoy.cuotas === suma(conf, p => f10(p) === HOY && !esIni(p)) && R2.cobro.hoy.cuotas === 37 && R2.cobro.hoy.iniciales === 100);
+ok('...ni un pago pendiente ni uno borrado', R2.cobro.hoy.cuotas < 500);
+ok('lo de los últimos 7 días (hoy y los 6 anteriores)', R2.cobro.semana.cuotas === suma(conf, p => f10(p) >= dia(-6) && f10(p) <= HOY && !esIni(p)) && R2.cobro.semana.iniciales === suma(conf, p => f10(p) >= dia(-6) && f10(p) <= HOY && esIni(p)));
+ok('lo de este mes y el mes pasado completo', R2.cobro.mes.cuotas === suma(conf, p => f10(p) >= MES + '-01' && !esIni(p)) && R2.cobro.mesPasado.cuotas === suma(conf, p => f10(p).slice(0, 7) === MES_ANT && !esIni(p)));
+ok('...y el mes pasado hasta el mismo día, para comparar', R2.cobro.mesPasadoAFecha.cuotas === suma(conf, p => f10(p).slice(0, 7) === MES_ANT && f10(p) <= ultDia && !esIni(p)) && R2.cobro.mesPasadoAFecha.cuotas < R2.cobro.mesPasado.cuotas);
+ok('desde el principio: todo lo confirmado, aunque no tenga fecha', R2.cobro.total.cuotas === suma(conf, p => !esIni(p)) && R2.cobro.total.iniciales === suma(conf, esIni));
+const d2 = (() => { vm.runInContext('PLAN.diasGracia = 5;', ctx); Object.assign(ctx.S, { creds: clon(CREDS), pagos: clon(PAGOS2).map(p => Object.assign(p, { monto: parseFloat(p.monto) })), page:'dash' }); ctx.calcularMoraAuto(); const h = String(ctx.PG.dash()); return { mes: (h.match(/data-kpi="cobrado-mes">([^<]+)</) || [])[1], cuotas: (h.match(/data-kpi="flujo-cuotas">([^<]+)</) || [])[1] }; })();
+ok('lo cobrado este mes es lo mismo que «Cobrado» del Dashboard (' + d2.mes + ')', '$' + Math.round(R2.cobro.mes.cuotas + R2.cobro.mes.iniciales).toLocaleString('es-VE') === d2.mes && '+$' + Math.round(R2.cobro.mes.cuotas).toLocaleString('es-VE') === d2.cuotas);
+ok('los 12 meses de los gráficos terminan en el de hoy', R2.meses.length === 12 && R2.meses[11].mes === MES && R2.meses[10].mes === MES_ANT && R2.meses[0].mes === mesMas(-11));
+ok('...cada mes con lo cobrado de ese mes (el pago de 2020 no entra)', R2.meses[11].cuotas === R2.cobro.mes.cuotas && R2.meses[10].cuotas === R2.cobro.mesPasado.cuotas && Math.round(R2.meses.reduce((a, m) => a + m.cuotas, 0) * 100) / 100 === suma(conf, p => f10(p) >= mesMas(-11) + '-01' && !esIni(p)));
+const vendidos = CREDS.filter(c => !c.eliminado && !['cancelado', 'rechazado', 'rechazada', 'pendiente_revision'].includes(c.estado));
+ok('las motos vendidas: los créditos otorgados (sin anulados, solicitudes ni borrados) en el mes de su fecha', R2.historico.vendidos === vendidos.length && R2.meses.reduce((a, m) => a + m.ventas, 0) === vendidos.filter(c => c.fecha && c.fecha >= mesMas(-11) + '-01').length && R2.meses[11].ventas === vendidos.filter(c => String(c.fecha).slice(0, 7) === MES).length);
+ok('...con lo financiado', R2.historico.financiado === vendidos.length * 800 && R2.meses[11].financiado === R2.meses[11].ventas * 800);
+ok('terminaron de pagar: el completado aunque esté guardado como activo', R2.historico.terminados === 1 && uno('F').historico.terminados === 1 && R2.historico.recuperados === 1);
+ok('la mora por días de atraso suma lo mismo que la mora total', R2.tramos.map(t => t.tramo).join() === '1-15,16-30,31-60,+60' && R2.tramos.reduce((a, t) => a + t.creditos, 0) === R2.enMora && Math.abs(R2.tramos.reduce((a, t) => a + t.vencido, 0) - R2.vencido) < 0.01);
+ok('...cada crédito en su tramo (5 días → 1-15; 30 → 16-30)', uno('C').tramos[0].creditos === 1 && uno('D').tramos[1].creditos === 1 && uno('D').tramos[1].vencido === uno('D').vencido);
+const semanaEsperada = (() => { let n = 0, m = 0; CREDS.forEach(c => { if (c.eliminado) return; const e = estadoHoy(c, diaDe(HOY), 5); if (e.estado !== 'activo' && e.estado !== 'mora') return; const est = ledger.generarEstadoCredito(Object.assign({}, c, e), clon(PAGOS2), { diasGracia: 5, today: HOY }); est.cuotas.forEach(q => { if (q.saldo > 0.001 && q.fechaVence >= HOY && q.fechaVence <= dia(6)) { n++; m += q.saldo; } }); }); return { n, m: Math.round(m * 100) / 100 }; })();
+ok('lo que vence esta semana: las cuotas de hoy a 6 días, con lo que les falta (' + semanaEsperada.n + ' cuotas)', semanaEsperada.n > 0 && R2.semana.cuotas === semanaEsperada.n && R2.semana.monto === semanaEsperada.m);
+ok('agrupar los pagos por crédito da lo mismo que pasarlos todos', R2.vencido === grupoResumen(clon(CREDS), clon(PAGOS2), { hoy: HOY, ledger }).vencido && uno('E').vencido === Math.round(ledger.generarEstadoCredito(Object.assign({}, CREDS[4], { estado:'mora' }), clon(PAGOS), { diasGracia: 5, today: HOY }).cuotas.filter(q => q.saldo > 0.001 && q.fechaVence < HOY).reduce((a, q) => a + q.saldo, 0) * 100) / 100);
+const { fechaTxt } = require('../logic/grupo-resumen');
+ok('las fechas guardadas de cualquier forma se leen en hora de Venezuela', fechaTxt('2026-11-21') === '2026-11-21' && fechaTxt('2026-11-21T23:50:00') === '2026-11-21' && fechaTxt({ toDate: () => new Date('2026-11-22T03:00:00Z') }) === '2026-11-21' && fechaTxt(new Date('2026-11-22T05:00:00Z')) === '2026-11-22' && fechaTxt('') === '' && fechaTxt(null) === '' && fechaTxt('basura') === '');
+const S2 = grupoSumar([R2, Object.assign({ nombre:'PAGASI 26' }, R2)]);
+ok('las dos juntas suman también lo nuevo, mes por mes y tramo por tramo', S2.cobro.mes.cuotas === Math.round(R2.cobro.mes.cuotas * 200) / 100 && S2.meses.length === 12 && S2.meses[11].mes === MES && S2.meses[11].ventas === R2.meses[11].ventas * 2 && S2.tramos[0].tramo === '1-15' && S2.tramos[0].creditos === R2.tramos[0].creditos * 2 && S2.semana.cuotas === R2.semana.cuotas * 2 && S2.historico.vendidos === R2.historico.vendidos * 2 && !('nombre' in S2));
+// ══ 1c. Más gráficos (21-nov, Adam: "ponme más data… ponme charts") ══
+ok('cobrado día por día: los últimos 30 días terminando hoy, cada uno con lo de ese día', R2.dias.length === 30 && R2.dias[29].dia === HOY && R2.dias[0].dia === dia(-29) && R2.dias[29].cuotas === R2.cobro.hoy.cuotas && R2.dias[29].iniciales === R2.cobro.hoy.iniciales && Math.round(R2.dias.slice(-7).reduce((a, d) => a + d.cuotas, 0) * 100) / 100 === R2.cobro.semana.cuotas);
+ok('las formas de pago suman lo cobrado este mes y juntan los nombres de cada compañía', (() => { const t = Object.keys(R2.metodos).reduce((a, k) => a + R2.metodos[k], 0); return Math.abs(t - (R2.cobro.mes.cuotas + R2.cobro.mes.iniciales)) < 0.01 && Object.keys(R2.metodos).join() === 'banco,binance,efectivo,zelle,concesionario,otros'; })());
+const metodoDe = m => grupoResumen([], [pago('M', 'B', 10, { fecha: HOY, metodo: m })], { hoy: HOY }).metodos;
+ok('...«100% Banco» y «100% Banco 26» son banco; «Inicial en concesionario» va aparte; Binance, Efectivo y Zelle por su nombre', metodoDe('100% Banco').banco === 10 && metodoDe('100% Banco 26').banco === 10 && metodoDe('Inicial en concesionario').concesionario === 10 && metodoDe('Binance 26').binance === 10 && metodoDe('EFECTIVO').efectivo === 10 && metodoDe('Efectivo USD').efectivo === 10 && metodoDe('Zelle').zelle === 10 && metodoDe('Pagos Alejandro').otros === 10 && metodoDe('').otros === 10);
+ok('cómo se pagan las cuotas: los últimos 6 meses por el mes en que vencían', R2.puntualidad.length === 6 && R2.puntualidad[5].mes === MES && R2.puntualidad.every(x => Math.abs(x.aTiempo + x.tarde + x.sinPagar - x.monto) < 0.02));
+const unoP = (c, pagos) => grupoResumen([Object.assign({ id:'Z', estado:'activo', total:160, cuotaQ:80, totalCuotas:2, fin:150, precio:300, ini:150 }, c)], pagos, { hoy: HOY, ledger }).puntualidad;
+const venceAyer = dia(-1), fechaUna = dia(-16);   // la primera cuota vence a los 15 días: dia(-1)
+const pu = (lista) => lista.find(x => x.mes === venceAyer.slice(0, 7));
+ok('...pagada el día que vencía: a tiempo', pu(unoP({ fecha: fechaUna }, [pago('Q1', 'Z', 80, { fecha: venceAyer })])).aTiempo === 80);
+ok('...pagada después: tarde', (() => { const x = pu(unoP({ fecha: dia(-20) }, [pago('Q1', 'Z', 80, { fecha: dia(-2) })])); return x.tarde === 80 && x.aTiempo === 0; })());
+ok('...a medias y sin pagar el resto: lo que falta sale sin pagar', (() => { const x = pu(unoP({ fecha: fechaUna }, [pago('Q1', 'Z', 30, { fecha: dia(-3) })])); return x.aTiempo === 30 && x.sinPagar === 50 && x.cuotas === 1; })());
+ok('...la cuota que vence hoy todavía no cuenta', (() => { const l = unoP({ fecha: dia(-15) }, []); return l.every(x => x.cuotas === 0); })());
+ok('la mora según el mes de venta: cuántas de las vendidas cada mes están hoy en mora', R2.cosechas.length === 12 && R2.cosechas.reduce((a, x) => a + x.enMora, 0) === CREDS.filter(c => !c.eliminado && c.fecha && c.fecha >= mesMas(-11) + '-01').filter(c => { const e = estadoHoy(c, diaDe(HOY), 5); return (e.estado === 'activo' || e.estado === 'mora') && e.mora > 0; }).length && R2.cosechas.every(x => x.enMora <= x.vendidos && x.mas30 <= x.enMora));
+ok('la venta promedio: las ventas de los últimos 90 días (sumas; la pantalla divide)', (() => { const v = vendidos.filter(c => c.fecha && c.fecha >= dia(-89) && c.fecha <= HOY); return R2.promedio.ventas === v.length && R2.promedio.precio === v.length * 1400 && R2.promedio.inicial === v.length * 600 && R2.promedio.cuota === v.length * 80; })());
+const conConc = grupoResumen([base('c1', { fecha: dia(-40), concesionarioId:'CONC-1', modelo:' owen  200s ' }), base('c2', { fecha: HOY, concesionarioId:'CONC-1', modelo:'OWEN 200S' }), base('c3', { fecha: dia(-40), concesionarioId:'CONC-2', modelo:'RK 200' }), base('c4', { fecha: dia(-40), estado:'cancelado', concesionarioId:'CONC-2' })], [], { hoy: HOY, ledger, concesionarios: [{ id:'CONC-1', nombre:'EMPIRE BELLO MONTE' }] });
+ok('los concesionarios: ventas, ventas del mes, activos y en mora, con su nombre (sin el anulado)', conConc.concesionarios[0].conc === 'CONC-1' && conConc.concesionarios[0].nombre === 'EMPIRE BELLO MONTE' && conConc.concesionarios[0].vendidos === 2 && conConc.concesionarios[0].mes === 1 && conConc.concesionarios[0].enMora === 1 && conConc.concesionarios[1].vendidos === 1 && conConc.concesionarios[1].nombre === '');
+ok('los modelos: escritos distinto se juntan (mayúsculas y espacios)', conConc.modelos[0].modelo === 'OWEN 200S' && conConc.modelos[0].vendidos === 2 && conConc.modelos[1].modelo === 'RK 200');
+ok('las dos juntas no mezclan concesionarios ni modelos (van por compañía y la pantalla los junta)', !('concesionarios' in S2) && !('modelos' in S2) && S2.dias.length === 30 && S2.puntualidad.length === 6 && S2.metodos.banco === R2.metodos.banco * 2 && S2.promedio.ventas === R2.promedio.ventas * 2);
+ok('...y si una fila no casa (otro día u otro mes), esa lista no se suma', !('dias' in grupoSumar([R2, Object.assign({}, R2, { dias: R2.dias.map((d, i) => i === 3 ? Object.assign({}, d, { dia: '2000-01-01' }) : d) })])));
+ok('...y si los meses no son los mismos, no se inventan', !('meses' in grupoSumar([R2, Object.assign({}, R2, { meses: R2.meses.slice(1) })])));
 ok('...y si falta una no hay total', grupoSumar([{ creditos:10, cartera:1, alDia:1, enMora:0, vencido:0 }, { error:'x' }]) === null && grupoSumar([null, null]) === null);
 
 (async () => {
@@ -175,17 +236,17 @@ ok('...y si falta una no hay total', grupoSumar([{ creditos:10, cartera:1, alDia
   ok('...y las dos juntas son la suma', r.juntas.creditos === e18.creditos + e26.creditos && r.juntas.enMora === e18.enMora + e26.enMora && Math.abs(r.juntas.cartera - (e18.cartera + e26.cartera)) < 0.005 && Math.abs(r.juntas.vencido - (e18.vencido + e26.vencido)) < 0.005);
   ok('...dice de qué día y a qué hora se calculó', r.hoy === HOY && r.calculado === '2026-11-21T19:30:00.000Z');
   ok('cada compañía usa sus propios días de gracia (config/plan)', grupo.graciaDe({ exists:true, data: () => ({ diasGracia: 0 }) }) === 0 && grupo.graciaDe({ exists:true, data: () => ({ gracia: 7 }) }) === 7 && grupo.graciaDe({ exists:false }) === 5 && grupo.graciaDe({ exists:true, data: () => ({ diasGracia: null }) }) === 5);
-  ok('lee créditos, pagos y el plan de cada base: 4 colecciones en total', lecturas === 4);
+  ok('lee créditos, pagos, concesionarios (para los nombres) y el plan de cada base: 6 colecciones en total', lecturas === 6);
   const texto = JSON.stringify(r);
-  ok('en la respuesta solo van sumas: ni clientes, ni identificadores, ni pagos', !/CLIENTE|"cli"|"id"|"cred"|"P1"|Efectivo/.test(texto) && Object.keys(r).sort().join() === 'calculado,empresas,hoy,juntas' && Object.keys(r.empresas['18']).sort().join() === 'alDia,cartera,creditos,enMora,nombre,vencido');
+  ok('en la respuesta solo van sumas: ni clientes, ni identificadores, ni pagos', !/CLIENTE|"cli"|"id"|"cred"|"P1"|Efectivo/.test(texto) && Object.keys(r).sort().join() === 'calculado,empresas,hoy,juntas' && Object.keys(r.empresas['18']).sort().join() === 'alDia,cartera,cobro,concesionarios,cosechas,creditos,dias,enMora,historico,meses,metodos,modelos,nombre,promedio,puntualidad,semana,tramos,vencido' && Object.keys(r.juntas).sort().join() === 'alDia,cartera,cobro,cosechas,creditos,dias,enMora,historico,meses,metodos,promedio,puntualidad,semana,tramos,vencido');
   ok('el registro del servidor tampoco lleva datos: solo cuánto tardó', registros.length === 1 && registros[0][0] === 'grupo' && Object.keys(registros[0][1]).sort().join() === 'completo,ms');
   // la memoria de un minuto
   r = await grupo.resumenGrupo(deps(baseFalsa([], [], {}), baseFalsa([], [], {})), {});
-  ok('si se vuelve a pedir enseguida no se lee otra vez (un minuto de memoria)', lecturas === 4 && r.deMemoria === true && r.juntas.creditos === e18.creditos + e26.creditos);
+  ok('si se vuelve a pedir enseguida no se lee otra vez (un minuto de memoria)', lecturas === 6 && r.deMemoria === true && r.juntas.creditos === e18.creditos + e26.creditos);
   r = await grupo.resumenGrupo(deps(baseFalsa(C26, P26, {}), baseFalsa(C26, P26, {})), { fresco: true });
-  ok('«Actualizar» sí vuelve a leer', lecturas === 8 && !r.deMemoria && r.juntas.creditos === 4);
+  ok('«Actualizar» sí vuelve a leer', lecturas === 12 && !r.deMemoria && r.juntas.creditos === 4);
   r = await grupo.resumenGrupo(Object.assign(deps(baseFalsa(CREDS, PAGOS, {}), baseFalsa(C26, P26, {})), { hoy: dia(1) }), {});
-  ok('al cambiar el día la memoria no sirve', lecturas === 12 && !r.deMemoria && r.hoy === dia(1));
+  ok('al cambiar el día la memoria no sirve', lecturas === 18 && !r.deMemoria && r.hoy === dia(1));
   ok('la memoria dura un minuto', grupo.VIGENCIA_MS === 60000);
   // una base que no responde
   grupo.olvidar(); registros.length = 0;
@@ -193,7 +254,7 @@ ok('...y si falta una no hay total', grupoSumar([{ creditos:10, cartera:1, alDia
   ok('si una compañía no se puede leer, la otra sale y no hay total', r.empresas['18'].error === 'No se pudo leer PAGASI 18' && r.empresas['26'].creditos === 2 && r.juntas === null);
   ok('...el error que ve el usuario no trae el detalle', !/JUAN PEREZ/.test(JSON.stringify(r)));
   const antes = lecturas; r = await grupo.resumenGrupo(deps(baseFalsa(CREDS, PAGOS, {}), baseFalsa(C26, P26, {})), {});
-  ok('...y lo incompleto no se guarda en memoria: la próxima vuelve a leer', lecturas === antes + 4 && !r.deMemoria && !!r.juntas);
+  ok('...y lo incompleto no se guarda en memoria: la próxima vuelve a leer', lecturas === antes + 6 && !r.deMemoria && !!r.juntas);
   // quién puede
   ok('lo ve un administrador o quien tenga el permiso «grupo»; nadie más', grupo.puedeVer({ admin:true, permisos:[] }) && grupo.puedeVer({ admin:false, permisos:['dash', 'grupo'] }) && !grupo.puedeVer({ admin:false, permisos:['dash', 'reportes'] }) && !grupo.puedeVer({ admin:false }) && !grupo.puedeVer(null));
   const idx = src('functions/index.js'), ruta = idx.slice(idx.indexOf("if (/\\/equipo\\/?$/.test(req.path || '')) {"), idx.indexOf("if (/\\/aliados\\/?$/.test(req.path || '')) {"));
@@ -236,9 +297,25 @@ ok('...y si falta una no hay total', grupoSumar([{ creditos:10, cartera:1, alDia
   const cifra = (emp, k) => ((bloque(emp).match(new RegExp('data-g2="' + k + '">(.*?)</div>')) || [])[1] || '').replace(/<[^>]+>/g, '');
   ok('se ven las dos juntas: créditos, dinero en la calle, en mora y vencido', cifra('juntas', 'creditos') === num(J.creditos) && cifra('juntas', 'cartera') === ctx.fmt(J.cartera) && cifra('juntas', 'mora') === num(J.enMora) && cifra('juntas', 'vencido') === ctx.fmt(J.vencido));
   ok('...y cada compañía con sus mismas cuatro cifras', cifra('18', 'creditos') === num(A.creditos) && cifra('18', 'cartera') === ctx.fmt(A.cartera) && cifra('18', 'mora') === num(A.enMora) && cifra('26', 'creditos') === num(B.creditos) && cifra('26', 'cartera') === ctx.fmt(B.cartera) && cifra('26', 'vencido') === ctx.fmt(B.vencido));
-  ok('...con cuánto pone cada una en el total', /Dinero en la calle<\/div><div class="g2-barra" role="img" aria-label="Dinero en la calle: PAGASI 18 [\d,]+%, PAGASI 26 [\d,]+%"/.test(pant) && (pant.match(/class="g2-rep"/g) || []).length === 4);
+  ok('...con cuánto pone cada una en el total', /Dinero en la calle<\/div><div class="g2-barra" role="img" aria-label="Dinero en la calle: PAGASI 18 [\d,]+%, PAGASI 26 [\d,]+%"/.test(pant) && (pant.slice(0, pant.indexOf('data-g2-sec=')).match(/class="g2-rep"/g) || []).length === 4);
   ok('...dice a qué hora se calculó (hora de Venezuela)', /^Calculado hoy a las 3:30/.test(estadoEl.textContent));
   ok('en la pantalla no hay nombres de clientes', !/CLIENTE /.test(pant));
+  const seccion = k => (pant.match(new RegExp('data-g2-sec="' + k + '"[\\s\\S]*?(?=data-g2-sec="|class="g2-dos")')) || [''])[0];
+  ok('se ve lo que entró: hoy, 7 días, este mes y el mes pasado completo, con su gráfico por mes', ['cobro-hoy', 'cobro-semana', 'cobro-mes', 'cobro-mes-pasado'].every(k => new RegExp('data-g2="' + k + '"').test(seccion('cobrado'))) && cifra('juntas', 'x') === '' && /Cobrado por mes/.test(seccion('cobrado')) && (seccion('cobrado').match(/class="g2-col( g2-col-hoy)?"/g) || []).length >= 3);
+  const txtDe = (sec, k) => ((seccion(sec).match(new RegExp('data-g2="' + k + '">(.*?)</div>')) || [])[1] || '').replace(/<[^>]+>/g, '');
+  ok('...con el número de este mes de las dos juntas', txtDe('cobrado', 'cobro-mes') === ctx.fmt(J.cobro.mes.cuotas + J.cobro.mes.iniciales));
+  ok('se ven las motos vendidas por mes, la mora por días de atraso y lo que vence esta semana', /data-g2="ventas-mes">\d+</.test(seccion('ventas')) && (seccion('mora').match(/data-g2-tramo=/g) || []).length === 4 && txtDe('semana', 'semana-monto') === ctx.fmt(J.semana.monto));
+  ok('cada compañía trae «Desde el principio»', /Desde el principio/.test(bloque('18')) && /data-g2="hist-vendidos">\d+</.test(bloque('26')) && /data-g2="hist-cobrado"/.test(bloque('18')));
+  ok('se ven todos los gráficos nuevos: día por día, formas de pago, cuotas a tiempo, mora por mes de venta, venta promedio, concesionarios y modelos', ['dias', 'metodos', 'puntualidad', 'cosechas', 'promedio', 'conc', 'modelo'].every(k => new RegExp('data-g2-sec="' + k + '"').test(pant)) && (seccion('dias').match(/class="g2-col( g2-col-hoy)?"/g) || []).length === 30);
+  ok('...con títulos de sección: Cobranza, Ventas y Cada compañía', /<div class="g2-titulo">Cobranza<\/div>/.test(pant) && /<div class="g2-titulo">Ventas<\/div>/.test(pant) && /<div class="g2-titulo">Cada compañía<\/div>/.test(pant));
+  ok('...los concesionarios de las dos compañías se juntan por su clave', /data-g2-conc=/.test(pant) && (pant.match(/data-g2-conc="/g) || []).length === new Set([].concat(A.concesionarios, B.concesionarios).map(x => x.conc.toUpperCase())).size);
+  ok('el mes de hoy va resaltado en los gráficos y dice que va hasta hoy', /class="g2-col g2-col-hoy" title="[^"]*\(hasta hoy\)/.test(seccion('cobrado')));
+  // un servidor de antes (sin lo nuevo) no rompe la pantalla: se ve lo básico
+  respuesta = { status: 200, cuerpo: { ok: true, hoy: HOY, calculado: '2026-11-21T19:30:00.000Z', empresas: { '18': Object.assign({ nombre:'PAGASI 18' }, { creditos:3, cartera:10, alDia:3, enMora:0, vencido:0 }), '26': Object.assign({ nombre:'PAGASI 26' }, { creditos:2, cartera:5, alDia:2, enMora:0, vencido:0 }) }, juntas: { creditos:5, cartera:15, alDia:5, enMora:0, vencido:0 } } };
+  await ctx.grupoActualizar();
+  ok('con un servidor de antes (sin lo nuevo) se ve lo básico y nada más', /data-g2="creditos">5</.test(cuerpoEl.innerHTML) && !/data-g2-sec=/.test(cuerpoEl.innerHTML) && !/Desde el principio/.test(cuerpoEl.innerHTML));
+  respuesta = { status: 200, cuerpo: Object.assign({ ok: true }, clon(await grupo.resumenGrupo(deps(baseFalsa(CREDS, PAGOS, {}), baseFalsa(C26, P26, {})), { fresco: true }))) };
+  await ctx.grupoActualizar(); pedidos.length = 1;
   // un redibujo automático no vuelve a pedir
   ctx.window._rtRenderizando = true; h = String(ctx.PG.grupo()); await correrCola(); ctx.window._rtRenderizando = false;
   ok('un redibujo automático muestra lo que ya hay y NO vuelve a pedir', pedidos.length === 1 && /data-g2="creditos"/.test(h));
@@ -283,6 +360,7 @@ ok('...y si falta una no hay total', grupoSumar([{ creditos:10, cartera:1, alDia
   await ctx.grupoPedir(false);
   ok('si la respuesta llega cuando ya se salió del módulo, no pisa la otra pantalla', cuerpoEl.innerHTML === 'OTRA PANTALLA');
   const css = src('assets/pagasi.css');
+  ok('los estilos de lo nuevo existen y en teléfono todo va en una columna', /\.g2-tres\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/.test(src('assets/pagasi.css')) && /@media \(max-width:760px\)\{\.g2-tres\{grid-template-columns:minmax\(0,1fr\)\}/.test(src('assets/pagasi.css')) && /@media \(max-width:1180px\)\{\.g2-cobro\{grid-template-columns:minmax\(0,1fr\)\}/.test(src('assets/pagasi.css')));
   ok('los estilos existen y en teléfono las compañías van una debajo de la otra', /\.g2-dos\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/.test(css) && /@media \(max-width:720px\)\{\.g2-dos\{grid-template-columns:minmax\(0,1fr\)\}/.test(css));
 
   console.log('\n' + pass + ' OK · ' + fail + ' fallas');

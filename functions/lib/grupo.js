@@ -28,8 +28,9 @@ function graciaDe(planDoc) {
 }
 
 async function resumenEmpresa(db, hoy) {
-  const [creds, pagos, plan] = await Promise.all([db.collection('creditos').get(), db.collection('pagos').get(), db.collection('config').doc('plan').get()]);
-  return grupoResumen(docs(creds), docs(pagos), { hoy, gracia: graciaDe(plan), ledger });
+  // los concesionarios solo para los nombres de «los que más venden» (son unos 20 documentos)
+  const [creds, pagos, plan, concs] = await Promise.all([db.collection('creditos').get(), db.collection('pagos').get(), db.collection('config').doc('plan').get(), db.collection('concesionarios').get()]);
+  return grupoResumen(docs(creds), docs(pagos), { hoy, gracia: graciaDe(plan), ledger, concesionarios: docs(concs).map(x => ({ id: x.id, nombre: x.nombre })) });
 }
 
 // deps: { bases: { '18': db, '26': db }, hoy: 'AAAA-MM-DD' en Venezuela, ahora: ISO, log }
