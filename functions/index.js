@@ -25,6 +25,7 @@ const procesar = require('./lib/procesar');
 const recordatorios = require('./lib/recordatorios');
 const metricas = require('./lib/metricas');
 const aliados = require('./lib/aliados');
+const grupo = require('./lib/grupo');
 
 const VERIFY = defineSecret('WHATSAPP_VERIFY_TOKEN');
 const TOKEN = defineSecret('WHATSAPP_ACCESS_TOKEN');
@@ -142,9 +143,19 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
   if (req.method !== 'POST') return res.status(405).send('método no permitido');
 
   // El panel: POST /equipo { empresa, conv, texto } · { empresa, conv, accion: 'vendedor', vendedor } (Pasar a…)
+  //           POST /equipo { accion: 'resumenGrupo', fresco? } (módulo PAGASI 18 + 26)
   if (/\/equipo\/?$/.test(req.path || '')) {
     const quien = await quienEscribe(req);
     if (!quien) return res.status(401).json({ error: 'Sin sesión del sistema' });
+    // PAGASI 18 + 26 (21-nov-2026): lo básico de las dos compañías juntas, calculado en el momento
+    // en que alguien abre el módulo. Solo sumas: no sale ningún dato de clientes ni se guarda nada.
+    if ((req.body || {}).accion === 'resumenGrupo') {
+      if (!grupo.puedeVer(quien)) return res.status(403).json({ error: 'No tienes acceso a PAGASI 18 + 26', codigo: 'permiso' });
+      try {
+        const r = await grupo.resumenGrupo({ bases, hoy: hoyCaracas(), ahora: new Date().toISOString(), log: (q, d) => logger.info(q, d) }, { fresco: (req.body || {}).fresco === true });
+        return res.status(200).json(Object.assign({ ok: true }, r));
+      } catch (e) { logger.error('grupo', e); return res.status(500).json({ error: 'No se pudo calcular: ' + String(e && e.message || e).slice(0, 160) }); }
+    }
     if ((req.body || {}).accion === 'vendedor') {
       try {
         const r = await procesar.cambiarVendedor({ bases, ahora: () => new Date().toISOString() }, { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), vendedor: (req.body || {}).vendedor, quien });

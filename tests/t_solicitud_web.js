@@ -510,7 +510,7 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
       wz_ant:'antiguedad', wz_rem:'remesas', wz_ahorro:'ahorro', wz_banco:'banco_estado', wz_banco_nm:'banco_nombre',
       wz_cashea_nivel:'cashea_nivel', wz_cashea_estado:'cashea_estado', wz_cashea_deuda:'cashea_deuda', wz_cashea_monto:'cashea_monto', wz_cashea_cuotas_pend:'cashea_cuotas_pend',
       wz_cashea_linea:'cashea_linea', wz_cashea_compras_activas:'cashea_compras_activas', wz_cashea_prox_monto:'cashea_prox_monto',
-      wz_fiador_nom:'fiador_nom', wz_fiador_tel:'fiador_tel', wz_fiador_ci:'fiador_ci', wz_fiador_rel:'fiador_rel', wz_fiador_dir:'fiador_dir', wz_fiador_ing:'fiador_ing',
+      // el fiador ya no se escribe solo (21-nov-2026, Adam: "sin marcar"): se revisa aparte, abajo
       wz_fecha_nacimiento:'fecha_nacimiento', wz_dia_cobro:'dia_cobro', wz_deuda_mensual:'deuda_mensual', wz_moto_previa:'moto_previa' };
     const REF = { wz_r1n:['ref1','nom'], wz_r1t:['ref1','tel'], wz_r1r:['ref1','rel'], wz_r2n:['ref2','nom'], wz_r2t:['ref2','tel'], wz_r2r:['ref2','rel'] };
     Object.keys(ENC).concat(Object.keys(REF)).forEach(id => F[id] = el2());
@@ -518,12 +518,19 @@ const EDITABLES = listaDe(trozo('function camposWebEditables()', ']'));
     const valor = id => ENC[id] ? L[ENC[id]] : L[REF[id][0]][REF[id][1]];
     const distintos = Object.keys(ENC).concat(Object.keys(REF)).filter(id => valor(id) == null || String(F[id].value) !== String(valor(id)));
     ok('...cada respuesta aparece escrita en su campo del asistente' + (distintos.length ? ' (fallan: '+distintos.map(id => id+'='+JSON.stringify(F[id].value)).join(', ')+')' : ''), distintos.length === 0);
-    ok('...trabajo, dependientes, historial y deudas marcados; Cashea y fiador en "Sí"', W['_chip_wz_emp_g'] === L.trabajo && W['_chip_wz_dep_g'] === String(L.dependientes) && W['_chip_wz_hist_g'] === L.historial && W['_chip_wz_deuda_g'] === L.deudas && W.cashea === 'si' && W.fiador_tiene === 'si');
+    ok('...trabajo, dependientes, historial y deudas marcados; Cashea en "Sí"', W['_chip_wz_emp_g'] === L.trabajo && W['_chip_wz_dep_g'] === String(L.dependientes) && W['_chip_wz_hist_g'] === L.historial && W['_chip_wz_deuda_g'] === L.deudas && W.cashea === 'si');
+    // 21-nov-2026, Adam: el fiador que el cliente anotó en la web sale "sin marcar": se le ofrece al vendedor y entra si lo marca
+    const FIA = ['wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rel','wz_fiador_dir','wz_fiador_ing'];
+    ok('...el fiador NO sale marcado ni escrito: se ofrece con su nombre', !W.fiador_tiene && FIA.every(id => !F[id] || String(F[id].value) === '') && W.fiador_sug && W.fiador_sug.nom === L.fiador_nom && /El cliente tiene anotado un fiador/.test(p2));
+    FIA.forEach(id => F[id] = el2()); ax._wzFiadorUsarSugerido();
+    const CAMPO = { wz_fiador_nom:'fiador_nom', wz_fiador_tel:'fiador_tel', wz_fiador_ci:'fiador_ci', wz_fiador_rel:'fiador_rel', wz_fiador_dir:'fiador_dir', wz_fiador_ing:'fiador_ing' };
+    const malFia = FIA.filter(id => String(F[id].value) !== String(L[CAMPO[id]]));
+    ok('...y con «Usar este fiador» quedan en "Sí" todas sus respuestas' + (malFia.length ? ' (fallan: ' + malFia.join(', ') + ')' : ''), W.fiador_tiene === 'si' && malFia.length === 0);
     ok('...con la cifra exacta del ingreso no pide confirmarla', p2.indexOf('wz_pista_ingreso') === -1);
     vm.runInContext('WZ.step=3;', ax); ax._wzRender(); const p3 = F['wz-overlay'].innerHTML; F.wz_uso = el2(); ax._wzHydrate();
     ok('...paso 3: el uso de la moto puesto, y la moto y la inicial como pistas', F.wz_uso.value === L.uso_moto && /El cliente quiere: NEW HORSE 150 · EK Bello Monte/.test(p3) && /El cliente dice que tiene: entre \$400 y \$700/.test(p3));
     // Cada campo que escribe la web tiene destino en el panel: si la web gana uno nuevo, aqui se ve
-    const DESTINO = Object.values(ENC).concat(['ref1','ref2','trabajo','dependientes','historial','deudas','cashea','fiador','uso_moto',
+    const DESTINO = Object.values(ENC).concat(Object.values(CAMPO), ['ref1','ref2','trabajo','dependientes','historial','deudas','cashea','fiador','uso_moto',
       'moto_interes_id','moto_interes_modelo','moto_interes_precio','moto_interes_sede','inicial_rango','ingreso_rango','ingreso_exacto',   // pistas y bandeja
       'rif','dir_trabajo',                                                                                                              // ficha y contrato
       'id','estado','origen','creado','editadoEn','editadoPor','web_uid','web_ts','web_paso','web_act','web_n','web_fin']);

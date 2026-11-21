@@ -447,7 +447,9 @@ function waPreloadSolicitud(c){
   poner('cargo', L.ocupacion || '');
   if(+L.ingreso > 0) poner('ing', +L.ingreso);
   pre.wz_conocio = pre.conocio = 'redes';
-  if(L.fiador){ var f = partes(L.fiador); pre.fiador_tiene = 'si'; poner('fiador_nom', f[0]); poner('fiador_ci', f[1]); poner('fiador_tel', f[2]); }
+  // 21-nov-2026 (Adam: "sin marcar"): el fiador que anotó Paola ya no sale marcado; se le ofrece al vendedor
+  // en el paso 2 (logic/creditos.js, _wzFiadorSugHtml). Un texto que no es un nombre ("NO TIENE") no se ofrece.
+  if(L.fiador){ var f = partes(L.fiador); if(typeof _wzFiadorEsNombre !== 'function' || _wzFiadorEsNombre(f[0])) pre.fiador_sug = { nom: f[0], ci: f[1] || '', tel: f[2] || '', dir: '', ing: '', rel: '' }; }
   [['r1', L.ref1], ['r2', L.ref2]].forEach(function(r){ if(!r[1]) return; var p = partes(r[1]); poner(r[0] + 'n', p[0]); poner(r[0] + 't', p[1]); });
   if(cli) pre.clienteSel = cli.id;
   // La moto y la sede, si están en el catálogo y en Concesionarios

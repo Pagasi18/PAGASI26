@@ -85,7 +85,7 @@ const campo = (w, k) => { const f = w.update.fields[k]; return f && (f.stringVal
   ok('embudo: visitas, miraron moto, simularon, "La quiero", empezaron y enviaron', JSON.stringify(r.embudo) === JSON.stringify({ visitas: 3, moto: 3, simulo: 1, quiero: 1, whatsapp: 1, solInicio: 1, solEnviada: 1 }));
   ok('por día: visitas y personas', r.porDia['2026-10-14'].visitas === 2 && r.porDia['2026-10-14'].visitantes === 1 && r.porDia['2026-10-13'].visitas === 1);
   ok('el período de 7 días cuenta hoy y los 6 anteriores', ctx2.metDesde(7, '2026-10-14') === '2026-10-08' && ctx2.metDesde(1, '2026-10-14') === '2026-10-14');
-  ok('Métricas web está en el menú (Análisis) y en el rol Administrador', /\{id:'metricas', label:'Métricas web', grupo:'Análisis'\}/.test(src('assets/pagasi-app.js')) && /'catalogo','metricas','perm_delete'/.test(src('assets/pagasi-app.js')));
+  ok('Métricas web está en el menú (Análisis) y en el rol Administrador', /\{id:'metricas', label:'Métricas web', grupo:'Análisis'\}/.test(src('assets/pagasi-app.js')) && /'catalogo','metricas',('grupo',)?'perm_delete'/.test(src('assets/pagasi-app.js')));
 
   // ── 3. Lo nuevo del 23-oct (Adam: "mejórame el módulo de métricas al 100%") ──
   p = pagina({});

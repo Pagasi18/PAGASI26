@@ -788,6 +788,8 @@ function _wzRender(motoId){
     +'<input type="radio" name="wz_fiador" value="si" onchange="_wzToggleFiador(\'si\');_wzScore()" style="accent-color:var(--p1)"> Tiene fiador</label>'
     +'</div>'
   )+'</div>'
+  // El fiador que el cliente tiene anotado en su ficha: se ofrece, no se marca solo (21-nov-2026)
+  +'<div id="wz_fiador_sug" style="display:'+((WZ.fiador_tiene!=='si' && _wzFiadorSugHtml())?'block':'none')+'">'+_wzFiadorSugHtml()+'</div>'
   +'<div id="wz_fiador_det" style="display:none">'
   +_row2(
     _fg('Nombre del fiador',_inp('wz_fiador_nom','text','Nombre y apellido')),
@@ -1196,6 +1198,7 @@ function _wzDraftSnapshot(){
   Object.keys(WZ||{}).forEach(function(k){
     var v = WZ[k];
     if(typeof v === 'function' || v === undefined) return;
+    if(k === 'fiador_sug') return;   // el fiador que se ofrecio y no se tomo no se guarda con el credito
     try { JSON.stringify(v); out[k] = v; } catch(e){}
   });
   if(window._wzCustomPct!==undefined && window._wzCustomPct!==null) out._wzCustomPct = window._wzCustomPct;
@@ -1218,6 +1221,7 @@ function _wzPickCliente(sel){
     wzKeys.forEach(function(k){ WZ[k]=''; });
     // Limpiar chips
     WZ['_chip_wz_emp_g']=WZ['_chip_wz_dep_g']=WZ['_chip_wz_hist_g']=WZ['_chip_wz_deuda_g']=WZ['_chip_wz_impresion_g']='';
+    WZ.fiador_sug = null;
     _wzDocsUp={}; WZ.documentos=[]; WZ.docsCount=0;
     return _wzRender();
   }
@@ -1285,13 +1289,21 @@ function _wzPickCliente(sel){
   // que ya escribio el cliente. Se abre igual que en la ficha (verCliente): el empleado le
   // pide el telefono o lo pasa a "No".
   // Sin nada del fiador queda sin marcar: "no contesto" no es "no tiene" (revision del 27-sep).
-  WZ.fiador_tiene = c.fiador || (String(c.fiador_nom||'').trim() ? 'si' : '');
-  WZ.fiador_nom = WZ.wz_fiador_nom = c.fiador_nom || '';
-  WZ.fiador_tel = WZ.wz_fiador_tel = c.fiador_tel || '';
-  WZ.fiador_ci = WZ.wz_fiador_ci = _wzFmtCedula(c.fiador_ci || '');
-  WZ.fiador_dir = WZ.wz_fiador_dir = c.fiador_dir || '';
-  WZ.fiador_ing = WZ.wz_fiador_ing = c.fiador_ing || '';
-  WZ.fiador_rel = WZ.wz_fiador_rel = c.fiador_rel || '';
+  // 21-nov-2026, Adam: "segun me dicen, cuando estan armando una solicitud nueva viene por
+  // default un fiador" → "sin marcar". El fiador que el cliente anoto en la web (o le dijo a
+  // Paola) ya NO sale marcado ni con las casillas llenas: se muestra como aviso (_wzFiadorSugHtml)
+  // y entra solo si el vendedor marca «Tiene fiador». Hoy la mayoria de las ventas va sin fiador.
+  // Si la ficha dice «no», sigue saliendo «Sin fiador».
+  WZ.fiador_tiene = (c.fiador === 'no') ? 'no' : '';
+  WZ.fiador_sug = _wzFiadorEsNombre(c.fiador_nom)
+    ? { nom: String(c.fiador_nom).trim(), tel: c.fiador_tel || '', ci: _wzFmtCedula(c.fiador_ci || ''), dir: c.fiador_dir || '', ing: c.fiador_ing || '', rel: c.fiador_rel || '' }
+    : null;
+  WZ.fiador_nom = WZ.wz_fiador_nom = '';
+  WZ.fiador_tel = WZ.wz_fiador_tel = '';
+  WZ.fiador_ci = WZ.wz_fiador_ci = '';
+  WZ.fiador_dir = WZ.wz_fiador_dir = '';
+  WZ.fiador_ing = WZ.wz_fiador_ing = '';
+  WZ.fiador_rel = WZ.wz_fiador_rel = '';
   // Referencias personales (con aliases wz_* que es lo que _wzHydrate lee)
   WZ.r1n = WZ.wz_r1n = (c.ref1&&c.ref1.nom) || '';
   WZ.r1ci = WZ.wz_r1ci = (c.ref1&&c.ref1.ci) || '';
@@ -2147,6 +2159,44 @@ function _wzToggleCasheaDeuda(v){
 function _wzToggleFiador(v){
   var el=document.getElementById('wz_fiador_det');
   if(el) el.style.display=v==='si'?'block':'none';
+  // Al marcar «Tiene fiador» entran los datos del fiador que el cliente tiene anotado (si las
+  // casillas estan vacias), y el aviso se quita (21-nov-2026)
+  if(v==='si') _wzFiadorPonerSugerido();
+  var sug=document.getElementById('wz_fiador_sug');
+  if(sug) sug.style.display=(v!=='si' && _wzFiadorSugHtml())?'block':'none';
+}
+// ── El fiador que el cliente ya tiene anotado (21-nov-2026, Adam: "sin marcar") ──
+// Viene de la ficha (lo que lleno en pagasi.io) o del chat con Paola. No se marca solo: se le
+// muestra al vendedor y entra con un toque. Un texto que no es un nombre ("NO TIENE") no se ofrece.
+function _wzFiadorEsNombre(t){
+  var s = String(t == null ? '' : t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if(s.length < 3) return false;
+  return !/^(no|na|n\/a|ningun[oa]?|pendiente|sin fiador|por definir|por confirmar)\b|no tiene|no tengo|no posee|no aplica|aun no|todavia no/.test(s);
+}
+function _wzFiadorSugHtml(){
+  var g = (typeof WZ !== 'undefined' && WZ) ? WZ.fiador_sug : null;
+  if(!g || !g.nom) return '';
+  var e = (typeof _riesgoEsc === 'function') ? _riesgoEsc : function(x){ return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var datos = [g.ci, g.tel].filter(function(x){ return String(x || '').trim(); }).map(e).join(' · ');
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;border-radius:10px;background:var(--surf2);border:1px dashed var(--rim2);font-size:12.5px;line-height:1.45">'
+    + '<span>El cliente tiene anotado un fiador: <b>' + e(g.nom) + '</b>' + (datos ? ' · ' + datos : '') + '. No está marcado: solo cuenta si viene con él.</span>'
+    + '<button type="button" class="btn btn-g btn-xs" onclick="_wzFiadorUsarSugerido()">Usar este fiador</button></div>';
+}
+function _wzFiadorPonerSugerido(){
+  var g = WZ.fiador_sug; if(!g) return false;
+  var nom = document.getElementById('wz_fiador_nom');
+  if(!nom || String(nom.value || '').trim()) return false;   // ya hay uno escrito: no se pisa
+  [['wz_fiador_nom','nom'],['wz_fiador_tel','tel'],['wz_fiador_ci','ci'],['wz_fiador_rel','rel'],['wz_fiador_dir','dir'],['wz_fiador_ing','ing']].forEach(function(p){
+    var el = document.getElementById(p[0]); if(el && g[p[1]] != null && g[p[1]] !== '') el.value = g[p[1]];
+  });
+  if(typeof _wzFiadorAviso === 'function') _wzFiadorAviso();
+  return true;
+}
+function _wzFiadorUsarSugerido(){
+  var r = document.querySelector('input[name="wz_fiador"][value="si"]'); if(r) r.checked = true;
+  WZ.fiador_tiene = WZ.wz_fiador_tiene = 'si';
+  _wzToggleFiador('si');
+  if(typeof _wzScore === 'function') _wzScore();
 }
 // Lo que se guarda como "tiene fiador" en la ficha y en el credito (revision del 27-sep-2026).
 // La misma regla de la web y de las Reglas: 'si' solo con nombre Y telefono. Con el nombre
@@ -2156,6 +2206,12 @@ function _wzFiadorValor(){
   var t = WZ.fiador_tiene;
   if(t === 'si') return (String(WZ.fiador_nom||'').trim() && String(WZ.fiador_tel||'').trim()) ? 'si' : '';
   return t === 'no' ? 'no' : '';
+}
+// 21-nov-2026: el dato del fiador que se guarda con el credito. Con «Sin fiador» va vacio: el
+// nombre que vino precargado de la ficha (lo que el cliente anoto en la web o le dijo a Paola)
+// se quedaba pegado en el credito aunque el vendedor dijera que no hay fiador.
+function _wzFiadorDato(k){
+  return WZ.fiador_tiene === 'no' ? '' : (WZ[k] || '');
 }
 
 // ── Address autocomplete (Nominatim) ──
@@ -2993,7 +3049,13 @@ function _wzGuardar(){
     if(WZ.score) existing.score_indexa = WZ.score;
     if(WZ.r1n){ existing.ref1 = {nom:WZ.r1n||'',ci:WZ.r1ci||'',tel:WZ.r1t||'',rel:WZ.r1r||'',obs:WZ.r1obs||''}; }
     if(WZ.r2n){ existing.ref2 = {nom:WZ.r2n||'',ci:WZ.r2ci||'',tel:WZ.r2t||'',rel:WZ.r2r||'',obs:WZ.r2obs||''}; }
-    if(WZ.fiador_nom){ existing.fiador = WZ.fiador_tiene ? _wzFiadorValor() : existing.fiador; existing.fiador_nom = WZ.fiador_nom; existing.fiador_ci = WZ.fiador_ci; existing.fiador_tel = WZ.fiador_tel; existing.fiador_dir = WZ.fiador_dir;
+    // «Sin fiador»: se anota el «no» en la ficha y lo que escribio el cliente se deja como esta
+    // (antes, si el vendedor borraba el nombre, la ficha seguia diciendo «si»; 21-nov-2026).
+    // Y una venta NUEVA que se guarda sin marcar «Tiene fiador» tambien deja la ficha en «no»: el
+    // fiador anotado se ofrecio y no se tomo, asi que esta venta va sin fiador (si no, el contrato
+    // lo sacaba de la ficha). Al EDITAR un credito no se toca. Lo que escribio el cliente no se borra.
+    if(WZ.fiador_tiene === 'no' || (!window._wzEditando && WZ.fiador_tiene !== 'si' && !String(WZ.fiador_nom||'').trim() && String(existing.fiador_nom||'').trim())){ existing.fiador = 'no'; }
+    else if(WZ.fiador_nom){ existing.fiador = WZ.fiador_tiene ? _wzFiadorValor() : existing.fiador; existing.fiador_nom = WZ.fiador_nom; existing.fiador_ci = WZ.fiador_ci; existing.fiador_tel = WZ.fiador_tel; existing.fiador_dir = WZ.fiador_dir;
       // El asistente no pide el RIF ni el correo del fiador: si no los trae, no se pisan con
       // undefined los que puso el cliente (el contrato de justo despues salia con N/A).
       if(WZ.fiador_rif) existing.fiador_rif = WZ.fiador_rif;
@@ -3055,11 +3117,11 @@ function _wzGuardar(){
     ..._casheaExtraDatos(),
     ..._perfilExtraDatos(),
     fiador: _wzFiadorValor(),   // 'si' solo con nombre y telefono (revision del 27-sep-2026)
-    fiador_nom: WZ.fiador_nom||'',
-    fiador_tel: WZ.fiador_tel||'',
-    fiador_ci: WZ.fiador_ci||'',
-    fiador_rel: WZ.fiador_rel||'',
-    fiador_dir: WZ.fiador_dir||'', fiador_ing: parseFloat(WZ.fiador_ing)||0,
+    fiador_nom: _wzFiadorDato('fiador_nom'),   // con «Sin fiador» no se guarda nada del fiador (21-nov-2026)
+    fiador_tel: _wzFiadorDato('fiador_tel'),
+    fiador_ci: _wzFiadorDato('fiador_ci'),
+    fiador_rel: _wzFiadorDato('fiador_rel'),
+    fiador_dir: _wzFiadorDato('fiador_dir'), fiador_ing: parseFloat(_wzFiadorDato('fiador_ing'))||0,
     ref1: {nom:WZ.r1n||'',ci:WZ.r1ci||'',tel:WZ.r1t||'',rel:WZ.r1r||'',obs:WZ.r1obs||''},
     ref2: {nom:WZ.r2n||'',ci:WZ.r2ci||'',tel:WZ.r2t||'',rel:WZ.r2r||'',obs:WZ.r2obs||''},
     docs_count: WZ.docsCount||0,
@@ -3193,6 +3255,10 @@ function _wzGuardar(){
         cashea: WZ.cashea||S.creds[_ei].cashea||'no',
         cashea_nivel: WZ.cashea_nivel||S.creds[_ei].cashea_nivel||'',
         fiador_tiene: WZ.fiador_tiene ? _wzFiadorValor() : (S.creds[_ei].fiador_tiene||''),
+        // Al pasarlo a «Sin fiador» el fiador se quita del credito (21-nov-2026)
+        ...(WZ.fiador_tiene === 'no'
+          ? { fiador_nom:'', fiador_tel:'', fiador_ci:'', fiador_rel:'', fiador_rif:'', fiador_dir:'', fiador_ing:0, fiador_email:'' }
+          : {
         fiador_nom: WZ.fiador_nom||S.creds[_ei].fiador_nom||'',
         fiador_tel: WZ.fiador_tel||S.creds[_ei].fiador_tel||'',
         fiador_ci: WZ.fiador_ci||S.creds[_ei].fiador_ci||'',
@@ -3200,7 +3266,7 @@ function _wzGuardar(){
         fiador_rif: WZ.fiador_rif||S.creds[_ei].fiador_rif||'',
         fiador_dir: WZ.fiador_dir||S.creds[_ei].fiador_dir||'',
         fiador_ing: parseFloat(WZ.fiador_ing)||S.creds[_ei].fiador_ing||0,
-        fiador_email: WZ.fiador_email||S.creds[_ei].fiador_email||'',
+        fiador_email: WZ.fiador_email||S.creds[_ei].fiador_email||'' }),
         r1n: WZ.r1n||S.creds[_ei].r1n||'', r1ci: WZ.r1ci||S.creds[_ei].r1ci||'',
         r1t: WZ.r1t||S.creds[_ei].r1t||'',
         r1r: WZ.r1r||S.creds[_ei].r1r||'', r1obs: WZ.r1obs||S.creds[_ei].r1obs||'',
@@ -3395,9 +3461,9 @@ function _wzGuardar(){
     ..._casheaExtraDatos(),
     ..._perfilExtraDatos(),
     // ── Paso 2: Fiador ──
-    fiador_tiene: _wzFiadorValor(), fiador_nom: WZ.fiador_nom||'',   // 'si' solo con telefono (revision del 27-sep)
-    fiador_tel: WZ.fiador_tel||'', fiador_ci: WZ.fiador_ci||'', fiador_rel: WZ.fiador_rel||'',
-    fiador_rif: WZ.fiador_rif||'', fiador_dir: WZ.fiador_dir||'', fiador_email: WZ.fiador_email||'', fiador_ing: parseFloat(WZ.fiador_ing)||0,
+    fiador_tiene: _wzFiadorValor(), fiador_nom: _wzFiadorDato('fiador_nom'),   // 'si' solo con telefono (revision del 27-sep); con «Sin fiador», vacio (21-nov)
+    fiador_tel: _wzFiadorDato('fiador_tel'), fiador_ci: _wzFiadorDato('fiador_ci'), fiador_rel: _wzFiadorDato('fiador_rel'),
+    fiador_rif: _wzFiadorDato('fiador_rif'), fiador_dir: _wzFiadorDato('fiador_dir'), fiador_email: _wzFiadorDato('fiador_email'), fiador_ing: parseFloat(_wzFiadorDato('fiador_ing'))||0,
     riesgo_avisos: _wzRiesgoAvisosGuardar(),   // avisos de fiador repetido / cliente con credito que se aceptaron (7-oct-2026)
     // ── Paso 2: Referencias ──
     r1n: WZ.r1n||'', r1ci: WZ.r1ci||'', r1t: WZ.r1t||'', r1r: WZ.r1r||'', r1obs: WZ.r1obs||'',

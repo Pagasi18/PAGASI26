@@ -2743,6 +2743,9 @@ var MODULOS = [
   {id:'cumplimiento', label:'Cumplimiento', grupo:'Sistema'},
   {id:'catalogo', label:'Catálogo web', grupo:'Sistema'},
   {id:'metricas', label:'Métricas web', grupo:'Análisis'},
+  // 21-nov-2026, Adam: "un modulo nuevo que se llame PAGASI 18 + 26": lo basico de las dos companias
+  // juntas. Lo ven los administradores; a los demas se les da marcando este permiso.
+  {id:'grupo', label:'PAGASI 18 + 26', grupo:'Análisis'},
 ];
 
 // (S.currentUser se inicializa después de declarar S)
@@ -2989,7 +2992,7 @@ function fmtFecha(iso){
 }
 const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
-const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Canal WhatsApp',instagram:'Canal Instagram',redes:'Redes Ventas',redescob:'Redes Cobranza',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web'};
+const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Canal WhatsApp',instagram:'Canal Instagram',redes:'Redes Ventas',redescob:'Redes Cobranza',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',catalogo:'Catálogo web',metricas:'Métricas web',grupo:'PAGASI 18 + 26'};
 
 // perm_condiciones (20-nov-2026, Adam: "necesito darle acceso a María Fernanda para que ella pueda
 // cambiar también"): deja cambiar las Condiciones del plan del Catálogo web (tasa, seguro e inicial)
@@ -3011,7 +3014,7 @@ function permisosConCanales(permisos){
 // ══════════════════════════════════════════
 var ROL_PERMISOS = {
   // Acceso total: dueño del sistema
-  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','catalogo','metricas','perm_delete'],
+  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','catalogo','metricas','grupo','perm_delete'],
   // Supervisa operaciones, ve reportes, NO toca config ni usuarios
   Gerente: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas'],
   // Cobra en la oficina: ve todos los clientes, registra pagos, ve cobranza y deudores
@@ -3222,6 +3225,7 @@ function _attachCurrentUserListener(uid){
 
 // ── Sidebar dinámico: solo muestra módulos con acceso ──
 var PG_NAVICONS = {
+  grupo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>',
   metricas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
   catalogo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg>',
   cumplimiento:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
@@ -3289,7 +3293,7 @@ function renderSidebar(){
   if(isEmpleadoRole()){
     var permsEmp = getCurrentPerms();
     var grposEmp = [
-      {label:'Mi Trabajo', keys:['dash','centro','recursos']},
+      {label:'Mi Trabajo', keys:['dash','grupo','centro','recursos']},
       {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes','redescob']},
       {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
       {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
@@ -3356,7 +3360,7 @@ function renderSidebar(){
   // Otros roles: filtrar módulos según permisos
   var perms = getCurrentPerms();
   var grupos = [
-    {label:'Principal', keys:['dash','centro','recursos']},
+    {label:'Principal', keys:['dash','grupo','centro','recursos']},
     {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes','redescob']},
     {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
     {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},

@@ -125,7 +125,7 @@ setTimeout(function(){
   ok('...dependientes 0 es respuesta: "Ninguno" queda marcado', w.dep === 0 && w['_chip_wz_dep_g'] === '0');
   ok('...créditos, banco y Cashea', w.hist === 'bueno' && w.deuda === 'menores' && w.deuda_mensual === 40 && w.banco === 'activa' && w.banco_nm === 'Banesco' && w.cashea === 'si' && w.cashea_nivel === '4' && w.cashea_estado === 'al_dia' && w.cashea_deuda === 'si' && w.cashea_monto === 120 && w.cashea_cuotas_pend === 3 && w.cashea_linea === 600 && w.cashea_compras_activas === 2 && w.cashea_prox_monto === 45);
   ok('...dónde vive', w.estado_ubi === 'La Guaira' && w.ciudad_res === 'Catia La Mar' && /Ref: frente a la panadería/.test(w.dir_det) && w.tdir === '3' && w.viv === 'familiar');
-  ok('...sus referencias y su fiador', w.r1n === 'JOSE PEREZ' && w.r1r === 'Familiar directo' && w.r2r === 'Vecino/a' && w.fiador_tiene === 'si' && w.fiador_nom === 'CARLOS PEREZ' && w.fiador_rel === 'familiar' && w.fiador_ci === 'V-9876543' && w.fiador_dir === 'Catia La Mar' && w.fiador_ing === 500);
+  ok('...sus referencias y su fiador', w.r1n === 'JOSE PEREZ' && w.r1r === 'Familiar directo' && w.r2r === 'Vecino/a' && !w.fiador_tiene && !w.fiador_nom && !!w.fiador_sug && w.fiador_sug.nom === 'CARLOS PEREZ' && w.fiador_sug.rel === 'familiar' && w.fiador_sug.ci === 'V-9876543' && w.fiador_sug.dir === 'Catia La Mar' && w.fiador_sug.ing === 500);   // 21-nov-2026: el fiador se ofrece, no sale marcado
   ok('...y el uso de la moto precarga "Uso de la moto"', w.uso === 'delivery' && w.wz_uso === 'delivery');
   ok('...y la moto que eligió NO se elige sola (la moto doble del 22-sep)', !w.motoModelo && !w.motoInvId);
   // Ya escrito en la pantalla: el asistente pinta cada campo con lo del cliente
@@ -136,9 +136,13 @@ setTimeout(function(){
   ids.forEach(id => form[id] = elemento());
   ctx._wzHydrate();
   const esperado = { wz_estado:'La Guaira', wz_ciudad_res:'Catia La Mar', wz_tdir:'3', wz_viv:'familiar', wz_empresa:'Yummy', wz_ing:400, wz_ant:'2', wz_rem:'no', wz_banco:'activa',
-    wz_cashea_nivel:'4', wz_cashea_deuda:'si', wz_cashea_linea:600, wz_r1r:'Familiar directo', wz_r2r:'Vecino/a', wz_fiador_rel:'familiar', wz_fiador_ing:500, wz_dia_cobro:'semanal', wz_deuda_mensual:40, wz_moto_previa:'no' };
+    wz_cashea_nivel:'4', wz_cashea_deuda:'si', wz_cashea_linea:600, wz_r1r:'Familiar directo', wz_r2r:'Vecino/a', wz_dia_cobro:'semanal', wz_deuda_mensual:40, wz_moto_previa:'no' };
   const malos = Object.keys(esperado).filter(id => String(form[id].value) !== String(esperado[id]));
   ok('en el paso 2 cada campo aparece ya escrito' + (malos.length ? ' (fallan: ' + malos.join(', ') + ')' : ''), malos.length === 0);
+  // 21-nov-2026 (Adam: "sin marcar"): las casillas del fiador quedan vacías hasta que el vendedor marca «Tiene fiador»
+  ok('...menos el fiador: sus casillas salen vacías y se le ofrece al vendedor', form['wz_fiador_nom'].value === '' && form['wz_fiador_rel'].value === '' && /El cliente tiene anotado un fiador: <b>CARLOS PEREZ<\/b>/.test(ctx._wzFiadorSugHtml()));
+  ctx._wzToggleFiador('si');
+  ok('...y al marcar «Tiene fiador» entran sus datos', form['wz_fiador_nom'].value === 'CARLOS PEREZ' && form['wz_fiador_rel'].value === 'familiar' && String(form['wz_fiador_ing'].value) === '500' && form['wz_fiador_ci'].value === 'V-9876543');
   ok('La Guaira está en la lista de estados del paso 2', /<option>La Guaira<\/option>/.test(h2));
   ok('con la cifra exacta del ingreso, no sale el aviso de confirmarla', h2.indexOf('wz_pista_ingreso') === -1);
   const h3 = paso(3);
@@ -173,7 +177,7 @@ setTimeout(function(){
   reiniciar();
   Object.assign(S.clientes[1], { fiador_nom:'ANA GOMEZ', fiador_rel:'amigo' });
   ctx._wzCliPick('WEB-23456789');
-  ok('el fiador que dejó a medias se ve: "Sí" con su nombre y su relación', WZ().fiador_tiene === 'si' && WZ().fiador_nom === 'ANA GOMEZ' && WZ().fiador_rel === 'amigo');
+  ok('el fiador que dejó a medias se le ofrece al vendedor (sin marcar), con su nombre y su relación', !WZ().fiador_tiene && !WZ().fiador_nom && WZ().fiador_sug.nom === 'ANA GOMEZ' && WZ().fiador_sug.rel === 'amigo');
   ctx.openAddCliente('WEB-23456789');
   ok('...también en el formulario del cliente', WZ().fiador_tiene === 'si' && WZ().fiador_nom === 'ANA GOMEZ');
   reiniciar(); Object.assign(S.clientes[1], { fiador:'no', fiador_nom:'ANA GOMEZ' }); ctx._wzCliPick('WEB-23456789');

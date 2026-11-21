@@ -125,6 +125,7 @@ function _protectDatos(credId){
   if(!c) return null;
   var cli  = (S.clientes||[]).find(function(x){ return String(x.id)===String(c.clienteId); })
           || (S.clientes||[]).find(function(x){ return x.nombre===c.cli; }) || {};
+  if(typeof _ctrClienteParaContrato==='function') cli = _ctrClienteParaContrato(c, cli);   // «Sin fiador» manda (21-nov-2026)
   var moto = (S.motos||[]).find(function(m){ return String(m.id)===String(c.motoId); }) || {};
   var emp  = (typeof getEmpresa==='function') ? getEmpresa() : {};
   var conc = (c.concesionarioId && typeof _concGetById==='function') ? (_concGetById(c.concesionarioId)||{}) : {};

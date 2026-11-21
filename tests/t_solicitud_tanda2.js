@@ -70,7 +70,7 @@ ok('la bandeja muestra inicial, % y cuenta, y avisa si el vendedor la marcó dud
 // ── 5. Referencias con cédula, fiador con dirección e ingreso ──
 ok('la solicitud pide la cédula de las dos referencias', /_inp\('wz_r1ci'/.test(cr) && /_inp\('wz_r2ci'/.test(cr));
 ok('...y dirección e ingreso del fiador', /_inp\('wz_fiador_dir'/.test(cr) && /_inp\('wz_fiador_ing'/.test(cr));
-ok('se guardan en el cliente y en el crédito', /ci:WZ\.r1ci\|\|''/.test(cr) && /fiador_ing: parseFloat\(WZ\.fiador_ing\)\|\|0/.test(cr) && /fiador_ing: parseFloat\(WZ\.fiador_ing\)\|\|0/.test(cl));
+ok('se guardan en el cliente y en el crédito', /ci:WZ\.r1ci\|\|''/.test(cr) && /fiador_ing: parseFloat\(_wzFiadorDato\('fiador_ing'\)\)\|\|0/.test(cr) && /fiador_ing: parseFloat\(WZ\.fiador_ing\)\|\|0/.test(cl));
 ok('la ficha los muestra', /field\('Dirección', c\.fiador_dir\)/.test(cl) && /field\('Ingreso mensual', \(parseFloat\(c\.fiador_ing\)/.test(cl) && /CI '\+esc\(r\.ci\)/.test(cl));
 
 console.log('\n' + pass + ' OK · ' + fail + ' fallas');

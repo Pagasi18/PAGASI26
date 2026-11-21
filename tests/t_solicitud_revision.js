@@ -72,7 +72,13 @@ function paso(n){ vm.runInContext('WZ.step='+n+';', ctx); ctx._wzRender(); retur
   // ══ 2. Fiador con nombre y sin teléfono ══
   reiniciar();
   ctx._wzCliPick('WEB-14567890');
-  ok('el fiador a medias se abre en "Tiene fiador" con su nombre', WZ().fiador_tiene === 'si' && WZ().fiador_nom === 'Carmen Ruiz' && WZ().fiador_tel === '');
+  // 21-nov-2026 (Adam: "sin marcar"): el fiador de la ficha ya no sale marcado; se ofrece y entra cuando el vendedor marca «Tiene fiador»
+  ok('el fiador a medias se le ofrece al vendedor con su nombre, sin marcar', WZ().fiador_tiene === '' && WZ().fiador_nom === '' && WZ().fiador_sug.nom === 'Carmen Ruiz' && WZ().fiador_sug.tel === '');
+  ['wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rel','wz_fiador_dir','wz_fiador_ing'].forEach(id => form[id] = elemento());
+  ctx._wzFiadorUsarSugerido();
+  ok('...al tocar «Usar este fiador» queda en "Tiene fiador" con su nombre en la casilla', WZ().fiador_tiene === 'si' && form['wz_fiador_nom'].value === 'Carmen Ruiz' && form['wz_fiador_rel'].value === 'familiar' && form['wz_fiador_tel'].value === '');
+  vm.runInContext("WZ.fiador_nom='Carmen Ruiz'; WZ.fiador_rel='familiar'; WZ.fiador_tel='';", ctx);   // lo que recoge el asistente de esas casillas
+  ['wz_fiador_nom','wz_fiador_tel','wz_fiador_ci','wz_fiador_rel','wz_fiador_dir','wz_fiador_ing'].forEach(id => delete form[id]);
   vm.runInContext('WZ.step=2;', ctx); ctx._wzScore();
   ok('...pero sin teléfono no suma en el score', WZ().scoreInput.fiador === false);
   const conTel = (() => { vm.runInContext("WZ.fiador_tel='0412-7654321';", ctx); ctx._wzScore(); const f = WZ().scoreInput.fiador; vm.runInContext("WZ.fiador_tel='';", ctx); return f; })();
