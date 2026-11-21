@@ -1161,9 +1161,9 @@ function exportarCSV(tipo, formato){
     });
   } else if(tipo==='creditos'){
     filename='creditos-'+hoyLocalISO()+'.csv';
-    rows.push(row(['ID','Cliente','Modelo','Precio','Inicial','Financiado','Total','Cuota mensual','Cuota quincenal','Plazo','Fecha','Estado','Cuotas pagadas','En mora']));
+    rows.push(row(['ID','Cliente','Modelo','Precio','Inicial','Financiado','Total','Cuota mensual','Cuota quincenal','Plazo','Fecha','Estado','Cuotas pagadas','En mora','Vendedor']));
     S.creds.filter(function(c){return !c.eliminado;}).forEach(function(c){
-      rows.push(row([c.id,c.cli,c.modelo,c.precio,c.ini,c.fin,c.total,c.cuota,c.cuotaQ||'',c.plazo,c.fecha,c.estado,c.pagado,c.mora||0]));
+      rows.push(row([c.id,c.cli,c.modelo,c.precio,c.ini,c.fin,c.total,c.cuota,c.cuotaQ||'',c.plazo,c.fecha,c.estado,c.pagado,c.mora||0,(typeof _credVendedorNombre==='function'?_credVendedorNombre(c):(c.vendedorNombre||''))]));
     });
   } else if(tipo==='pagos'){
     filename='pagos-'+hoyLocalISO()+'.csv';

@@ -3917,6 +3917,12 @@ function _credVendedorActual(c){
   }
   return { uid: u ? String(u.uid) : '', nombre: u ? (u.nombre||u.email||'') : escrito, usuario: u };
 }
+// El nombre del vendedor para mostrar (listado de créditos, detalle, CSV): '' si el crédito no tiene.
+// 21-nov-2026, Adam, sobre el listado y el detalle: "necesito que me pongas qué vendedor vendió la moto".
+function _credVendedorNombre(c){
+  var n = String(_credVendedorActual(c).nombre || '').replace(/\s+/g, ' ').trim();
+  return n.toLowerCase() === 'usuario' ? '' : n;
+}
 function _credVendedorOpts(c){
   var esc = function(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); };
   var lista = (typeof _usersCache!=='undefined' && Array.isArray(_usersCache)) ? _usersCache.slice() : [];

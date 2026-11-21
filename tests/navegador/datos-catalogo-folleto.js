@@ -1,7 +1,7 @@
 /* Datos INVENTADOS para la prueba en navegador del botón «Crear folleto» del Catálogo (20-nov-2026).
    BERA PRUEBA: 13 modelos en dos grupos de nombre («BERA PRUEBA» y «BERA Prueba», mismo
    concesionario), 1 oculto y 1 sin precio → folleto de 11 filas, «Tu Bera.».
-   EMPIRE PRUEBA: 21 modelos → folleto en 2 páginas (11 y 10).
+   EMPIRE PRUEBA: 21 modelos → UN solo folleto, más alto (1080 × 1920), sin páginas.
    ARI PRUEBA: 3 modelos, sin marca en el nombre → «Tu moto.»; la foto del primero es de otro
    sitio sin permiso (como el almacén sin configurar): el folleto debe salir sin foto y descargarse.
    NOMBRE VIEJO: 2 modelos sin concesionario del sistema.

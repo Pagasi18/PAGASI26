@@ -486,6 +486,9 @@ function openAmort(id){
   // Concesionario de origen del cliente (puede no estar asignado en creditos viejos)
   var _concNom = (c.concesionarioId && typeof _concGetById==='function')
     ? ((_concGetById(c.concesionarioId)||{}).nombre||'') : '';
+  // Quién vendió la moto (Adam, 21-nov-2026): va al lado del concesionario
+  var _vendNom = (typeof _credVendedorNombre==='function') ? _credVendedorNombre(c) : '';
+  var _chipCred = function(t, v){ return '<span data-chip="'+t.toLowerCase()+'" style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:800;letter-spacing:.2px">'+t+' · '+pgEsc(String(v).toUpperCase())+'</span>'; };
   // Misma foto de perfil que la ficha del cliente
   var _credFoto = (typeof cliFotoUrl==='function') ? cliFotoUrl(c.clienteId || c.cli) : '';
   setMicon('detalle');$('mtt').textContent='Detalle del Crédito';$('msb').textContent=`${c.id} — ${c.cli}`;
@@ -501,7 +504,7 @@ function openAmort(id){
             <div style="font-size:10px;font-weight:800;opacity:.85;letter-spacing:1.2px;text-transform:uppercase">${c.id} · Crédito</div>
             <div style="font-size:19px;font-weight:900;letter-spacing:-.4px;line-height:1.1;margin-top:2px">${pgEsc(c.cli)}</div>
             <div style="font-size:11.5px;opacity:.85;margin-top:3px">${c.modelo}${c.vin?' · VIN '+c.vin:''}</div>
-            ${_concNom?`<div style="margin-top:6px"><span style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:800;letter-spacing:.2px">CONCESIONARIO · ${_concNom}</span></div>`:''}
+            ${(_concNom||_vendNom)?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${_concNom?_chipCred('CONCESIONARIO',_concNom):''}${_vendNom?_chipCred('VENDEDOR',_vendNom):''}</div>`:''}
           </div>
         </div>
         <div style="text-align:right">

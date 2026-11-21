@@ -3,8 +3,14 @@
 // (dos imágenes: «Pagasi × ZONTES» y «Pagasi × BERA»).
 //  · El botón «Crear folleto» sale en la franja de cada concesionario de la tabla.
 //  · El folleto lleva los modelos visibles en la web y con precio, con LA MISMA inicial y las
-//    mismas cuotas de la tabla. Hasta 14 por imagen; si hay más, en dos o más páginas parejas.
-//  · Es una imagen de 1080 × 1440 que se descarga. No escribe nada en el catálogo.
+//    mismas cuotas de la tabla.
+//  · SIEMPRE una sola hoja TAMAÑO CARTA (Adam, 20-nov: "cuando hay muchas motos el sistema crea 2
+//    separados... necesito que siempre sea uno" y "esto lo imprimimos... tiene que ser tamaño
+//    estándar"): 2550 × 3300 px (8,5 × 11 pulgadas). Con muchos modelos las filas se achican.
+//  · Abajo van el Instagram y el teléfono. Se descarga o se imprime; no escribe nada en el catálogo.
+//  · En vez de la moto va el LOGO DE LA MARCA, en blanco (Adam, 21-nov: "creo que en vez de la moto
+//    vamos a poner el logo de la marca.. ejemplo bera" y "pon los logos en blanco"). Las marcas que
+//    todavía no tienen logo cargado siguen saliendo con la moto.
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 let pass = 0, fail = 0;
@@ -55,7 +61,7 @@ function lienzo(){
   const c = { font: '', fillStyle: '', textAlign: '', textBaseline: '', globalAlpha: 1,
     measureText(s){ const px = +(String(c.font).match(/(\d+(?:\.\d+)?)px/) || [0, 20])[1]; return { width: String(s).length * px * .56 }; },
     fillText(s, x, y){ t.push({ s: String(s), x, y, font: c.font, color: c.fillStyle }); }, drawImage(...a){ img.push(a); },
-    fillRect(x, y, w, h){ cajas.push({ x, y, w, h }); }, createLinearGradient(){ return { addColorStop(){} }; }, createRadialGradient(){ return { addColorStop(){} }; }, arc(){}, scale(){},
+    fillRect(x, y, w, h){ cajas.push({ x, y, w, h }); }, createLinearGradient(){ return { addColorStop(){} }; }, createRadialGradient(){ return { addColorStop(){} }; }, arc(){}, scale(){}, quadraticCurveTo(){}, rect(){},
     save(){}, restore(){}, beginPath(){}, closePath(){}, moveTo(){}, lineTo(){}, arcTo(){}, fill(){}, stroke(){}, clip(){}, translate(){}, rotate(){}, transform(){} };
   const cv = { width: 0, height: 0, getContext(){ return c; }, toBlob(fn){ fn({ size: 1234, type: 'image/png' }); }, t, img };
   cv.dice = s => t.some(q => q.s === s); cv.textos = () => t.map(q => q.s);
@@ -100,54 +106,73 @@ const M = v => '$' + (+v || 0).toLocaleString('en-US');
   ok('si cambian la inicial a 30%, el folleto cambia con ella ($313 y cuotas más altas)', d30.inicialPct === 30 && d30.filas[0].inicial === 313 && d30.filas[0].cuotas[2] > ant.cuotas[2]);
   cat._condiciones.inicialMin = 40; await ctx.catCargar(true);
 
-  // ── 3. Páginas ──
-  const pag = k => ctx._catFolletoPaginar(Array.from({ length: k }, (_, i) => i)).map(p => p.length).join('+');
-  ok('hasta 14 modelos caben en una imagen', pag(1) === '1' && pag(11) === '11' && pag(14) === '14');
-  ok('con más, se reparten parejo: 15 → 8+7, 21 → 11+10, 30 → 10+10+10', pag(15) === '8+7' && pag(21) === '11+10' && pag(30) === '10+10+10');
+  // ── 3. Siempre una sola imagen ──
+  const F = vm.runInContext('CAT_FOLLETO', ctx);
+  ok('la hoja es tamaño carta: 2550 × 3300 píxeles (8,5 × 11 pulgadas a calidad de imprenta)', F.PX_ANCHO === 2550 && F.PX_ALTO === 3300 && Math.abs(F.PX_ANCHO / F.PX_ALTO - 8.5 / 11) < 0.0005 && Math.abs(F.W / F.H - 8.5 / 11) < 0.001);
+  ok('no hay otros tamaños ni páginas', typeof ctx.catFolletoAlto === 'undefined' && typeof ctx._catFolletoPaginar === 'undefined' && typeof ctx.catFolletoPagina === 'undefined');
   const emp = ctx.catFolletoDatos('c:CO-EMP');
-  ok('EMPIRE (21 modelos): dos páginas, sin repetir ni perder ninguno', emp.paginas.length === 2 && emp.paginas[0].length === 11 && emp.paginas[1].length === 10 && emp.paginas[0].concat(emp.paginas[1]).map(f => f.modelo).join() === emp.filas.map(f => f.modelo).join());
-  ok('nombre del archivo: concesionario y fecha; con páginas, cuál es', /^folleto-pagasi-bera-chacao-\d{4}-\d\d-\d\d\.png$/.test(ctx.catFolletoArchivo(d, 0)) && /^folleto-pagasi-empire-bello-monte-\d{4}-\d\d-\d\d-2de2\.png$/.test(ctx.catFolletoArchivo(emp, 1)));
+  ok('EMPIRE (21 modelos): un solo folleto con los 21, sin páginas', emp.filas.length === 21 && !('paginas' in emp) && typeof ctx._catFolletoPaginar === 'undefined' && typeof ctx.catFolletoPagina === 'undefined');
+  ok('nombre del archivo: concesionario y fecha, uno solo', /^folleto-pagasi-bera-chacao-\d{4}-\d\d-\d\d\.png$/.test(ctx.catFolletoArchivo(d)) && /^folleto-pagasi-empire-bello-monte-\d{4}-\d\d-\d\d\.png$/.test(ctx.catFolletoArchivo(emp)));
+  ok('el gancho «cuotas desde»: la cuota más baja de todo el folleto', d.desde === Math.min(...d.filas.map(f => Math.min(...f.cuotas))) && d.desde === d.filas.find(f => f.modelo === 'SBR').cuotas[2] && ctx.catFolletoDatos('c:CO-VACIO').desde === 0);
+  ok('el contacto que va abajo: el Instagram y el teléfono que muestra pagasi.io', d.contacto.instagram === '@pagasi.io' && d.contacto.telefono === '0424-217-7798' && /wa\.me\/584242177798/.test(src('index.html')));
 
   // ── 4. El dibujo ──
-  let cv = lienzo(), r = ctx.catFolletoDibujar(cv, d, 0, {});
-  ok('la imagen mide 1080 × 1440 (Instagram y WhatsApp)', cv.width === 1080 && cv.height === 1440);
+  let cv = lienzo(), r = ctx.catFolletoDibujar(cv, d, {});
+  ok('con 8 modelos: una hoja carta (2550 × 3300)', cv.width === 2550 && cv.height === 3300 && r.ancho === 1080 && r.alto === 1398);
   ok('cabecera: Pagasi × BERA CHACAO y pagasi.io', cv.dice('BERA CHACAO') && cv.dice('×') && cv.dice('pagasi.io'));
-  ok('título como en la muestra: «Tu Bera.» / «En cuotas.» / «Elige tu modelo y tu plazo.»', cv.dice('Tu Bera.') && cv.dice('En cuotas.') && cv.dice('Elige tu modelo y tu plazo.') && 'ELIGE TU PRÓXIMA MOTO'.split('').every(ch => cv.dice(ch)));
+  ok('título como en la muestra: «ELIGE TU PRÓXIMA MOTO» / «Tu Bera.» / «En cuotas.»', cv.dice('Tu Bera.') && cv.dice('En cuotas.') && 'ELIGE TU PRÓXIMA MOTO'.split('').every(ch => cv.dice(ch)));
+  const pocas = lienzo(); ctx.catFolletoDibujar(pocas, ctx.catFolletoDatos('c:CO-ARI'), {});
+  ok('«Elige tu modelo y tu plazo.» sale cuando hay sitio (pocos modelos); con más, queda solo el gancho del precio', pocas.dice('Elige tu modelo y tu plazo.') && pocas.dice('por quincena') && !cv.dice('Elige tu modelo y tu plazo.') && cv.dice('por quincena'));
   ok('tabla: título, MODELO, INICIAL MÍNIMA, CUOTA QUINCENAL y los tres plazos', cv.dice('BERA CHACAO · PLANES DISPONIBLES') && cv.dice('MODELO') && cv.dice('INICIAL') && cv.dice('MÍNIMA') && cv.dice('CUOTA QUINCENAL') && cv.dice('6 MESES') && cv.dice('9 MESES') && cv.dice('12 MESES'));
   ok('cada modelo con su inicial y sus tres cuotas', d.filas.every(f => cv.dice(f.modelo) && cv.dice(M(f.inicial)) && f.cuotas.every(q => cv.dice(M(q)))));
   ok('los miles con coma, como en la muestra ($3,720)', cv.dice('$3,720') && cv.dice('$3,880'));
   ok('botón «Solicitar en pagasi.io» y la letra pequeña con la fecha de los precios', cv.dice('Solicitar en pagasi.io') && cv.textos().some(s => /^Plan sujeto a evaluación y aprobación\. Imagen referencial\. Precios al \d\d\/\d\d\/\d{4}\.$/.test(s)));
+  ok('abajo salen el Instagram y el teléfono', cv.dice('@pagasi.io') && cv.dice('0424-217-7798'));
+  const sinC = lienzo(); ctx.catFolletoDibujar(sinC, Object.assign({}, d, { contacto: { instagram: '', telefono: '0412-000-0000' } }), {});
+  ok('...y si uno falta, sale solo el otro', !sinC.dice('@pagasi.io') && sinC.dice('0412-000-0000'));
+  ok('diseño nuevo: «pagasi.io», la pastilla «CUOTAS DESDE $… por quincena» y la etiqueta «INICIAL DESDE 40%»', cv.dice('pagasi.io') && 'CUOTASDESDE'.split('').every(ch => cv.dice(ch)) && cv.dice(M(d.desde)) && cv.dice('por quincena') && cv.dice('INICIAL DESDE 40%'));
+  ok('...la cuota más baja (12 meses) va resaltada: su encabezado en blanco y sus valores en azul', cv.t.some(q => q.s === '12 MESES' && q.color === '#fff') && cv.t.some(q => q.s === '6 MESES' && q.color !== '#fff') && d.filas.every(f => cv.t.some(q => q.s === M(f.cuotas[2]) && q.color === '#1F3FF0')));
   ok('sin foto ni logo cargados igual se dibuja (el logo, escrito)', r.conFoto === false && cv.dice('Pagasi') && cv.img.length === 0 && r.filas === 8);
-  ok('con una sola página no dice «Página»', !cv.textos().some(s => /^Página/.test(s)));
-  cv = lienzo(); r = ctx.catFolletoDibujar(cv, d, 0, { logo: { width: 955, height: 256 }, foto: { naturalWidth: 800, naturalHeight: 600 } });
+  ok('nunca dice «Página»: no hay páginas', !cv.textos().some(s => /^Página/.test(s)));
+  cv = lienzo(); r = ctx.catFolletoDibujar(cv, d, { logo: { width: 955, height: 256 }, foto: { naturalWidth: 800, naturalHeight: 600 } });
   ok('con logo y foto: los dibuja (logo en la cabecera y la foto de la moto)', r.conFoto === true && cv.img.length >= 2 && !cv.dice('Pagasi'));
-  cv = lienzo(); r = ctx.catFolletoDibujar(cv, emp, 1, {});
-  ok('página 2 de EMPIRE: solo sus 10 modelos y dice «Página 2 de 2»', cv.dice('Página 2 de 2') && emp.paginas[1].every(f => cv.dice(f.modelo)) && !emp.paginas[0].some(f => cv.dice(f.modelo)) && r.filas === 10);
-  const medidas = [1, 3, 8, 11, 12, 13, 14].map(k => { const dd = Object.assign({}, emp, { paginas: [emp.filas.slice(0, k)] }); return Object.assign({ k }, ctx.catFolletoDibujar(lienzo(), dd, 0, {})); });
-  ok('la tabla nunca se sale: queda entre el título y el botón con cualquier cantidad de filas', medidas.every(x => x.cardY >= 430 && x.cardY + x.cardH <= 1440 - 82 - 96 - 30 + 1));
-  ok('pocas filas van grandes (74); con 11 o 12 miden 50 y con 14 siguen legibles (43)', medidas[1].rh === 74 && medidas[3].rh === 50 && medidas[4].rh === 50 && medidas[6].rh === 43 && medidas.every((x, i) => !i || x.rh <= medidas[i - 1].rh));
-  const largo = ctx.catFolletoDatos('c:CO-ARI'); cv = lienzo(); ctx.catFolletoDibujar(cv, largo, 0, {});
+  cv = lienzo(); r = ctx.catFolletoDibujar(cv, emp, {});
+  ok('EMPIRE: los 21 modelos en UNA hoja carta', cv.width === 2550 && cv.height === 3300 && r.filas === 21 && emp.filas.every(f => cv.dice(f.modelo)) && !cv.textos().some(s => /Página/.test(s)));
+  const con = k => Object.assign({}, emp, { filas: Array.from({ length: k }, (_, i) => emp.filas[i % emp.filas.length]) });
+  const medidas = [1, 3, 9, 10, 11, 14, 15, 16, 21, 22, 23, 26, 30, 40, 50].map(k => Object.assign({ k }, ctx.catFolletoDibujar(lienzo(), con(k), {})));
+  const md = k => medidas.find(q => q.k === k);
+  ok('la tabla nunca se sale de la hoja: queda entre la cabecera y el botón con 1, 21, 30, 40 o 50 modelos', medidas.every(q => q.filas === q.k && q.alto === 1398 && q.cardY >= 290 && q.cardY + q.cardH <= 1398 - 70 - 92 - 28 + 1));
+  ok('pocas filas van grandes: 74 con 3, 54 con 9, 50 con 10 u 11, 41 con 14', md(3).rh === 74 && md(9).rh === 54 && md(10).rh === 50 && md(11).rh === 50 && md(14).rh === 41);
+  ok('de 15 a 22 el encabezado se compacta y las filas quedan entre 40 y 30', md(15).rh === 40 && md(16).rh === 40 && md(21).rh === 31 && md(22).rh === 30 && md(15).denso && !md(14).denso);
+  ok('con 23 o más el título pasa a una línea y la tabla gana sitio: 32, 28, 25, 18 y 15', md(23).rh === 32 && md(26).rh === 28 && md(30).rh === 25 && md(40).rh === 18 && md(50).rh === 15);
+  ok('el título se adapta: completo, mediano y en una línea', md(9).modo === 'completo' && md(14).modo === 'completo' && md(21).modo === 'medio' && md(30).modo === 'mini' && md(50).modo === 'mini');
+  ok('la letra de la tabla: 31 con 9 modelos, 18 con 21 y 14 con 30 (impresa en carta, ~8 puntos)', md(9).letra === 31 && md(21).letra === 18 && md(30).letra === 14 && md(40).letra === 10);
+  const mini = lienzo(); ctx.catFolletoDibujar(mini, con(30), {});
+  ok('con 30 modelos sigue trayendo título, gancho, tabla, botón y contacto', mini.dice('Tu Empire.') && mini.dice('En cuotas.') && mini.dice('por quincena') && mini.dice('EMPIRE BELLO MONTE · PLANES DISPONIBLES') && mini.dice('Solicitar en pagasi.io') && mini.dice('@pagasi.io') && !'ELIGE'.split('').every(ch => mini.dice(ch)));
+  const largo = ctx.catFolletoDatos('c:CO-ARI'); cv = lienzo(); ctx.catFolletoDibujar(cv, largo, {});
   ok('un nombre largo va en dos líneas, sin cortarse', cv.dice('PIAGGIO VESPA GTS') && cv.dice('310CC AÑO 2026') && !cv.textos().some(s => /…/.test(s)));
 
   // ── 4b. La moto recortada (sin fondo): grande y sin recuadro ──
   // El índice dice de qué foto salió cada recorte: MILAN (id 1) y BRX (id 4, foto del almacén) al día; ANTIKING (id 2) de una foto vieja
   cat[4].imagePath = 'catalogo/4-111.jpg';
   await ctx.catCargar(true);
-  vm.runInContext("_catFolleto.indice = { '1': { a:'1.webp', de:'f/milan.jpg', w:720, h:480 }, '4': { a:'4.webp', de:'catalogo/4-111.jpg', w:600, h:720 }, '2': { a:'2.webp', de:'f/antiking-VIEJA.jpg', w:720, h:500 } }", ctx);
+  vm.runInContext("_catFolleto.indice = { '1': { a:'1.webp', de:'f/milan.jpg', w:1000, h:660, n:900, c:0 }, '4': { a:'4.webp', de:'catalogo/4-111.jpg', w:800, h:1000, n:1400, c:1 }, '9': { a:'9.webp', de:'f/runner.jpg', w:700, h:500, n:430, c:0 }, '2': { a:'2.webp', de:'f/antiking-VIEJA.jpg', w:720, h:500, n:1300, c:0 } }", ctx);
   const dr = ctx.catFolletoDatos('c:CO-BERA'), fr = k => dr.fotos.find(f => f.modelo === k);
   ok('el modelo con recorte al día lo usa (archivo del propio sistema)', fr('MILAN').recorte === 'assets/catalogo-recortes/1.webp' && fr('BRX').recorte === 'assets/catalogo-recortes/4.webp');
   ok('...el de la foto del almacén se reconoce por su ruta, no por la dirección con clave', fr('BRX').url.indexOf('token=') > -1 && fr('BRX').recorte !== '');
-  ok('si la foto cambió después del recorte, el recorte viejo NO se usa', fr('ANTIKING').recorte === '' && fr('RUNNER').recorte === '');
-  ok('la foto que sale sola prefiere una moto recortada de la página (BRX antes que ANTIKING)', ctx._catFolletoFotoDePagina(dr, 0) === String(fr('BRX').id));
-  cv = lienzo(); r = ctx.catFolletoDibujar(cv, dr, 0, { logo: { width: 955, height: 256 }, foto: { naturalWidth: 720, naturalHeight: 480 }, recortada: true });
-  ok('recortada: va flotando, grande (más de 480 de ancho) y pisa apenas la tarjeta de la tabla', r.flota === true && r.moto.w > 480 && r.moto.w <= 540 && Math.abs((r.moto.y + r.moto.h) - (r.cardY + 20)) < 1 && r.moto.x + r.moto.w <= 1080 - 30 + 1);
-  ok('...sin salirse por arriba de la cabecera y dejando 440 de ancho al título', r.moto.y >= 120 && r.tam >= 70);
-  cv = lienzo(); r = ctx.catFolletoDibujar(cv, dr, 0, { foto: { naturalWidth: 480, naturalHeight: 720 }, recortada: true });
-  ok('una moto vertical (scooter) también cabe: no pasa de la cabecera', r.flota && r.moto.y >= 120 && r.moto.h <= 540);
-  cv = lienzo(); r = ctx.catFolletoDibujar(cv, dr, 0, { foto: { naturalWidth: 800, naturalHeight: 600 }, recortada: false });
+  ok('si la foto cambió después del recorte, el recorte viejo NO se usa', fr('ANTIKING').recorte === '');
+  ok('cada recorte trae su nitidez y si la foto venía cortada de origen', fr('MILAN').nitidez === 900 && fr('MILAN').cortada === false && fr('BRX').nitidez === 1400 && fr('BRX').cortada === true && fr('RUNNER').nitidez === 430);
+  ok('la foto que sale sola: de las recortadas, la más nítida que no venga cortada (MILAN; BRX es más grande pero viene cortada; RUNNER es pequeña)', ctx._catFolletoFotoInicial(dr) === String(fr('MILAN').id) && ctx._catFolletoFotoInicial(d) === String(d.fotos[0].id) && ctx._catFolletoFotoInicial({ fotos: [] }) === '');
+  cv = lienzo(); r = ctx.catFolletoDibujar(cv, dr, { logo: { width: 955, height: 256 }, foto: { naturalWidth: 720, naturalHeight: 480 }, recortada: true });
+  ok('recortada: va flotando, grande (más de 440 de ancho), completa sobre el azul y apoyada justo encima de la tabla (sin pisarla)', r.flota === true && r.moto.w > 440 && r.moto.w <= 560 && Math.abs((r.moto.y + r.moto.h) - (r.cardY - 6)) < 1 && r.moto.x + r.moto.w <= 1080 - 28 + 1);
+  ok('...sin salirse por arriba de la cabecera y dejando 440 de ancho al título', r.moto.y >= 116 && r.tam >= 60);
+  ok('...y SIN sombra alrededor del contorno (la hacía ver como calcomanía): solo la del piso, y cortada donde empieza la tabla', !/shadowColor[^;]*;[^\n]*drawImage\(r\.foto, moto\.x/.test(src('logic/catalogo-folleto.js')) && /x\.rect\(0, 0, W, cardY\); x\.clip\(\);/.test(src('logic/catalogo-folleto.js')));
+  cv = lienzo(); r = ctx.catFolletoDibujar(cv, dr, { foto: { naturalWidth: 480, naturalHeight: 720 }, recortada: true });
+  ok('una moto vertical (scooter) también cabe: no pasa de la cabecera', r.flota && r.moto.y >= 116 && r.moto.h <= 560);
+  cv = lienzo(); r = ctx.catFolletoDibujar(cv, dr, { foto: { naturalWidth: 800, naturalHeight: 600 }, recortada: false });
   ok('sin recortar sigue saliendo en su tarjeta blanca', r.flota === false && r.moto === null && r.conFoto === true);
-  const medidasR = [1, 8, 13, 14].map(k => ctx.catFolletoDibujar(lienzo(), Object.assign({}, emp, { paginas: [emp.filas.slice(0, k)] }), 0, { foto: { naturalWidth: 720, naturalHeight: 470 }, recortada: true }));
-  ok('con cualquier cantidad de filas la moto queda dentro de la imagen', medidasR.every(q => q.moto.y >= 120 && q.moto.x >= 480 && q.moto.w >= 300));
+  const medidasR = [1, 8, 13, 15, 16, 21, 30, 40, 50].map(k => ctx.catFolletoDibujar(lienzo(), con(k), { foto: { naturalWidth: 720, naturalHeight: 470 }, recortada: true }));
+  ok('con cualquier cantidad de filas la moto queda dentro de la hoja y bajo la cabecera', medidasR.every(q => q.moto.y >= 116 && q.moto.x >= 480 && q.moto.w >= 120 && q.moto.x + q.moto.w <= 1053));
   const pedidos = []; ctx.fetch = u => { pedidos.push(String(u)); return Promise.resolve({ ok: true, json: () => Promise.resolve({ v: 1, motos: { '9': { a: '9.webp', de: 'x', w: 1, h: 1 } } }) }); };
   vm.runInContext('_catFolleto.indice = null; _catFolleto.indiceP = null', ctx);
   const ind = await ctx._catFolletoIndice(); await ctx._catFolletoIndice();
@@ -156,9 +181,32 @@ const M = v => '$' + (+v || 0).toLocaleString('en-US');
   ok('si el índice no se puede leer, el folleto sigue (sin recortes)', JSON.stringify(await ctx._catFolletoIndice()) === '{}' && ctx.catFolletoDatos('c:CO-BERA').fotos.every(f => f.recorte === ''));
   const indReal = JSON.parse(src('assets/catalogo-recortes/indice.json'));
   const idsReal = Object.keys(indReal.motos);
-  ok('los recortes del repositorio: cada uno con su archivo, su foto de origen y sus medidas', idsReal.length >= 150 && idsReal.every(k => { const q = indReal.motos[k]; return q.a === k + '.webp' && q.de && q.w > 0 && q.h > 0 && Math.max(q.w, q.h) <= 720 && fs.existsSync(path.join(ROOT, 'assets/catalogo-recortes', q.a)); }));
-  ok('...sin archivos sueltos y sin pesar de más (menos de 14 MB en total)', fs.readdirSync(path.join(ROOT, 'assets/catalogo-recortes')).filter(f => f !== 'indice.json').every(f => idsReal.includes(f.replace('.webp', ''))) && fs.readdirSync(path.join(ROOT, 'assets/catalogo-recortes')).reduce((t, f) => t + fs.statSync(path.join(ROOT, 'assets/catalogo-recortes', f)).size, 0) < 14e6);
+  ok('los recortes del repositorio (versión 6: silueta de un recortador y huecos del otro, sin fondo entre los rayos): cada uno con su archivo, su foto de origen, sus medidas y su nitidez', indReal.v === 6 && idsReal.length >= 150 && idsReal.every(k => { const q = indReal.motos[k]; return q.a === k + '.webp' && q.de && q.w > 0 && q.h > 0 && Math.max(q.w, q.h) <= 1000 && q.n >= Math.max(q.w, q.h) - 2 && (q.c === 0 || q.c === 1) && fs.existsSync(path.join(ROOT, 'assets/catalogo-recortes', q.a)); }));
+  ok('...sin archivos sueltos y sin pesar de más (menos de 16 MB en total)', fs.readdirSync(path.join(ROOT, 'assets/catalogo-recortes')).filter(f => f !== 'indice.json').every(f => idsReal.includes(f.replace('.webp', ''))) && fs.readdirSync(path.join(ROOT, 'assets/catalogo-recortes')).reduce((t, f) => t + fs.statSync(path.join(ROOT, 'assets/catalogo-recortes', f)).size, 0) < 16e6);
   delete cat[4].imagePath; await ctx.catCargar(true);
+
+  // ── 4c. El logo de la marca en vez de la moto ──
+  const LOGOS = vm.runInContext('CAT_FOLLETO_LOGOS', ctx);
+  ok('hay logo en blanco de Bajaj, Benmo, Bera, Empire (Keeway), Haojin, Piaggio, Toro y Veloz, y los archivos existen', Object.keys(LOGOS).sort().join() === 'Bajaj,Benmo,Bera,Empire,Haojin,Piaggio,Toro,Veloz' && Object.values(LOGOS).every(f => fs.existsSync(path.join(ROOT, 'assets/marcas', f))) && fs.readdirSync(path.join(ROOT, 'assets/marcas')).sort().join() === Object.values(LOGOS).sort().join());
+  const png = f => { const b = fs.readFileSync(path.join(ROOT, 'assets/marcas', f)); return { ok: b.slice(1, 4).toString() === 'PNG', w: b.readUInt32BE(16), h: b.readUInt32BE(20), alfa: b[25] === 6, kb: b.length / 1024 }; };
+  ok('...son PNG con transparencia, de 700 a 1200 de ancho y livianos (menos de 120 KB cada uno)', Object.values(LOGOS).every(f => { const q = png(f); return q.ok && q.alfa && q.w >= 700 && q.w <= 1200 && q.h > 100 && q.kb < 120; }));
+  const dB = ctx.catFolletoDatos('c:CO-BERA'), dA = ctx.catFolletoDatos('c:CO-ARI'), dE = ctx.catFolletoDatos('c:CO-EMP');
+  ok('BERA CHACAO → logo de Bera; EMPIRE → Empire Keeway', dB.logoMarca === 'assets/marcas/bera.png' && dE.logoMarca === 'assets/marcas/empire-keeway.png');
+  ok('por nombre, todos los concesionarios de hoy tienen logo: Toro, Veloz, Haojin, Piaggio, Bajaj y Benmo', ['MOTOS TORO SABANA GRANDE', 'TORO SANTA MONICA', 'VELOZ PTO LA CRUZ', 'VELOZ MOTORCYCLES CHACAO', 'HAOJIN', 'PIAGGIO EL HATILLO', 'BAJAJ MARQUEZ', 'BENMO MOTOS ANDRES BELLO', 'BERA PETARE', 'BERA TRINIDAD', 'EMPIRE Bello Monte'].every(n => !!LOGOS[ctx._catFolletoMarca(n)]));
+  // ARI BENZA es Benmo Motos El Llanito (Adam, 21-nov-2026)
+  ok('ARI BENZA sale en el folleto como BENMO MOTOS EL LLANITO, con el logo de Benmo', dA.nombre === 'BENMO MOTOS EL LLANITO' && dA.nombreSistema === 'ARI BENZA' && dA.marca === 'Benmo' && dA.logoMarca === 'assets/marcas/benmo-motos.png');
+  ok('...Benmo es una tienda de varias marcas: lleva su logo pero el título es «Tu moto.»', dA.titulo === 'Tu moto.' && ctx.catFolletoDatos('c:CO-BERA').titulo === 'Tu Bera.');
+  ok('...y el archivo se llama por el nombre que sale en el folleto', /^folleto-pagasi-benmo-motos-el-llanito-\d{4}-\d\d-\d\d\.png$/.test(ctx.catFolletoArchivo(dA)));
+  const sinLogo = Object.assign({}, dA, { logoMarca: '' });
+  ok('con logo, eso es lo que sale solo; un concesionario sin logo sale con la moto de siempre', ctx._catFolletoImagenInicial(dB) === '__logo' && ctx._catFolletoImagenInicial(dA) === '__logo' && ctx._catFolletoImagenInicial(sinLogo) === ctx._catFolletoFotoInicial(dA));
+  cv = lienzo(); r = ctx.catFolletoDibujar(cv, dB, { logo: { width: 955, height: 256 }, marca: { naturalWidth: 1200, naturalHeight: 580 }, foto: { naturalWidth: 720, naturalHeight: 480 }, recortada: true });
+  ok('con el logo de la marca NO se dibuja ninguna moto (aunque llegue una)', !!r.marca && r.moto === null && r.flota === false && r.conFoto === false);
+  ok('...el logo va a la derecha del título, dentro de la hoja y por encima de la tabla', r.marca.w <= 440 && r.marca.w > 300 && r.marca.x + r.marca.w <= 1080 - 54 + 1 && r.marca.y >= 116 && r.marca.y + r.marca.h <= r.cardY);
+  ok('...y el título, el gancho y la tabla siguen saliendo', cv.dice('Tu Bera.') && cv.dice('En cuotas.') && cv.dice('por quincena') && dB.filas.every(f => cv.dice(f.modelo)));
+  const logoR = [1, 9, 16, 21, 30, 40].map(k => ctx.catFolletoDibujar(lienzo(), con(k), { marca: { naturalWidth: 1200, naturalHeight: 427 } }));
+  ok('con cualquier cantidad de modelos el logo cabe entre la cabecera y la tabla', logoR.every(q => q.marca && q.marca.y >= 116 && q.marca.y + q.marca.h <= q.cardY && q.marca.h >= 55));
+  const ancho4 = ctx.catFolletoDibujar(lienzo(), dB, { marca: { naturalWidth: 1200, naturalHeight: 176 } });
+  ok('un logo muy alargado (Haojin) usa todo el ancho permitido', Math.round(ancho4.marca.w) === 440 && ancho4.marca.h < 70);
 
   // ── 5. El botón en la tabla ──
   const grupos = [...tabla.matchAll(/<tr class="cat-grupo"[^]*?<\/tr>/g)].map(x => x[0]);
@@ -176,28 +224,27 @@ const M = v => '$' + (+v || 0).toLocaleString('en-US');
   ctx.URL = { createObjectURL: () => 'blob:prueba', revokeObjectURL(){} };
   const antes = escritos.length;
   await ctx.catFolleto('c:CO-BERA');
-  ok('«Crear folleto» abre la ventana con el nombre y cuántos modelos lleva', el('mtt').textContent === 'Folleto de BERA CHACAO' && /^8 modelos · inicial 40%/.test(el('msb').textContent) && el('ov').style.display === 'flex');
-  ok('...con la vista previa, la lista de motos para la foto y «Sin foto»', /<canvas id="cf_canvas" width="1080" height="1440"/.test(el('mbd').innerHTML) && /id="cf_foto"/.test(el('mbd').innerHTML) && (el('mbd').innerHTML.match(/<option /g) || []).length === 5 && /Sin foto<\/option>/.test(el('mbd').innerHTML));
-  ok('...y los botones Cerrar y Descargar imagen', /closeM\(\)/.test(el('mft').innerHTML) && /catFolletoDescargar\(\)/.test(el('mft').innerHTML) && /Descargar imagen/.test(el('mft').innerHTML));
+  ok('«Crear folleto» abre la ventana con el nombre, cuántos modelos lleva y que es una hoja carta', el('mtt').textContent === 'Folleto de BERA CHACAO' && /^8 modelos · inicial 40% · una hoja tamaño carta/.test(el('msb').textContent) && el('ov').style.display === 'flex');
+  ok('...con la vista previa y la lista «Imagen del folleto»: el logo de la marca, las motos y «Sin imagen»', /<canvas id="cf_canvas" width="2550" height="3300"/.test(el('mbd').innerHTML) && /<label>Imagen del folleto<\/label>/.test(el('mbd').innerHTML) && /<option value="__logo">Logo de Bera<\/option>/.test(el('mbd').innerHTML) && (el('mbd').innerHTML.match(/<option /g) || []).length === 6 && /Moto: ANTIKING/.test(el('mbd').innerHTML) && /Sin imagen<\/option>/.test(el('mbd').innerHTML));
+  ok('lo que sale solo es el logo de la marca, no una moto', vm.runInContext('_catFolleto.fotoId', ctx) === '__logo');
+  ok('...y los botones Cerrar, Imprimir y Descargar imagen', /closeM\(\)/.test(el('mft').innerHTML) && /catFolletoImprimir\(\)/.test(el('mft').innerHTML) && /catFolletoDescargar\(\)/.test(el('mft').innerHTML) && /Descargar imagen/.test(el('mft').innerHTML));
   ok('la vista previa quedó dibujada con el folleto', cvVentana.dice('Tu Bera.') && cvVentana.dice('ANTIKING'));
   ok('avisa de los modelos que no salen', /2 modelos de este concesionario no salen porque están ocultos o sin precio/.test(el('cf_nota').innerHTML));
-  ok('una página: no hay botones de página', !/catFolletoPagina/.test(el('mbd').innerHTML));
+  ok('sin flechas de página: es una sola imagen', !/catFolletoPagina|cf_pag|Página/.test(el('mbd').innerHTML) && (el('mbd').innerHTML.match(/<canvas /g) || []).length === 1);
   await ctx.catFolletoDescargar();
   ok('«Descargar imagen» baja un PNG con su nombre', anclas.length === 1 && /^folleto-pagasi-bera-chacao-.*\.png$/.test(anclas[0].download) && anclas[0].href === 'blob:prueba' && avisos.some(a => /Folleto descargado/.test(a)));
-  ok('...queda anotado en el registro quién lo hizo', registro.at(-1).a === 'catalogo_folleto' && registro.at(-1).id === 'c:CO-BERA' && registro.at(-1).d.modelos === 8);
+  ok('...queda anotado en el registro quién lo hizo', registro.at(-1).a === 'catalogo_folleto' && registro.at(-1).id === 'c:CO-BERA' && registro.at(-1).d.modelos === 8 && !('pagina' in registro.at(-1).d));
   await ctx.catFolleto('c:CO-EMP');
-  ok('con dos páginas salen las flechas y dice cuál se ve', /catFolletoPagina\(-1\)/.test(el('mbd').innerHTML) && /catFolletoPagina\(1\)/.test(el('mbd').innerHTML) && el('cf_pag').textContent === 'Página 1 de 2' && /Son <b>2 imágenes<\/b>/.test(el('cf_nota').innerHTML));
-  await ctx.catFolletoPagina(1);
-  ok('la flecha pasa a la página 2 y la dibuja', el('cf_pag').textContent === 'Página 2 de 2' && cvVentana.dice('Página 2 de 2'));
-  ok('la foto que sale sola es la de un modelo de la página que se ve (MODELO 05 está en la 1)', ctx._catFolletoFotoDePagina(emp, 0) === String(emp.filas[4].id) && ctx._catFolletoFotoDePagina(emp, 1) === String(emp.filas[4].id) && ctx._catFolletoFotoDePagina(d, 0) === String(d.filas[0].id));
-  const dosPag = Object.assign({}, d, { paginas: [d.filas.slice(0, 4), d.filas.slice(4)] });
-  ok('...y en la página 2 pasa a una moto de la página 2 (RUNNER), no la de la 1', ctx._catFolletoFotoDePagina(dosPag, 0) === String(d.filas[0].id) && ctx._catFolletoFotoDePagina(dosPag, 1) === String(d.filas.find(f => f.modelo === 'RUNNER').id));
+  ok('con 21 modelos: la misma hoja carta, una sola vista previa, sin flechas', /<canvas id="cf_canvas" width="2550" height="3300"/.test(el('mbd').innerHTML) && !/catFolletoPagina/.test(el('mbd').innerHTML) && cvVentana.width === 2550 && cvVentana.height === 3300 && emp.filas.every(f => cvVentana.dice(f.modelo)));
   await ctx.catFolletoFoto('');
-  ok('si se elige «Sin foto» se respeta al cambiar de página', (await ctx.catFolletoPagina(1), await ctx.catFolletoPagina(1), el('cf_foto').value === '' || true) && vm.runInContext('_catFolleto.fotoId', ctx) === '' && vm.runInContext('_catFolleto.fotoAuto', ctx) === false);
-  await ctx.catFolletoPagina(1);
-  ok('...y de la última vuelve a la primera', el('cf_pag').textContent === 'Página 1 de 2');
-  await ctx.catFolletoPagina(1); await ctx.catFolletoDescargar();
-  ok('se descarga la página que se está viendo', /-2de2\.png$/.test(anclas.at(-1).download) && registro.at(-1).d.pagina === 2);
+  ok('se puede elegir «Sin foto» y se vuelve a dibujar', vm.runInContext('_catFolleto.fotoId', ctx) === '' && cvVentana.dice('Tu Empire.'));
+  await ctx.catFolletoDescargar();
+  ok('se descarga UN archivo con los 21 modelos', /^folleto-pagasi-empire-bello-monte-\d{4}-\d\d-\d\d\.png$/.test(anclas.at(-1).download) && registro.at(-1).d.modelos === 21);
+  const ventanas = []; ctx.open = () => { const v = { html: '', document: { write(h){ v.html += h; }, close(){} } }; ventanas.push(v); return v; };
+  await ctx.catFolletoImprimir();
+  ok('«Imprimir» abre la hoja sola, a tamaño carta y sin márgenes, y llama a la impresora', ventanas.length === 1 && /@page\{size:8\.5in 11in;margin:0\}/.test(ventanas[0].html) && /<img src="blob:prueba"/.test(ventanas[0].html) && /window\.print\(\)/.test(ventanas[0].html) && registro.at(-1).d.impreso === true);
+  ctx.open = () => null; avisos.length = 0; await ctx.catFolletoImprimir();
+  ok('si el navegador bloquea la ventana, avisa', avisos.some(a => /bloqueó la ventana de impresión/.test(a)));
   avisos.length = 0; el('mtt').textContent = 'otra';
   await ctx.catFolleto('c:CO-VACIO');
   ok('concesionario sin modelos visibles: avisa y no abre nada', avisos.some(a => /no tiene modelos visibles en la web con precio/.test(a)) && el('mtt').textContent === 'otra');

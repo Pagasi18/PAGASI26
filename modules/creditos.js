@@ -134,6 +134,7 @@ PG.creditos = function(){
     if(col==='cli') { va=(a.cli||'').toLowerCase(); vb=(b.cli||'').toLowerCase(); return dir*(va<vb?-1:va>vb?1:0); }
     if(col==='modelo') { va=(a.modelo||'').toLowerCase(); vb=(b.modelo||'').toLowerCase(); return dir*(va<vb?-1:va>vb?1:0); }
     if(col==='sede') { va=(((_concGetById(a.concesionarioId)||{}).nombre)||'').toLowerCase(); vb=(((_concGetById(b.concesionarioId)||{}).nombre)||'').toLowerCase(); return dir*(va<vb?-1:va>vb?1:0); }
+    if(col==='vend') { va=_credVendedorNombre(a).toLowerCase(); vb=_credVendedorNombre(b).toLowerCase(); if(!va!==!vb) return va?-1:1; /* los que no tienen vendedor, siempre al final */ return dir*(va<vb?-1:va>vb?1:0); }
     if(col==='fecha') { va=a.fecha||''; vb=b.fecha||''; return dir*(va<vb?-1:va>vb?1:0); }
     if(col==='precio') return dir*(parseFloat(a.precioBaseReal||a.precio||0)-parseFloat(b.precioBaseReal||b.precio||0));
     if(col==='total') return dir*(parseFloat(a.total||0)-parseFloat(b.total||0));
@@ -300,12 +301,13 @@ PG.creditos = function(){
     </div>
     <div class="tw tw-compact tw-creditos"><table>
     <thead><tr>
-      ${['id','cli','modelo','sede','fecha','precio','total','cuota','progreso','saldo','mora','apy','estado'].map(function(col){
-        var labels={id:'ID',cli:'Cliente',modelo:'Modelo',sede:'Concesionario',fecha:'Fecha inicio',precio:'Precio',total:'Total',cuota:'Cuota Q.',progreso:'Progreso',saldo:'Saldo',mora:'Mora',apy:'FDC',estado:'Estado'};
+      ${['id','cli','modelo','sede','vend','fecha','precio','total','cuota','progreso','saldo','mora','apy','estado'].map(function(col){
+        var labels={id:'ID',cli:'Cliente',modelo:'Modelo',sede:'Concesionario',vend:'Vendedor',fecha:'Fecha inicio',precio:'Precio',total:'Total',cuota:'Cuota Q.',progreso:'Progreso',saldo:'Saldo',mora:'Mora',apy:'FDC',estado:'Estado'};
         if(col==='progreso') return '<th>Progreso</th>';
+        var cls=(col==='vend')?' class="cr-vend-col"':'';   // en pantallas medianas esta columna se esconde y el vendedor sale debajo del concesionario
         var isActive=(_cs.col===col);
         var arrow=isActive?(_cs.dir==='asc'?'↑':'↓'):'';
-        return '<th onclick="setCredSort(\''+col+'\')" style="cursor:pointer;user-select:none;white-space:nowrap">'+labels[col]+(arrow?' <span style="color:var(--p1);font-size:10px">'+arrow+'</span>':'<span style="color:var(--ink3);font-size:9px;opacity:.4"> ⇅</span>')+'</th>';
+        return '<th'+cls+' onclick="setCredSort(\''+col+'\')" style="cursor:pointer;user-select:none;white-space:nowrap">'+labels[col]+(arrow?' <span style="color:var(--p1);font-size:10px">'+arrow+'</span>':'<span style="color:var(--ink3);font-size:9px;opacity:.4"> ⇅</span>')+'</th>';
       }).join('')}
       <th></th>
     </tr></thead>
@@ -330,11 +332,14 @@ PG.creditos = function(){
       var precio = parseFloat(c.precioBaseReal||c.precio||0);
       var totalC = parseFloat(c.total||0);
       var sedeName = c.concesionarioId ? (((_concGetById(c.concesionarioId)||{}).nombre)||'—') : '—';
+      // Quién vendió la moto (Adam, 21-nov-2026): el mismo vendedor al que Comisiones le cuenta la venta
+      var vendName = _credVendedorNombre(c);
       return`<tr style="cursor:pointer" onclick="openAmort('${c.id}')">
       <td class="tdm" style="font-family:var(--fd)">${c.id}</td>
       <td style="max-width:140px"><div class="tdm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px" title="${pgEsc(c.cli)}">${pgEsc(c.cli)}</div></td>
       <td class="tds">${c.modelo||'—'}</td>
-      <td class="tds" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${sedeName}">${sedeName}</td>
+      <td class="tds" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${sedeName}${vendName?' · Vendedor: '+pgEsc(vendName):''}">${sedeName}<div class="cr-vend-bajo">${vendName?'<span style="opacity:.75">Vend.</span> '+pgEsc(vendName):'Sin vendedor'}</div></td>
+      <td class="tds cr-vend-col" data-col="vend" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${vendName?pgEsc(vendName):'Este crédito no tiene vendedor anotado'}">${vendName?pgEsc(vendName):'<span style="color:var(--ink3)">—</span>'}</td>
       <td class="tds" style="font-family:var(--fd);font-size:11px;color:var(--ink3);white-space:nowrap">${fechaFmt}${horaCre?`<div style="font-size:9.5px;opacity:.75">${horaCre}</div>`:''}</td>
       <td style="font-family:var(--fd);font-size:11.5px;color:var(--ink3)">${fmt(precio)}</td>
       <td style="font-family:var(--fd);font-size:11.5px;font-weight:700">${fmt(totalC)}</td>
@@ -356,7 +361,7 @@ PG.creditos = function(){
         </div>
       </td>
     </tr>`;}).join('')})()}
-    ${filtered.length===0?`<tr><td colspan="14" style="text-align:center;padding:30px 0;color:var(--ink3);font-size:13px">Sin resultados para este filtro</td></tr>`:''}
+    ${filtered.length===0?`<tr><td colspan="15" style="text-align:center;padding:30px 0;color:var(--ink3);font-size:13px">Sin resultados para este filtro</td></tr>`:''}
     </tbody>
   </table></div>
   </div>

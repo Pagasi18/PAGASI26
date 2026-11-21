@@ -286,27 +286,38 @@ th{text-align:left;padding:11px 14px;font-size:9.5px;font-weight:800;letter-spac
 td{padding:14px 14px;border-bottom:1px solid var(--rim);font-size:12.5px;color:var(--ink2);vertical-align:middle}
 .tw-compact td{padding:9px 14px}
 /* Créditos: ajuste de ancho para que la tabla quepa sin scroll horizontal en pantalla completa.
-   Solo afecta la tabla de créditos (clase tw-creditos). No cambia ninguna lógica. */
+   Solo afecta la tabla de créditos (clase tw-creditos). No cambia ninguna lógica.
+   21-nov-2026, columna Vendedor (Adam: "necesito que me pongas qué vendedor vendió la moto"): en
+   pantallas anchas (1760 o más) tiene su columna; en las medianas esa columna se esconde y el
+   vendedor sale en letra pequeña debajo del concesionario, para no ensanchar la tabla. */
+.tw-creditos .cr-vend-bajo{display:none;font-size:10px;line-height:1.3;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (min-width:1100px){
   .tw-creditos table{table-layout:fixed;width:100%}
   .tw-creditos th,.tw-creditos td{padding-left:8px;padding-right:8px;overflow:hidden;text-overflow:ellipsis}
   .tw-creditos td{font-size:11.5px}
+  .tw-creditos .cr-vend-col{display:none}
+  .tw-creditos .cr-vend-bajo{display:block}
   .tw-creditos th:nth-child(1),.tw-creditos td:nth-child(1){width:58px}     /* ID */
   .tw-creditos th:nth-child(2),.tw-creditos td:nth-child(2){width:10%}      /* Cliente */
   .tw-creditos th:nth-child(3),.tw-creditos td:nth-child(3){width:8%}       /* Modelo */
   .tw-creditos th:nth-child(4),.tw-creditos td:nth-child(4){width:140px}    /* Concesionario */
-  .tw-creditos th:nth-child(5),.tw-creditos td:nth-child(5){width:70px}     /* Fecha */
-  .tw-creditos th:nth-child(6),.tw-creditos td:nth-child(6){width:76px}     /* Precio */
-  .tw-creditos th:nth-child(7),.tw-creditos td:nth-child(7){width:80px}     /* Total */
-  .tw-creditos th:nth-child(8),.tw-creditos td:nth-child(8){width:72px}     /* Cuota */
-  .tw-creditos th:nth-child(9),.tw-creditos td:nth-child(9){width:92px}     /* Progreso */
-  .tw-creditos th:nth-child(10),.tw-creditos td:nth-child(10){width:98px}   /* Saldo */
-  .tw-creditos th:nth-child(11),.tw-creditos td:nth-child(11){width:52px}   /* Mora */
-  .tw-creditos th:nth-child(12),.tw-creditos td:nth-child(12){width:66px}   /* FDC */
-  .tw-creditos th:nth-child(13),.tw-creditos td:nth-child(13){width:74px}   /* Estado */
-  .tw-creditos th:nth-child(14),.tw-creditos td:nth-child(14){width:auto;overflow:visible} /* Acciones */
-  .tw-creditos td:nth-child(14) > div{gap:2px}
-  .tw-creditos td:nth-child(14) .btn-xs{padding:4px 6px}
+  .tw-creditos th:nth-child(5),.tw-creditos td:nth-child(5){width:104px}    /* Vendedor */
+  .tw-creditos th:nth-child(6),.tw-creditos td:nth-child(6){width:70px}     /* Fecha */
+  .tw-creditos th:nth-child(7),.tw-creditos td:nth-child(7){width:76px}     /* Precio */
+  .tw-creditos th:nth-child(8),.tw-creditos td:nth-child(8){width:80px}     /* Total */
+  .tw-creditos th:nth-child(9),.tw-creditos td:nth-child(9){width:72px}     /* Cuota */
+  .tw-creditos th:nth-child(10),.tw-creditos td:nth-child(10){width:92px}   /* Progreso */
+  .tw-creditos th:nth-child(11),.tw-creditos td:nth-child(11){width:98px}   /* Saldo */
+  .tw-creditos th:nth-child(12),.tw-creditos td:nth-child(12){width:52px}   /* Mora */
+  .tw-creditos th:nth-child(13),.tw-creditos td:nth-child(13){width:66px}   /* FDC */
+  .tw-creditos th:nth-child(14),.tw-creditos td:nth-child(14){width:74px}   /* Estado */
+  .tw-creditos th:nth-child(15),.tw-creditos td:nth-child(15){width:auto;overflow:visible} /* Acciones */
+  .tw-creditos td:nth-child(15) > div{gap:2px}
+  .tw-creditos td:nth-child(15) .btn-xs{padding:4px 6px}
+}
+@media (min-width:1760px){
+  .tw-creditos th.cr-vend-col,.tw-creditos td.cr-vend-col{display:table-cell}
+  .tw-creditos .cr-vend-bajo{display:none}
 }
 tbody tr{transition:background .12s}
 tbody tr:hover td{background:var(--gs)}
