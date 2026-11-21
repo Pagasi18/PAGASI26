@@ -12,6 +12,7 @@ function setUsersTab(tab){
   // Render content
   if(tab==='usuarios') host.innerHTML = _usersTabUsuariosHTML();
   else if(tab==='roles') host.innerHTML = _usersTabRolesHTML();
+  else if(tab==='permisos') host.innerHTML = _usersTabQuienVeHTML();   // Quién ve qué (21-nov-2026)
   else if(tab==='aliados') host.innerHTML = _aliadosTabHTML();
   else host.innerHTML = _usersTabInvitacionesHTML();
   // Reload data
@@ -242,6 +243,7 @@ function usersReload(){
     });
     // Render según tab activo
     if(S.usersTab==='usuarios') _usersRenderList();
+    if(S.usersTab==='permisos') _qvPintar();
     if(S.usersTab==='aliados' && $('users-tab-content') && typeof _aliadosTabHTML === 'function') $('users-tab-content').innerHTML = _aliadosTabHTML();
   }).catch(function(e){
     var ul = $('users-list');
@@ -1878,4 +1880,189 @@ if (auth) {
       }
     }
   });
+}
+
+// ══════════════════════════════════════════
+// QUIÉN VE QUÉ (21-nov-2026)
+// Adam: "para ver los permisos de Samanta me tengo que meter en usuario, luego en el usuario,
+// luego en roles y ahí scrollear a ver qué tiene y qué no tiene… necesito ponerlo más fácil".
+// Escogió la opción B: una tabla con todas las personas (filas) y todos los módulos (columnas),
+// y un toque en un cuadrito le da o le quita ese permiso en el momento. Guarda igual que
+// «Editar permisos» (los canales de Redes, el Catálogo con las Condiciones) y deja un
+// «Deshacer» por si fue sin querer. Solo un administrador cambia: es lo que dejan las Reglas.
+// ══════════════════════════════════════════
+var QV_GRUPOS = ['Principal','Gestión','Operaciones','Análisis','Sistema'];
+// Fuera de la tabla: Centro (escondido del menú), Aprobaciones (sale sola con Créditos) y Files (lo ven todos)
+var QV_FUERA = { centro:1, aprobaciones:1, recursos:1 };
+var QV_ESPECIALES = [{ id:'perm_delete', label:'Borrar registros' }, { id:'perm_condiciones', label:'Condiciones del plan' }];
+// Claves viejas que hoy abren la misma pantalla: se dan y se quitan junto con la de la columna
+var QV_GEMELOS = { pagos:'cobranza', reportes:'conta' };
+var QV_VC = ['motos','clientes','creditos','calculadora'];
+var _qv = { q:'', mod:'', guardando:{}, ultimo:null };
+
+function _qvEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function _qvNorm(s){ return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+function _qvColumnas(){
+  var cols = [];
+  QV_GRUPOS.forEach(function(g){
+    MODULOS.forEach(function(m){ if(m.grupo === g && !QV_FUERA[m.id]) cols.push({ id:m.id, label:m.label, grupo:g }); });
+  });
+  QV_ESPECIALES.forEach(function(e){ cols.push({ id:e.id, label:e.label, grupo:'Especiales' }); });
+  return cols;
+}
+function _qvEtiqueta(key){ var c = _qvColumnas().find(function(x){ return x.id === key; }); return c ? c.label : (PGL[key] || key); }
+function _qvEsAdmin(u){ return !!u && (u.rol === 'Administrador' || u.rol === 'admin'); }
+function _qvNombre(u){ return String((u && (u.nombre || u.email)) || 'Sin nombre'); }
+// Lo que de verdad ve esa persona: la misma regla de hasModuleAccess
+function qvTiene(u, key){
+  if(!u) return false;
+  if(_qvEsAdmin(u)) return true;
+  var p = Array.isArray(u.permisos) ? u.permisos : [];
+  if(u.rol === 'Vendedor Concesionario') return QV_VC.indexOf(key) > -1;
+  if(key === 'redes' || key === 'redescob'){
+    if(p.indexOf('redes') > -1 || p.indexOf('redescob') > -1) return p.indexOf(key) > -1;
+    return key === 'redes' ? (p.indexOf('whatsapp') > -1 || p.indexOf('instagram') > -1) : p.indexOf('whatsapp') > -1;
+  }
+  return p.indexOf(key) > -1;
+}
+// Por qué no se puede tocar la fila ('' = sí se puede)
+function _qvBloqueo(u){
+  if(!isAdminUser()) return 'Solo un administrador cambia permisos.';
+  if(_qvEsAdmin(u)) return 'Es administrador: tiene todo. Para quitarle algo hay que cambiarle el rol.';
+  if(u && u.rol === 'Vendedor Concesionario') return 'Vendedor de concesionario: su rol solo deja Motos, Clientes, Créditos y Calculadora.';
+  return '';
+}
+// Los permisos que quedan al dar (dar = true) o quitar un módulo, como los guarda «Editar permisos»
+function qvPermisosNuevos(u, key, dar){
+  var p = (Array.isArray(u.permisos) ? u.permisos : []).slice(), extra = [];
+  var quitar = function(k){ p = p.filter(function(x){ return x !== k; }); };
+  var poner = function(k){ if(p.indexOf(k) < 0) p.push(k); };
+  // Alguien de antes del 1-nov (sin 'redes' ni 'redescob'): primero se escribe lo que hoy ve de Redes;
+  // si no, al guardar perdería los canales que le daban acceso.
+  if(p.indexOf('redes') < 0 && p.indexOf('redescob') < 0){
+    if(qvTiene(u, 'redes')) poner('redes');
+    if(qvTiene(u, 'redescob')) poner('redescob');
+  }
+  if(dar){ poner(key); if(QV_GEMELOS[key]) poner(QV_GEMELOS[key]); }
+  else {
+    quitar(key); if(QV_GEMELOS[key]) quitar(QV_GEMELOS[key]);
+    // Las Condiciones del plan se cambian dentro del Catálogo: sin Catálogo no hay dónde usarlas
+    if(key === 'catalogo' && p.indexOf('perm_condiciones') > -1){ quitar('perm_condiciones'); extra.push('Condiciones del plan'); }
+  }
+  p = permisosConCanales(p);
+  var teniaCat = p.indexOf('catalogo') > -1;
+  p = _permisosConCatalogo(p);
+  if(!teniaCat && p.indexOf('catalogo') > -1) extra.push('Catálogo web');
+  return { permisos: p, extra: extra };
+}
+function qvCambiar(uid, key){
+  var u = (_usersCache || []).find(function(x){ return x && x.uid === uid; });
+  if(!u) return;
+  var b = _qvBloqueo(u); if(b){ toast(b, 'info'); return; }
+  if(_qv.guardando[uid]) return;   // un cambio a la vez por persona
+  var dar = !qvTiene(u, key), r = qvPermisosNuevos(u, key, dar);
+  var texto = (dar ? 'Le diste ' : 'Le quitaste ') + '<b>' + _qvEsc(_qvEtiqueta(key)) + '</b> a <b>' + _qvEsc(_qvNombre(u)) + '</b>'
+    + (r.extra.length ? ' (y ' + (dar ? 'también ' : '') + _qvEsc(r.extra.join(', ')) + ')' : '') + '.';
+  return _qvGuardar(u, r.permisos, { texto: texto, key: key, dar: dar });
+}
+function qvDeshacer(){
+  var x = _qv.ultimo; if(!x) return;
+  var u = (_usersCache || []).find(function(y){ return y && y.uid === x.uid; });
+  if(!u || _qv.guardando[u.uid]) return;
+  return _qvGuardar(u, x.antes, { texto: 'Listo: los permisos de <b>' + _qvEsc(_qvNombre(u)) + '</b> quedaron como estaban.', deshacer: true });
+}
+function _qvGuardar(u, permisos, info){
+  var antes = (Array.isArray(u.permisos) ? u.permisos : []).slice();
+  _qv.guardando[u.uid] = true;
+  u.permisos = permisos;              // se ve al instante; si la base no lo acepta, vuelve atrás
+  _qv.ultimo = null; _qvPintar();
+  var fallo = function(){
+    _qv.guardando[u.uid] = false; u.permisos = antes; _qvPintar();
+    toast('No se guardó el cambio de permisos de ' + _qvNombre(u) + '. Quedó como estaba.', 'error');
+  };
+  var p;
+  try { p = DB.updateUsuario(u.uid, { permisos: permisos }); } catch(e){ fallo(); return Promise.resolve(false); }
+  return Promise.resolve(p).then(function(ok){
+    if(ok === false){ fallo(); return false; }
+    _qv.guardando[u.uid] = false;
+    if(typeof logActividad === 'function') logActividad(info.deshacer ? 'permiso_deshecho' : 'permiso_cambiado', 'users', u.uid, info.deshacer ? {} : { permiso: info.key, accion: info.dar ? 'dar' : 'quitar' });
+    _qv.ultimo = { uid: u.uid, antes: antes, texto: info.texto, deshacer: !!info.deshacer };
+    _qvPintar();
+    return true;
+  }, function(){ fallo(); return false; });
+}
+function qvFiltro(){
+  var b = $('qv-buscar'), m = $('qv-modulo');
+  _qv.q = b ? b.value : ''; _qv.mod = m ? m.value : '';
+  _qvPintar();
+}
+function _qvGente(){
+  var q = _qvNorm(_qv.q).trim();
+  return (_usersCache || []).filter(function(u){
+    if(!u || u.rol === 'Aliado' || u.eliminado) return false;   // los aliados tienen su pestaña
+    if(q && _qvNorm([u.nombre, u.email, u.cargo, u.rol].join(' ')).indexOf(q) < 0) return false;
+    if(_qv.mod && !qvTiene(u, _qv.mod)) return false;
+    return true;
+  }).sort(function(a, b){
+    if(!!a.suspendido !== !!b.suspendido) return a.suspendido ? 1 : -1;   // los suspendidos, al final
+    return _qvNombre(a).localeCompare(_qvNombre(b), 'es');
+  });
+}
+function _qvAbrir(uid){ return (isAdminUser() ? 'editarUsuario' : 'openUserPanel') + '(\'' + _qvEsc(uid) + '\')'; }
+function _qvSub(u){ return _qvEsc(u.cargo || u.rol || '') + (u.suspendido ? ' · suspendido' : ''); }
+function _qvCelda(u, c, chip){
+  var si = qvTiene(u, c.id), bloq = _qvBloqueo(u), ocupado = !!_qv.guardando[u.uid];
+  var cls = (chip ? 'qv-chip ' : 'qv-c ') + (si ? 'qv-si' : 'qv-no') + (bloq ? ' qv-fijo' : '') + (ocupado ? ' qv-ocupado' : '');
+  var dentro = chip ? (si ? '✓ ' : '') + _qvEsc(c.label) : (si ? '✓' : '');
+  var dice = _qvEsc(_qvNombre(u)) + ': ' + _qvEsc(c.label) + (si ? ', tiene acceso' : ', no tiene acceso');
+  if(bloq) return '<span class="' + cls + '" title="' + _qvEsc(bloq) + '" aria-label="' + dice + '">' + dentro + '</span>';
+  return '<button type="button" class="' + cls + '" aria-pressed="' + si + '" aria-label="' + dice + '. Tocar para ' + (si ? 'quitar' : 'dar') + '"'
+    + ' title="' + (si ? 'Quitar ' : 'Dar ') + _qvEsc(c.label) + '" onclick="qvCambiar(\'' + _qvEsc(u.uid) + '\',\'' + c.id + '\')">' + dentro + '</button>';
+}
+function _qvAvisoHTML(){
+  var x = _qv.ultimo; if(!x) return '';
+  return '<span>' + x.texto + '</span>' + (x.deshacer ? '' : '<button type="button" class="btn btn-g btn-xs" onclick="qvDeshacer()">Deshacer</button>');
+}
+function _qvCuerpoHTML(){
+  var cols = _qvColumnas(), gente = _qvGente();
+  var todos = (_usersCache || []).filter(function(u){ return u && u.rol !== 'Aliado' && !u.eliminado; }).length;
+  var cab = '<div class="qv-nota">' + (gente.length === todos ? todos + ' personas' : gente.length + ' de ' + todos + ' personas')
+    + (isAdminUser() ? ' · toca un cuadrito para dar o quitar ese permiso; toca el nombre para ver todo lo demás' : ' · solo un administrador cambia permisos') + '</div>';
+  if(!gente.length) return cab + '<div class="qv-vacio">' + (todos ? 'Nadie coincide con la búsqueda.' : 'Cargando…') + '</div>';
+  // Computadora: la tabla
+  var grupos = [];
+  cols.forEach(function(c){ var g = grupos[grupos.length - 1]; if(g && g.n === c.grupo) g.k++; else grupos.push({ n: c.grupo, k: 1 }); });
+  var tabla = '<div class="qv-tabla-wrap"><table class="qv-t"><thead>'
+    + '<tr><th class="qv-n qv-esq" rowspan="2">Persona</th>' + grupos.map(function(g){ return '<th class="qv-g" colspan="' + g.k + '">' + _qvEsc(g.n) + '</th>'; }).join('') + '</tr>'
+    + '<tr>' + cols.map(function(c){ return '<th class="qv-m' + (c.id === _qv.mod ? ' qv-mod-on' : '') + '" title="' + _qvEsc(c.label) + '"><span>' + _qvEsc(c.label) + '</span></th>'; }).join('') + '</tr></thead><tbody>'
+    + gente.map(function(u){
+        return '<tr class="' + (u.suspendido ? 'qv-susp' : '') + '"><th class="qv-n" scope="row"><button type="button" class="qv-nom" onclick="' + _qvAbrir(u.uid) + '">' + _qvEsc(_qvNombre(u)) + '</button><small>' + _qvSub(u) + '</small></th>'
+          + cols.map(function(c){ return '<td>' + _qvCelda(u, c, false) + '</td>'; }).join('') + '</tr>';
+      }).join('')
+    + '</tbody></table></div>';
+  // Teléfono: una tarjeta por persona
+  var tarjetas = '<div class="qv-cards">' + gente.map(function(u){
+      var n = cols.filter(function(c){ return qvTiene(u, c.id); }).length;
+      return '<div class="qv-card' + (u.suspendido ? ' qv-susp' : '') + '"><div class="qv-card-h"><div><button type="button" class="qv-nom" onclick="' + _qvAbrir(u.uid) + '">' + _qvEsc(_qvNombre(u)) + '</button><small>' + _qvSub(u) + '</small></div>'
+        + '<span class="qv-cuenta">' + n + ' de ' + cols.length + '</span></div>'
+        + '<div class="qv-chips">' + cols.map(function(c){ return _qvCelda(u, c, true); }).join('') + '</div></div>';
+    }).join('') + '</div>';
+  return cab + tabla + tarjetas;
+}
+function _qvPintar(){
+  var c = $('qv-cuerpo'); if(c) c.innerHTML = _qvCuerpoHTML();
+  var a = $('qv-aviso'); if(a){ var h = _qvAvisoHTML(); a.innerHTML = h; a.style.display = h ? 'flex' : 'none'; }
+}
+function _usersTabQuienVeHTML(){
+  var cols = _qvColumnas();
+  return '<div class="qv">'
+    + '<div class="qv-barra">'
+    +   '<div class="srch" style="flex:1;min-width:200px"><span class="srch-i"></span><input type="text" id="qv-buscar" placeholder="Buscar persona, cargo o rol..." value="' + _qvEsc(_qv.q) + '" oninput="qvFiltro()"></div>'
+    +   '<select class="fs" id="qv-modulo" onchange="qvFiltro()" style="width:auto;min-width:200px"><option value="">¿Quién ve…? Todos los módulos</option>'
+    +     cols.map(function(c){ return '<option value="' + c.id + '"' + (_qv.mod === c.id ? ' selected' : '') + '>¿Quién ve ' + _qvEsc(c.label) + '?</option>'; }).join('')
+    +   '</select>'
+    + '</div>'
+    + '<div id="qv-aviso" class="qv-aviso" role="status" aria-live="polite" style="display:' + (_qv.ultimo ? 'flex' : 'none') + '">' + _qvAvisoHTML() + '</div>'
+    + '<div id="qv-cuerpo">' + _qvCuerpoHTML() + '</div>'
+    + '</div>';
 }

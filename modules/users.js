@@ -45,6 +45,9 @@ PG.users = function(){
     <button class="us-tab ${S.usersTab==='usuarios'?'is-active':''}" onclick="setUsersTab('usuarios')">
       <span style="font-size:14px"></span> Usuarios
     </button>
+    <button class="us-tab ${S.usersTab==='permisos'?'is-active':''}" onclick="setUsersTab('permisos')">
+      Quién ve qué
+    </button>
     <button class="us-tab ${S.usersTab==='roles'?'is-active':''}" onclick="setUsersTab('roles')">
       <span style="font-size:14px">️</span> Roles y Permisos
     </button>
@@ -60,6 +63,7 @@ PG.users = function(){
   <div id="users-tab-content">
     ${S.usersTab==='usuarios' ? _usersTabUsuariosHTML() :
       S.usersTab==='roles' ? _usersTabRolesHTML() :
+      S.usersTab==='permisos' ? _usersTabQuienVeHTML() :
       S.usersTab==='aliados' ? _aliadosTabHTML() :
       _usersTabInvitacionesHTML()}
   </div>

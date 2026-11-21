@@ -2648,3 +2648,46 @@ tbody tr:hover td {
 @media (max-width:1100px){.g2-cifras.g2-grande,.g2-reps{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:720px){.g2-dos{grid-template-columns:minmax(0,1fr)}.g2-card{padding:16px;border-radius:16px}.g2-val{font-size:23px}.g2-grande .g2-val{font-size:24px}}
 @media (max-width:380px){.g2-reps{grid-template-columns:minmax(0,1fr)}}
+
+/* ══ Usuarios → Quién ve qué (21-nov-2026): todas las personas y todos los módulos en una tabla ══ */
+.qv-barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.qv-barra .srch{flex:1 1 320px!important;max-width:460px}
+.qv-barra .fs{flex:0 1 260px}
+.qv-aviso{align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:9px 12px;border-radius:10px;background:var(--gs);border:1px solid var(--rim3);font-size:12.5px;color:var(--ink)}
+.qv-nota{font-size:11.5px;color:var(--ink3);margin:0 2px 8px}
+.qv-vacio{padding:30px 10px;text-align:center;color:var(--ink3);font-size:12.5px}
+.qv-tabla-wrap{overflow:auto;max-height:calc(100vh - 260px);max-width:100%;width:max-content;border:1px solid var(--rim);border-radius:12px;background:var(--surf)}
+.qv-t{border-collapse:separate;border-spacing:0;font-size:12px;width:auto}
+.qv-t th,.qv-t td{border-bottom:1px solid var(--rim);padding:0;text-align:center;text-transform:none;letter-spacing:normal}
+.qv-t thead th{position:sticky;background:var(--surf);z-index:2}
+.qv-t thead tr:first-child th{top:0;height:26px}
+.qv-t thead tr:nth-child(2) th{top:26px}
+.qv-t .qv-g{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);border-left:1px solid var(--rim)}
+.qv-m{height:118px;width:30px;min-width:30px;vertical-align:bottom;padding:6px 0!important;font-weight:600;color:var(--ink2)}
+.qv-m span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;font-size:11px}
+.qv-m.qv-mod-on{color:var(--p1)}
+.qv-n{position:sticky;left:0;z-index:1;background:var(--surf);text-align:left!important;padding:6px 12px!important;min-width:190px;max-width:240px;border-right:1px solid var(--rim)}
+.qv-t thead .qv-esq{z-index:3;left:0;vertical-align:bottom;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase!important;color:var(--ink3)}
+.qv-n small{display:block;font-size:10.5px;font-weight:500;color:var(--ink3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qv-nom{background:none;border:0;padding:0;font:inherit;font-weight:700;font-size:12.5px;color:var(--ink);cursor:pointer;text-align:left}
+.qv-nom:hover{color:var(--p1);text-decoration:underline}
+.qv-t tbody tr:hover td,.qv-t tbody tr:hover .qv-n{background:var(--surf2)}
+.qv-c{width:22px;height:22px;margin:5px 4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:900;border:1px solid var(--rim2);background:var(--surf);color:transparent;cursor:pointer;padding:0;vertical-align:middle}
+.qv-c.qv-si{background:var(--green);border-color:var(--green);color:#fff}
+button.qv-c.qv-no:hover{border-color:var(--green);background:rgba(0,168,112,.1)}
+button.qv-c.qv-si:hover{opacity:.8}
+.qv-c.qv-fijo{cursor:default}
+.qv-c.qv-fijo.qv-si{background:rgba(0,168,112,.55);border-color:transparent}
+.qv-c.qv-fijo.qv-no{background:var(--surf2);border-color:transparent}
+.qv-ocupado{opacity:.45;pointer-events:none}
+.qv-susp .qv-nom,.qv-susp .qv-c{opacity:.55}
+.qv-cards{display:none;flex-direction:column;gap:10px}
+.qv-card{background:var(--surf);border:1px solid var(--rim);border-radius:14px;padding:12px}
+.qv-card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:9px}
+.qv-card-h small{display:block;font-size:11px;color:var(--ink3)}
+.qv-cuenta{font-size:11px;font-weight:700;color:var(--ink3);white-space:nowrap}
+.qv-chips{display:flex;flex-wrap:wrap;gap:6px}
+.qv-chip{font:inherit;font-size:12px;font-weight:600;padding:6px 10px;border-radius:999px;border:1px solid var(--rim2);background:var(--surf2);color:var(--ink3);cursor:pointer}
+.qv-chip.qv-si{background:rgba(0,168,112,.12);border-color:rgba(0,168,112,.45);color:var(--green)}
+.qv-chip.qv-fijo{cursor:default;opacity:.75}
+@media (max-width:720px){.qv-tabla-wrap{display:none}.qv-cards{display:flex}.qv-barra .srch,.qv-barra .fs{flex:1 1 100%!important;max-width:none;min-width:0!important}}
