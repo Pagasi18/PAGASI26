@@ -174,11 +174,15 @@ const enPeriodo = (f, per) => !!f && f >= per.desde && f <= per.hasta;
 const verPeriodo = per => ({ desde: per.desde === '2000-01-01' ? 'el principio' : per.desde, hasta: per.conHasta ? per.hasta : 'hoy' });
 // l: las filas de la compañía y los filtros, SIN cortar por fecha. Solo cuando el período termina hoy.
 function avisoFuturo(r, l, fechaDe, per, hoy, que, monto) {
-  if (per.conHasta && per.hasta < hoy) return;
-  const fut = l.filter(x => { const f = fechaDe(x) || ''; return f > hoy && f > per.hasta && f >= per.desde; });
-  if (!fut.length) return;
-  const suma = monto ? r2(fut.reduce((t, x) => t + (+monto(x) || 0), 0)) : null;
-  r.aviso_fechas = 'No se cuentan ' + fut.length + ' ' + que + (suma != null ? ' por $' + suma : '') + ' anotados con fecha posterior a hoy (la más lejana: ' + fut.map(fechaDe).sort().pop() + ').' + (que === 'pagos' ? ' «Cobrado del mes» en el Dashboard sí los suma.' : '');
+  if (per.conHasta && per.hasta <= hoy) return;
+  const suma = lista => monto ? ' por $' + r2(lista.reduce((t, x) => t + (+monto(x) || 0), 0)) : '';
+  if (!per.conHasta) {          // el período termina hoy: lo de después no se cuenta
+    const fut = l.filter(x => { const f = fechaDe(x) || ''; return f > hoy && f >= per.desde; });
+    if (fut.length) r.aviso_fechas = 'No se cuentan ' + fut.length + ' ' + que + suma(fut) + ' anotados con fecha posterior a hoy (la más lejana: ' + fut.map(fechaDe).sort().pop() + ').' + (que === 'pagos' ? ' «Cobrado del mes» en el Dashboard sí los suma.' : '');
+  } else {                      // se pidió hasta después de hoy: lo de fecha futura dentro del período SÍ se cuenta
+    const dentro = l.filter(x => { const f = fechaDe(x) || ''; return f > hoy && f >= per.desde && f <= per.hasta; });
+    if (dentro.length) r.aviso_fechas = 'Incluye ' + dentro.length + ' ' + que + suma(dentro) + ' anotados con fecha posterior a hoy (así quedaron en el sistema).';
+  }
 }
 function empresas(a) { return a.empresa === '18' || a.empresa === '26' ? [a.empresa] : ['18', '26']; }
 // Un nombre casa si cada palabra buscada es el comienzo de una de sus palabras: «Ana» casa con
@@ -190,7 +194,7 @@ const pedazos = w => [w].concat((w.match(/[A-Z]+|[0-9]+/g) || []).filter(t => t 
 function casa(nombre, buscado) {
   const q = palabras(buscado); if (!q.length) return false;
   const w = [].concat(...palabras(nombre).map(pedazos)), cabe = x => w.some(y => y.startsWith(x));
-  return q.every(x => cabe(x) || (/[A-Z]/.test(x) && /[0-9]/.test(x) && (x.match(/[A-Z]+|[0-9]+/g) || []).every(cabe)));
+  return q.every(x => cabe(x) || (/[A-Z]/.test(x) && /[0-9]/.test(x) && (x.match(/[A-Z]+|[0-9]+/g) || []).every(t => w.includes(t))));
 }
 const CAMPOS_FILTRO = [['filtro_concesionario', 'concesionario'], ['filtro_vendedor', 'vendedor'], ['filtro_modelo', 'modelo']];
 // r: el resultado de la consulta; ahí se anota qué nombres entraron en cada filtro, para que la AI lo diga
@@ -274,7 +278,7 @@ function agrupar(l, por, fechaDe, sumar, valor, a, o) {
   const omitidos = Math.max(0, grupos.length - max) + chicos;
   // en orden de fecha se quedan los más recientes (días, semanas, meses); en un ranking, los primeros
   grupos = orden === 'cronologico' && por !== 'dia_semana' && por !== 'hora' ? grupos.slice(-max) : grupos.slice(0, max);
-  return { grupos, omitidos, orden, chicos };
+  return { grupos, omitidos, orden, chicos, minimo };
 }
 const ORDEN_TXT = { mayor: 'de mayor a menor', menor: 'de menor a mayor', cronologico: 'en orden de fecha u hora' };
 const sumaDe = (l, k) => r2(l.reduce((s, x) => s + (+x[k] || 0), 0));
@@ -350,7 +354,7 @@ function cartera(D, a) {
     r.grupos = g.grupos;
     if (g.omitidos) r.grupos_no_mostrados = g.omitidos;
     r.ordenado = g.orden === 'cronologico' ? ORDEN_TXT.cronologico : ORDEN_TXT[g.orden] + ' por ' + ({ creditos: 'créditos', cartera: 'dinero en la calle', en_mora: 'créditos en mora', pct_mora: '% en mora', vencido: 'monto vencido' }[ord] || ord);
-    if (g.chicos) r.nota = 'Sin ' + g.chicos + (g.chicos === 1 ? ' grupo' : ' grupos') + ' de menos de ' + minimo + ' créditos (con 1 o 2 el porcentaje engaña).';
+    if (g.chicos) r.nota = 'Sin ' + g.chicos + (g.chicos === 1 ? ' grupo' : ' grupos') + ' de menos de ' + g.minimo + ' créditos' + (ord === 'pct_mora' ? ' (con 1 o 2 el porcentaje engaña).' : '.');
   }
   return r;
 }
@@ -369,16 +373,25 @@ function puntajeBusqueda(v, buscado) {
 function creditos(D, a, hoy) {
   const emps = empresas(a), est = a.estado || (a.buscar ? 'todos' : 'en_mora');
   let l = D.ventas.filter(v => emps.includes(v.empresa));
+  // ¿existe el número exacto? Se mira antes de filtrar por estado: si no está en ese estado, no vale traer uno «parecido»
+  const hayExacto = !!a.buscar && l.some(v => puntajeBusqueda(v, a.buscar) === 4);
+  const r = {};
   if (est === 'en_mora') l = l.filter(v => v.diasAtraso > 0);
   else if (est === 'activos') l = l.filter(v => v.activo);
   else if (est === 'completados') l = l.filter(v => v.estado === 'completado');
   const pts = new Map();
   if (a.buscar) {
     l = l.filter(v => { const p = puntajeBusqueda(v, a.buscar); if (p) pts.set(v, p); return p > 0; });
-    if (l.some(v => pts.get(v) === 4)) l = l.filter(v => pts.get(v) > 1);      // con el número exacto, nada «parecido» (M-64 no trae M-640)
+    if (hayExacto) {
+      l = l.filter(v => pts.get(v) > 1);      // con el número exacto, nada «parecido» (M-64 no trae M-640)
+      if (!l.some(v => pts.get(v) === 4)) r.nota_busqueda = 'El crédito «' + String(a.buscar).slice(0, 30) + '» existe, pero no está ' + ({ en_mora: 'en mora', activos: 'activo', completados: 'completado' }[est] || 'en ese estado') + ': búscalo con estado «todos» para verlo.';
+    }
   }
-  if (a.vendidos_desde || a.vendidos_hasta) { const per = periodo({ desde: a.vendidos_desde, hasta: a.vendidos_hasta }, hoy); l = l.filter(v => enPeriodo(v.fecha, per)); }
-  const r = {};
+  if (a.vendidos_desde || a.vendidos_hasta) {
+    const per = periodo({ desde: a.vendidos_desde, hasta: a.vendidos_hasta }, hoy);
+    avisoFuturo(r, filtrar(l, a, null), v => v.fecha, per, hoy, 'créditos', null);
+    l = l.filter(v => enPeriodo(v.fecha, per));
+  }
   l = filtrar(l, a, r);
   const orden = a.orden || (est === 'en_mora' ? 'mas_atraso' : 'mas_reciente');
   const cmp = { mas_atraso: (x, y) => y.diasAtraso - x.diasAtraso || y.vencido - x.vencido, mas_vencido: (x, y) => y.vencido - x.vencido || y.diasAtraso - x.diasAtraso, mas_saldo: (x, y) => y.saldo - x.saldo,
@@ -405,7 +418,7 @@ function puntualidad(D, a, hoy) {
     r.grupos = g.grupos.map(conPct);
     if (g.omitidos) r.grupos_no_mostrados = g.omitidos;
     r.ordenado = ORDEN_TXT[g.orden] || g.orden;
-    if (g.chicos) r.nota_minimo = 'Sin ' + g.chicos + (g.chicos === 1 ? ' grupo' : ' grupos') + ' de menos de ' + Math.max(1, parseInt(a.minimo, 10) || 20) + ' cuotas (con pocas el porcentaje engaña).';
+    if (g.chicos) r.nota_minimo = 'Sin ' + g.chicos + (g.chicos === 1 ? ' grupo' : ' grupos') + ' de menos de ' + g.minimo + ' cuotas (con pocas el porcentaje engaña).';
   }
   return r;
 }

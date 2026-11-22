@@ -39,6 +39,12 @@ function costoVueltaDe(calidad) {
   return Math.round((q.tope * p.salida + 30000 * p.leida + 6000 * p.entrada) / 1e6 * 1e4) / 1e4;
 }
 const NOTA_CORTADA = '\n\n_(La respuesta se cortó por larga.)_';
+// Lo más que puede costar una llamada con ESTE cuerpo: toda la entrada al precio más caro (lo nuevo se escribe
+// en la caché) y toda la salida (3ª revisión 21-nov: la cuenta fija se quedaba corta con resultados grandes)
+function costoMaxDe(cuerpo) {
+  const p = cerebro.PRECIOS[cuerpo.model] || cerebro.PRECIOS['claude-sonnet-5-5'], ent = Math.ceil(JSON.stringify(cuerpo).length / 3);
+  return (ent * Math.max(p.entrada, p.escrita5m) + (cuerpo.max_tokens || 0) * p.salida) / 1e6;
+}
 
 const SISTEMA = `Eres «AI», la analista de datos de PAGASI para los administradores de la empresa. Contestas preguntas sobre los números del negocio usando SOLO las consultas (herramientas) que tienes.
 
@@ -117,9 +123,8 @@ async function llamar(f, apiKey, cuerpo, gasto, ms) {
     const corte = !!(e && e.name === 'AbortError');
     // Anthropic cobra lo que alcanzó a leer y escribir aunque se corte: se anota lo más que pudo costar
     if (corte && gasto) {
-      const p = cerebro.PRECIOS[cuerpo.model] || cerebro.PRECIOS['claude-sonnet-5-5'], ent = Math.round(JSON.stringify(cuerpo).length / 3.5);
-      gasto.llamadas++; gasto.cortadas = (gasto.cortadas || 0) + 1; gasto.cacheLeida += ent; gasto.salida += cuerpo.max_tokens || 0;
-      gasto.costo += (ent * p.leida + (cuerpo.max_tokens || 0) * p.salida) / 1e6;
+      gasto.llamadas++; gasto.cortadas = (gasto.cortadas || 0) + 1; gasto.cacheEscrita += Math.ceil(JSON.stringify(cuerpo).length / 3); gasto.salida += cuerpo.max_tokens || 0;
+      gasto.costo += costoMaxDe(cuerpo);
     }
     const err = new Error(corte ? 'Claude tardó demasiado' : 'No se pudo hablar con Claude: ' + String(e && e.message || e).slice(0, 120));
     err.codigo = corte ? 'tiempo' : 'red';
@@ -138,7 +143,8 @@ function errorClaude(r) {
 }
 
 // deps: { apiKey, fetchImpl, datos: async () => D, hoy, ahora (Date), calidad, reloj, plazo (hora límite en ms),
-//         presupuesto (lo apartado del tope diario para esta pregunta, en dólares),
+//         presupuesto (lo apartado del tope diario para esta pregunta, en dólares), recorte ('topeDia'|'enCurso': por qué
+//         se apartó menos de lo normal, para decir lo correcto si no alcanza),
 //         datosEquipo: async () => E (el registro del equipo: se lee solo si la AI lo pide), esAdmin }
 async function preguntar(deps, entrada) {
   const pregunta = String((entrada && entrada.pregunta) == null ? '' : entrada.pregunta).replace(/[\u0000-\u0008\u000B-\u001F]/g, '').trim();
@@ -177,8 +183,8 @@ async function preguntar(deps, entrada) {
   try {
     for (; rondas < RONDAS; rondas++) {
       if (queda() < VUELTA_MIN_MS) { cortado = 'tiempo'; break; }
-      if (rondas > 0 && !alcanza()) { cortado = 'presupuesto'; break; }
       const cuerpo = cuerpoDe(q, mensajes);
+      if (deps.presupuesto != null && gasto.costo + costoMaxDe(cuerpo) > deps.presupuesto) { cortado = 'presupuesto'; break; }
       let r = await llamar(f, deps.apiKey, cuerpo, gasto, queda() - 2000);
       // Si esta versión de la API no acepta el esfuerzo, se va sin ese parámetro (como el cerebro de Paola)
       if (!r.ok && r.status === 400 && cuerpo.output_config && /effort|output_config/i.test(String(r.j.error && r.j.error.message || ''))) {
@@ -197,12 +203,13 @@ async function preguntar(deps, entrada) {
         // lo que alcanzó a escribir queda de respaldo. Si no, vale lo que alcanzó.
         const t = textoDe(fin), v = fin ? consultas.validarGraficos(fin.input && fin.input.graficos) : { graficos: [] };
         if (usos.length && !respaldo && otraVuelta(2)) {
-          if (t) respaldo = { texto: t + NOTA_CORTADA, graficos: v.graficos };
+          if (t) respaldo = { texto: t + NOTA_CORTADA, graficos: v.graficos, completa: false };
           mensajes.push({ role: 'assistant', content: bloques });
           // nada de lo que se cortó se ejecuta (la consulta pudo quedar a medias): todo vuelve como error
           mensajes.push({ role: 'user', content: usos.map(u => ({ type: 'tool_result', tool_use_id: u.id, is_error: true, content: u.name === 'responder' ? 'Tu respuesta se cortó por larga. Vuelve a llamar a «responder» más corta: el texto en pocas líneas y como mucho un gráfico de hasta 31 puntos.' : 'Esta consulta se cortó al escribirla: pídela otra vez si la necesitas.' })) });
           continue;
         }
+        if (respaldo && respaldo.completa) break;      // la respuesta entera ya estaba escrita: sale esa, no la cortada
         texto = t || bloques.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
         graficos = v.graficos; cortado = 'largo'; break;
       }
@@ -211,7 +218,7 @@ async function preguntar(deps, entrada) {
         const t = textoDe(fin), v = consultas.validarGraficos(fin.input && fin.input.graficos);
         if (t && !v.errores.length) { texto = t; graficos = v.graficos; break; }
         if (!(t ? !respaldo && otraVuelta(2) : otraVuelta(1))) { if (t) { texto = t; graficos = v.graficos; } break; }   // sin el gráfico malo
-        if (t) respaldo = { texto: t, graficos: v.graficos };
+        if (t) respaldo = { texto: t, graficos: v.graficos, completa: true };
         mensajes.push({ role: 'assistant', content: bloques });
         mensajes.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: fin.id, is_error: true, content: !t ? 'Falta el texto de la respuesta: vuelve a llamar a «responder» con el texto completo.' : 'Arregla esto y vuelve a llamar a «responder» con el texto completo: ' + v.errores.join(' · ') }] });
         continue;
@@ -225,7 +232,9 @@ async function preguntar(deps, entrada) {
         mensajes.push({ role: 'user', content: resultados(usos, 'Todavía no: primero mira los resultados de las otras consultas y después llama a «responder» sola.') });
         continue;
       }
-      // Terminó sin «responder»: vale el texto que haya escrito
+      // Terminó sin «responder»: vale el texto que haya escrito (salvo que ya hubiera la respuesta entera:
+      // después de «arregla el gráfico» suele cerrar con una frase suelta como «Listo, lo quité»)
+      if (respaldo && respaldo.completa) break;
       texto = bloques.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
       break;
     }
@@ -236,7 +245,9 @@ async function preguntar(deps, entrada) {
   if (rondas >= RONDAS) cortado = 'rondas';
   if (!texto && respaldo) { texto = respaldo.texto; graficos = respaldo.graficos; cortado = ''; }
   if (!texto) texto = cortado === 'tiempo' ? 'La pregunta llevó demasiadas consultas y se acabó el tiempo. Prueba con algo más concreto (por ejemplo, un período más corto).'
-    : cortado === 'presupuesto' ? 'Se llegó al tope de gasto de la AI de hoy mientras buscaba la respuesta. Mañana vuelve a funcionar.'
+    : cortado === 'presupuesto' ? (deps.recorte === 'topeDia' ? 'Se llegó al tope de gasto de la AI de hoy mientras buscaba la respuesta. Mañana vuelve a funcionar.'
+      : deps.recorte === 'enCurso' ? 'Hay otras preguntas a la AI en curso y el tope de gasto de hoy está casi lleno. Prueba otra vez en un minuto.'
+      : 'Esta pregunta necesitó más consultas de las que caben en una sola respuesta. Prueba con algo más concreto (por ejemplo, un período más corto).')
     : 'No llegué a una respuesta con esas consultas. Prueba preguntarlo de otra forma o más concreto.';
   else if (cortado === 'largo') texto += NOTA_CORTADA;
   return { respuesta: texto.slice(0, 12000), graficos, consultas: ctx.usadas, rondas: gasto.llamadas, gasto, ms: reloj() - t0 };
@@ -267,4 +278,4 @@ const MENSAJES = {
   error: 'No se pudo contestar esta vez. Prueba otra vez en un minuto.'
 };
 
-module.exports = { preguntar, puedeUsar, tope, olvidarTopes, MENSAJES, SISTEMA, CALIDADES, RONDAS, PLAZO_MS, VUELTA_MIN_MS, LLAMADA_MS, reservaDe, costoVueltaDe, NOTA_CORTADA, turnosPrevios, fechaHoyTxt, cuerpoDe, errorClaude, MAX_PREGUNTA };
+module.exports = { preguntar, puedeUsar, tope, olvidarTopes, MENSAJES, SISTEMA, CALIDADES, RONDAS, PLAZO_MS, VUELTA_MIN_MS, LLAMADA_MS, reservaDe, costoVueltaDe, costoMaxDe, NOTA_CORTADA, turnosPrevios, fechaHoyTxt, cuerpoDe, errorClaude, MAX_PREGUNTA };

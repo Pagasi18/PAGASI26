@@ -125,6 +125,19 @@ ok('el filtro de modelo casa con el número pegado: «150» trae TRX150 RAYO y H
   const ms = ['NEW HORSE 150', 'TRX150 RAYO', 'HJ150-8', 'BR200', 'OWEN 200S', 'R3X', 'NEW BRF150'];
   return C.casa('TRX150 RAYO', '150') && C.casa('HJ150-8', '150') && C.casa('NEW BRF150', '150') && C.casa('BR200', '200') && C.casa('OWEN 200S', '200') && C.casa('TRX150 RAYO', 'TRX 150') && C.casa('HJ150-8', 'hj 150') && C.casa('TRX150 RAYO', 'trx150') && !C.casa('R3X', '150') && ms.filter(m => C.casa(m, '150')).length === 4 && !C.casa('MARIANA LOPEZ', 'Ana') && !C.casa('EDIANGELA RUIZ', 'angel') && C.casa('ANA PEREZ', 'Ana');
 })());
+ok('pedazos enteros: «BR150» no trae la BRF 150CC, «R15» no trae REX 150 ni TRX150, «T150» no trae TRX150; «GN125» sí trae GN 125 (3ª revisión 21-nov)', !C.casa('BRF 150CC', 'BR150') && C.casa('BERA BR150', 'BR150') && !C.casa('REX 150', 'R15') && !C.casa('TRX150 RAYO', 'R15') && !C.casa('TRX150 RAYO', 'T150') && C.casa('SUZUKI GN 125', 'GN125') && C.casa('TRX150 RAYO', 'TRX150'));
+ok('«M-64» en mora: si el M-064 existe pero no está en mora, no trae el M-640 de otra persona y lo dice (3ª revisión 21-nov)', (() => {
+  const l = [cred('M-064', { fecha: dia(-100), pagado: 20, cli: 'Pedro Perez' }), cred('M-640', { fecha: dia(-60), cli: 'Ana Gomez' })];
+  const DX = C.armar('26', l, [], CONC, 5, HOY), c = { D: { ventas: DX.ventas, cobros: [], concesionarios: [] }, hoy: HOY, usadas: [] };
+  const r = C.ejecutar('creditos', { buscar: 'M-64', estado: 'en_mora' }, c);
+  return DX.ventas.find(v => v.id === 'M-640').diasAtraso > 0 && r.encontrados === 0 && /existe, pero no está en mora/.test(r.nota_busqueda);
+})());
+ok('«créditos vendidos desde…» sin «hasta» avisa de los que tienen fecha posterior a hoy (antes se quedaban fuera callados)', (() => {
+  const DX = C.armar('26', [cred('V1', { fecha: dia(-5) }), cred('V2', { fecha: dia(4) })], [], CONC, 5, HOY), c = { D: { ventas: DX.ventas, cobros: [], concesionarios: [] }, hoy: HOY, usadas: [] };
+  const r = C.ejecutar('creditos', { estado: 'todos', vendidos_desde: dia(-10) }, c);
+  return r.encontrados === 1 && /No se cuentan 1 créditos anotados con fecha posterior a hoy/.test(r.aviso_fechas);
+})());
+ok('la nota del mínimo dice el mínimo que se usó («de menos de 3 créditos», no «de menos de 0»)', (() => { const r = ej('cartera', { agrupar_por: 'concesionario', minimo: 3 }); return !r.nota || /de menos de 3 créditos\.$/.test(r.nota); })() && (() => { const r = ej('cartera', { agrupar_por: 'concesionario', ordenar_por: 'pct_mora' }); return /de menos de 5 créditos \(con 1 o 2/.test(r.nota); })());
 ok('buscar «M-64» en la 26 trae el M-064 y no el M-640 de otra persona; «M64» y «M 064» también (2ª revisión 21-nov)', (() => {
   const l = [cred('M-064', { fecha: dia(-100), cli: 'Pedro Perez' }), cred('M-640', { fecha: dia(-2), cli: 'Ana Gomez' }), cred('M-164', { fecha: dia(-3), cli: 'Luis Diaz' })];
   const DX = C.armar('26', l, [], CONC, 5, HOY), c = { D: { ventas: DX.ventas, cobros: [], concesionarios: [] }, hoy: HOY, usadas: [] };
@@ -146,7 +159,7 @@ ok('sin «hasta» el período termina HOY (como el módulo 18 + 26); lo anotado 
   const DP = C.armar('26', clon(CR26), [pago('F1', 'B1', 80, { fecha: dia(3) }), pago('F2', 'B1', 100, { fecha: HOY })], CONC, 5, HOY);
   const c = { D: { ventas: DP.ventas, cobros: DP.cobros, concesionarios: [] }, hoy: HOY, usadas: [] };
   const r = C.ejecutar('cobros', { desde: HOY }, c), r2 = C.ejecutar('cobros', { desde: HOY, hasta: dia(5) }, c), r3 = C.ejecutar('cobros', { desde: dia(-30), hasta: dia(-1) }, c);
-  return r.total.cobrado === 100 && /No se cuentan 1 pagos por \$80 anotados con fecha posterior a hoy/.test(r.aviso_fechas) && /Cobrado del mes/.test(r.aviso_fechas) && r.periodo.hasta === 'hoy' && r2.total.cobrado === 180 && !r2.aviso_fechas && !r3.aviso_fechas;
+  return r.total.cobrado === 100 && /No se cuentan 1 pagos por \$80 anotados con fecha posterior a hoy/.test(r.aviso_fechas) && /Cobrado del mes/.test(r.aviso_fechas) && r.periodo.hasta === 'hoy' && r2.total.cobrado === 180 && /^Incluye 1 pagos por \$80 anotados con fecha posterior a hoy/.test(r2.aviso_fechas) && !r3.aviso_fechas;
 })());
 ok('...y una sola fecha mal escrita (un año de más) no llena «los últimos 6 meses» de meses vacíos del futuro', (() => {
   const l = []; for (let m = 0; m < 7; m++) for (let k = 0; k < 3; k++) l.push(cred('H' + m + '-' + k, { fecha: (() => { const x = new Date(HOY + 'T12:00:00Z'); x.setUTCMonth(x.getUTCMonth() - m, 1); return x.toISOString().slice(0, 10); })() }));
@@ -278,6 +291,9 @@ ok('...y debajo de la respuesta se dice qué se consultó', (() => { const c = {
   const rNo = await conArreglo({ status: 200, j: { stop_reason: 'refusal', usage: uso, content: [] } });
   const rCorte = await conArreglo({ status: 200, j: { stop_reason: 'max_tokens', usage: uso, content: [{ type: 'tool_use', id: 'r2', name: 'responder', input: {} }] } });
   ok('si la vuelta para arreglar un gráfico falla (Claude ocupado, se niega o se corta), sale la respuesta que ya estaba escrita, sin el gráfico malo', [r529, rNo, rCorte].every(x => x.respuesta === 'Esta semana: **$12.345**.' && x.graficos.length === 1));
+  const rCorteTexto = await conArreglo({ status: 200, j: { stop_reason: 'max_tokens', usage: uso, content: [{ type: 'tool_use', id: 'r2', name: 'responder', input: { texto: 'Esta semana: **$12.' } }] } });
+  const rFrase = await conArreglo({ status: 200, j: { stop_reason: 'end_turn', usage: uso, content: [{ type: 'text', text: 'Listo, quité el gráfico.' }] } });
+  ok('...también si la vuelta del arreglo se corta a medias o cierra con una frase suelta: sale la respuesta entera (3ª revisión 21-nov)', [rCorteTexto, rFrase].every(x => x.respuesta === 'Esta semana: **$12.345**.' && x.graficos.length === 1));
   llamadas.length = 0; respuestas.length = 0;
   for (let i = 0; i < 4; i++) respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'm' + i, name: 'responder', input: { texto: 'Intento ' + i, graficos: [malo] } }] } });
   r = await AI.preguntar(deps(), { pregunta: 'hola' });
@@ -297,8 +313,11 @@ ok('...y debajo de la respuesta se dice qué se consultó', (() => { const c = {
   // presupuesto: lo apartado para la pregunta
   llamadas.length = 0; respuestas.length = 0;
   for (let i = 0; i < 5; i++) respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'p' + i, name: 'cartera', input: {} }] } });
-  r = await AI.preguntar(deps({ presupuesto: 0.1 }), { pregunta: 'dame todo' });
+  r = await AI.preguntar(deps({ presupuesto: 0.1, recorte: 'topeDia' }), { pregunta: 'dame todo' });
   ok('no se empieza una vuelta que no quepa en lo apartado para la pregunta (lo que queda del tope diario)', llamadas.length === 1 && /Se llegó al tope de gasto de la AI de hoy/.test(r.respuesta) && AI.costoVueltaDe('normal') === 0.098 && AI.costoVueltaDe('maxima') === 0.27);
+  const conPresupuesto = async (recorte) => { llamadas.length = 0; respuestas.length = 0; for (let i = 0; i < 5; i++) respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'p' + i, name: 'cartera', input: {} }] } }); return (await AI.preguntar(deps({ presupuesto: 0.1, recorte }), { pregunta: 'dame todo' })).respuesta; };
+  ok('...y el aviso dice la causa: otras preguntas en curso («prueba en un minuto») o una pregunta muy grande, no «mañana» si no es el tope del día (3ª revisión 21-nov)', /otras preguntas a la AI en curso/.test(await conPresupuesto('enCurso')) && /necesitó más consultas de las que caben/.test(await conPresupuesto(undefined)));
+  ok('...lo que puede costar una vuelta se calcula con lo que de verdad se manda: más resultados, más costo', AI.costoMaxDe({ model: 'claude-sonnet-5-5', max_tokens: 8000, messages: [{ c: 'x'.repeat(90000) }] }) > AI.costoMaxDe({ model: 'claude-sonnet-5-5', max_tokens: 8000, messages: [] }) + 0.07);
   // una llamada que corta el reloj igual se paga: se anota lo más que pudo costar
   const errCorte = await (async () => { const f2 = async () => { const x = new Error('aborted'); x.name = 'AbortError'; throw x; }; try { await AI.preguntar(deps({ fetchImpl: f2 }), { pregunta: 'hola' }); return null; } catch (x) { return x; } })();
   ok('una llamada cortada por el reloj se anota en el gasto (Anthropic la cobra igual) y cuenta para el tope', errCorte && errCorte.codigo === 'tiempo' && errCorte.gasto.llamadas === 1 && errCorte.gasto.cortadas === 1 && errCorte.gasto.costo > 0.07 && errCorte.gasto.salida === 8000);
@@ -386,8 +405,9 @@ ok('...y debajo de la respuesta se dice qué se consultó', (() => { const c = {
   ok('/equipo atiende «preguntaAI» con la sesión del usuario, antes de lo que manda mensajes', rama.length > 100 && ruta.indexOf("accion === 'preguntaAI'") > ruta.indexOf('const quien = await quienEscribe(req)') && ruta.indexOf("accion === 'preguntaAI'") < ruta.indexOf('procesar.enviarEquipo'));
   ok('...revisa el permiso y el tope ANTES de leer nada o llamar a Claude', rama.indexOf('ai.puedeUsar(quien)') > -1 && rama.indexOf('ai.puedeUsar(quien)') < rama.indexOf('ai.tope(quien.uid)') && rama.indexOf('ai.tope(quien.uid)') < rama.indexOf('ai.preguntar('));
   ok('...con un tope de gasto por día (config/asistente.topeAIdia, 10 dólares si no se dice; 0 la apaga)', /topeAIdia: \(c\.topeAIdia === 0 \|\| c\.topeAIdia === '0'\) \? 0 : \(isFinite\(\+c\.topeAIdia\) && \+c\.topeAIdia > 0 \? \+c\.topeAIdia : 10\)/.test(idx) && /if \(!\(cfg\.topeAIdia > 0\)\) return res\.status\(503\)\.json\(\{ error: ai\.MENSAJES\.apagada, codigo: 'apagada' \}\)/.test(rama));
-  ok('...el tope se APARTA antes de llamar a Claude, en uso_ai (que el navegador no puede tocar), y no con config/asistenteUso (revisión 21-nov)', rama.indexOf('reservarAI(dia, cfg.topeAIdia, ai.reservaDe(cfg.calidad.ai), ai.costoVueltaDe(cfg.calidad.ai))') > -1 && rama.indexOf('reservarAI(') < rama.indexOf('ai.preguntar(') && /presupuesto: reserva \}/.test(rama) && /error: ai\.MENSAJES\[apartado0\.motivo\], codigo: apartado0\.motivo/.test(rama) && !/asistenteUso/.test(rama) && /collection\('uso_ai'\)/.test(idx) && !/uso_ai/.test(src('firestore.rules')) && /match \/\{document=\*\*\} \{ allow read, write: if false; \}/.test(src('firestore.rules')));
+  ok('...el tope se APARTA antes de llamar a Claude, en uso_ai (que el navegador no puede tocar), y no con config/asistenteUso (revisión 21-nov)', rama.indexOf('reservarAI(dia, cfg.topeAIdia, reservaQ, minimoQ)') > -1 && /minimoQ = Math\.min\(reservaQ, 2 \* ai\.costoVueltaDe\(cfg\.calidad\.ai\)\)/.test(rama) && rama.indexOf('reservarAI(') < rama.indexOf('ai.preguntar(') && /presupuesto: reserva, recorte: apartado0\.recorte \}/.test(rama) && /error: ai\.MENSAJES\[apartado0\.motivo\], codigo: apartado0\.motivo/.test(rama) && !/asistenteUso/.test(rama) && /collection\('uso_ai'\)/.test(idx) && !/uso_ai/.test(src('firestore.rules')) && /match \/\{document=\*\*\} \{ allow read, write: if false; \}/.test(src('firestore.rules')));
   ok('...lo gastado se anota ANTES de responder (después Cloud Run congela lo pendiente), también cuando falla a mitad, y se devuelve lo apartado', /await cerrarGastoAI\(dia, apartado, r\.gasto\);[^\n]*\n\s*const costo/.test(rama) && rama.indexOf('await cerrarGastoAI(dia, apartado, r.gasto)') < rama.indexOf('res.status(200)') && /if \(reserva \|\| \(e\.gasto && e\.gasto\.llamadas\)\) await cerrarGastoAI\(dia, reserva, e\.gasto\)/.test(rama) && /return bases\['26'\]\.collection\('config'\)\.doc\('asistenteUso'\)/.test(idx) && /area === 'ai' \? 'ai'/.test(idx));
+  const res0Completa = t => t.primero.aparta === 0.6 && t.primero.recorte === undefined;
   // el tope de verdad, con una base de mentira: varias a la vez no lo pasan
   const tope = await (async () => {
     const fuente = ['reservarAI', 'cerrarGastoAI'].map(n => { const i = idx.indexOf('async function ' + n + '('); let k = idx.indexOf('\n}\n', i); return idx.slice(i, k + 2); }).join('\n');
@@ -409,11 +429,11 @@ ok('...y debajo de la respuesta se dice qué se consultó', (() => { const c = {
     const chico = await cx.reservarAI('d2', 1, 2.4, 0.27);
     docs.d3 = { costo: 0.95, reservado: 0 }; const gastado = await cx.reservarAI('d3', 1, 0.9, 0.098);
     docs.d4 = { costo: 0, reservado: 0.95 }; const ocupado = await cx.reservarAI('d4', 1, 0.9, 0.098);
-    return { pasaron, ultimo, primeroFuera, tras, conNegativo, anotados, chico, gastado, ocupado };
+    return { pasaron, ultimo, primeroFuera, tras, conNegativo, anotados, chico, gastado, ocupado, primero: res[0] };
   })();
   ok('...con $10 de tope y $0,60 por pregunta, entran 16 completas y una 17 con lo que queda ($0,40); la 18 espera; al terminar se devuelve lo apartado y se suma lo real', tope.pasaron === 17 && Math.abs(tope.ultimo.aparta - 0.4) < 1e-9 && tope.primeroFuera.motivo === 'enCurso' && Math.abs(tope.tras.reservado - 9.4) < 1e-9 && Math.abs(tope.tras.costo - 0.12) < 1e-9 && tope.tras.llamadas === 3 && tope.anotados.length === 1 && tope.anotados[0][0] === 'ai');
   ok('...y un valor negativo (un error, o puesto a mano) cuenta como 0: no da más tope que un día nuevo', tope.conNegativo === 17);
-  ok('...un tope más chico que lo que se aparta no bloquea la AI: se aparta lo que hay (antes: «ya se llegó al tope» sin haber gastado) (2ª revisión 21-nov)', tope.chico.aparta === 1);
+  ok('...un tope más chico que lo que se aparta no bloquea la AI: se aparta lo que hay y se dice que fue por el tope del día (antes: «ya se llegó al tope» sin haber gastado) (2ª revisión 21-nov)', tope.chico.aparta === 1 && tope.chico.recorte === 'topeDia' && tope.ultimo.recorte === 'enCurso' && res0Completa(tope));
   ok('...y sin nada libre dice por qué: gastado = «tope de hoy»; apartado por otras preguntas = «prueba en un minuto»', tope.gastado.motivo === 'topeDia' && tope.ocupado.motivo === 'enCurso' && /otras preguntas a la AI en curso/.test(AI.MENSAJES.enCurso));
   ok('...el registro del servidor no lleva la pregunta (puede traer nombres de clientes)', /logger\.info\('ai', \{ ms: [^}]*\}\)/.test(rama) && !/logger\.[a-z]+\('ai[^)]*pregunta/.test(rama));
   ok('...los errores de Claude salen con su mensaje en sencillo, no el técnico', /ai\.MENSAJES\[cod\] \|\| ai\.MENSAJES\.error/.test(rama));

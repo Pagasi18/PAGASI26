@@ -132,8 +132,10 @@ async function reservarAI(dia, tope, reserva, minimo) {
     const libre = Math.round((tope - costo - reservado) * 1e6) / 1e6;
     if (libre < minimo) return { motivo: costo + minimo > tope ? 'topeDia' : 'enCurso' };
     const aparta = Math.min(reserva, libre);
+    // si se apartó menos de lo normal, por qué: lo gastado del día o lo que tienen apartado otras preguntas
+    const recorte = aparta < reserva ? (costo + reserva > tope ? 'topeDia' : 'enCurso') : undefined;
     tx.set(ref, { costo, reservado: reservado + aparta, actualizado: new Date().toISOString() }, { merge: true });
-    return { aparta };
+    return { aparta, recorte };
   });
 }
 async function cerrarGastoAI(dia, reserva, g) {
@@ -201,10 +203,12 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
       try {
         const cfg = await cfgAsistente();
         if (!(cfg.topeAIdia > 0)) return res.status(503).json({ error: ai.MENSAJES.apagada, codigo: 'apagada' });
-        const apartado0 = await reservarAI(dia, cfg.topeAIdia, ai.reservaDe(cfg.calidad.ai), ai.costoVueltaDe(cfg.calidad.ai));
+        // una pregunta de datos necesita al menos dos vueltas (la consulta y la respuesta): con menos no se empieza
+        const reservaQ = ai.reservaDe(cfg.calidad.ai), minimoQ = Math.min(reservaQ, 2 * ai.costoVueltaDe(cfg.calidad.ai));
+        const apartado0 = await reservarAI(dia, cfg.topeAIdia, reservaQ, minimoQ);
         if (!apartado0.aparta) return res.status(429).json({ error: ai.MENSAJES[apartado0.motivo], codigo: apartado0.motivo });
         reserva = apartado0.aparta;
-        const r = await ai.preguntar({ apiKey: sec(ANTHROPIC), datos: () => aiConsultas.cargar(bases, dia), datosEquipo: () => aiConsultas.cargarEquipo(bases, dia), esAdmin: !!quien.admin, hoy: dia, ahora: new Date(), calidad: cfg.calidad.ai, plazo: tEntrada + ai.PLAZO_MS, presupuesto: reserva },
+        const r = await ai.preguntar({ apiKey: sec(ANTHROPIC), datos: () => aiConsultas.cargar(bases, dia), datosEquipo: () => aiConsultas.cargarEquipo(bases, dia), esAdmin: !!quien.admin, hoy: dia, ahora: new Date(), calidad: cfg.calidad.ai, plazo: tEntrada + ai.PLAZO_MS, presupuesto: reserva, recorte: apartado0.recorte },
           { pregunta: (req.body || {}).pregunta, historial: (req.body || {}).historial });
         const apartado = reserva; reserva = 0;
         await cerrarGastoAI(dia, apartado, r.gasto);       // antes de responder: después Cloud Run congela lo pendiente
