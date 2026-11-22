@@ -2709,7 +2709,8 @@ tbody tr:hover td {
 /* ══ AI (21-nov-2026): pregúntale a los datos de las dos compañías ══ */
 .ai-caja{display:flex;flex-direction:column;gap:10px;max-width:980px;margin:0 auto;min-height:calc(100vh - 260px)}
 .ai-chat{flex:1;display:flex;flex-direction:column;gap:16px;padding:4px 2px 8px;min-width:0}
-.ai-msg{display:flex;gap:10px;min-width:0;scroll-margin-top:16px;scroll-margin-bottom:96px}   /* lo que tapa la caja de escribir */
+.ai-msg{display:flex;gap:10px;min-width:0}
+.ai-msg,.ai-hola{scroll-margin-top:16px;scroll-margin-bottom:96px}   /* lo que tapa la caja de escribir (también al saludo: si no, tapa las últimas sugerencias) */
 .ai-sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .ai-tu{justify-content:flex-end}
 .ai-burbuja{max-width:min(640px,86%);background:var(--p1);color:#fff;padding:10px 14px;border-radius:16px 16px 4px 16px;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere;box-shadow:0 6px 18px -10px rgba(37,99,235,.6)}
@@ -2760,7 +2761,7 @@ tbody tr:hover td {
 .ai-sugs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .ai-sug{border:1px solid var(--rim);background:var(--surf);color:var(--ink2);font-family:var(--f);font-size:12.5px;font-weight:600;padding:8px 13px;border-radius:999px;cursor:pointer;transition:border-color .15s,color .15s,background .15s;text-align:left}
 .ai-sug:hover{border-color:var(--p1);color:var(--p1);background:var(--gs)}
-@media (max-width:1024px){.ai-entrada{position:static}.ai-caja{min-height:0}.ai-msg{scroll-margin-bottom:calc(112px + env(safe-area-inset-bottom,0px))}}   /* la barra de abajo del teléfono */
+@media (max-width:1024px){.ai-entrada{position:static}.ai-caja{min-height:0}.ai-msg,.ai-hola{scroll-margin-bottom:calc(112px + env(safe-area-inset-bottom,0px))}}   /* la barra de abajo del teléfono */
 @media (max-width:720px){.ai-burbuja{max-width:92%}.ai-cuerpo{padding:12px}.ai-avatar{width:28px;height:28px;font-size:10px}.ai-hola-t{font-size:19px}}
 
 /* ══ Usuarios → Quién ve qué (21-nov-2026): todas las personas y todos los módulos en una tabla ══ */

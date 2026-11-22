@@ -97,7 +97,8 @@ function _aiMensajeHtml(m, i){
   if(m.error) return '<div class="ai-msg ai-ella ai-mal" data-ai-i="' + i + '"><div class="ai-avatar" aria-hidden="true">AI</div><div class="ai-cuerpo"><div class="ai-texto"><p>' + _aiEsc(m.texto) + '</p></div>'
     + (m.pregunta ? '<button type="button" class="btn btn-sm" onclick="aiReintentar(' + i + ')">Intentar otra vez</button>' : '') + '</div></div>';
   var graf = (m.graficos || []).map(function(g, k){
-    var alto = g.tipo === 'barras_horizontales' ? Math.min(440, Math.max(140, g.etiquetas.length * 26 + 50)) : g.tipo === 'torta' ? 260 : 240;
+    // barras acostadas: el alto crece con las filas (con 62 nombres en 440 px se montaban unos sobre otros)
+    var alto = g.tipo === 'barras_horizontales' ? Math.max(140, g.etiquetas.length * 22 + 50) : g.tipo === 'torta' ? 260 : 240;
     return '<div class="ai-graf"><div class="ai-graf-t">' + _aiEsc(g.titulo) + '</div><div class="ai-lienzo" style="height:' + alto + 'px"><canvas id="aic-' + i + '-' + k + '" role="img" aria-label="' + _aiEsc(g.titulo) + '"></canvas></div></div>';
   }).join('');
   var pie = [];

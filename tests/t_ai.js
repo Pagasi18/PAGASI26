@@ -121,6 +121,18 @@ ok('el límite corta el ranking y dice cuántos quedaron fuera', (() => { const 
 const cb = ej('cobros', { agrupar_por: 'metodo' });
 ok('cobros: solo pagos confirmados, cuotas e iniciales por separado, y por forma de pago', cb.total.cobrado === 80 * 3 + 600 + 1440 + 700 + 500 && cb.total.iniciales === 1800 && cb.total.cuotas === 1680 && cb.grupos.find(g => g.grupo === 'inicial pagada en el concesionario').cobrado === 700 && cb.grupos.find(g => g.grupo === 'Binance').cobrado === 80);
 ok('...solo cuotas o solo iniciales, por compañía, y la hora del registro (los viejos sin hora)', ej('cobros', { tipo: 'iniciales', empresa: '26' }).total.cobrado === 1200 && ej('cobros', { tipo: 'cuotas' }).total.cobrado === 1680 && ej('cobros', { agrupar_por: 'hora' }).grupos.some(g => g.grupo === '09:00 a 09:59' && g.cobrado === 80) && ej('cobros', { agrupar_por: 'hora' }).grupos.some(g => g.grupo === 'sin hora anotada'));
+ok('el filtro de modelo casa con el número pegado: «150» trae TRX150 RAYO y HJ150-8, «200» trae BR200 y OWEN 200S, «TRX 150» y «HJ 150» también; «Ana» sigue sin MARIANA (2ª revisión 21-nov)', (() => {
+  const ms = ['NEW HORSE 150', 'TRX150 RAYO', 'HJ150-8', 'BR200', 'OWEN 200S', 'R3X', 'NEW BRF150'];
+  return C.casa('TRX150 RAYO', '150') && C.casa('HJ150-8', '150') && C.casa('NEW BRF150', '150') && C.casa('BR200', '200') && C.casa('OWEN 200S', '200') && C.casa('TRX150 RAYO', 'TRX 150') && C.casa('HJ150-8', 'hj 150') && C.casa('TRX150 RAYO', 'trx150') && !C.casa('R3X', '150') && ms.filter(m => C.casa(m, '150')).length === 4 && !C.casa('MARIANA LOPEZ', 'Ana') && !C.casa('EDIANGELA RUIZ', 'angel') && C.casa('ANA PEREZ', 'Ana');
+})());
+ok('buscar «M-64» en la 26 trae el M-064 y no el M-640 de otra persona; «M64» y «M 064» también (2ª revisión 21-nov)', (() => {
+  const l = [cred('M-064', { fecha: dia(-100), cli: 'Pedro Perez' }), cred('M-640', { fecha: dia(-2), cli: 'Ana Gomez' }), cred('M-164', { fecha: dia(-3), cli: 'Luis Diaz' })];
+  const DX = C.armar('26', l, [], CONC, 5, HOY), c = { D: { ventas: DX.ventas, cobros: [], concesionarios: [] }, hoy: HOY, usadas: [] };
+  const v = b => C.ejecutar('creditos', { buscar: b }, c);
+  return ['M-64', 'M64', 'M 064', 'm-064'].every(b => v(b).encontrados === 1 && v(b).creditos[0].credito === 'M-064') && v('64').creditos[0].credito === 'M-064' && v('64').encontrados === 1 && v('640').creditos[0].credito === 'M-640';
+})());
+ok('por día en un período largo (500 días) los días sin ventas salen en 0: «el día que menos» no es uno con 1 venta', (() => { const r = ej('ventas', { desde: dia(-499), agrupar_por: 'dia', orden: 'menor', limite: 5 }); return r.grupos.length === 5 && r.grupos.every(g => g.motos === 0); })());
+ok('% de mora por mes de venta en orden de fecha: si quita meses chicos, lo dice', (() => { const r = ej('cartera', { agrupar_por: 'mes_venta', ordenar_por: 'pct_mora', orden: 'cronologico' }); return (r.grupos_no_mostrados || 0) > 0 && /Sin \d+ grupos? de menos de 5 créditos/.test(r.nota) && r.ordenado === 'en orden de fecha u hora'; })());
 ok('las iniciales no guardan creadoEn: su hora sale del número del pago (PAG- + milisegundos) (revisión 21-nov)', (() => {
   const ms = Date.parse(HOY + 'T14:20:00.000Z');   // 10:20 am en Venezuela
   const DP = C.armar('26', clon(CR26), [pago('PAG-' + ms + '-77', 'B1', 600, { fecha: HOY, esInicial: true }), pago('PAG-' + ms, 'B2', 700, { fecha: HOY, esInicial: true })], CONC, 5, HOY);
@@ -130,11 +142,18 @@ ok('los pagos de un crédito anulado cuentan con su concesionario, no como «SIN
   const DP = C.armar('18', clon(CR18), [pago('Z1', 'A3', 500, { fecha: HOY, esInicial: true })], CONC, 5, HOY);
   return DP.cobros[0].concesionario === 'EMPIRE BELLO MONTE' && DP.cobros[0].modelo === 'OWEN 200S';
 })());
-ok('sin «hasta» no hay tope, como el Dashboard: un pago con fecha después de hoy cuenta y se avisa', (() => {
-  const DP = C.armar('26', clon(CR26), [pago('F1', 'B1', 80, { fecha: dia(3) }), pago('F2', 'B1', 80, { fecha: HOY })], CONC, 5, HOY);
+ok('sin «hasta» el período termina HOY (como el módulo 18 + 26); lo anotado con fecha futura no se cuenta y se avisa con cuántos y cuánto (2ª revisión 21-nov)', (() => {
+  const DP = C.armar('26', clon(CR26), [pago('F1', 'B1', 80, { fecha: dia(3) }), pago('F2', 'B1', 100, { fecha: HOY })], CONC, 5, HOY);
   const c = { D: { ventas: DP.ventas, cobros: DP.cobros, concesionarios: [] }, hoy: HOY, usadas: [] };
-  const r = C.ejecutar('cobros', { desde: HOY }, c), r2 = C.ejecutar('cobros', { desde: HOY, hasta: HOY }, c);
-  return r.total.cobrado === 160 && /1 pagos con fecha posterior a hoy/.test(r.aviso_fechas) && r2.total.cobrado === 80 && !r2.aviso_fechas && r.periodo.hasta === 'hoy';
+  const r = C.ejecutar('cobros', { desde: HOY }, c), r2 = C.ejecutar('cobros', { desde: HOY, hasta: dia(5) }, c), r3 = C.ejecutar('cobros', { desde: dia(-30), hasta: dia(-1) }, c);
+  return r.total.cobrado === 100 && /No se cuentan 1 pagos por \$80 anotados con fecha posterior a hoy/.test(r.aviso_fechas) && /Cobrado del mes/.test(r.aviso_fechas) && r.periodo.hasta === 'hoy' && r2.total.cobrado === 180 && !r2.aviso_fechas && !r3.aviso_fechas;
+})());
+ok('...y una sola fecha mal escrita (un año de más) no llena «los últimos 6 meses» de meses vacíos del futuro', (() => {
+  const l = []; for (let m = 0; m < 7; m++) for (let k = 0; k < 3; k++) l.push(cred('H' + m + '-' + k, { fecha: (() => { const x = new Date(HOY + 'T12:00:00Z'); x.setUTCMonth(x.getUTCMonth() - m, 1); return x.toISOString().slice(0, 10); })() }));
+  l.push(cred('FUT', { fecha: String(+HOY.slice(0, 4) + 1) + HOY.slice(4) }));
+  const DX = C.armar('26', l, [], CONC, 5, HOY), c = { D: { ventas: DX.ventas, cobros: [], concesionarios: [] }, hoy: HOY, usadas: [] };
+  const r = C.ejecutar('ventas', { agrupar_por: 'mes', limite: 6 }, c);
+  return r.grupos.length === 6 && r.grupos[5].grupo === HOY.slice(0, 7) && r.grupos.every(g => g.motos === 3) && /No se cuentan 1 ventas/.test(r.aviso_fechas);
 })());
 const gr18 = grupoResumen(clon(CR18), clon(PG18), { hoy: HOY, ledger }), gr26 = grupoResumen(clon(CR26), clon(PG26), { hoy: HOY, ledger });
 const ca = ej('cartera', { agrupar_por: 'empresa' });
@@ -159,6 +178,7 @@ ok('...lo mismo que el módulo PAGASI 18 + 26 en los mismos meses', Math.abs(pu.
 const g1 = { tipo: 'barras_horizontales', titulo: 'Ventas <b>hoy</b>', etiquetas: ['A', 'B'], series: [{ nombre: 'Motos', valores: [2, '1234.5'] }], formato: 'numero' };
 const vg = C.validarGraficos([g1, { tipo: 'barras', titulo: 'x', etiquetas: ['a', 'b'], series: [{ nombre: 's', valores: [1] }] }, { tipo: 'barras', titulo: 'y', etiquetas: ['a'], series: [{ nombre: 's', valores: ['$1.234'] }] }]);
 ok('los gráficos de la respuesta se revisan: sin HTML, un número escrito como texto vale, y lo que no es número o no casa vuelve como error (no como 0)', vg.graficos.length === 1 && vg.graficos[0].titulo === 'Ventas bhoy/b' && vg.graficos[0].series[0].valores.join() === '2,1234.5' && vg.errores.length === 2 && /trae 1 valores y hay 2 etiquetas/.test(vg.errores[0]) && /no es un número/.test(vg.errores[1]));
+ok('un valor escrito «12.500» (doce mil quinientos) no se dibuja como 12,5: vuelve como error; «1234.5» sí vale', (() => { const v = C.validarGraficos([{ tipo: 'barras', titulo: 'C', etiquetas: ['oct', 'nov'], series: [{ nombre: 'C', valores: ['12.500', '9.800'] }], formato: 'dinero' }]), w = C.validarGraficos([{ tipo: 'barras', titulo: 'C', etiquetas: ['a'], series: [{ nombre: 'C', valores: ['1234.5'] }] }]); return v.graficos.length === 0 && /no es un número/.test(v.errores[0]) && w.graficos[0].series[0].valores[0] === 1234.5; })());
 ok('...hasta 62 etiquetas (lo mismo que trae una consulta por día); más, error para que agrupe — antes cortaba en silencio a 40', C.validarGraficos([{ tipo: 'linea', titulo: 't', etiquetas: Array.from({ length: 62 }, (_, i) => 'd' + i), series: [{ nombre: 's', valores: Array(62).fill(1) }] }]).graficos[0].etiquetas.length === 62 && /máximo es 62/.test(C.validarGraficos([{ tipo: 'linea', titulo: 't', etiquetas: Array(63).fill('d'), series: [{ nombre: 's', valores: Array(63).fill(1) }] }]).errores[0]));
 ok('...máximo 3 gráficos por respuesta', (() => { const v = C.validarGraficos(Array(4).fill(g1)); return v.graficos.length === 3 && /máximo es 3/.test(v.errores[0]) && C.validarGraficos(undefined).graficos.length === 0 && C.validarGraficos(undefined).errores.length === 0; })());
 ok('debajo de la respuesta se dice qué se consultó, en sencillo', (() => { const c = ctxC(); ej('ventas', { desde: HOY, hasta: HOY, agrupar_por: 'concesionario' }, c); ej('cobros', { empresa: '18', desde: '2026-11-01' }, c); return c.usadas.join(' | ') === 'ventas · por concesionario · hoy | cobros · PAGASI 18 · 2026-11-01 a hoy'; })());
@@ -214,6 +234,39 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'r1', name: 'responder', input: { texto: 'Sin tiempo.', graficos: [malo, bueno] } }] } });
   let tt = 0; r = await AI.preguntar(deps({ reloj: () => (tt += 1000), plazo: 23000 }), { pregunta: 'hola' });
   ok('...y si ya no queda tiempo, va la respuesta con los gráficos buenos (no se pierde)', r.respuesta === 'Sin tiempo.' && r.graficos.length === 1 && llamadas.length === 1);
+  // la respuesta ya escrita no se pierde si falla la vuelta del arreglo del gráfico (2ª revisión 21-nov)
+  const conArreglo = async (segunda) => { llamadas.length = 0; respuestas.length = 0;
+    respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'r1', name: 'responder', input: { texto: 'Esta semana: **$12.345**.', graficos: [malo, bueno] } }] } });
+    respuestas.push(segunda);
+    try { return await AI.preguntar(deps(), { pregunta: 'hola' }); } catch (x) { return { error: x.codigo }; } };
+  const r529 = await conArreglo({ status: 529, j: { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } } });
+  const rNo = await conArreglo({ status: 200, j: { stop_reason: 'refusal', usage: uso, content: [] } });
+  const rCorte = await conArreglo({ status: 200, j: { stop_reason: 'max_tokens', usage: uso, content: [{ type: 'tool_use', id: 'r2', name: 'responder', input: {} }] } });
+  ok('si la vuelta para arreglar un gráfico falla (Claude ocupado, se niega o se corta), sale la respuesta que ya estaba escrita, sin el gráfico malo', [r529, rNo, rCorte].every(x => x.respuesta === 'Esta semana: **$12.345**.' && x.graficos.length === 1));
+  llamadas.length = 0; respuestas.length = 0;
+  for (let i = 0; i < 4; i++) respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'm' + i, name: 'responder', input: { texto: 'Intento ' + i, graficos: [malo] } }] } });
+  r = await AI.preguntar(deps(), { pregunta: 'hola' });
+  ok('...el arreglo del gráfico se pide UNA sola vez: si vuelve mal, va la respuesta sin ese gráfico', llamadas.length === 2 && r.respuesta === 'Intento 1' && r.graficos.length === 0);
+  // la respuesta que se corta por larga dentro de «responder»: se pide más corta una vez; lo de antes queda de respaldo
+  llamadas.length = 0; respuestas.length = 0;
+  respuestas.push({ status: 200, j: { stop_reason: 'max_tokens', usage: uso, content: [{ type: 'tool_use', id: 'c0', name: 'ventas', input: {} }, { type: 'tool_use', id: 'c1', name: 'responder', input: { texto: 'Larga y cortada' } }] } });
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'c2', name: 'responder', input: { texto: 'Corta.' } }] } });
+  r = await AI.preguntar(deps(), { pregunta: 'hola' });
+  const pedidoCorto = llamadas[1].cuerpo.messages[llamadas[1].cuerpo.messages.length - 1].content;
+  ok('si la respuesta se corta por larga, se le pide más corta (y la consulta cortada no se ejecuta: vuelve como error)', r.respuesta === 'Corta.' && llamadas.length === 2 && pedidoCorto.length === 2 && pedidoCorto.every(b => b.is_error === true) && /se cortó al escribirla/.test(pedidoCorto[0].content) && /más corta/.test(pedidoCorto[1].content));
+  llamadas.length = 0; respuestas.length = 0;
+  respuestas.push({ status: 200, j: { stop_reason: 'max_tokens', usage: uso, content: [{ type: 'tool_use', id: 'c1', name: 'responder', input: { texto: 'Lo que alcanzó' } }] } });
+  respuestas.push({ status: 529, j: { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } } });
+  r = await AI.preguntar(deps(), { pregunta: 'hola' });
+  ok('...y si esa vuelta falla, sale lo que alcanzó a escribir con el aviso de que se cortó', /^Lo que alcanzó/.test(r.respuesta) && /se cortó por larga/.test(r.respuesta));
+  // presupuesto: lo apartado para la pregunta
+  llamadas.length = 0; respuestas.length = 0;
+  for (let i = 0; i < 5; i++) respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'p' + i, name: 'cartera', input: {} }] } });
+  r = await AI.preguntar(deps({ presupuesto: 0.1 }), { pregunta: 'dame todo' });
+  ok('no se empieza una vuelta que no quepa en lo apartado para la pregunta (lo que queda del tope diario)', llamadas.length === 1 && /Se llegó al tope de gasto de la AI de hoy/.test(r.respuesta) && AI.costoVueltaDe('normal') === 0.098 && AI.costoVueltaDe('maxima') === 0.27);
+  // una llamada que corta el reloj igual se paga: se anota lo más que pudo costar
+  const errCorte = await (async () => { const f2 = async () => { const x = new Error('aborted'); x.name = 'AbortError'; throw x; }; try { await AI.preguntar(deps({ fetchImpl: f2 }), { pregunta: 'hola' }); return null; } catch (x) { return x; } })();
+  ok('una llamada cortada por el reloj se anota en el gasto (Anthropic la cobra igual) y cuenta para el tope', errCorte && errCorte.codigo === 'tiempo' && errCorte.gasto.llamadas === 1 && errCorte.gasto.cortadas === 1 && errCorte.gasto.costo > 0.07 && errCorte.gasto.salida === 8000);
   llamadas.length = 0; respuestas.length = 0;
   respuestas.push({ status: 200, j: { stop_reason: 'end_turn', usage: uso, content: [{ type: 'text', text: 'Respuesta suelta.' }] } });
   r = await AI.preguntar(deps(), { pregunta: 'hola' });
@@ -278,7 +331,7 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   ok('/equipo atiende «preguntaAI» con la sesión del usuario, antes de lo que manda mensajes', rama.length > 100 && ruta.indexOf("accion === 'preguntaAI'") > ruta.indexOf('const quien = await quienEscribe(req)') && ruta.indexOf("accion === 'preguntaAI'") < ruta.indexOf('procesar.enviarEquipo'));
   ok('...revisa el permiso y el tope ANTES de leer nada o llamar a Claude', rama.indexOf('ai.puedeUsar(quien)') > -1 && rama.indexOf('ai.puedeUsar(quien)') < rama.indexOf('ai.tope(quien.uid)') && rama.indexOf('ai.tope(quien.uid)') < rama.indexOf('ai.preguntar('));
   ok('...con un tope de gasto por día (config/asistente.topeAIdia, 10 dólares si no se dice; 0 la apaga)', /topeAIdia: \(c\.topeAIdia === 0 \|\| c\.topeAIdia === '0'\) \? 0 : \(isFinite\(\+c\.topeAIdia\) && \+c\.topeAIdia > 0 \? \+c\.topeAIdia : 10\)/.test(idx) && /if \(!\(cfg\.topeAIdia > 0\)\) return res\.status\(503\)\.json\(\{ error: ai\.MENSAJES\.apagada, codigo: 'apagada' \}\)/.test(rama));
-  ok('...el tope se APARTA antes de llamar a Claude, en uso_ai (que el navegador no puede tocar), y no con config/asistenteUso (revisión 21-nov)', rama.indexOf('reservarAI(dia, cfg.topeAIdia, aparta)') > -1 && rama.indexOf('reservarAI(') < rama.indexOf('ai.preguntar(') && !/asistenteUso/.test(rama) && /collection\('uso_ai'\)/.test(idx) && !/uso_ai/.test(src('firestore.rules')) && /match \/\{document=\*\*\} \{ allow read, write: if false; \}/.test(src('firestore.rules')));
+  ok('...el tope se APARTA antes de llamar a Claude, en uso_ai (que el navegador no puede tocar), y no con config/asistenteUso (revisión 21-nov)', rama.indexOf('reservarAI(dia, cfg.topeAIdia, ai.reservaDe(cfg.calidad.ai), ai.costoVueltaDe(cfg.calidad.ai))') > -1 && rama.indexOf('reservarAI(') < rama.indexOf('ai.preguntar(') && /presupuesto: reserva \}/.test(rama) && /error: ai\.MENSAJES\[apartado0\.motivo\], codigo: apartado0\.motivo/.test(rama) && !/asistenteUso/.test(rama) && /collection\('uso_ai'\)/.test(idx) && !/uso_ai/.test(src('firestore.rules')) && /match \/\{document=\*\*\} \{ allow read, write: if false; \}/.test(src('firestore.rules')));
   ok('...lo gastado se anota ANTES de responder (después Cloud Run congela lo pendiente), también cuando falla a mitad, y se devuelve lo apartado', /await cerrarGastoAI\(dia, apartado, r\.gasto\);[^\n]*\n\s*const costo/.test(rama) && rama.indexOf('await cerrarGastoAI(dia, apartado, r.gasto)') < rama.indexOf('res.status(200)') && /if \(reserva \|\| \(e\.gasto && e\.gasto\.llamadas\)\) await cerrarGastoAI\(dia, reserva, e\.gasto\)/.test(rama) && /return bases\['26'\]\.collection\('config'\)\.doc\('asistenteUso'\)/.test(idx) && /area === 'ai' \? 'ai'/.test(idx));
   // el tope de verdad, con una base de mentira: varias a la vez no lo pasan
   const tope = await (async () => {
@@ -291,16 +344,22 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
     const cx = { bases, FieldValue: { increment: inc }, logger: { warn(){} }, anotarGasto: (a, g) => { anotados.push([a, g]); return Promise.resolve(); }, Math, Date, Promise, String };
     vm.createContext(cx); vm.runInContext(fuente + '\n;this.reservarAI = reservarAI; this.cerrarGastoAI = cerrarGastoAI;', cx);
     const d = '2026-11-21', res = [];
-    for (let i = 0; i < 20; i++) res.push(await cx.reservarAI(d, 10, 0.6));
-    const pasaron = res.filter(Boolean).length;
+    for (let i = 0; i < 20; i++) res.push(await cx.reservarAI(d, 10, 0.6, 0.1));
+    const pasaron = res.filter(x => x.aparta).length, ultimo = res[16], primeroFuera = res[17];
     await cx.cerrarGastoAI(d, 0.6, { llamadas: 3, costo: 0.12 });
     const tras = Object.assign({}, docs[d]);
     docs[d].costo = -1000; docs[d].reservado = -50;                  // aunque alguien lo dañe, nada negativo regala tope
-    let conNegativo = 0; for (let i = 0; i < 20; i++) if (await cx.reservarAI(d, 10, 0.6)) conNegativo++;
-    return { pasaron, tras, conNegativo, anotados };
+    let conNegativo = 0; for (let i = 0; i < 20; i++) if ((await cx.reservarAI(d, 10, 0.6, 0.1)).aparta) conNegativo++;
+    // un tope chico (más chico que lo que se aparta): igual funciona con lo que queda; sin nada libre, dice por qué
+    const chico = await cx.reservarAI('d2', 1, 2.4, 0.27);
+    docs.d3 = { costo: 0.95, reservado: 0 }; const gastado = await cx.reservarAI('d3', 1, 0.9, 0.098);
+    docs.d4 = { costo: 0, reservado: 0.95 }; const ocupado = await cx.reservarAI('d4', 1, 0.9, 0.098);
+    return { pasaron, ultimo, primeroFuera, tras, conNegativo, anotados, chico, gastado, ocupado };
   })();
-  ok('...con $10 de tope y $0,60 apartados por pregunta, entran 16 a la vez y la 17 espera; al terminar se devuelve lo apartado y se suma lo real', tope.pasaron === 16 && Math.abs(tope.tras.reservado - 15 * 0.6) < 1e-9 && Math.abs(tope.tras.costo - 0.12) < 1e-9 && tope.tras.llamadas === 3 && tope.anotados.length === 1 && tope.anotados[0][0] === 'ai');
-  ok('...y un valor negativo (un error, o puesto a mano) cuenta como 0: no da más tope que un día nuevo', tope.conNegativo === 16);
+  ok('...con $10 de tope y $0,60 por pregunta, entran 16 completas y una 17 con lo que queda ($0,40); la 18 espera; al terminar se devuelve lo apartado y se suma lo real', tope.pasaron === 17 && Math.abs(tope.ultimo.aparta - 0.4) < 1e-9 && tope.primeroFuera.motivo === 'enCurso' && Math.abs(tope.tras.reservado - 9.4) < 1e-9 && Math.abs(tope.tras.costo - 0.12) < 1e-9 && tope.tras.llamadas === 3 && tope.anotados.length === 1 && tope.anotados[0][0] === 'ai');
+  ok('...y un valor negativo (un error, o puesto a mano) cuenta como 0: no da más tope que un día nuevo', tope.conNegativo === 17);
+  ok('...un tope más chico que lo que se aparta no bloquea la AI: se aparta lo que hay (antes: «ya se llegó al tope» sin haber gastado) (2ª revisión 21-nov)', tope.chico.aparta === 1);
+  ok('...y sin nada libre dice por qué: gastado = «tope de hoy»; apartado por otras preguntas = «prueba en un minuto»', tope.gastado.motivo === 'topeDia' && tope.ocupado.motivo === 'enCurso' && /otras preguntas a la AI en curso/.test(AI.MENSAJES.enCurso));
   ok('...el registro del servidor no lleva la pregunta (puede traer nombres de clientes)', /logger\.info\('ai', \{ ms: [^}]*\}\)/.test(rama) && !/logger\.[a-z]+\('ai[^)]*pregunta/.test(rama));
   ok('...los errores de Claude salen con su mensaje en sencillo, no el técnico', /ai\.MENSAJES\[cod\] \|\| ai\.MENSAJES\.error/.test(rama));
   ok('...y la consulta lee las dos bases con la fecha de Venezuela, con el plazo contado desde que entró la petición', /const t0 = Date\.now\(\), dia = hoyCaracas\(\);/.test(rama) && /datos: \(\) => aiConsultas\.cargar\(bases, dia\)/.test(rama) && /plazo: tEntrada \+ ai\.PLAZO_MS/.test(rama) && /const tEntrada = Date\.now\(\);\s*const quien = await quienEscribe\(req\);/.test(ruta));
@@ -404,7 +463,8 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   ok('quien no tiene el permiso no ve nada', /No tienes acceso a la AI/.test(String(ctx.PG.ai())));
   const css = src('assets/pagasi.css');
   ok('los estilos existen; en computadora la caja de escribir queda abajo y en el teléfono va al final de la conversación', /\.ai-chat\{/.test(css) && /\.ai-entrada\{position:sticky/.test(css) && /@media \(max-width:1024px\)\{\.ai-entrada\{position:static\}/.test(css));
-  ok('...la caja pegada a 10 px del borde de verdad (descuenta los 80 px de relleno de #cnt), y lo que tapan la caja y la barra del teléfono queda libre al desplazar', /\.ai-entrada\{position:sticky;bottom:-70px;/.test(css) && /#cnt \{\n  padding: 20px 24px 80px;/.test(css) && /\.ai-msg\{[^}]*scroll-margin-bottom:96px/.test(css) && /\.ai-msg\{scroll-margin-bottom:calc\(112px \+ env\(safe-area-inset-bottom,0px\)\)\}/.test(css) && /\.ai-sr\{position:absolute!important/.test(css));
+  ok('...la caja pegada a 10 px del borde de verdad (descuenta los 80 px de relleno de #cnt), y lo que tapan la caja y la barra del teléfono queda libre al desplazar', /\.ai-entrada\{position:sticky;bottom:-70px;/.test(css) && /#cnt \{\n  padding: 20px 24px 80px;/.test(css) && /\.ai-msg,\.ai-hola\{scroll-margin-top:16px;scroll-margin-bottom:96px\}/.test(css) && /\.ai-msg,\.ai-hola\{scroll-margin-bottom:calc\(112px \+ env\(safe-area-inset-bottom,0px\)\)\}/.test(css) && /\.ai-sr\{position:absolute!important/.test(css));
+  ok('barras acostadas con muchos nombres: el gráfico crece (antes 440 px como mucho: con 62 nombres se montaban)', (() => { const h = vm.runInContext('_aiMensajeHtml', ctx)({ rol: 'ai', texto: 'x', graficos: [{ tipo: 'barras_horizontales', titulo: 't', etiquetas: Array(62).fill('a'), series: [{ nombre: 's', valores: Array(62).fill(1) }], formato: 'numero' }] }, 0); return /style="height:1414px"/.test(h); })());
   ok('en el teléfono el banner no muestra «Más ⌄» (no abre nada)', /\.ai \.pg-banner-toggle\{display:none!important\}/.test(css.replace('.g2 .pg-banner-toggle,.ai .pg-banner-toggle', '.ai .pg-banner-toggle')));
   ok('la pregunta se escribe libre: la regla de mayúsculas sin tildes no la toca (data-libre)', /<textarea id="ai-texto" data-libre /.test(String((como('Administrador'), ctx.PG.ai()))));
 

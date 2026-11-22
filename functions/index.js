@@ -122,14 +122,18 @@ function anotarGasto(area, g) {
 // APARTA lo más que podría costar la pregunta (así varias a la vez no pasan el tope) y al terminar se
 // devuelve lo apartado y se suma lo que de verdad costó. Si el servidor se cae a mitad, lo apartado queda
 // apartado ese día: falla del lado seguro.
-async function reservarAI(dia, tope, reserva) {
+// Se aparta lo que podría costar la pregunta, o lo que quede libre si es menos (con un tope chico la AI igual
+// funciona); si no queda ni para una vuelta: 'topeDia' si ya se gastó, 'enCurso' si lo tienen apartado otras preguntas.
+async function reservarAI(dia, tope, reserva, minimo) {
   const ref = bases['26'].collection('uso_ai').doc(dia);
   return bases['26'].runTransaction(async tx => {
     const d = await tx.get(ref), x = d.exists ? d.data() : {};
     const costo = Math.max(0, +x.costo || 0), reservado = Math.max(0, +x.reservado || 0);   // nada negativo ni raro regala tope
-    if (costo + reservado + reserva > tope) return false;
-    tx.set(ref, { costo, reservado: reservado + reserva, actualizado: new Date().toISOString() }, { merge: true });
-    return true;
+    const libre = Math.round((tope - costo - reservado) * 1e6) / 1e6;
+    if (libre < minimo) return { motivo: costo + minimo > tope ? 'topeDia' : 'enCurso' };
+    const aparta = Math.min(reserva, libre);
+    tx.set(ref, { costo, reservado: reservado + aparta, actualizado: new Date().toISOString() }, { merge: true });
+    return { aparta };
   });
 }
 async function cerrarGastoAI(dia, reserva, g) {
@@ -197,10 +201,10 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
       try {
         const cfg = await cfgAsistente();
         if (!(cfg.topeAIdia > 0)) return res.status(503).json({ error: ai.MENSAJES.apagada, codigo: 'apagada' });
-        const aparta = ai.reservaDe(cfg.calidad.ai);
-        if (!(await reservarAI(dia, cfg.topeAIdia, aparta))) return res.status(429).json({ error: ai.MENSAJES.topeDia, codigo: 'topeDia' });
-        reserva = aparta;
-        const r = await ai.preguntar({ apiKey: sec(ANTHROPIC), datos: () => aiConsultas.cargar(bases, dia), hoy: dia, ahora: new Date(), calidad: cfg.calidad.ai, plazo: tEntrada + ai.PLAZO_MS },
+        const apartado0 = await reservarAI(dia, cfg.topeAIdia, ai.reservaDe(cfg.calidad.ai), ai.costoVueltaDe(cfg.calidad.ai));
+        if (!apartado0.aparta) return res.status(429).json({ error: ai.MENSAJES[apartado0.motivo], codigo: apartado0.motivo });
+        reserva = apartado0.aparta;
+        const r = await ai.preguntar({ apiKey: sec(ANTHROPIC), datos: () => aiConsultas.cargar(bases, dia), hoy: dia, ahora: new Date(), calidad: cfg.calidad.ai, plazo: tEntrada + ai.PLAZO_MS, presupuesto: reserva },
           { pregunta: (req.body || {}).pregunta, historial: (req.body || {}).historial });
         const apartado = reserva; reserva = 0;
         await cerrarGastoAI(dia, apartado, r.gasto);       // antes de responder: después Cloud Run congela lo pendiente

@@ -121,24 +121,39 @@ async function cargar(bases, hoy, o) {
 const olvidar = () => { memoria = null; };
 
 // ── Piezas comunes de las consultas ──
-// Sin «hasta» no hay tope: así cuadra con el Dashboard, que cuenta todo desde el día 1 aunque alguien
-// haya puesto una fecha después de hoy (esos casos se avisan en la respuesta).
+// Sin «hasta», el período termina HOY, como en el módulo PAGASI 18 + 26 (revisión 21-nov: sin tope, un
+// solo registro con un año mal escrito llenaba «los últimos meses» de meses vacíos del futuro). Lo que
+// quedó anotado con fecha posterior a hoy no se cuenta, pero se avisa con cuántos son y cuánto suman.
 function periodo(a, hoy, defecto) {
   if (a.desde != null && a.desde !== '' && !esFecha(a.desde)) throw new ErrorConsulta('«desde» tiene que ser una fecha AAAA-MM-DD');
   if (a.hasta != null && a.hasta !== '' && !esFecha(a.hasta)) throw new ErrorConsulta('«hasta» tiene que ser una fecha AAAA-MM-DD');
   const conDesde = esFecha(a.desde), conHasta = esFecha(a.hasta);
   const desde = conDesde ? a.desde : (defecto || '2000-01-01'), hasta = conHasta ? a.hasta : hoy;
   if (desde > hasta) throw new ErrorConsulta('«desde» es después de «hasta»');
-  return { desde, hasta, conDesde: conDesde || !!defecto, tope: conHasta ? a.hasta : '9999-12-31' };
+  return { desde, hasta, conDesde: conDesde || !!defecto, conHasta };
 }
-const enPeriodo = (f, per) => !!f && f >= per.desde && f <= per.tope;
-const verPeriodo = per => ({ desde: per.desde === '2000-01-01' ? 'el principio' : per.desde, hasta: per.tope === '9999-12-31' ? 'hoy' : per.hasta });
-function avisoFuturo(r, l, fechaDe, hoy, que) { const n = l.filter(x => (fechaDe(x) || '') > hoy).length; if (n) r.aviso_fechas = 'Incluye ' + n + ' ' + que + ' con fecha posterior a hoy (así quedaron anotados en el sistema).'; }
+const enPeriodo = (f, per) => !!f && f >= per.desde && f <= per.hasta;
+const verPeriodo = per => ({ desde: per.desde === '2000-01-01' ? 'el principio' : per.desde, hasta: per.conHasta ? per.hasta : 'hoy' });
+// l: las filas de la compañía y los filtros, SIN cortar por fecha. Solo cuando el período termina hoy.
+function avisoFuturo(r, l, fechaDe, per, hoy, que, monto) {
+  if (per.conHasta && per.hasta < hoy) return;
+  const fut = l.filter(x => { const f = fechaDe(x) || ''; return f > hoy && f > per.hasta && f >= per.desde; });
+  if (!fut.length) return;
+  const suma = monto ? r2(fut.reduce((t, x) => t + (+monto(x) || 0), 0)) : null;
+  r.aviso_fechas = 'No se cuentan ' + fut.length + ' ' + que + (suma != null ? ' por $' + suma : '') + ' anotados con fecha posterior a hoy (la más lejana: ' + fut.map(fechaDe).sort().pop() + ').' + (que === 'pagos' ? ' «Cobrado del mes» en el Dashboard sí los suma.' : '');
+}
 function empresas(a) { return a.empresa === '18' || a.empresa === '26' ? [a.empresa] : ['18', '26']; }
 // Un nombre casa si cada palabra buscada es el comienzo de una de sus palabras: «Ana» casa con
 // ANA PEREZ pero no con MARIANA; «bello monte» casa con EMPIRE BELLO MONTE.
 const palabras = s => norm(s).split(/[^A-Z0-9]+/).filter(Boolean);
-function casa(nombre, buscado) { const q = palabras(buscado); if (!q.length) return false; const w = palabras(nombre); return q.every(x => w.some(y => y.startsWith(x))); }
+// Las palabras con letras y números pegados también valen por pedazos: TRX150 = TRX150, TRX y 150
+// (así «150», «TRX 150» y «HJ 150» casan con TRX150 RAYO o HJ150-8); las de solo letras no se parten.
+const pedazos = w => [w].concat((w.match(/[A-Z]+|[0-9]+/g) || []).filter(t => t !== w));
+function casa(nombre, buscado) {
+  const q = palabras(buscado); if (!q.length) return false;
+  const w = [].concat(...palabras(nombre).map(pedazos)), cabe = x => w.some(y => y.startsWith(x));
+  return q.every(x => cabe(x) || (/[A-Z]/.test(x) && /[0-9]/.test(x) && (x.match(/[A-Z]+|[0-9]+/g) || []).every(cabe)));
+}
 const CAMPOS_FILTRO = [['filtro_concesionario', 'concesionario'], ['filtro_vendedor', 'vendedor'], ['filtro_modelo', 'modelo']];
 // r: el resultado de la consulta; ahí se anota qué nombres entraron en cada filtro, para que la AI lo diga
 function filtrar(l, a, r) {
@@ -180,14 +195,14 @@ const masDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDa
 // meses del período; las horas entre la primera y la última con movimiento; los 7 días de la semana.
 function gruposDelTiempo(por, l, fechaDe, per, hoy) {
   const fechas = l.map(fechaDe).filter(Boolean).sort();
-  const ini = per.conDesde ? per.desde : fechas[0], fin = per.tope === '9999-12-31' ? [hoy, fechas[fechas.length - 1] || hoy].sort()[1] : per.hasta;
+  const ini = per.conDesde ? per.desde : fechas[0], fin = per.hasta;
   if (por === 'dia_semana') return ORDEN_SEMANA.slice();
   if (por === 'hora') { const hs = l.map(x => x.hora).filter(h => h != null); if (!hs.length) return []; const out = []; for (let h = Math.min(...hs); h <= Math.max(...hs); h++) out.push(etiquetaHora(h)); return out; }
   if (!ini || !fin || ini > fin) return [];
   const dias = Math.round((Date.parse(fin + 'T12:00:00Z') - Date.parse(ini + 'T12:00:00Z')) / 864e5);
   const out = [];
-  if (por === 'dia') { if (dias > 400) return []; for (let f = ini; f <= fin; f = masDias(f, 1)) out.push(f); }
-  else if (por === 'semana') { if (dias > 800) return []; for (let f = lunesDe(ini); f <= fin; f = masDias(f, 7)) out.push('semana del lunes ' + f); }
+  if (por === 'dia') { if (dias > 2200) return []; for (let f = ini; f <= fin; f = masDias(f, 1)) out.push(f); }
+  else if (por === 'semana') { if (dias > 4000) return []; for (let f = lunesDe(ini); f <= fin; f = masDias(f, 7)) out.push('semana del lunes ' + f); }
   else if (por === 'quincena') { const qi = etiquetaQuincena(ini), qf = etiquetaQuincena(fin); for (let mm = ini.slice(0, 7); mm <= fin.slice(0, 7) && out.length < 400; mm = G.mesMas(mm, 1)) [mm + ' 1ª quincena', mm + ' 2ª quincena'].forEach(q => { if (q >= qi && q <= qf) out.push(q); }); }
   else if (por === 'mes' || por === 'mes_venta') { for (let m = ini.slice(0, 7); m <= fin.slice(0, 7) && out.length < 400; m = G.mesMas(m, 1)) out.push(m); }
   return out;
@@ -219,7 +234,7 @@ function agrupar(l, por, fechaDe, sumar, valor, a, o) {
   const omitidos = Math.max(0, grupos.length - max) + chicos;
   // en orden de fecha se quedan los más recientes (días, semanas, meses); en un ranking, los primeros
   grupos = orden === 'cronologico' && por !== 'dia_semana' && por !== 'hora' ? grupos.slice(-max) : grupos.slice(0, max);
-  return { grupos, omitidos, orden };
+  return { grupos, omitidos, orden, chicos };
 }
 const ORDEN_TXT = { mayor: 'de mayor a menor', menor: 'de menor a mayor', cronologico: 'en orden de fecha u hora' };
 const sumaDe = (l, k) => r2(l.reduce((s, x) => s + (+x[k] || 0), 0));
@@ -243,10 +258,11 @@ function notaGrupos(r, por, orden) {
 function ventas(D, a, hoy) {
   const per = periodo(a, hoy), emps = empresas(a), por = a.agrupar_por || 'nada';
   const r = { periodo: verPeriodo(per), empresa: nombreEmpresa(emps) };
+  const todas = filtrar(D.ventas.filter(v => emps.includes(v.empresa)), a, null);
   const l = filtrar(D.ventas.filter(v => emps.includes(v.empresa) && enPeriodo(v.fecha, per)), a, r);
   const n = l.length, precio = sumaDe(l, 'precio'), inicial = sumaDe(l, 'inicial');
   r.total = { motos_vendidas: n, financiado: sumaDe(l, 'financiado'), precio_promedio: n ? r2(precio / n) : 0, inicial_promedio: n ? r2(inicial / n) : 0, inicial_pct_del_precio: pct(inicial, precio), cuota_quincenal_promedio: n ? r2(sumaDe(l, 'cuota') / n) : 0 };
-  avisoFuturo(r, l, x => x.fecha, hoy, 'ventas');
+  avisoFuturo(r, todas, x => x.fecha, per, hoy, 'ventas', x => x.financiado);
   if (por !== 'nada') {
     const g = agrupar(l, por, x => x.fecha, (acc, x) => { acc.motos += 1; acc.financiado = r2(acc.financiado + x.financiado); }, x => x.motos, a,
       { vacio: { motos: 0, financiado: 0 }, todos: gruposEnCero(por, l, x => x.fecha, per, hoy, D, emps, a) });
@@ -261,10 +277,11 @@ function ventas(D, a, hoy) {
 function cobros(D, a, hoy) {
   const per = periodo(a, hoy), emps = empresas(a), por = a.agrupar_por || 'nada', tipo = a.tipo === 'cuotas' ? 'cuota' : a.tipo === 'iniciales' ? 'inicial' : '';
   const r = { periodo: verPeriodo(per), empresa: nombreEmpresa(emps), tipo: tipo ? (tipo === 'cuota' ? 'solo cuotas' : 'solo iniciales') : 'cuotas e iniciales' };
+  const todos = filtrar(D.cobros.filter(p => emps.includes(p.empresa) && (!tipo || p.tipo === tipo)), a, null);
   const l = filtrar(D.cobros.filter(p => emps.includes(p.empresa) && enPeriodo(p.fecha, per) && (!tipo || p.tipo === tipo)), a, r);
   const monto = sumaDe(l, 'monto');
   r.total = { cobrado: monto, pagos: l.length, cuotas: r2(l.filter(p => p.tipo === 'cuota').reduce((s, p) => s + p.monto, 0)), iniciales: r2(l.filter(p => p.tipo === 'inicial').reduce((s, p) => s + p.monto, 0)) };
-  avisoFuturo(r, l, x => x.fecha, hoy, 'pagos');
+  avisoFuturo(r, todos, x => x.fecha, per, hoy, 'pagos', x => x.monto);
   if (por !== 'nada') {
     const g = agrupar(l, por, x => x.fecha, (acc, x) => { acc.cobrado = r2(acc.cobrado + x.monto); acc.pagos += 1; }, x => x.cobrado, a,
       { vacio: { cobrado: 0, pagos: 0 }, todos: gruposEnCero(por, l, x => x.fecha, per, hoy, D, emps, a, tipo) });
@@ -293,18 +310,20 @@ function cartera(D, a) {
     r.grupos = g.grupos;
     if (g.omitidos) r.grupos_no_mostrados = g.omitidos;
     r.ordenado = g.orden === 'cronologico' ? ORDEN_TXT.cronologico : ORDEN_TXT[g.orden] + ' por ' + ({ creditos: 'créditos', cartera: 'dinero en la calle', en_mora: 'créditos en mora', pct_mora: '% en mora', vencido: 'monto vencido' }[ord] || ord);
-    if (ord === 'pct_mora' && g.orden !== 'cronologico') r.nota = 'Sin los grupos de menos de ' + minimo + ' créditos (con 1 o 2 el porcentaje engaña).';
+    if (g.chicos) r.nota = 'Sin ' + g.chicos + (g.chicos === 1 ? ' grupo' : ' grupos') + ' de menos de ' + minimo + ' créditos (con 1 o 2 el porcentaje engaña).';
   }
   return r;
 }
 // Buscar a una persona o un crédito: primero el número exacto, después el nombre completo y después
 // el nombre que empieza con lo buscado
+// El número de un crédito: letras (o nada) y el número: CRED-052 (la 18) o M-064 (la 26) → ['CRED', 52] / ['M', 64]
+const NUM_CRED = /^([A-Z]*)[\s-]*0*([0-9]+)$/;
 function puntajeBusqueda(v, buscado) {
-  const t = norm(buscado), id = norm(v.id), dq = (t.match(/\d+/g) || []).join(''), di = (id.match(/\d+/g) || []).join('');
-  if (id === t || (/^(CRED[\s-]*)?\d+$/.test(t) && dq && di && +dq === +di)) return 4;
+  const t = norm(buscado), id = norm(v.id), mq = NUM_CRED.exec(t), mi = NUM_CRED.exec(id);
+  if (id === t || (mq && mi && +mq[2] === +mi[2] && (!mq[1] || mq[1] === mi[1]))) return 4;
   if (norm(v.cliente) === t) return 3;
   if (casa(v.cliente, buscado)) return 2;
-  if (dq && id.indexOf(t) > -1) return 1;
+  if (/[0-9]/.test(t) && id.indexOf(t) > -1) return 1;
   return 0;
 }
 function creditos(D, a, hoy) {
@@ -314,7 +333,10 @@ function creditos(D, a, hoy) {
   else if (est === 'activos') l = l.filter(v => v.activo);
   else if (est === 'completados') l = l.filter(v => v.estado === 'completado');
   const pts = new Map();
-  if (a.buscar) { l = l.filter(v => { const p = puntajeBusqueda(v, a.buscar); if (p) pts.set(v, p); return p > 0; }); }
+  if (a.buscar) {
+    l = l.filter(v => { const p = puntajeBusqueda(v, a.buscar); if (p) pts.set(v, p); return p > 0; });
+    if (l.some(v => pts.get(v) === 4)) l = l.filter(v => pts.get(v) > 1);      // con el número exacto, nada «parecido» (M-64 no trae M-640)
+  }
   if (a.vendidos_desde || a.vendidos_hasta) { const per = periodo({ desde: a.vendidos_desde, hasta: a.vendidos_hasta }, hoy); l = l.filter(v => enPeriodo(v.fecha, per)); }
   const r = {};
   l = filtrar(l, a, r);
@@ -343,6 +365,7 @@ function puntualidad(D, a, hoy) {
     r.grupos = g.grupos.map(conPct);
     if (g.omitidos) r.grupos_no_mostrados = g.omitidos;
     r.ordenado = ORDEN_TXT[g.orden] || g.orden;
+    if (g.chicos) r.nota_minimo = 'Sin ' + g.chicos + (g.chicos === 1 ? ' grupo' : ' grupos') + ' de menos de ' + Math.max(1, parseInt(a.minimo, 10) || 20) + ' cuotas (con pocas el porcentaje engaña).';
   }
   return r;
 }
@@ -363,7 +386,7 @@ function unGrafico(a) {
   const series = entrada.map((s0, k) => {
     const nombre = txtCorto(s0 && s0.nombre, 40) || 'Serie ' + (k + 1), vals = Array.isArray(s0 && s0.valores) ? s0.valores : [];
     if (vals.length !== etiquetas.length) throw new ErrorConsulta('la serie «' + nombre + '» trae ' + vals.length + ' valores y hay ' + etiquetas.length + ' etiquetas');
-    return { nombre, valores: vals.map(v => { const x = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN); if (!isFinite(x)) throw new ErrorConsulta('«' + txtCorto(v, 20) + '» no es un número'); return r2(x); }) };
+    return { nombre, valores: vals.map(v => { const x = typeof v === 'number' ? v : (typeof v === 'string' && /^-?[0-9]+(\.[0-9]{1,2})?$/.test(v.trim()) ? Number(v.trim()) : NaN); if (!isFinite(x)) throw new ErrorConsulta('«' + txtCorto(v, 20) + '» no es un número: manda los valores como números (12500, no «12.500» ni «$12.500»)'); return r2(x); }) };
   });
   return { tipo, titulo: txtCorto(a.titulo, 80) || 'Gráfico', etiquetas, series, formato: ['dinero', 'numero', 'porcentaje'].includes(a.formato) ? a.formato : 'numero', apilado: a.apilado === true && tipo !== 'torta' && series.length > 1 };
 }
@@ -381,16 +404,17 @@ const EMPRESA = { type: 'string', enum: ['ambas', '18', '26'], description: 'amb
 const FECHA = d => ({ type: 'string', description: d + ' (AAAA-MM-DD, hora de Venezuela)' });
 const ORDEN = { type: 'string', enum: ['mayor', 'menor', 'cronologico'], description: 'mayor primero, menor primero o en orden de fecha/hora. Si no se dice: en orden de fecha al agrupar por día, semana, quincena o mes (y por hora o día de la semana sin «limite»); en los demás casos, mayor primero' };
 const LIMITE = { type: 'integer', minimum: 1, maximum: 62, description: 'cuántos grupos devolver (15 por defecto en rankings). El corte sigue el orden: en orden de fecha se quedan los más recientes; de mayor a menor, los mayores' };
+const HASTA = FECHA('último día (hoy si no se dice; lo anotado con fecha posterior a hoy se avisa en «aviso_fechas»)');
 const FILTROS = { filtro_concesionario: { type: 'string', description: 'solo ese concesionario (una o más palabras del nombre)' }, filtro_vendedor: { type: 'string', description: 'solo ese vendedor (nombre o apellido; la respuesta dice qué nombres entraron en «coinciden»)' }, filtro_modelo: { type: 'string', description: 'solo ese modelo de moto (una o más palabras del nombre)' } };
 const GRAFICO = { type: 'object', properties: { tipo: { type: 'string', enum: TIPOS_GRAFICO }, titulo: { type: 'string' }, etiquetas: { type: 'array', items: { type: 'string' }, maxItems: MAX_ETIQUETAS },
   series: { type: 'array', maxItems: 3, items: { type: 'object', properties: { nombre: { type: 'string' }, valores: { type: 'array', items: { type: 'number' } } }, required: ['nombre', 'valores'] } },
   formato: { type: 'string', enum: ['dinero', 'numero', 'porcentaje'] }, apilado: { type: 'boolean' } }, required: ['tipo', 'titulo', 'etiquetas', 'series'] };
 const HERRAMIENTAS = [
   { name: 'ventas', description: 'Motos vendidas (créditos otorgados, sin anulados ni solicitudes sin aprobar) en un período: cuántas, cuánto se financió, precio, inicial y cuota promedio; y agrupadas. Para: cuántas se vendieron, qué concesionario/vendedor/modelo vendió más, a qué hora o qué día de la semana se vende más, ventas por día/semana/mes, comparar PAGASI 18 y 26. Los días, semanas, meses, horas, días de la semana y concesionarios sin ventas salen con 0.',
-    input_schema: { type: 'object', properties: Object.assign({ empresa: EMPRESA, desde: FECHA('primer día'), hasta: FECHA('último día (sin tope si no se dice)'),
+    input_schema: { type: 'object', properties: Object.assign({ empresa: EMPRESA, desde: FECHA('primer día'), hasta: HASTA,
       agrupar_por: { type: 'string', enum: ['nada', 'dia', 'semana', 'quincena', 'mes', 'hora', 'dia_semana', 'concesionario', 'vendedor', 'modelo', 'marca', 'empresa', 'plazo'] }, orden: ORDEN, limite: LIMITE }, FILTROS) } },
   { name: 'cobros', description: 'Lo cobrado (pagos confirmados) en un período, cuotas e iniciales, y agrupado: por día, semana, quincena, mes, hora en que se registró, día de la semana, forma de pago, tipo (cuotas o iniciales), concesionario, vendedor o modelo del crédito, o compañía. Los días, semanas, meses, horas, días de la semana y concesionarios sin cobros salen con 0.',
-    input_schema: { type: 'object', properties: Object.assign({ empresa: EMPRESA, desde: FECHA('primer día'), hasta: FECHA('último día (sin tope si no se dice)'), tipo: { type: 'string', enum: ['todo', 'cuotas', 'iniciales'] },
+    input_schema: { type: 'object', properties: Object.assign({ empresa: EMPRESA, desde: FECHA('primer día'), hasta: HASTA, tipo: { type: 'string', enum: ['todo', 'cuotas', 'iniciales'] },
       agrupar_por: { type: 'string', enum: ['nada', 'dia', 'semana', 'quincena', 'mes', 'hora', 'dia_semana', 'metodo', 'tipo', 'concesionario', 'vendedor', 'modelo', 'empresa'] }, orden: ORDEN, limite: LIMITE }, FILTROS) } },
   { name: 'cartera', description: 'La cartera de HOY (créditos activos: al día o en mora): cuántos créditos, dinero en la calle (lo que falta por cobrar), cuántos en mora, % en mora y monto vencido; agrupada por compañía, concesionario, vendedor, modelo, tramo de días de atraso, mes de venta o plazo. Para: qué concesionario tiene más mora, cuánto hay en la calle, cómo está la mora.',
     input_schema: { type: 'object', properties: Object.assign({ empresa: EMPRESA, agrupar_por: { type: 'string', enum: ['nada', 'empresa', 'concesionario', 'vendedor', 'modelo', 'tramo_mora', 'mes_venta', 'plazo'] },

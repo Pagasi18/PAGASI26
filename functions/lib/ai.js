@@ -32,6 +32,13 @@ const MAX_PREGUNTA = 1000;
 // (8 vueltas con toda la salida: Sonnet 8 × 8.000 × $10/M ≈ $0,64 + la entrada; Opus 8 × 12.000 × $20/M ≈ $1,92 + la entrada)
 const RESERVA = { normal: 0.9, maxima: 2.4 };
 const reservaDe = calidad => RESERVA[calidad] || RESERVA.normal;
+// Lo más que puede costar UNA vuelta (toda la salida + la entrada, casi toda guardada): no se empieza una
+// vuelta que no quepa en lo apartado para la pregunta, ni se aparta menos que esto
+function costoVueltaDe(calidad) {
+  const q = CALIDADES[calidad] || CALIDADES.normal, p = cerebro.PRECIOS[q.modelo] || cerebro.PRECIOS['claude-sonnet-5-5'];
+  return Math.round((q.tope * p.salida + 30000 * p.leida + 6000 * p.entrada) / 1e6 * 1e4) / 1e4;
+}
+const NOTA_CORTADA = '\n\n_(La respuesta se cortó por larga.)_';
 
 const SISTEMA = `Eres «AI», la analista de datos de PAGASI para los administradores de la empresa. Contestas preguntas sobre los números del negocio usando SOLO las consultas (herramientas) que tienes.
 
@@ -106,8 +113,15 @@ async function llamar(f, apiKey, cuerpo, gasto, ms) {
     if (gasto && j && j.usage) cerebro.sumarUso(gasto, j.usage, cuerpo.model);
     return { ok: r.ok, status: r.status, j };
   } catch (e) {
-    const err = new Error(e && e.name === 'AbortError' ? 'Claude tardó demasiado' : 'No se pudo hablar con Claude: ' + String(e && e.message || e).slice(0, 120));
-    err.codigo = e && e.name === 'AbortError' ? 'tiempo' : 'red';
+    const corte = !!(e && e.name === 'AbortError');
+    // Anthropic cobra lo que alcanzó a leer y escribir aunque se corte: se anota lo más que pudo costar
+    if (corte && gasto) {
+      const p = cerebro.PRECIOS[cuerpo.model] || cerebro.PRECIOS['claude-sonnet-5-5'], ent = Math.round(JSON.stringify(cuerpo).length / 3.5);
+      gasto.llamadas++; gasto.cortadas = (gasto.cortadas || 0) + 1; gasto.cacheLeida += ent; gasto.salida += cuerpo.max_tokens || 0;
+      gasto.costo += (ent * p.leida + (cuerpo.max_tokens || 0) * p.salida) / 1e6;
+    }
+    const err = new Error(corte ? 'Claude tardó demasiado' : 'No se pudo hablar con Claude: ' + String(e && e.message || e).slice(0, 120));
+    err.codigo = corte ? 'tiempo' : 'red';
     throw err;
   } finally { if (reloj) clearTimeout(reloj); }
 }
@@ -122,7 +136,8 @@ function errorClaude(r) {
   return e;
 }
 
-// deps: { apiKey, fetchImpl, datos: async () => D, hoy, ahora (Date), calidad, reloj, plazo (hora límite en ms) }
+// deps: { apiKey, fetchImpl, datos: async () => D, hoy, ahora (Date), calidad, reloj, plazo (hora límite en ms),
+//         presupuesto (lo apartado del tope diario para esta pregunta, en dólares) }
 async function preguntar(deps, entrada) {
   const pregunta = String((entrada && entrada.pregunta) == null ? '' : entrada.pregunta).replace(/[\u0000-\u0008\u000B-\u001F]/g, '').trim();
   if (!pregunta) { const e = new Error('Escribe una pregunta.'); e.codigo = 'entrada'; throw e; }
@@ -133,6 +148,7 @@ async function preguntar(deps, entrada) {
   const q = JSON.parse(JSON.stringify(CALIDADES[deps.calidad] || CALIDADES.normal));   // copia: un reintento no cambia la de todos
   const f = deps.fetchImpl || fetch;
   const gasto = { llamadas: 0, entrada: 0, salida: 0, cacheLeida: 0, cacheEscrita: 0, costo: 0 };
+  const costoVuelta = costoVueltaDe(deps.calidad);
   try { return await conversar(); }
   catch (e) { e.gasto = gasto; throw e; }               // lo gastado antes del error también se anota
   async function conversar() {
@@ -140,58 +156,83 @@ async function preguntar(deps, entrada) {
   const ctx = { D, hoy: deps.hoy, usadas: [] };
   const mensajes = turnosPrevios(entrada.historial).concat([{ role: 'user', content: [{ type: 'text', text: '[Hoy es ' + fechaHoyTxt(deps.ahora || new Date()) + '.]\n\n' + pregunta }] }]);
   const queda = () => plazo - reloj();
+  const alcanza = () => deps.presupuesto == null || gasto.costo + costoVuelta <= deps.presupuesto;
+  const textoDe = u => String(u && u.input && u.input.texto != null ? u.input.texto : '').trim();
+  // Los resultados de las consultas de una vuelta («responder» se contesta con «msgResponder»)
+  const resultados = (usos, msgResponder) => usos.map(u => {
+    if (u.name === 'responder') return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: msgResponder };
+    let salida, error = false;
+    try { salida = consultas.ejecutar(u.name, u.input, ctx); }
+    catch (e) { error = true; salida = { error: e instanceof consultas.ErrorConsulta ? e.message : 'La consulta falló: ' + String(e && e.message || e).slice(0, 120) }; }
+    const b = { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(salida).slice(0, 30000) };
+    if (error) b.is_error = true;
+    return b;
+  });
+  // Una respuesta ya escrita a la que se le pidió un arreglo (un gráfico malo, o se cortó por larga): si lo que
+  // sigue falla (tiempo, Claude ocupado, se niega…), sale esta en vez de un error (revisión 21-nov)
+  let respaldo = null;
   let texto = '', graficos = [], rondas = 0, cortado = '';
-  for (; rondas < RONDAS; rondas++) {
-    if (queda() < VUELTA_MIN_MS) { cortado = 'tiempo'; break; }
-    const cuerpo = cuerpoDe(q, mensajes);
-    let r = await llamar(f, deps.apiKey, cuerpo, gasto, queda() - 2000);
-    // Si esta versión de la API no acepta el esfuerzo, se va sin ese parámetro (como el cerebro de Paola)
-    if (!r.ok && r.status === 400 && cuerpo.output_config && /effort|output_config/i.test(String(r.j.error && r.j.error.message || ''))) {
-      delete cuerpo.output_config; q.extra = {};
+  try {
+    for (; rondas < RONDAS; rondas++) {
       if (queda() < VUELTA_MIN_MS) { cortado = 'tiempo'; break; }
-      r = await llamar(f, deps.apiKey, cuerpo, gasto, queda() - 2000);
+      if (rondas > 0 && !alcanza()) { cortado = 'presupuesto'; break; }
+      const cuerpo = cuerpoDe(q, mensajes);
+      let r = await llamar(f, deps.apiKey, cuerpo, gasto, queda() - 2000);
+      // Si esta versión de la API no acepta el esfuerzo, se va sin ese parámetro (como el cerebro de Paola)
+      if (!r.ok && r.status === 400 && cuerpo.output_config && /effort|output_config/i.test(String(r.j.error && r.j.error.message || ''))) {
+        delete cuerpo.output_config; q.extra = {};
+        if (queda() < VUELTA_MIN_MS) { cortado = 'tiempo'; break; }
+        r = await llamar(f, deps.apiKey, cuerpo, gasto, queda() - 2000);
+      }
+      if (!r.ok) throw errorClaude(r);
+      const j = r.j || {}, bloques = Array.isArray(j.content) ? j.content : [];
+      if (j.stop_reason === 'refusal') { if (!respaldo) texto = 'Esa pregunta no la puedo contestar.'; break; }
+      const usos = bloques.filter(b => b && b.type === 'tool_use');
+      const fin = usos.find(u => u.name === 'responder');
+      const otraVuelta = (veces) => queda() >= veces * VUELTA_MIN_MS && rondas + 1 < RONDAS && alcanza();
+      if (j.stop_reason === 'max_tokens') {
+        // Se cortó escribiendo. Si fue dentro de las herramientas y queda con qué, se le pide más corta una vez;
+        // lo que alcanzó a escribir queda de respaldo. Si no, vale lo que alcanzó.
+        const t = textoDe(fin), v = fin ? consultas.validarGraficos(fin.input && fin.input.graficos) : { graficos: [] };
+        if (usos.length && !respaldo && otraVuelta(2)) {
+          if (t) respaldo = { texto: t + NOTA_CORTADA, graficos: v.graficos };
+          mensajes.push({ role: 'assistant', content: bloques });
+          // nada de lo que se cortó se ejecuta (la consulta pudo quedar a medias): todo vuelve como error
+          mensajes.push({ role: 'user', content: usos.map(u => ({ type: 'tool_result', tool_use_id: u.id, is_error: true, content: u.name === 'responder' ? 'Tu respuesta se cortó por larga. Vuelve a llamar a «responder» más corta: el texto en pocas líneas y como mucho un gráfico de hasta 31 puntos.' : 'Esta consulta se cortó al escribirla: pídela otra vez si la necesitas.' })) });
+          continue;
+        }
+        texto = t || bloques.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
+        graficos = v.graficos; cortado = 'largo'; break;
+      }
+      // La respuesta final: «responder» sola. Si un gráfico viene mal y queda con qué, se le pide UNA vez que lo arregle
+      if (fin && usos.length === 1) {
+        const t = textoDe(fin), v = consultas.validarGraficos(fin.input && fin.input.graficos);
+        if (t && !v.errores.length) { texto = t; graficos = v.graficos; break; }
+        if (!(t ? !respaldo && otraVuelta(2) : otraVuelta(1))) { if (t) { texto = t; graficos = v.graficos; } break; }   // sin el gráfico malo
+        if (t) respaldo = { texto: t, graficos: v.graficos };
+        mensajes.push({ role: 'assistant', content: bloques });
+        mensajes.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: fin.id, is_error: true, content: !t ? 'Falta el texto de la respuesta: vuelve a llamar a «responder» con el texto completo.' : 'Arregla esto y vuelve a llamar a «responder» con el texto completo: ' + v.errores.join(' · ') }] });
+        continue;
+      }
+      if (usos.length) {
+        mensajes.push({ role: 'assistant', content: bloques });          // tal cual (con su razonamiento)
+        mensajes.push({ role: 'user', content: resultados(usos, 'Todavía no: primero mira los resultados de las otras consultas y después llama a «responder» sola.') });
+        continue;
+      }
+      // Terminó sin «responder»: vale el texto que haya escrito
+      texto = bloques.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
+      break;
     }
-    if (!r.ok) throw errorClaude(r);
-    const j = r.j || {}, bloques = Array.isArray(j.content) ? j.content : [];
-    if (j.stop_reason === 'refusal') { texto = 'Esa pregunta no la puedo contestar.'; break; }
-    const usos = bloques.filter(b => b && b.type === 'tool_use');
-    const fin = usos.find(u => u.name === 'responder');
-    const textoDe = u => String(u && u.input && u.input.texto != null ? u.input.texto : '').trim();
-    if (j.stop_reason === 'max_tokens') {                                 // se cortó escribiendo: vale lo que alcanzó
-      texto = textoDe(fin) || bloques.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
-      if (fin) graficos = consultas.validarGraficos(fin.input && fin.input.graficos).graficos;
-      cortado = 'largo'; break;
-    }
-    // La respuesta final: «responder» sola. Si un gráfico viene mal y queda tiempo, se le pide que lo arregle.
-    if (fin && usos.length === 1) {
-      const t = textoDe(fin), v = consultas.validarGraficos(fin.input && fin.input.graficos);
-      const puedeCorregir = queda() >= VUELTA_MIN_MS && rondas + 1 < RONDAS;
-      if (t && (!v.errores.length || !puedeCorregir)) { texto = t; graficos = v.graficos; break; }
-      mensajes.push({ role: 'assistant', content: bloques });
-      mensajes.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: fin.id, is_error: true, content: !t ? 'Falta el texto de la respuesta: vuelve a llamar a «responder» con el texto completo.' : 'Arregla esto y vuelve a llamar a «responder» con el texto completo: ' + v.errores.join(' · ') }] });
-      continue;
-    }
-    if (usos.length) {
-      mensajes.push({ role: 'assistant', content: bloques });          // tal cual (con su razonamiento)
-      mensajes.push({ role: 'user', content: usos.map(u => {
-        if (u.name === 'responder') return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: 'Todavía no: primero mira los resultados de las otras consultas y después llama a «responder» sola.' };
-        let salida, error = false;
-        try { salida = consultas.ejecutar(u.name, u.input, ctx); }
-        catch (e) { error = true; salida = { error: e instanceof consultas.ErrorConsulta ? e.message : 'La consulta falló: ' + String(e && e.message || e).slice(0, 120) }; }
-        const b = { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(salida).slice(0, 30000) };
-        if (error) b.is_error = true;
-        return b;
-      }) });
-      continue;
-    }
-    // Terminó sin «responder»: vale el texto que haya escrito
-    texto = bloques.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
-    break;
+  } catch (e) {
+    if (!respaldo) throw e;            // ya había una respuesta escrita: sale esa
+    texto = '';
   }
   if (rondas >= RONDAS) cortado = 'rondas';
+  if (!texto && respaldo) { texto = respaldo.texto; graficos = respaldo.graficos; cortado = ''; }
   if (!texto) texto = cortado === 'tiempo' ? 'La pregunta llevó demasiadas consultas y se acabó el tiempo. Prueba con algo más concreto (por ejemplo, un período más corto).'
+    : cortado === 'presupuesto' ? 'Se llegó al tope de gasto de la AI de hoy mientras buscaba la respuesta. Mañana vuelve a funcionar.'
     : 'No llegué a una respuesta con esas consultas. Prueba preguntarlo de otra forma o más concreto.';
-  else if (cortado === 'largo') texto += '\n\n_(La respuesta se cortó por larga.)_';
+  else if (cortado === 'largo') texto += NOTA_CORTADA;
   return { respuesta: texto.slice(0, 12000), graficos, consultas: ctx.usadas, rondas: gasto.llamadas, gasto, ms: reloj() - t0 };
   }
 }
@@ -215,8 +256,9 @@ const MENSAJES = {
   red: 'No se pudo hablar con Claude. Prueba otra vez en un minuto.',
   topeDia: 'Ya se llegó al tope de gasto de la AI por hoy. Mañana vuelve a funcionar (el tope se cambia en config/asistente.topeAIdia).',
   apagada: 'La AI está apagada por ahora (el tope de gasto diario está en 0).',
+  enCurso: 'Hay otras preguntas a la AI en curso y el tope de gasto de hoy está casi lleno. Prueba otra vez en un minuto.',
   claude: 'Claude no pudo contestar esta vez. Prueba otra vez.',
   error: 'No se pudo contestar esta vez. Prueba otra vez en un minuto.'
 };
 
-module.exports = { preguntar, puedeUsar, tope, olvidarTopes, MENSAJES, SISTEMA, CALIDADES, RONDAS, PLAZO_MS, VUELTA_MIN_MS, LLAMADA_MS, reservaDe, turnosPrevios, fechaHoyTxt, cuerpoDe, errorClaude, MAX_PREGUNTA };
+module.exports = { preguntar, puedeUsar, tope, olvidarTopes, MENSAJES, SISTEMA, CALIDADES, RONDAS, PLAZO_MS, VUELTA_MIN_MS, LLAMADA_MS, reservaDe, costoVueltaDe, NOTA_CORTADA, turnosPrevios, fechaHoyTxt, cuerpoDe, errorClaude, MAX_PREGUNTA };
