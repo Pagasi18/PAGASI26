@@ -150,6 +150,9 @@ function toggleDark(){
     if(typeof renderMoraChart==='function') renderMoraChart();
     if(typeof renderCredChart==='function') renderCredChart();
     if(typeof renderFinIngChart==='function') renderFinIngChart();
+    // PAGASI 18 + 26 y AI (21-nov-2026): sus gráficos también cambian de colores
+    if(typeof grupoGraficos==='function' && typeof S!=='undefined' && S.page==='grupo') grupoGraficos({ sinAnimar: true });
+    if(typeof aiGraficos==='function' && typeof S!=='undefined' && S.page==='ai') aiGraficos();
   }, 120);
   // Retry in case canvas not ready on first paint
   setTimeout(function(){

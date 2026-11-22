@@ -17,11 +17,13 @@
      tramos     los créditos en mora por días de atraso (1-15, 16-30, 31-60, +60) y su vencido
      semana     las cuotas que vencen de hoy a 6 días y lo que falta de ellas
      historico  desde el principio: motos vendidas, financiado, terminaron de pagar, recuperadas
-     dias       lo cobrado cada día de los últimos 30
+     dias       cada uno de los últimos 135 días: lo cobrado (cuotas, iniciales) y las motos vendidas
+                (alcanza para los botones Día / Quinc. / Mes de los gráficos)
      puntualidad  las cuotas que vencieron cada mes (últimos 6): cuánto se pagó a tiempo (hasta el
-                día que vencía), cuánto tarde y cuánto sigue sin pagar
+                día que vencía), cuánto tarde y cuánto sigue sin pagar; puntualidadQ: lo mismo por quincena (8)
      cosechas   las motos vendidas cada mes y cuántas de ellas están hoy en mora
-     metodos    lo cobrado este mes por forma de pago (banco, Binance, efectivo, Zelle, concesionario)
+     metodos    lo cobrado este mes por forma de pago (banco, Binance, efectivo, Zelle, concesionario);
+                metodosPor: lo mismo de hoy, de los últimos 7 días y del mes
      promedio   las ventas de los últimos 90 días: sumas de precio, inicial, cuota y plazo (la pantalla divide)
      concesionarios, modelos   las ventas por concesionario y por modelo (no se suman: van por compañía)
 
@@ -127,7 +129,11 @@
 
   var MESES = 12;                                             // los meses de los gráficos, contando el de hoy
   var MESES_PUNTUALIDAD = 6;                                  // los meses de «cómo se pagan las cuotas»
-  var DIAS = 30;                                              // los días de «cobrado día por día»
+  // Los días de los gráficos: con 135 alcanza para «Día» (30) y para armar «Quinc.» (8 quincenas)
+  // en la pantalla, igual que los botones Día / Quinc. / Mes del Dashboard (21-nov, Adam: "quiero
+  // los charts interactivos como el dashboard")
+  var DIAS = 135;
+  var QUINCENAS = 8;                                          // «cómo se pagan las cuotas» por quincena
   // Cuándo un crédito fue una venta: lo que no se anuló ni se quedó en solicitud
   var NO_ES_VENTA = ['cancelado','rechazado','rechazada','pendiente_revision'];
   // Los tramos de la mora, los mismos del Dashboard (días de atraso)
@@ -145,6 +151,10 @@
     return 'otros';
   }
   var limpio = function(s){ return String(s == null ? '' : s).trim().replace(/\s+/g, ' ').toUpperCase(); };
+  // La quincena de una fecha: 'AAAA-MM-1' (del 1 al 15) o 'AAAA-MM-2' (del 16 al fin de mes)
+  function quincenaDe(iso){ return String(iso).slice(0, 7) + '-' + (+String(iso).slice(8, 10) <= 15 ? '1' : '2'); }
+  function quincenaAntes(q){ return q.slice(-1) === '2' ? q.slice(0, 7) + '-1' : mesMas(q.slice(0, 7), -1) + '-2'; }
+  var metodosVacio = function(){ var o = {}; METODOS.forEach(function(m){ o[m] = 0; }); return o; };
 
   // creds y pagos: los documentos de la base, cada uno con su id. opts: hoy ('AAAA-MM-DD' en
   // Venezuela), gracia (días de gracia de la compañía; 5 si no se dice), ledger (CreditoLedger) y
@@ -162,19 +172,21 @@
     var hace7 = conFecha ? sumarDias(hoy, -6) : '', en7 = conFecha ? sumarDias(hoy, 6) : '', hace90 = conFecha ? sumarDias(hoy, -89) : '';
     var mesAnt = conFecha ? mesMas(mesHoy, -1) : '';
     var mesAntAFecha = conFecha ? mesAnt + '-' + p2(Math.min(+hoy.slice(8, 10), diasDelMes(mesAnt))) : '';
-    var meses = [], iMes = {}, cosechas = [], puntualidad = [], iPunt = {}, dias = [], iDia = {};
+    var meses = [], iMes = {}, cosechas = [], puntualidad = [], iPunt = {}, dias = [], iDia = {}, puntualidadQ = [], iPuntQ = {};
     for(var k = MESES - 1; conFecha && k >= 0; k--){
       var mk = mesMas(mesHoy, -k); iMes[mk] = meses.length;
       meses.push({ mes: mk, cuotas: 0, iniciales: 0, ventas: 0, financiado: 0 });
       cosechas.push({ mes: mk, vendidos: 0, activos: 0, enMora: 0, mas30: 0 });
     }
     for(k = MESES_PUNTUALIDAD - 1; conFecha && k >= 0; k--){ var mp = mesMas(mesHoy, -k); iPunt[mp] = puntualidad.length; puntualidad.push({ mes: mp, cuotas: 0, monto: 0, aTiempo: 0, tarde: 0, sinPagar: 0 }); }
-    for(k = DIAS - 1; conFecha && k >= 0; k--){ var dk = sumarDias(hoy, -k); iDia[dk] = dias.length; dias.push({ dia: dk, cuotas: 0, iniciales: 0 }); }
+    for(k = DIAS - 1; conFecha && k >= 0; k--){ var dk = sumarDias(hoy, -k); iDia[dk] = dias.length; dias.push({ dia: dk, cuotas: 0, iniciales: 0, ventas: 0, financiado: 0 }); }
+    var qs = []; for(var qq = conFecha ? quincenaDe(hoy) : ''; conFecha && qs.length < QUINCENAS; qq = quincenaAntes(qq)) qs.unshift(qq);
+    qs.forEach(function(q){ iPuntQ[q] = puntualidadQ.length; puntualidadQ.push({ quincena: q, cuotas: 0, monto: 0, aTiempo: 0, tarde: 0, sinPagar: 0 }); });
     var cobro = { hoy: cobroVacio(), semana: cobroVacio(), mes: cobroVacio(), mesPasadoAFecha: cobroVacio(), mesPasado: cobroVacio(), total: cobroVacio() };
     var tramos = TRAMOS.map(function(t){ return { tramo: t[0], creditos: 0, vencido: 0 }; });
     var semana = { cuotas: 0, monto: 0 };
     var historico = { vendidos: 0, financiado: 0, terminados: 0, recuperados: 0 };
-    var metodos = {}; METODOS.forEach(function(m){ metodos[m] = 0; });
+    var metodos = metodosVacio(), metodosPor = { hoy: metodosVacio(), semana: metodosVacio(), mes: metodos };
     var promedio = { ventas: 0, precio: 0, inicial: 0, cuota: 0, plazo: 0 };
     var nomConc = {}; (opts.concesionarios || []).forEach(function(x){ if(x && x.id != null) nomConc[String(x.id)] = String(x.nombre || '').trim(); });
     var porConc = {}, porModelo = {};
@@ -187,9 +199,10 @@
       var tipo = (p.esInicial || p.tipoOperacion === 'inicial_credito') ? 'iniciales' : 'cuotas', f = fechaTxt(p.fecha);
       cobro.total[tipo] += m;
       if(!f || !conFecha) return;
-      if(f === hoy) cobro.hoy[tipo] += m;
-      if(f >= hace7 && f <= hoy) cobro.semana[tipo] += m;
-      if(f >= mesIni){ cobro.mes[tipo] += m; metodos[metodoDe(p.metodo)] += m; }   // igual que «Cobrado» del Dashboard
+      var mt = metodoDe(p.metodo);
+      if(f === hoy){ cobro.hoy[tipo] += m; metodosPor.hoy[mt] += m; }
+      if(f >= hace7 && f <= hoy){ cobro.semana[tipo] += m; metodosPor.semana[mt] += m; }
+      if(f >= mesIni){ cobro.mes[tipo] += m; metodos[mt] += m; }   // igual que «Cobrado» del Dashboard
       if(f.slice(0, 7) === mesAnt){ cobro.mesPasado[tipo] += m; if(f <= mesAntAFecha) cobro.mesPasadoAFecha[tipo] += m; }
       var i = iMes[f.slice(0, 7)];
       if(i != null) meses[i][tipo] += m;
@@ -208,6 +221,8 @@
       if(vendido){
         var fin = parseFloat(c0.fin) || 0, fv = fechaTxt(c0.fecha), iv = iMes[fv.slice(0, 7)];
         historico.vendidos++; historico.financiado += fin;
+        var idv = iDia[fv];
+        if(idv != null){ dias[idv].ventas++; dias[idv].financiado += fin; }
         if(iv != null){
           meses[iv].ventas++; meses[iv].financiado += fin;
           // la «cosecha»: cómo están hoy las motos vendidas ese mes
@@ -227,12 +242,15 @@
         // ── Cómo se pagaron las cuotas que vencieron (por el mes en que vencían) ──
         if(est && conFecha) (est.cuotas || []).forEach(function(q){
           if(!q || !q.fechaVence || q.fechaVence >= hoy) return;
-          var ip = iPunt[q.fechaVence.slice(0, 7)];
-          if(ip == null) return;
-          var x = puntualidad[ip], aTiempo = 0;
+          var ip = iPunt[q.fechaVence.slice(0, 7)], iq = iPuntQ[quincenaDe(q.fechaVence)];
+          if(ip == null && iq == null) return;
+          var aTiempo = 0;
           (q.aplicaciones || []).forEach(function(a){ if(String(a.fecha || '').slice(0, 10) <= q.fechaVence) aTiempo += parseFloat(a.monto) || 0; });
           aTiempo = Math.min(aTiempo, q.pagado || 0);
-          x.cuotas++; x.monto += q.monto || 0; x.aTiempo += aTiempo; x.tarde += Math.max(0, (q.pagado || 0) - aTiempo); x.sinPagar += Math.max(0, q.saldo || 0);
+          [ip != null ? puntualidad[ip] : null, iq != null ? puntualidadQ[iq] : null].forEach(function(x){
+            if(!x) return;
+            x.cuotas++; x.monto += q.monto || 0; x.aTiempo += aTiempo; x.tarde += Math.max(0, (q.pagado || 0) - aTiempo); x.sinPagar += Math.max(0, q.saldo || 0);
+          });
         });
       }
       if(guardado === 'recuperado' || guardado === 'recuperada') historico.recuperados++;
@@ -257,17 +275,19 @@
     var redondear = function(lista, campos){ lista.forEach(function(x){ campos.forEach(function(k){ x[k] = centavos(x[k]); }); }); };
     redondear(Object.keys(cobro).map(function(k){ return cobro[k]; }), ['cuotas', 'iniciales']);
     redondear(meses, ['cuotas', 'iniciales', 'financiado']);
-    redondear(dias, ['cuotas', 'iniciales']);
+    redondear(dias, ['cuotas', 'iniciales', 'financiado']);
     redondear(puntualidad, ['monto', 'aTiempo', 'tarde', 'sinPagar']);
+    redondear(puntualidadQ, ['monto', 'aTiempo', 'tarde', 'sinPagar']);
     redondear(tramos, ['vencido']);
     redondear([semana], ['monto']); redondear([historico], ['financiado']);
     redondear([promedio], ['precio', 'inicial', 'cuota', 'plazo']);
-    METODOS.forEach(function(m){ metodos[m] = centavos(metodos[m]); });
+    ['hoy', 'semana', 'mes'].forEach(function(k){ METODOS.forEach(function(m){ metodosPor[k][m] = centavos(metodosPor[k][m]); }); });
     r.cobro = cobro; r.meses = meses; r.tramos = tramos; r.semana = semana; r.historico = historico;
-    r.dias = dias; r.puntualidad = puntualidad; r.cosechas = cosechas; r.metodos = metodos; r.promedio = promedio;
+    // «dias» sigue con los últimos 30: la pantalla publicada antes del 21-nov lo suma como «En 30 días»
+    r.dias = dias.slice(-30); r.diasLargo = dias; r.puntualidad = puntualidad; r.puntualidadQ = puntualidadQ; r.cosechas = cosechas; r.metodos = metodos; r.metodosPor = metodosPor; r.promedio = promedio;
     // Los concesionarios y los modelos van por compañía (la pantalla los junta por su clave)
     r.concesionarios = Object.keys(porConc).map(function(k){ return porConc[k]; }).sort(function(a, b){ return b.vendidos - a.vendidos || a.conc.localeCompare(b.conc); });
-    r.modelos = Object.keys(porModelo).map(function(k){ return porModelo[k]; }).sort(function(a, b){ return b.vendidos - a.vendidos || a.modelo.localeCompare(b.modelo); }).slice(0, 15);
+    r.modelos = Object.keys(porModelo).map(function(k){ return porModelo[k]; }).sort(function(a, b){ return b.vendidos - a.vendidos || a.modelo.localeCompare(b.modelo); });   // todos: «Este mes» ordena por otra cifra
     return r;
   }
 
@@ -306,7 +326,11 @@
     return t;
   }
 
-  var api = { grupoResumen: grupoResumen, grupoSumar: grupoSumar, estadoHoy: estadoHoy, diaDe: diaDe, fechaTxt: fechaTxt };
+  // Las piezas sueltas también las usa el módulo AI del servidor (functions/lib/ai-consultas.js),
+  // para que sus cuentas sean las mismas de aquí y del Dashboard
+  var api = { grupoResumen: grupoResumen, grupoSumar: grupoSumar, estadoHoy: estadoHoy, diaDe: diaDe, fechaTxt: fechaTxt,
+    metodoDe: metodoDe, quincenaDe: quincenaDe, sumarDias: sumarDias, mesMas: mesMas, indicePagos: indicePagos, agruparPagos: agruparPagos,
+    saldoPendiente: saldoPendiente, estadoLedger: estadoLedger, vencidoDe: vencidoDe, NO_ES_VENTA: NO_ES_VENTA, TRAMOS: TRAMOS, METODOS: METODOS };
   if(root){ root.grupoResumen = grupoResumen; root.grupoSumar = grupoSumar; }
   if(typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : null);
