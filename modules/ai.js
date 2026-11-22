@@ -13,6 +13,8 @@ var AI_SUGERENCIAS = [
   ['Ventas', ['¿A qué hora se vende más?', '¿Qué concesionario vendió más hoy?', '¿Qué vendedor tuvo más ventas este mes?', '¿Qué modelo se vende más este mes?', '¿Qué día de la semana se vende más?']],
   ['Cobranza y mora', ['¿Cuánto se cobró esta semana en cada compañía?', '¿Cómo vamos este mes contra el mes pasado?', '¿Qué concesionario tiene más mora?', '¿Quiénes son los 10 clientes con más días de atraso?', '¿Cómo se pagan las cuotas: a tiempo o tarde?']]
 ];
+// Lo del equipo (quién entra y qué hace) solo lo ven los administradores, como el registro de actividad
+var AI_SUGERENCIAS_EQUIPO = ['Equipo', ['¿Quién entró hoy al sistema?', '¿Quién registró más pagos esta semana?', '¿Quién no ha entrado esta semana?']];
 var AI_COLORES = ['#2563EB', '#14B8A6', '#F59E0B', '#7C3AED', '#16A34A', '#F97316', '#E11D48', '#0EA5E9', '#A855F7', '#84CC16', '#94A3B8'];
 
 // La conversación sobrevive a recargar la página (solo en esta pestaña) y es de quien la hizo:
@@ -110,7 +112,7 @@ function _aiMensajeHtml(m, i){
 function _aiBienvenida(){
   return '<div class="ai-hola"><div class="ai-hola-ic" aria-hidden="true">AI</div><div class="ai-hola-t">¿Qué quieres saber?</div>'
     + '<div class="ai-hola-s">Pregunta como hablas. La AI busca en las ventas, la cobranza y la mora de PAGASI 18 y 26, hace las cuentas con el sistema y te lo explica.</div>'
-    + AI_SUGERENCIAS.map(function(g){ return '<div class="ai-sug-g"><div class="ai-sug-t">' + g[0] + '</div><div class="ai-sugs">' + g[1].map(function(s){ return '<button type="button" class="ai-sug" onclick="aiSugerencia(this)">' + _aiEsc(s) + '</button>'; }).join('') + '</div></div>'; }).join('')
+    + AI_SUGERENCIAS.concat(typeof isAdminUser === 'function' && isAdminUser() ? [AI_SUGERENCIAS_EQUIPO] : []).map(function(g){ return '<div class="ai-sug-g"><div class="ai-sug-t">' + g[0] + '</div><div class="ai-sugs">' + g[1].map(function(s){ return '<button type="button" class="ai-sug" onclick="aiSugerencia(this)">' + _aiEsc(s) + '</button>'; }).join('') + '</div></div>'; }).join('')
     + '</div>';
 }
 function _aiChatHtml(){

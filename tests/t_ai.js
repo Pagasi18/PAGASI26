@@ -182,7 +182,36 @@ ok('un valor escrito «12.500» (doce mil quinientos) no se dibuja como 12,5: vu
 ok('...hasta 62 etiquetas (lo mismo que trae una consulta por día); más, error para que agrupe — antes cortaba en silencio a 40', C.validarGraficos([{ tipo: 'linea', titulo: 't', etiquetas: Array.from({ length: 62 }, (_, i) => 'd' + i), series: [{ nombre: 's', valores: Array(62).fill(1) }] }]).graficos[0].etiquetas.length === 62 && /máximo es 62/.test(C.validarGraficos([{ tipo: 'linea', titulo: 't', etiquetas: Array(63).fill('d'), series: [{ nombre: 's', valores: Array(63).fill(1) }] }]).errores[0]));
 ok('...máximo 3 gráficos por respuesta', (() => { const v = C.validarGraficos(Array(4).fill(g1)); return v.graficos.length === 3 && /máximo es 3/.test(v.errores[0]) && C.validarGraficos(undefined).graficos.length === 0 && C.validarGraficos(undefined).errores.length === 0; })());
 ok('debajo de la respuesta se dice qué se consultó, en sencillo', (() => { const c = ctxC(); ej('ventas', { desde: HOY, hasta: HOY, agrupar_por: 'concesionario' }, c); ej('cobros', { empresa: '18', desde: '2026-11-01' }, c); return c.usadas.join(' | ') === 'ventas · por concesionario · hoy | cobros · PAGASI 18 · 2026-11-01 a hoy'; })());
-ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntualidad y «responder» (la respuesta y sus gráficos), cada una con su esquema', C.HERRAMIENTAS.map(h => h.name).join() === 'ventas,cobros,cartera,creditos,puntualidad,responder' && C.HERRAMIENTAS.every(h => h.description.length > 40 && h.input_schema.type === 'object') && C.HERRAMIENTAS[5].input_schema.required.join() === 'texto');
+ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntualidad, equipo y «responder» (la respuesta y sus gráficos), cada una con su esquema', C.HERRAMIENTAS.map(h => h.name).join() === 'ventas,cobros,cartera,creditos,puntualidad,equipo,responder' && C.HERRAMIENTAS.every(h => h.description.length > 40 && h.input_schema.type === 'object') && C.HERRAMIENTAS[6].input_schema.required.join() === 'texto');
+
+// ── El equipo: el registro de actividad (21-nov, Adam: «¿cuántas veces se ha metido Steven en el sistema?») ──
+const USU = [{ id: 'u1', nombre: 'Steven Ohayon', rol: 'Administrador' }, { id: 'u2', nombre: 'María Pérez', rol: 'Cobrador' }, { id: 'u3', nombre: 'Ana Gómez', rol: 'Vendedor', suspendido: true }, { id: 'a1', nombre: 'Aliado Toro', rol: 'Aliado' }, { id: 'u4', nombre: 'Borrado', rol: 'Cobrador', eliminado: true }];
+const LOGS = [
+  { uid: 'u1', userName: 'Steven', action: 'login', modulo: 'auth', timestamp: HOY + 'T14:00:00.000Z', target: 'u1', detalle: { rol: 'Administrador' } },     // hoy 10:00 am
+  { uid: 'u1', userName: 'Steven', action: 'login', modulo: 'auth', timestamp: dia(-1) + 'T23:30:00.000Z' },                                              // ayer 7:30 pm
+  { uid: 'u1', userName: 'Steven', action: 'login', modulo: 'auth', timestamp: HOY + 'T02:00:00.000Z' },                                                  // AYER 10 pm (UTC ya es hoy)
+  { uid: 'u2', userName: 'Maria', action: 'pago_registrado', modulo: 'pagos', timestamp: HOY + 'T15:00:00.000Z', target: 'PAG-1', detalle: { cliente: 'JUAN PEREZ' } },
+  { uid: 'u2', userName: 'Maria', action: 'pago_registrado', modulo: 'pagos', timestamp: HOY + 'T15:05:00.000Z' },
+  { uid: 'u2', userName: 'Maria', action: 'Nota de cobranza', modulo: 'cobranza', timestamp: HOY + 'T16:00:00.000Z' },
+  { uid: 'u2', userName: 'Maria', action: 'lento', modulo: 'diagnostico', timestamp: HOY + 'T16:01:00.000Z' },
+  { uid: 'u2', userName: 'Maria', action: 'login', modulo: 'auth', timestamp: dia(-40) + 'T13:00:00.000Z' },
+  { uid: 'u3', userName: 'Ana', action: 'login', modulo: 'auth', timestamp: dia(-10) + 'T13:00:00.000Z' },
+  { uid: 'zz', userName: 'Persona Vieja', action: 'login', modulo: 'auth', timestamp: dia(-2) + 'T13:00:00.000Z' }];
+const EQ18 = C.armarEquipo('18', USU, LOGS), EQ26 = C.armarEquipo('26', [{ id: 'k1', nombre: 'STEVEN OHAYON', rol: 'Administrador' }], [{ uid: 'k1', action: 'login', modulo: 'auth', timestamp: HOY + 'T18:00:00.000Z' }]);
+const DE = Object.assign({}, D, { equipo: { personas: EQ18.personas.concat(EQ26.personas), eventos: EQ18.eventos.concat(EQ26.eventos), desde: '2025-11-01' } });
+const eq = (a, extra) => C.ejecutar('equipo', a || {}, Object.assign({ D: DE, hoy: HOY, usadas: [] }, extra || {}));
+ok('el registro del equipo: el nombre de hoy de cada persona, la hora de Venezuela (02:00 UTC es la noche anterior), sin los aliados, los borrados ni los avisos de lentitud', EQ18.personas.map(p => p.nombre).join() === 'STEVEN OHAYON,MARIA PEREZ,ANA GOMEZ' && EQ18.eventos.length === 9 && !EQ18.eventos.some(e => e.accion === 'lento') && EQ18.eventos.filter(e => e.persona === 'STEVEN OHAYON').map(e => e.fecha + ' ' + e.hora).sort().join() === [dia(-1) + ' 19', dia(-1) + ' 22', HOY + ' 10'].sort().join() && EQ18.eventos.some(e => e.persona === 'PERSONA VIEJA'));
+ok('...y de cada anotación solo la hora, la persona y lo que hizo: nunca a quién ni el detalle (pueden traer nombres de clientes)', !/JUAN PEREZ|PAG-1|"target"|"detalle"/.test(JSON.stringify(EQ18)));
+const st = eq({ persona: 'steven' });
+ok('«¿cuántas veces entró Steven?»: suma las dos compañías, con su primera y última entrada y la nota de qué es una entrada', st.total.entradas === 4 && st.grupos.length === 1 && st.grupos[0].grupo === 'STEVEN OHAYON' && st.grupos[0].entradas === 4 && st.grupos[0].primera === dia(-1) + ' 19:30' && st.grupos[0].ultima === HOY + ' 14:00' && st.grupos[0].empresas.sort().join() === 'PAGASI 18,PAGASI 26' && st.coinciden.persona.join() === 'STEVEN OHAYON' && /abrió o recargó el sistema/.test(st.nota));
+const hoyEq = eq({ desde: HOY, hasta: HOY });
+ok('«¿quién entró hoy?»: los que entraron, y los del equipo que no entraron salen con 0 y su última entrada registrada (los suspendidos no salen)', hoyEq.total.entradas === 2 && hoyEq.grupos[0].grupo === 'STEVEN OHAYON' && hoyEq.grupos[0].entradas === 2 && hoyEq.grupos.find(g => g.grupo === 'MARIA PEREZ').entradas === 0 && hoyEq.grupos.find(g => g.grupo === 'MARIA PEREZ').ultima_entrada_registrada === dia(-40) + ' 09:00' && !hoyEq.grupos.some(g => g.grupo === 'ANA GOMEZ'));
+const ac = eq({ que: 'acciones', desde: HOY });
+ok('«¿qué hizo María hoy?» / «¿quién registró más pagos?»: lo que hizo cada quien, en sencillo, sin las entradas ni los avisos', ac.total.acciones === 3 && ac.grupos[0].grupo === 'MARIA PEREZ' && /registró un pago: 2/.test(ac.grupos[0].detalle) && /anotó una nota de cobranza: 1/.test(ac.grupos[0].detalle) && eq({ que: 'acciones', clase: 'pagos', desde: HOY }).total.acciones === 2 && eq({ que: 'acciones', clase: 'pagos', desde: HOY }).incluye.join() === 'registró un pago');
+ok('...por clase, sin mezclar: «pagos» no trae los acuerdos de pago (con los datos reales «pago» traía 5 clases distintas)', C.claseDe('pago_registrado') === 'pagos' && C.claseDe('acuerdo_mensual_creado') === 'acuerdos' && C.claseDe('Nota de cobranza') === 'cobranza' && C.claseDe('export_cobranza') === 'cobranza' && C.claseDe('catalogo_precio') === 'catalogo' && C.claseDe('Anticipo a concesionario') === 'gastos' && C.claseDe('wa_atender') === 'whatsapp' && C.claseDe('algo_nuevo') === 'otras' && C.HERRAMIENTAS.find(h => h.name === 'equipo').input_schema.properties.clase.enum.join() === C.CLASES.join());
+ok('...por hora o por día, con 0 en los que no hubo', (() => { const r = eq({ desde: dia(-2), hasta: HOY, agrupar_por: 'dia' }); return r.grupos.length === 3 && r.grupos.map(g => g.entradas).join() === '1,2,2'; })());
+ok('...un nombre que no existe lo dice, y a quien no es administrador no se le muestra', /Nadie del equipo se llama «Pedro»/.test(eq({ persona: 'Pedro' }).nota_filtro) && lanza(() => eq({}, { esAdmin: false }), /solo lo ven los administradores/) && lanza(() => C.ejecutar('equipo', {}, { D, hoy: HOY, usadas: [] }), /no se pudo leer/));
+ok('...y debajo de la respuesta se dice qué se consultó', (() => { const c = { D: DE, hoy: HOY, usadas: [] }; C.ejecutar('equipo', { persona: 'Steven' }, c); C.ejecutar('equipo', { que: 'acciones', desde: HOY }, c); return c.usadas.join(' | ') === 'registro del equipo · entradas · Steven | registro del equipo · lo que hizo · hoy'; })());
 
 (async () => {
   // la carga de las dos bases, con su memoria
@@ -197,6 +226,12 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   ok('...y varias preguntas seguidas no vuelven a leer (3 minutos de memoria)', lecturas === 6 && C.VIGENCIA_MS === 180000);
   await C.cargar(bases, dia(1));
   ok('...otro día sí', lecturas === 12);
+  // el registro del equipo: solo los últimos 12 meses y solo 5 campos de cada anotación
+  const pedidosLogs = [];
+  const baseEq = (usu, logs) => ({ collection(col) { const q = { where: null, campos: null, get: async () => { if (col === 'logs') pedidosLogs.push({ where: q.where, campos: q.campos }); const l = col === 'usuarios' ? usu : logs; return { docs: l.map((o, i) => ({ id: String(o.id || ('L' + i)), data: () => { const c = clon(o); delete c.id; return c; } })) }; } };
+    q.where = null; return { get: q.get, where(f, op, v) { q.where = [f, op, v]; return { select(...c) { q.campos = c; return { get: q.get }; }, get: q.get }; } }; } });
+  const Eq = await C.cargarEquipo({ '18': baseEq(USU, LOGS), '26': baseEq([], []) }, HOY);
+  ok('el registro del equipo se lee de las dos compañías: los últimos 12 meses y solo hora, persona y acción', Eq.eventos.length === 9 && Eq.personas.length === 3 && pedidosLogs.length === 2 && pedidosLogs.every(x => x.where[0] === 'timestamp' && x.where[1] === '>=' && x.where[2] < HOY && x.campos.join() === 'timestamp,uid,userName,action,modulo') && Eq.desde < HOY);
 
   // ══ 2. La conversación con Claude ══
   const llamadas = [];
@@ -216,7 +251,7 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   ok('...una consulta mal pedida vuelve como error para que Claude la corrija, y «responder» junto con otra consulta se rechaza (primero los resultados)', res3.length === 2 && res3[0].tool_use_id === 'tu3' && res3[0].is_error === true && /AAAA-MM-DD/.test(res3[0].content) && res3[1].tool_use_id === 'tu2' && res3[1].is_error === true && /Todavía no/.test(res3[1].content));
   ok('...y el gráfico va dentro de «responder» y viaja con la respuesta', r.graficos.length === 1 && r.graficos[0].etiquetas.length === 2);
   const c1 = llamadas[0].cuerpo;
-  ok('lo que se manda a Claude: Sonnet 5.5, las 5 consultas y «responder», el manual guardado una hora y la fecha de hoy en la pregunta', c1.model === 'claude-sonnet-5-5' && c1.tools.length === 6 && c1.tools[5].name === 'responder' && !('tool_choice' in c1) && c1.system[0].cache_control.ttl === '1h' && /Eres «AI»/.test(c1.system[0].text) && /^\[Hoy es sábado 21 de noviembre de 2026 \(2026-11-21\), 6:50 pm en Venezuela\.\]\n\n¿Qué concesionario vendió más hoy\?$/.test(c1.messages[c1.messages.length - 1].content[0].text) && llamadas[0].headers['x-api-key'] === 'clave-de-prueba');
+  ok('lo que se manda a Claude: Sonnet 5.5, las 6 consultas y «responder», el manual guardado una hora y la fecha de hoy en la pregunta', c1.model === 'claude-sonnet-5-5' && c1.tools.length === 7 && c1.tools[6].name === 'responder' && !('tool_choice' in c1) && c1.system[0].cache_control.ttl === '1h' && /Eres «AI»/.test(c1.system[0].text) && /^\[Hoy es sábado 21 de noviembre de 2026 \(2026-11-21\), 6:50 pm en Venezuela\.\]\n\n¿Qué concesionario vendió más hoy\?$/.test(c1.messages[c1.messages.length - 1].content[0].text) && llamadas[0].headers['x-api-key'] === 'clave-de-prueba');
   ok('...razonamiento medio, y lo último de la conversación queda guardado para la vuelta siguiente', c1.output_config && c1.output_config.effort === 'medium' && c1.messages[c1.messages.length - 1].content[0].cache_control.type === 'ephemeral' && c2.messages[c2.messages.length - 1].content[0].cache_control.type === 'ephemeral');
   ok('...la conversación anterior va como turnos (sin el saludo suelto del principio) para entender «¿y ayer?»', c1.messages.length === 5 && c1.messages[0].role === 'user' && c1.messages[0].content[0].text === '¿cuánto se cobró?' && c1.messages[3].role === 'assistant' && c1.messages[3].content[0].text === '$3.000');
   ok('lo que se gastó: 3 llamadas con su costo (para config/asistenteUso)', r.gasto.llamadas === 3 && r.gasto.costo > 0 && r.gasto.cacheLeida === 15000);
@@ -271,6 +306,26 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   respuestas.push({ status: 200, j: { stop_reason: 'end_turn', usage: uso, content: [{ type: 'text', text: 'Respuesta suelta.' }] } });
   r = await AI.preguntar(deps(), { pregunta: 'hola' });
   ok('si Claude termina escribiendo sin «responder», vale ese texto', r.respuesta === 'Respuesta suelta.' && r.graficos.length === 0);
+  // el registro del equipo se lee solo cuando la AI lo pide, una vez, y solo para administradores
+  let leidas = 0; const datosEquipo = async () => { leidas++; return DE.equipo; };
+  llamadas.length = 0; respuestas.length = 0;
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'e1', name: 'equipo', input: { persona: 'steven' } }] } });
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'e2', name: 'equipo', input: { desde: HOY } }] } });
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'e3', name: 'responder', input: { texto: 'Steven entró **4 veces**.' } }] } });
+  r = await AI.preguntar(deps({ datosEquipo, esAdmin: true }), { pregunta: '¿Cuántas veces entró Steven?' });
+  const resEq = JSON.parse(llamadas[1].cuerpo.messages[llamadas[1].cuerpo.messages.length - 1].content[0].content);
+  ok('«¿cuántas veces entró Steven?» llega hasta Claude con el número, y el registro se lee una sola vez', r.respuesta === 'Steven entró **4 veces**.' && leidas === 1 && resEq.total.entradas === 4 && r.consultas.join(' | ') === 'registro del equipo · entradas · steven | registro del equipo · entradas · hoy');
+  llamadas.length = 0; respuestas.length = 0; leidas = 0;
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'e1', name: 'equipo', input: {} }] } });
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'e2', name: 'responder', input: { texto: 'Eso solo lo ven los administradores.' } }] } });
+  r = await AI.preguntar(deps({ datosEquipo, esAdmin: false }), { pregunta: '¿quién entró hoy?' });
+  const resNo = llamadas[1].cuerpo.messages[llamadas[1].cuerpo.messages.length - 1].content[0];
+  ok('...a quien no es administrador no se le lee el registro: la consulta vuelve como error', leidas === 0 && resNo.is_error === true && /solo lo ven los administradores/.test(resNo.content));
+  llamadas.length = 0; respuestas.length = 0; leidas = 0;
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'v1', name: 'ventas', input: {} }] } });
+  respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'v2', name: 'responder', input: { texto: 'Listo.' } }] } });
+  await AI.preguntar(deps({ datosEquipo, esAdmin: true }), { pregunta: '¿cuántas motos?' });
+  ok('...y en una pregunta que no es del equipo no se lee', leidas === 0);
   llamadas.length = 0; respuestas.length = 0;
   respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'r1', name: 'responder', input: { texto: '   ' } }] } });
   respuestas.push({ status: 200, j: { stop_reason: 'tool_use', usage: uso, content: [{ type: 'tool_use', id: 'r2', name: 'responder', input: { texto: 'Ahora sí.' } }] } });
@@ -362,6 +417,7 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   ok('...y sin nada libre dice por qué: gastado = «tope de hoy»; apartado por otras preguntas = «prueba en un minuto»', tope.gastado.motivo === 'topeDia' && tope.ocupado.motivo === 'enCurso' && /otras preguntas a la AI en curso/.test(AI.MENSAJES.enCurso));
   ok('...el registro del servidor no lleva la pregunta (puede traer nombres de clientes)', /logger\.info\('ai', \{ ms: [^}]*\}\)/.test(rama) && !/logger\.[a-z]+\('ai[^)]*pregunta/.test(rama));
   ok('...los errores de Claude salen con su mensaje en sencillo, no el técnico', /ai\.MENSAJES\[cod\] \|\| ai\.MENSAJES\.error/.test(rama));
+  ok('...el registro del equipo va como lectura aparte (solo si la AI lo pide) y con si quien pregunta es administrador', /datosEquipo: \(\) => aiConsultas\.cargarEquipo\(bases, dia\), esAdmin: !!quien\.admin/.test(rama));
   ok('...y la consulta lee las dos bases con la fecha de Venezuela, con el plazo contado desde que entró la petición', /const t0 = Date\.now\(\), dia = hoyCaracas\(\);/.test(rama) && /datos: \(\) => aiConsultas\.cargar\(bases, dia\)/.test(rama) && /plazo: tEntrada \+ ai\.PLAZO_MS/.test(rama) && /const tEntrada = Date\.now\(\);\s*const quien = await quienEscribe\(req\);/.test(ruta));
 
   // ══ 4. La pantalla ══
@@ -383,7 +439,7 @@ ok('las herramientas que ve Claude: ventas, cobros, cartera, créditos, puntuali
   ok('...con negritas, listas, tablas (números a la derecha) y títulos', /<b>22 motos<\/b>/.test(x) && /<ul><li>EMPIRE: 7<\/li><li>TORO: 7<\/li><\/ul>/.test(x) && /<table class="ai-tabla"><thead><tr><th>Concesionario<\/th><th class="ai-num">Motos<\/th><\/tr><\/thead>/.test(x) && /<td class="ai-num">\$1\.234<\/td>/.test(x) && /<th class="ai-num">Motos<\/th>/.test(x) && /<div class="ai-h">Ojo<\/div>/.test(x) && /pct_mora no es <i>cursiva<\/i> rara/.test(x));
   vm.runInContext('_ai.mensajes = []; _ai.pidiendo = false;', ctx);
   let h = String(ctx.PG.ai());
-  ok('al entrar: el saludo, las preguntas de ejemplo y la caja para escribir', /¿Qué quieres saber\?/.test(h) && (h.match(/class="ai-sug"/g) || []).length === 10 && /<textarea id="ai-texto"/.test(h) && /maxlength="1000"/.test(h) && /onclick="aiNueva\(\)"/.test(h));
+  ok('al entrar: el saludo, las preguntas de ejemplo (con las del equipo, por ser administrador) y la caja para escribir', /¿Qué quieres saber\?/.test(h) && (h.match(/class="ai-sug"/g) || []).length === 13 && /¿Quién entró hoy al sistema\?/.test(h) && /<textarea id="ai-texto"/.test(h) && /maxlength="1000"/.test(h) && /onclick="aiNueva\(\)"/.test(h));
   // preguntar
   const chat = { innerHTML: '', lastElementChild: null }, caja = { value: '', style: {}, focus(){} }, boton = { disabled: false, textContent: '' };
   ctx.document.getElementById = id => id === 'ai-chat' ? chat : id === 'ai-texto' ? caja : id === 'ai-enviar' ? boton : (/^aic-/.test(id) && chat.innerHTML.indexOf('id="' + id + '"') > -1 ? { id } : null);

@@ -118,7 +118,45 @@ async function cargar(bases, hoy, o) {
   memoria = { t: Date.now(), hoy, D };
   return D;
 }
-const olvidar = () => { memoria = null; };
+const olvidar = () => { memoria = null; memoriaEquipo = null; };
+
+// ── El equipo (21-nov-2026, Adam: «¿cuántas veces se ha metido Steven en el sistema?»): el registro de
+// actividad (colección logs de cada compañía: cada vez que alguien abre el sistema queda un «login», y
+// también pagos registrados, clientes, créditos, notas de cobranza…). Solo se lee cuando la AI lo pide,
+// y solo la hora, la persona y lo que hizo: nunca a quién (target) ni el detalle (puede traer nombres).
+const TECNICAS = ['lento'];          // avisos internos de lentitud: no son algo que alguien hizo
+function armarEquipo(emp, usuarios, logs) {
+  const nom = {}, personas = [];
+  (usuarios || []).forEach(u => {
+    if (!u || u.id == null || u.rol === 'Aliado' || u.eliminado === true) return;
+    const n = norm(u.nombre) || 'SIN NOMBRE'; nom[String(u.id)] = n;
+    personas.push({ empresa: emp, nombre: n, rol: String(u.rol || ''), suspendido: u.suspendido === true });
+  });
+  const eventos = [];
+  (logs || []).forEach(l => {
+    if (!l || !l.action || TECNICAS.indexOf(String(l.action)) > -1) return;
+    const t = Date.parse(String(l.timestamp || '')); if (isNaN(t)) return;
+    const d = new Date(t - 4 * 3600000);
+    eventos.push({ empresa: emp, persona: nom[String(l.uid)] || norm(l.userName) || 'SIN NOMBRE', fecha: d.toISOString().slice(0, 10), hora: d.getUTCHours(), minuto: d.getUTCMinutes(), accion: String(l.action), modulo: String(l.modulo || '') });
+  });
+  return { personas, eventos };
+}
+let memoriaEquipo = null;
+const MESES_EQUIPO = 12;
+async function cargarEquipo(bases, hoy, o) {
+  if (!(o && o.fresco) && memoriaEquipo && memoriaEquipo.hoy === hoy && Date.now() - memoriaEquipo.t < VIGENCIA_MS) return memoriaEquipo.E;
+  const desde = new Date(Date.parse(G.mesMas(hoy.slice(0, 7), -MESES_EQUIPO) + '-01T04:00:00Z')).toISOString();
+  const partes = await Promise.all(['18', '26'].map(async emp => {
+    const db = bases[emp];
+    let q = db.collection('logs').where('timestamp', '>=', desde);
+    if (typeof q.select === 'function') q = q.select('timestamp', 'uid', 'userName', 'action', 'modulo');
+    const [us, ls] = await Promise.all([db.collection('usuarios').get(), q.get()]);
+    return armarEquipo(emp, docs(us), docs(ls));
+  }));
+  const E = { personas: partes[0].personas.concat(partes[1].personas), eventos: partes[0].eventos.concat(partes[1].eventos), desde: desde.slice(0, 10) };
+  memoriaEquipo = { t: Date.now(), hoy, E };
+  return E;
+}
 
 // ── Piezas comunes de las consultas ──
 // Sin «hasta», el período termina HOY, como en el módulo PAGASI 18 + 26 (revisión 21-nov: sin tope, un
@@ -186,6 +224,8 @@ function grupoDe(por, x, fecha) {
     case 'tipo': return x.tipo === 'inicial' ? 'iniciales' : 'cuotas';
     case 'tramo_mora': return tramoDe(x.diasAtraso);
     case 'estado': return x.estado;
+    case 'accion': return accionNom(x.accion);
+    case 'modulo': return x.modulo || 'sin módulo';
   }
   return 'total';
 }
@@ -370,6 +410,72 @@ function puntualidad(D, a, hoy) {
   return r;
 }
 
+// Lo que hizo alguien, en sencillo (las que no están aquí salen con su nombre interno, sin guiones)
+const ACCION_NOM = { login: 'entró al sistema', logout: 'salió del sistema', pago_registrado: 'registró un pago', cliente_creado: 'creó un cliente', cliente_editado: 'editó un cliente', cliente_eliminado: 'eliminó un cliente',
+  credito_creado: 'creó un crédito', credito_eliminado: 'eliminó un crédito', 'Nota de cobranza': 'anotó una nota de cobranza', 'Gestión de cobranza': 'anotó una gestión de cobranza', export_cobranza: 'exportó la cobranza',
+  acuerdo_mensual_creado: 'creó un acuerdo de pago', acuerdo_mensual_quitado: 'quitó un acuerdo de pago', acuerdo_mensual_cerrado: 'cerró un acuerdo de pago', acuerdo_mensual_rodado: 'pasó un acuerdo al mes siguiente', acuerdo_mensual_reprogramado: 'reprogramó un acuerdo de pago',
+  egreso_registrado: 'registró un gasto', egreso_corregido: 'corrigió un gasto', comprobante_rechazado: 'rechazó un comprobante', usuario_editado: 'editó un usuario', usuario_eliminado: 'eliminó un usuario', perfil_editado: 'editó su perfil',
+  wa_mensaje_equipo: 'escribió por WhatsApp a un cliente', wa_atender: 'atendió una conversación', wa_devolver: 'devolvió una conversación a la asistente', wa_a_solicitud: 'pasó un chat a solicitud',
+  'Anticipo a concesionario': 'registró un anticipo a concesionario', catalogo_precio: 'cambió un precio del catálogo', catalogo_disponible: 'cambió la disponibilidad en el catálogo', catalogo_foto: 'cambió una foto del catálogo',
+  catalogo_modelo_nuevo: 'agregó un modelo al catálogo', catalogo_modelo_editado: 'editó un modelo del catálogo', catalogo_eliminado: 'quitó un modelo del catálogo', ai_pregunta: 'le preguntó a la AI', moto_sigue_al_credito: 'pasó una moto a otro crédito',
+  contratos_lote_impreso: 'imprimió contratos', notif_enviada: 'mandó una notificación', config_actualizada: 'cambió la configuración' };
+function accionNom(a) { return ACCION_NOM[a] || String(a || '').replace(/_/g, ' ').toLowerCase(); }
+// La clase de cada acción, para filtrar sin mezclar («pago» no debe traer los acuerdos de pago)
+const CLASES = ['pagos', 'clientes', 'creditos', 'cobranza', 'acuerdos', 'catalogo', 'gastos', 'whatsapp', 'usuarios', 'ai', 'otras'];
+function claseDe(a) {
+  a = String(a || '');
+  if (a === 'pago_registrado') return 'pagos';
+  if (/^cliente_/.test(a)) return 'clientes';
+  if (/^credito_|^moto_|^contratos_/.test(a)) return 'creditos';
+  if (/^acuerdo_mensual_/.test(a)) return 'acuerdos';
+  if (/cobranza/i.test(a) || a === 'comprobante_rechazado') return 'cobranza';
+  if (/^catalogo_/.test(a)) return 'catalogo';
+  if (/^egreso_/.test(a) || a === 'Anticipo a concesionario') return 'gastos';
+  if (/^wa_/.test(a)) return 'whatsapp';
+  if (/^usuario_|^perfil_/.test(a)) return 'usuarios';
+  if (a === 'ai_pregunta') return 'ai';
+  return 'otras';
+}
+const fechaHora = e => e.fecha + ' ' + p2(e.hora) + ':' + p2(e.minuto);
+function equipo(D, a, hoy, ctx) {
+  if (ctx && ctx.esAdmin === false) throw new ErrorConsulta('Lo del equipo (quién entra y qué hace) solo lo ven los administradores.');
+  const E = D.equipo; if (!E) throw new ErrorConsulta((ctx && ctx.errorEquipo) || 'El registro del equipo no se pudo leer ahora.');
+  const per = periodo(a, hoy), emps = empresas(a), que = a.que === 'acciones' ? 'acciones' : 'entradas', por = a.agrupar_por || 'persona', clave = que;
+  const r = { periodo: verPeriodo(per), empresa: nombreEmpresa(emps), que: que === 'entradas' ? 'entradas al sistema' : 'lo que hizo en el sistema' };
+  let ev = E.eventos.filter(e => emps.includes(e.empresa) && enPeriodo(e.fecha, per));
+  ev = que === 'entradas' ? ev.filter(e => e.accion === 'login') : ev.filter(e => e.accion !== 'login' && e.accion !== 'logout');
+  if (que === 'acciones' && a.clase && CLASES.includes(a.clase)) { ev = ev.filter(e => claseDe(e.accion) === a.clase); r.clase = a.clase; r.incluye = [...new Set(ev.map(e => accionNom(e.accion)))].sort(); }
+  if (a.persona && palabras(a.persona).length) {
+    const conNombre = new Set(E.personas.filter(p => emps.includes(p.empresa) && casa(p.nombre, a.persona)).map(p => p.nombre));
+    ev = ev.filter(e => casa(e.persona, a.persona));
+    ev.forEach(e => conNombre.add(e.persona));
+    (r.coinciden = r.coinciden || {}).persona = [...conNombre].sort();
+    if (!conNombre.size) r.nota_filtro = 'Nadie del equipo se llama «' + String(a.persona).slice(0, 40) + '»: revisa cómo se escribe.';
+  }
+  r.total = { [clave]: ev.length, personas: new Set(ev.map(e => e.persona)).size };
+  if (por === 'persona') {
+    const m = new Map(), fila = n => m.get(n) || (m.set(n, { grupo: n, [clave]: 0, primera: '', ultima: '', empresas: [] }), m.get(n));
+    // todos los del equipo (activos) salen, también los que no entraron o no hicieron nada en el período
+    E.personas.filter(p => emps.includes(p.empresa) && !p.suspendido && (!a.persona || casa(p.nombre, a.persona))).forEach(p => { const f = fila(p.nombre); f.rol = f.rol || p.rol; if (f.empresas.indexOf('PAGASI ' + p.empresa) < 0) f.empresas.push('PAGASI ' + p.empresa); });
+    ev.forEach(e => { const f = fila(e.persona), fh = fechaHora(e); f[clave]++; if (!f.primera || fh < f.primera) f.primera = fh; if (fh > f.ultima) f.ultima = fh; if (f.empresas.indexOf('PAGASI ' + e.empresa) < 0) f.empresas.push('PAGASI ' + e.empresa); });
+    if (que === 'acciones') { const det = new Map(); ev.forEach(e => { const k = e.persona, d = det.get(k) || {}; d[accionNom(e.accion)] = (d[accionNom(e.accion)] || 0) + 1; det.set(k, d); }); det.forEach((d, k) => { m.get(k).detalle = Object.entries(d).sort((x, y) => y[1] - x[1]).slice(0, 8).map(([n, c]) => n + ': ' + c).join(' · '); }); }
+    // a los que no entraron en el período: cuándo fue su última entrada (en lo que guarda el registro)
+    if (que === 'entradas') { const ult = {}; E.eventos.forEach(e => { if (e.accion === 'login' && emps.includes(e.empresa)) { const fh = fechaHora(e); if (!ult[e.persona] || fh > ult[e.persona]) ult[e.persona] = fh; } }); m.forEach(f => { if (!f.entradas) f.ultima_entrada_registrada = ult[f.grupo] || 'ninguna en el registro'; }); }
+    let grupos = [...m.values()].map(f => { if (!f.primera) { delete f.primera; delete f.ultima; } return f; });
+    const orden = ['mayor', 'menor'].includes(a.orden) ? a.orden : 'mayor';
+    grupos.sort((x, y) => (orden === 'menor' ? x[clave] - y[clave] : y[clave] - x[clave]) || String(x.grupo).localeCompare(String(y.grupo)));
+    const max = Math.max(1, Math.min(62, parseInt(a.limite, 10) || 30));
+    if (grupos.length > max) r.grupos_no_mostrados = grupos.length - max;
+    r.grupos = grupos.slice(0, max); r.ordenado = ORDEN_TXT[orden];
+  } else {
+    const g = agrupar(ev, por, e => e.fecha, (acc, e) => { acc[clave] += 1; }, x => x[clave], a, { vacio: { [clave]: 0 }, todos: EN_EL_TIEMPO.indexOf(por) > -1 ? gruposDelTiempo(por, ev, e => e.fecha, per, hoy) : por === 'empresa' ? emps.map(e => 'PAGASI ' + e) : [] });
+    r.grupos = g.grupos; if (g.omitidos) r.grupos_no_mostrados = g.omitidos; r.ordenado = ORDEN_TXT[g.orden] || g.orden;
+  }
+  r.nota = (que === 'entradas' ? 'Una entrada es cada vez que la persona abrió o recargó el sistema con su sesión (no es lo mismo que poner la clave). ' : 'Solo lo que el sistema anota (pagos, clientes, créditos, notas de cobranza, acuerdos, catálogo, gastos…). ')
+    + 'El registro guarda desde el ' + E.desde + '; las horas son de Venezuela. Las personas suspendidas no salen salvo que hayan entrado.';
+  return r;
+}
+
 // ── Los gráficos van dentro de la respuesta («responder»), con números que la AI ya sacó ──
 const TIPOS_GRAFICO = ['barras', 'barras_horizontales', 'linea', 'torta'];
 const MAX_GRAFICOS = 3, MAX_ETIQUETAS = 62;
@@ -428,11 +534,16 @@ const HERRAMIENTAS = [
     input_schema: { type: 'object', properties: Object.assign({ empresa: EMPRESA, desde: FECHA('cuotas que vencieron desde'), hasta: FECHA('hasta'), agrupar_por: { type: 'string', enum: ['nada', 'mes', 'quincena', 'empresa', 'concesionario', 'vendedor', 'modelo'] },
       ordenar_por: { type: 'string', enum: ['monto', 'pct_a_tiempo', 'sin_pagar'], description: 'la cifra del ranking (de mayor a menor si no se dice «orden»)' }, orden: ORDEN, limite: LIMITE,
       minimo: { type: 'integer', minimum: 1, description: 'al ordenar por porcentaje: solo grupos con al menos esta cantidad de cuotas (20 por defecto)' } }, FILTROS) } },
+  { name: 'equipo', description: 'El equipo que usa el sistema (solo para administradores), del registro de actividad de las dos compañías: cuántas veces entró cada persona, su primera y última entrada, quién entró hoy o no ha entrado, a qué hora entran; y lo que hizo cada quien (pagos registrados, clientes, créditos, notas de cobranza, acuerdos, catálogo, gastos…). Para: «¿cuántas veces entró Steven?», «¿quién entró hoy?», «¿cuándo fue la última vez que entró María?», «¿quién registró más pagos esta semana?», «¿qué hizo Pedro hoy?».',
+    input_schema: { type: 'object', properties: { empresa: EMPRESA, desde: FECHA('primer día'), hasta: HASTA, que: { type: 'string', enum: ['entradas', 'acciones'], description: 'entradas al sistema (por defecto) o lo que hizo' },
+      persona: { type: 'string', description: 'solo esa persona (nombre o apellido; la respuesta dice en «coinciden» quiénes entraron)' },
+      clase: { type: 'string', enum: CLASES, description: 'con «acciones»: solo esa clase. pagos = pagos registrados; acuerdos = acuerdos de pago; cobranza = notas y gestiones de cobranza, exportes y comprobantes rechazados; gastos = egresos y anticipos a concesionarios' },
+      agrupar_por: { type: 'string', enum: ['persona', 'dia', 'semana', 'mes', 'hora', 'dia_semana', 'empresa', 'accion', 'modulo'], description: 'persona por defecto (con primera y última vez, y los que tienen 0)' }, orden: ORDEN, limite: LIMITE } } },
   { name: 'responder', description: 'Entrega la respuesta final a la persona: es la ÚNICA forma de que la vea. Llámala una sola vez, sola y al final, cuando ya tengas todos los números, con el texto completo y, si ayudan, los gráficos (uno; dos como mucho) hechos con números que YA sacaste de las consultas.',
     input_schema: { type: 'object', properties: { texto: { type: 'string', description: 'la respuesta completa, en markdown sencillo y en español' }, graficos: { type: 'array', maxItems: MAX_GRAFICOS, items: GRAFICO } }, required: ['texto'] } }
 ];
-const NOMBRE_CONSULTA = { ventas: 'ventas', cobros: 'cobros', cartera: 'cartera de hoy', creditos: 'créditos uno por uno', puntualidad: 'cuotas a tiempo' };
-const POR_TXT = { dia: 'por día', semana: 'por semana', quincena: 'por quincena', mes: 'por mes', mes_venta: 'por mes de venta', hora: 'por hora', dia_semana: 'por día de la semana', concesionario: 'por concesionario', vendedor: 'por vendedor', modelo: 'por modelo', marca: 'por marca', empresa: 'por compañía', plazo: 'por plazo', metodo: 'por forma de pago', tipo: 'cuotas e iniciales', tramo_mora: 'por días de atraso' };
+const NOMBRE_CONSULTA = { ventas: 'ventas', cobros: 'cobros', cartera: 'cartera de hoy', creditos: 'créditos uno por uno', puntualidad: 'cuotas a tiempo', equipo: 'registro del equipo' };
+const POR_TXT = { dia: 'por día', semana: 'por semana', quincena: 'por quincena', mes: 'por mes', mes_venta: 'por mes de venta', hora: 'por hora', dia_semana: 'por día de la semana', concesionario: 'por concesionario', vendedor: 'por vendedor', modelo: 'por modelo', marca: 'por marca', empresa: 'por compañía', plazo: 'por plazo', metodo: 'por forma de pago', tipo: 'cuotas e iniciales', tramo_mora: 'por días de atraso', persona: 'por persona', accion: 'por lo que hizo', modulo: 'por módulo' };
 // Lo que se le muestra a la persona debajo de la respuesta: qué consultó (para que sepa de dónde salió)
 function resumen(nombre, a, hoy) {
   a = a || {};
@@ -445,6 +556,7 @@ function resumen(nombre, a, hoy) {
   else if (d || h) partes.push((d || 'el principio') + ' a ' + (h || 'hoy'));
   ['filtro_concesionario', 'filtro_vendedor', 'filtro_modelo'].forEach(k => { if (a[k]) partes.push(String(a[k]).slice(0, 30)); });
   if (nombre === 'creditos' && a.buscar) partes.push('«' + String(a.buscar).slice(0, 30) + '»');
+  if (nombre === 'equipo') { partes.splice(1, 0, a.que === 'acciones' ? 'lo que hizo' : 'entradas'); if (a.persona) partes.push(String(a.persona).slice(0, 30)); if (a.que === 'acciones' && CLASES.includes(a.clase)) partes.push(a.clase); }
   return partes.join(' · ');
 }
 // Ejecutar lo que pidió la AI. ctx: { D, hoy, usadas }. «responder» no pasa por aquí (lo maneja ai.js)
@@ -457,6 +569,7 @@ function ejecutar(nombre, args, ctx) {
     case 'cartera': r = cartera(ctx.D, a); break;
     case 'creditos': r = creditos(ctx.D, a, ctx.hoy); break;
     case 'puntualidad': r = puntualidad(ctx.D, a, ctx.hoy); break;
+    case 'equipo': r = equipo(ctx.D, a, ctx.hoy, ctx); break;
     default: throw new ErrorConsulta('No existe la consulta «' + String(nombre).slice(0, 40) + '».');
   }
   const txt = resumen(nombre, a, ctx.hoy);
@@ -464,5 +577,5 @@ function ejecutar(nombre, args, ctx) {
   return r;
 }
 
-module.exports = { armar, cargar, olvidar, ejecutar, HERRAMIENTAS, ErrorConsulta, horaCaracas, horaDeId, lunesDe, norm, casa, resumen, validarGraficos, VIGENCIA_MS, MAX_GRAFICOS, MAX_ETIQUETAS,
-  consultas: { ventas, cobros, cartera, creditos, puntualidad } };
+module.exports = { armar, armarEquipo, cargarEquipo, accionNom, claseDe, CLASES, cargar, olvidar, ejecutar, HERRAMIENTAS, ErrorConsulta, horaCaracas, horaDeId, lunesDe, norm, casa, resumen, validarGraficos, VIGENCIA_MS, MAX_GRAFICOS, MAX_ETIQUETAS,
+  consultas: { ventas, cobros, cartera, creditos, puntualidad, equipo } };

@@ -67,6 +67,7 @@ LO QUE HAY QUE SABER DE LOS DATOS
 - A tiempo = cuota pagada hasta el día en que vencía.
 - Son las mismas cuentas del Dashboard y del módulo «PAGASI 18 + 26». Si una consulta trae «aviso_fechas», menciónalo.
 - De los clientes solo tienes el nombre: no tienes cédulas ni teléfonos. Da nombres solo cuando la pregunta los pide.
+- Del equipo (las personas que usan el sistema) tienes el registro de actividad con «equipo»: cuántas veces entró cada quien, su primera y última entrada, y lo que hizo (pagos, clientes, créditos, notas de cobranza…). Una entrada es cada vez que abrió o recargó el sistema con su sesión: dilo si te preguntan «cuántas veces entró». Solo los administradores pueden ver esto.
 
 CÓMO RESPONDER
 - En español de Venezuela, sencillo y corto. Sin palabras técnicas (nada de «query», «dataset», «herramienta», «API»).
@@ -137,7 +138,8 @@ function errorClaude(r) {
 }
 
 // deps: { apiKey, fetchImpl, datos: async () => D, hoy, ahora (Date), calidad, reloj, plazo (hora límite en ms),
-//         presupuesto (lo apartado del tope diario para esta pregunta, en dólares) }
+//         presupuesto (lo apartado del tope diario para esta pregunta, en dólares),
+//         datosEquipo: async () => E (el registro del equipo: se lee solo si la AI lo pide), esAdmin }
 async function preguntar(deps, entrada) {
   const pregunta = String((entrada && entrada.pregunta) == null ? '' : entrada.pregunta).replace(/[\u0000-\u0008\u000B-\u001F]/g, '').trim();
   if (!pregunta) { const e = new Error('Escribe una pregunta.'); e.codigo = 'entrada'; throw e; }
@@ -153,7 +155,7 @@ async function preguntar(deps, entrada) {
   catch (e) { e.gasto = gasto; throw e; }               // lo gastado antes del error también se anota
   async function conversar() {
   const D = await deps.datos();
-  const ctx = { D, hoy: deps.hoy, usadas: [] };
+  const ctx = { D, hoy: deps.hoy, usadas: [], esAdmin: deps.esAdmin !== false };
   const mensajes = turnosPrevios(entrada.historial).concat([{ role: 'user', content: [{ type: 'text', text: '[Hoy es ' + fechaHoyTxt(deps.ahora || new Date()) + '.]\n\n' + pregunta }] }]);
   const queda = () => plazo - reloj();
   const alcanza = () => deps.presupuesto == null || gasto.costo + costoVuelta <= deps.presupuesto;
@@ -213,6 +215,10 @@ async function preguntar(deps, entrada) {
         mensajes.push({ role: 'assistant', content: bloques });
         mensajes.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: fin.id, is_error: true, content: !t ? 'Falta el texto de la respuesta: vuelve a llamar a «responder» con el texto completo.' : 'Arregla esto y vuelve a llamar a «responder» con el texto completo: ' + v.errores.join(' · ') }] });
         continue;
+      }
+      // El registro del equipo se lee solo la primera vez que la AI lo pide (y solo para administradores)
+      if (usos.some(u => u.name === 'equipo') && !ctx.D.equipo && ctx.esAdmin && typeof deps.datosEquipo === 'function') {
+        try { ctx.D = Object.assign({}, ctx.D, { equipo: await deps.datosEquipo() }); } catch (e) { ctx.errorEquipo = 'El registro del equipo no se pudo leer ahora: prueba otra vez en un minuto.'; }
       }
       if (usos.length) {
         mensajes.push({ role: 'assistant', content: bloques });          // tal cual (con su razonamiento)

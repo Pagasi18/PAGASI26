@@ -204,7 +204,7 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
         const apartado0 = await reservarAI(dia, cfg.topeAIdia, ai.reservaDe(cfg.calidad.ai), ai.costoVueltaDe(cfg.calidad.ai));
         if (!apartado0.aparta) return res.status(429).json({ error: ai.MENSAJES[apartado0.motivo], codigo: apartado0.motivo });
         reserva = apartado0.aparta;
-        const r = await ai.preguntar({ apiKey: sec(ANTHROPIC), datos: () => aiConsultas.cargar(bases, dia), hoy: dia, ahora: new Date(), calidad: cfg.calidad.ai, plazo: tEntrada + ai.PLAZO_MS, presupuesto: reserva },
+        const r = await ai.preguntar({ apiKey: sec(ANTHROPIC), datos: () => aiConsultas.cargar(bases, dia), datosEquipo: () => aiConsultas.cargarEquipo(bases, dia), esAdmin: !!quien.admin, hoy: dia, ahora: new Date(), calidad: cfg.calidad.ai, plazo: tEntrada + ai.PLAZO_MS, presupuesto: reserva },
           { pregunta: (req.body || {}).pregunta, historial: (req.body || {}).historial });
         const apartado = reserva; reserva = 0;
         await cerrarGastoAI(dia, apartado, r.gasto);       // antes de responder: después Cloud Run congela lo pendiente
