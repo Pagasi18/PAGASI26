@@ -70,7 +70,7 @@ setImmediate(() => {
   ctx._waFotoEnviar();
   const ultimo = (ctx._waMsgs['ig:1'] || []).slice(-1)[0] || {};
   ok('al enviar va la foto con el enlace completo de pagasi.io y su texto', ultimo.tipo === 'imagen' && ultimo.medio.url === 'https://pagasi.io/assets/motos/brz-200.jpg' && ultimo.texto === 'Esta es la BRZ 200' && toasts.some(t => /Foto enviada: BRZ 200/.test(t)));
-  ok('...y se le pide al servidor con la foto (imagen) en el mismo envío del equipo', /JSON\.stringify\(Object\.assign\(\{ empresa: waEmpresa\(\), conv: id, texto: texto \}, imagen \? \{ imagen: imagen \} : \{\}\)\)/.test(src('logic/whatsapp.js')));
+  ok('...y se le pide al servidor con la foto (imagen) en el mismo envío del equipo', /JSON\.stringify\(Object\.assign\(\{ empresa: waEmpresa\(\), conv: id, texto: texto \}, imagen \? \{ imagen: imagen \} : \{\}, adjunto \? /.test(src('logic/whatsapp.js')));
 
   // ── 2b. Del chat a la solicitud ──
   ctx.S.clientes = [{ id: 'IG-123', nombre: 'LUIS PEREZ', tel: '04141112233' }];

@@ -75,6 +75,9 @@ function turnos(mensajes) {
     let texto = m.tipo === 'publicacion' ? '[compartió una publicación o anuncio de Instagram' + (m.texto ? ': «' + m.texto + '»' : '') + '. No la puedes ver: seguramente le interesa la moto que aparece ahí; si no lo dijo, pregúntale cuál]'
       : m.texto || ({ imagen: '[el cliente mandó una imagen]', audio: '[el cliente mandó un audio]', documento: '[el cliente mandó un documento]', video: '[la persona mandó un video (no lo puedes ver)]',
         historia: '[la persona mencionó a Pagasi en una historia de Instagram]', adjunto: '[la persona mandó algo que no se puede ver aquí (un sticker, un reel o un archivo); pregúntale con amabilidad qué necesita]' })[m.tipo] || '';
+    // Un archivo que mandó el EQUIPO sin texto no es «el cliente mandó…» (revisión 23-nov-2026: con los adjuntos del
+    // panel la asistente podía agradecer un documento que el cliente nunca mandó)
+    if (m.autor !== 'cliente' && !m.texto && m.tipo !== 'publicacion') texto = ({ imagen: '[el equipo le mandó una foto]', audio: '[el equipo le mandó un audio]', documento: '[el equipo le mandó un documento]', video: '[el equipo le mandó un video]' })[m.tipo] || texto;
     if (m.autor === 'equipo') texto = '[respuesta del equipo de Pagasi] ' + texto;
     if (!texto) return;
     if (t.length && t[t.length - 1].role === rol) t[t.length - 1].content += '\n' + texto;

@@ -367,18 +367,23 @@ function waDevolver(id){ _waActualizar(id, { modo: 'bot', atendidoPor: '' }, 'wa
 function waVisto(id){ _waActualizar(id, { atencion: '', noLeidos: 0 }, 'wa_visto').then(function(){ _waTrasCambio(id); }); }
 // Ventana de 24 h de Meta: solo se puede escribir libre si el cliente escribió en las últimas 24 h
 function waVentanaAbierta(conv, ahora){ if(!conv || !conv.ultimoEntranteHora) return false; var t = (ahora ? new Date(ahora) : new Date()).getTime() - new Date(conv.ultimoEntranteHora).getTime(); return t < (conv.canal === 'instagram' ? 7 * 24 : 24) * 3600 * 1000; }
-// Devuelve true si el mensaje salió (la caja de escribir solo se vacía entonces). imagen: la foto de una moto (enlace)
-function waEnviarEquipo(id, texto, imagen){
+// Devuelve true si el mensaje salió (la caja de escribir solo se vacía entonces). imagen: la foto de una moto (enlace).
+// adjunto (23-nov-2026): lo que el equipo adjunta desde su equipo, ya subido a Storage: { url, tipo: 'imagen' |
+// 'documento' | 'audio' | 'video', nombre, mime, voz }
+var WA_ADJ_ETIQUETA = { imagen: '📷 Foto', documento: '📄 Documento', audio: '🎤 Audio', video: '🎬 Video' };
+function waEnviarEquipo(id, texto, imagen, adjunto){
   var c = _waConv(id); texto = String(texto || '').trim(); imagen = String(imagen || '').trim();
-  if(!c || (!texto && !imagen)) return false;
+  adjunto = adjunto && adjunto.url && WA_ADJ_ETIQUETA[adjunto.tipo] ? adjunto : null;
+  if(!c || (!texto && !imagen && !adjunto)) return false;
   if(!waVentanaAbierta(c)){ toast(c.canal === 'instagram' ? 'La ventana de 7 días de Instagram está cerrada: solo se puede escribir cuando la persona vuelva a escribir.' : 'La ventana de 24 horas de WhatsApp está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.', 'error'); return false; }
-  var m = { autor: 'equipo', direccion: 'saliente', tipo: imagen ? 'imagen' : 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
-  if(imagen) m.medio = { url: imagen };
+  var m = { autor: 'equipo', direccion: 'saliente', tipo: adjunto ? adjunto.tipo : imagen ? 'imagen' : 'texto', texto: texto, hora: new Date().toISOString(), estado: waConectadoCanal(c.canal) ? 'pendiente' : 'entregado', por: (S.currentUser && S.currentUser.nombre) || 'Equipo' };
+  if(adjunto) m.medio = { url: adjunto.url, mime: adjunto.mime || '', nombre: adjunto.nombre || '', voz: !!adjunto.voz };
+  else if(imagen) m.medio = { url: imagen };
   (_waRoot._waMsgs[id] = _waRoot._waMsgs[id] || []).push(Object.assign({ id: 'local-' + Date.now() }, m));
-  Object.assign(c, { ultimoMensaje: texto || '📷 Foto', ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por, vendedor: c.vendedor || m.por, atencion: '', noLeidos: 0 });   // ya la atendieron
-  if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m, imagen);
+  Object.assign(c, { ultimoMensaje: texto || (adjunto ? (adjunto.voz ? '🎤 Nota de voz' : WA_ADJ_ETIQUETA[adjunto.tipo]) : '📷 Foto'), ultimoMensajeHora: m.hora, modo: 'humano', atendidoPor: m.por, vendedor: c.vendedor || m.por, atencion: '', noLeidos: 0 });   // ya la atendieron
+  if(waConectadoCanal(c.canal)) _waMandarAlServidor(id, texto, m, imagen, adjunto);
   if(typeof logActividad === 'function') logActividad('wa_mensaje_equipo', 'whatsapp', id, { largo: texto.length });
-  if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
+  if(typeof _waPintarHilo === 'function') _waPintarHilo(id, true);   // el mensaje propio se ve aunque esté sonando una nota de voz
   return true;
 }
 // Con Meta conectado el mensaje del equipo lo manda el servidor (Cloud Functions): él habla con
@@ -397,13 +402,28 @@ function _waPedirAccion(id, cuerpo){
   }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
 }
 function _waPedirVendedor(id, nombre){ return _waPedirAccion(id, { accion: 'vendedor', vendedor: nombre }); }
-function _waMandarAlServidor(id, texto, m, imagen){
+// Bajar ahora la nota de voz, el video o el documento de un mensaje que no quedó guardado al llegar: lo hace el
+// servidor (WhatsApp lo deja 7 días) y el mensaje se actualiza solo en el hilo
+function waPedirMedio(id, msgId, boton){
+  if(boton){ boton.disabled = true; boton.textContent = 'Bajando…'; }
+  return _waPedirAccion(id, { accion: 'medio', msg: msgId }).then(function(r){
+    var m = ((_waRoot._waMsgs || {})[id] || []).find(function(x){ return x.id === msgId; });
+    if(m && r && r.medio) m.medio = r.medio;
+    if(typeof _waPintarHilo === 'function') _waPintarHilo(id);
+    return true;
+  }).catch(function(e){
+    if(boton){ boton.disabled = false; boton.textContent = 'Bajar'; }
+    toast(String(e && e.message || e), 'error');
+    return false;
+  });
+}
+function _waMandarAlServidor(id, texto, m, imagen, adjunto){
   var url = (_waRoot._waCfg && _waRoot._waCfg.urlEquipo) || WA_URL_EQUIPO;
-  var fallo = function(msg){ m.estado = 'fallo'; toast('No se pudo enviar: ' + msg, 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id); };
+  var fallo = function(msg){ m.estado = 'fallo'; toast('No se pudo enviar: ' + msg, 'error'); if(typeof _waPintarHilo === 'function') _waPintarHilo(id, true); };
   var user = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) || null;
   if(!user){ fallo('sin sesión'); return Promise.resolve(); }
   return user.getIdToken().then(function(tok){
-    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify(Object.assign({ empresa: waEmpresa(), conv: id, texto: texto }, imagen ? { imagen: imagen } : {})) });
+    return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify(Object.assign({ empresa: waEmpresa(), conv: id, texto: texto }, imagen ? { imagen: imagen } : {}, adjunto ? { adjunto: { url: adjunto.url, tipo: adjunto.tipo, nombre: adjunto.nombre || '', mime: adjunto.mime || '', voz: !!adjunto.voz } } : {})) });
   }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); m.estado = 'enviado'; }); })
     .catch(function(e){ fallo(e && e.message || e); });
 }

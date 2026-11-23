@@ -82,7 +82,8 @@ function parsearWebhook(cuerpo) {
         else if (tipo === 'button') texto = (m.button && m.button.text) || '';
         else if (tipo === 'interactive') texto = (m.interactive && ((m.interactive.button_reply && m.interactive.button_reply.title) || (m.interactive.list_reply && m.interactive.list_reply.title))) || '';
         else if (tipo === 'image' || tipo === 'document' || tipo === 'audio' || tipo === 'video' || tipo === 'sticker') texto = (m[tipo] && m[tipo].caption) || '';
-        const medio = ['image', 'document', 'audio', 'video', 'sticker'].includes(tipo) && m[tipo] ? { id: m[tipo].id, mime: m[tipo].mime_type || '', nombre: m[tipo].filename || '' } : null;
+        // voz: Meta marca con voice:true el audio grabado en el chat (nota de voz); el resto son archivos de audio
+        const medio = ['image', 'document', 'audio', 'video', 'sticker'].includes(tipo) && m[tipo] ? { id: m[tipo].id, mime: m[tipo].mime_type || '', nombre: m[tipo].filename || '', voz: tipo === 'audio' && m.audio.voice === true } : null;
         const ventana = tipo === 'interactive' && m.interactive && m.interactive.nfm_reply ? leerVentana(m.interactive.nfm_reply) : null;
         mensajes.push({ canal: 'whatsapp', metaId: m.id, de: m.from, nombre: perfil[m.from] || '', tipo: ventana && ventana.medio ? 'imagen' : tipo === 'text' || tipo === 'button' || tipo === 'interactive' ? 'texto' : tipo === 'image' ? 'imagen' : tipo === 'document' ? 'documento' : tipo === 'audio' ? 'audio' : tipo, texto: ventana ? ventana.texto : texto, medio: ventana ? ventana.medio : medio, montoDicho: ventana ? ventana.monto : '',
           hora: m.timestamp ? new Date(parseInt(m.timestamp, 10) * 1000).toISOString() : new Date().toISOString(), telefonoNegocio: (v.metadata && v.metadata.display_phone_number) || '', numeroId: (v.metadata && v.metadata.phone_number_id) || '' });
@@ -113,12 +114,21 @@ function cliente(cfg) {
     enviarImagen: (para, url, pie) => enviar({ to: para.replace('+', ''), type: 'image', image: Object.assign({ link: url }, pie ? { caption: String(pie).slice(0, 1024) } : {}) }),
     // Plantilla aprobada por Meta (la unica forma de escribir fuera de la ventana)
     enviarPlantilla: (para, nombre, parametros, idioma, extra) => enviar({ to: para.replace('+', ''), type: 'template', template: { name: nombre, language: { code: idioma || 'es' }, components: [].concat(extra && extra.imagen ? [{ type: 'header', parameters: [{ type: 'image', image: { link: extra.imagen } }] }] : [], parametros && parametros.length ? [{ type: 'body', parameters: parametros.map(t => ({ type: 'text', text: String(t) })) }] : [], extra && extra.ventana ? [{ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: extra.ventana } }] }] : []) } }),
+    // Lo que adjunta el equipo desde el panel (23-nov-2026): documento, audio y video, por enlace de Storage.
+    // El documento lleva su nombre (con extensión) y el texto como pie; el audio no lleva pie.
+    enviarDocumento: (para, url, nombre, pie) => enviar({ to: para.replace('+', ''), type: 'document', document: Object.assign({ link: url }, nombre ? { filename: String(nombre).slice(0, 240) } : {}, pie ? { caption: String(pie).slice(0, 1024) } : {}) }),
+    // voz: sale como nota de voz (solo si el archivo es OGG con Opus); si no, como audio normal
+    enviarAudio: (para, url, voz) => enviar({ to: para.replace('+', ''), type: 'audio', audio: Object.assign({ link: url }, voz ? { voice: true } : {}) }),
+    enviarVideo: (para, url, pie) => enviar({ to: para.replace('+', ''), type: 'video', video: Object.assign({ link: url }, pie ? { caption: String(pie).slice(0, 1024) } : {}) }),
     marcarLeido: (metaId) => enviar({ status: 'read', message_id: metaId }).catch(() => ''),
-    // Un medio que mando el cliente: primero la URL temporal, despues los bytes
-    async bajarMedio(mediaId) {
-      const info = await (await fetch(`${GRAPH}/${mediaId}`, { headers: { authorization: 'Bearer ' + cfg.accessToken } })).json();
-      if (!info || !info.url) throw new Error('Meta no devolvió la URL del medio');
-      const r = await fetch(info.url, { headers: { authorization: 'Bearer ' + cfg.accessToken } });
+    // Un medio que mando el cliente: primero la URL temporal, despues los bytes. Meta lo guarda 7 dias.
+    // tope (bytes): si el archivo pesa mas, no se baja (e.codigo = 'grande')
+    async bajarMedio(mediaId, tope) {
+      // con tiempo límite: una descarga colgada no puede dejar el aviso de Meta sin terminar (revisión 23-nov-2026)
+      const info = await (await fetch(`${GRAPH}/${mediaId}`, { headers: { authorization: 'Bearer ' + cfg.accessToken }, signal: AbortSignal.timeout(10000) })).json();
+      if (!info || !info.url) { const e = new Error('Meta no devolvió la URL del medio'); e.codigo = 'vencido'; throw e; }
+      if (tope && +info.file_size > tope) { const e = new Error('El archivo pesa más de lo que se puede guardar'); e.codigo = 'grande'; throw e; }
+      const r = await fetch(info.url, { headers: { authorization: 'Bearer ' + cfg.accessToken }, signal: AbortSignal.timeout(25000) });
       if (!r.ok) throw new Error('No se pudo bajar el medio (HTTP ' + r.status + ')');
       return { bytes: Buffer.from(await r.arrayBuffer()), mime: info.mime_type || r.headers.get('content-type') || 'application/octet-stream', tamano: info.file_size || 0 };
     }
@@ -144,6 +154,8 @@ function clienteInstagram(cfg) {
     enviarTexto: (para, texto, op) => enviar(Object.assign({ recipient: { id: String(para) }, message: { text: String(texto).slice(0, 1000) } }, op && op.humano ? { messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' } : {})),
     // Una foto por enlace público (24-oct-2026: el equipo manda la foto de la moto desde el catálogo)
     enviarImagen: (para, url, op) => enviar(Object.assign({ recipient: { id: String(para) }, message: { attachment: { type: 'image', payload: { url: String(url), is_reusable: false } } } }, op && op.humano ? { messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' } : {})),
+    // Audio, video o PDF por enlace público (23-nov-2026). tipo: 'audio' | 'video' | 'file'
+    enviarAdjunto: (para, tipo, url, op) => enviar(Object.assign({ recipient: { id: String(para) }, message: { attachment: { type: ['audio', 'video', 'file'].includes(tipo) ? tipo : 'file', payload: { url: String(url), is_reusable: false } } } }, op && op.humano ? { messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' } : {})),
     marcarLeido: (para) => enviar({ recipient: { id: String(para) }, sender_action: 'mark_seen' }).catch(() => ''),
     // Respuesta publica a un comentario de una publicacion (POST /{comment-id}/replies, token de pagina)
     async responderComentario(comentarioId, texto) {

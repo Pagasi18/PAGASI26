@@ -99,6 +99,10 @@ var _WA_CSS = '<style id="wa-css">'
   + '.wa-foto-ok{display:flex;gap:10px;align-items:flex-start;margin-top:12px;border-top:1px solid var(--rim);padding-top:12px}.wa-foto-ok img{width:120px;max-width:40%;aspect-ratio:4/3;object-fit:cover;border-radius:8px}'
   + '.wa-adj{font-size:12px;color:var(--ink2);background:rgba(127,140,180,.14);border-radius:8px;padding:6px 9px;margin-bottom:4px}.wa-adj small{display:block;color:var(--ink3);font-size:11px;margin-top:2px}.wa-adj .pub{margin-top:3px;font-style:italic}.wa-adj a{color:inherit;font-weight:700}'
   + '.wa-foto-msg{display:block}.wa-foto-msg img{max-width:240px;max-height:300px;object-fit:cover;border-radius:10px;display:block;margin-bottom:6px}'
+  + '.wa-b audio{display:block;width:250px;max-width:100%;height:38px;margin-top:5px}.wa-b video{display:block;max-width:260px;max-height:320px;border-radius:10px;margin-top:5px;background:#000}.wa-b .wa-stk img{max-width:110px;max-height:110px}'
+  + '.wa-adj .wa-bajar{margin-left:8px;border:1px solid var(--rim);background:var(--surf);color:var(--ink);border-radius:999px;padding:2px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}.wa-adj .wa-bajar:disabled{opacity:.6;cursor:default}'
+  + '.wa-adj-ver{display:flex;gap:12px;align-items:flex-start}.wa-adj-ver img{width:130px;max-width:40%;max-height:160px;object-fit:cover;border-radius:8px}.wa-adj-ver .ar{flex:none;width:64px;height:64px;border-radius:12px;background:var(--surf2);display:grid;place-items:center;font-size:28px}.wa-adj-ver b{display:block;word-break:break-all}'
+  + 'a.rs-ib{text-decoration:none}'
   + '.wa-notas{display:flex;flex-direction:column;gap:6px;margin:8px 0;max-height:180px;overflow:auto}.wa-nota{background:#fff8e1;border:1px solid #f3e1a4;border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.45}.wa-nota small{display:block;color:var(--ink3);font-size:10.5px;margin-top:2px}'
   + '.wa-nota-n{display:flex;gap:6px}.wa-nota-n .fi{flex:1;min-width:0;font-size:12px}'
   + '.wa-cal{display:inline-flex;gap:2px;margin-left:4px}.wa-cal button{border:0;background:none;cursor:pointer;font-size:11px;opacity:.35;padding:0 1px;filter:grayscale(1)}.wa-cal button:hover{opacity:.8}.wa-cal button.on{opacity:1;filter:none}'
@@ -135,7 +139,8 @@ var _WA_ICONOS = {
   yo: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   bot: '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01M9 17h6"/>',
   wa: '<path d="M21 11.5a8.4 8.4 0 0 1-9.2 8.4 8.6 8.6 0 0 1-3.4-.8L3 21l1.9-5.1A8.4 8.4 0 1 1 21 11.5z"/>',
-  ig: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/>'
+  ig: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/>',
+  tel: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>'
 };
 function _waIcono(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' + (_WA_ICONOS[n] || '') + '</svg>'; }
 function _waNombreAsis(c){ return c && _waEsCobranza(c) ? 'Patricia' : 'Paola'; }
@@ -187,8 +192,24 @@ function _waPintarLista(){
       + '<div class="h">' + _waHoraLista(c.ultimoMensajeHora) + (c.noLeidos ? '<span class="punto" title="' + c.noLeidos + ' sin leer"></span>' : '') + '</div></div>';
   }).join('') : '<div class="empty" style="padding:30px 16px">' + (todas.length ? 'Ninguna conversación con ese filtro.' : (ctx.canal === 'todos' || waConectadoCanal(ctx.canal) ? 'Todavía no hay conversaciones.' : 'Sin conversaciones de muestra.')) + '</div>';
 }
-function _waPintarHilo(id){
+// Mientras suena una nota de voz o un video el hilo no se repinta (se cortaría a la mitad): queda pendiente y se
+// pinta cuando para (23-nov-2026)
+function _waSuenaAlgo(cont){
+  if(!cont || typeof cont.querySelectorAll !== 'function') return false;
+  var L = cont.querySelectorAll('audio,video');
+  for(var i = 0; i < L.length; i++){ if(L[i] && L[i].paused === false && !L[i].ended) return true; }
+  return false;
+}
+function _waSonPara(){
+  var id = window._waHiloPendiente, todo = window._waSeleccionPendiente; if(!id && !todo) return;
+  window._waHiloPendiente = null; window._waSeleccionPendiente = false;
+  setTimeout(function(){ if(todo) _waPintarSeleccion(); else _waPintarHilo(id); }, 0);
+}
+// forzar: lo que hace quien usa el panel (mandar un mensaje) se pinta siempre, suene lo que suene
+function _waPintarHilo(id, forzar){
   var cont = document.getElementById('wa-burbujas'); if(!cont || window._waSel !== id) return;
+  if(!forzar && _waSuenaAlgo(cont)){ window._waHiloPendiente = id; return; }
+  window._waHiloPendiente = null;
   var msgs = window._waMsgs[id] || [], conv = _waConv(id), asis = _waNombreAsis(conv), ini = _waIni(conv && (conv.nombre || conv.clienteNombre)), antes = 0;
   cont.innerHTML = msgs.length ? msgs.map(function(m){
     var quien = m.autor === 'cliente' ? '' : (m.autor === 'equipo' ? asis + ' · ' + (m.por || 'equipo') : asis);
@@ -196,7 +217,7 @@ function _waPintarHilo(id){
     var t = new Date(m.hora).getTime(), sep = !antes || t - antes > 3600000 ? '<div class="wa-sep">' + _waSep(m.hora) + '</div>' : ''; antes = t;
     return sep + '<div class="wa-m ' + _waEsc(m.autor) + '">' + (m.autor === 'cliente' ? '<div class="avm' + (conv && conv.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(ini) + '</div>' : '')
       + '<div class="wa-b ' + _waEsc(m.autor) + '">' + (m.tipo === 'plantilla' ? '<div class="plantilla">Recordatorio automático</div>' : '')
-      + _waHtmlAdjunto(m)
+      + _waHtmlAdjunto(m, id)
       + _waEsc(m.tipo === 'publicacion' ? '' : (m.texto || '')).replace(/\n/g, '<br>')
       + '<div class="meta">' + (quien ? '<span class="quien">' + _waEsc(quien) + '</span>' : '') + '<span>' + _waHora(m.hora) + '</span>' + (m.autor !== 'cliente' ? '<span title="' + _waEsc(m.estado || '') + '">' + _waEstadoIcono(m.estado) + '</span>' : '') + (m.error ? '<span class="err">' + _waEsc(m.error) + '</span>' : '') + (m.autor === 'asistente' && m.id && String(m.id).indexOf('local-') !== 0 ? _waHtmlCalificar(id, m) : '') + '</div></div></div>';
   }).join('') : '<div class="empty">Sin mensajes.</div>';
@@ -311,17 +332,24 @@ function _waRefrescarEnSitio(forzar){
   if((e = document.getElementById('wa-st-leads'))) e.textContent = convs.filter(function(c){ return c.borrador && c.borrador.tipo === 'lead'; }).length;
   if((e = document.getElementById('wa-tab-conv'))) e.textContent = 'Conversaciones' + (esperan ? ' · ' + esperan + ' esperan' : '');
   var sel = _waSeleccionada(ctx);
-  if(forzar || _waFirmaDe(sel) !== window._waFirma) _waPintarSeleccion(); else _waPintarLista();
+  // Si llega algo mientras suena una nota de voz o un video, no se rehace el hilo (se cortaría): se pinta la lista y
+  // el resto queda pendiente hasta que pare. Lo que hace la persona (forzar) sí se pinta al momento.
+  if(forzar) _waPintarSeleccion();
+  else if(_waFirmaDe(sel) !== window._waFirma){
+    if(_waSuenaAlgo(document.getElementById('wa-burbujas'))){ window._waSeleccionPendiente = true; _waPintarLista(); }
+    else _waPintarSeleccion();
+  } else _waPintarLista();
   return true;
 }
 function _waHtmlHilo(sel, ctx, conectado){
   if(!sel) return '<div class="empty" style="padding:60px 20px">Elige una conversación.</div>';
   var abierta = waVentanaAbierta(sel);
   return '<div class="wa-hilo-top"><div class="quien"><div class="av' + (sel.canal === 'instagram' ? ' ig' : '') + '">' + _waEsc(_waIni(sel.nombre || sel.clienteNombre)) + '</div><div><b>' + _waEsc(sel.nombre || sel.telE164) + '</b><small>' + (sel.canal === 'instagram' ? 'Instagram' + (sel.usuario ? ' · @' + _waEsc(sel.usuario) : '') + ' · ventas' : _waEsc(String(sel.telE164 || '').replace('+58', '0')) + (sel.area === 'ventas' ? ' · ventas' + (sel.clienteNombre ? ' · ya es cliente' : '') : (sel.clienteNombre ? ' · cliente del sistema' : ' · no está en el sistema'))) + ' · ' + (sel.modo === 'humano' ? 'lo atiende ' + _waEsc(sel.atendidoPor || 'el equipo') : 'lo atiende el asistente') + '</small></div></div>'
-          + '<div class="acc">' + (sel.atencion ? '<button class="rs-ib" title="Visto: ya lo resolví" onclick="waVisto(\'' + _waEsc(sel.id) + '\')">' + _waIcono('visto') + '</button>' : '') + (sel.modo === 'humano' ? '<button class="rs-ib" title="Devolver al asistente" onclick="waDevolver(\'' + _waEsc(sel.id) + '\')">' + _waIcono('bot') + 'Devolver al asistente</button>' : '<button class="rs-ib p" title="Atender yo: el asistente se calla" onclick="waAtender(\'' + _waEsc(sel.id) + '\')">' + _waIcono('yo') + 'Atender yo</button>') + '</div></div>'
+          + '<div class="acc">' + _waHtmlLlamar(sel) + (sel.atencion ? '<button class="rs-ib" title="Visto: ya lo resolví" onclick="waVisto(\'' + _waEsc(sel.id) + '\')">' + _waIcono('visto') + '</button>' : '') + (sel.modo === 'humano' ? '<button class="rs-ib" title="Devolver al asistente" onclick="waDevolver(\'' + _waEsc(sel.id) + '\')">' + _waIcono('bot') + 'Devolver al asistente</button>' : '<button class="rs-ib p" title="Atender yo: el asistente se calla" onclick="waAtender(\'' + _waEsc(sel.id) + '\')">' + _waIcono('yo') + 'Atender yo</button>') + '</div></div>'
           + '<div class="wa-burbujas" id="wa-burbujas"></div>'
           + (abierta ? '<div class="wa-escribir"><textarea class="fta" id="wa-texto" data-conv="' + _waEsc(sel.id) + '" oninput="_waGuardarBorrador(\'' + _waEsc(sel.id) + '\', this.value)" placeholder="Responde en ' + (sel.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' como ' + _waNombreAsis(sel) + '…">' + _waEsc(window._waBorradores[sel.id] || '') + '</textarea><div class="wa-rr" id="wa-rr" hidden></div><div class="wa-esc-pie"><div class="wa-esc-her">'
             + '<button type="button" class="wa-her" onclick="waRespuestas(\'' + _waEsc(sel.id) + '\')" title="Textos guardados: requisitos, proceso, inicial…">' + _WA_RAYO + 'Respuestas</button>'
+            + '<button type="button" class="wa-her" onclick="waAdjuntar(\'' + _waEsc(sel.id) + '\')" title="Mandar una foto, un documento, un video o un audio de tu equipo">' + _WA_CLIP + 'Adjuntar</button>'
             + (_waEsCobranza(sel) ? '' : '<button type="button" class="wa-her" onclick="waFotoMoto(\'' + _waEsc(sel.id) + '\')" title="Mandar la foto de una moto del catálogo">' + _WA_FOTO + 'Foto de moto</button>') + '</div>'
             + '<span class="cs">Al escribir, tomas la conversación y queda registrado que fuiste tú.</span><button class="btn btn-p btn-sm" onclick="_waEnviarDesdeCaja(\'' + _waEsc(sel.id) + '\')">Enviar</button></div></div>'
             : (sel.canal === 'instagram' ? '<div class="wa-cerrada">Pasaron más de 7 días desde el último mensaje de la persona' + (sel.ultimoEntranteHora ? ' (' + _waHora(sel.ultimoEntranteHora) + ')' : '') + ': Instagram no deja escribirle hasta que vuelva a escribir.</div>'
@@ -331,6 +359,7 @@ function _waHtmlHilo(sel, ctx, conectado){
 // ── Respuestas rápidas y foto de la moto (Adam, 24-oct-2026: "arranca con todo") ──
 var _WA_RAYO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>';
 var _WA_FOTO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>';
+var _WA_CLIP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>';
 // Las de fábrica salen del manual de Paola (functions/lib/ventas.js), para que el equipo diga lo mismo que ella.
 // {nombre} = el nombre de la persona; {yo} = quien escribe; {inicial}, {inicialMax}, {plazos} = las condiciones del catálogo.
 var WA_RESPUESTAS_BASE = [
@@ -427,6 +456,140 @@ function _waFotoEnviar(){
   if(waEnviarEquipo(id, t ? t.value : '', _waFotoUrl(m))){ closeM(); toast('Foto enviada: ' + _waEsc(m.name), 'success'); }
 }
 
+// ── Llamar (Adam, 23-nov-2026: "el módulo no me deja llamar") ──
+// Marca el número de la persona con el teléfono de quien toca el botón (enlace tel:). No es una llamada por
+// WhatsApp: esas piden activar la API de llamadas de Meta en cada número.
+function _waTelLlamar(sel){
+  if(!sel) return '';
+  var t = String(sel.telE164 || '').replace(/[^\d+]/g, '');
+  if(!t && sel.borrador && sel.borrador.telefono){ var d = String(sel.borrador.telefono).replace(/\D/g, ''); t = d.length === 11 && d[0] === '0' ? '+58' + d.slice(1) : d.length === 10 ? '+58' + d : d.length >= 11 ? '+' + d : ''; }
+  return /^\+\d{10,15}$/.test(t) ? t : '';
+}
+function _waHtmlLlamar(sel){
+  var t = _waTelLlamar(sel); if(!t) return '';
+  return '<a class="rs-ib" href="tel:' + _waEsc(t) + '" title="Llamar al ' + _waEsc(t.replace('+58', '0')) + ' con tu teléfono (llamada normal, no por WhatsApp)" onclick="if(typeof logActividad===\'function\')logActividad(\'wa_llamar\',\'redes\',\'' + _waEsc(sel.id) + '\',{})">' + _waIcono('tel') + 'Llamar</a>';
+}
+
+// ── Adjuntar (Adam, 23-nov-2026: "no me deja mandar fotos ni anexar documentos") ──
+// Se escoge un archivo del equipo (o la cámara del teléfono), se revisa con su texto y se manda. El archivo se sube
+// a Storage (carpeta redes_equipo) y el servidor lo manda por WhatsApp o Instagram con ese enlace.
+// Topes en MB: los de WhatsApp (foto 5, video y audio 16) e Instagram (PDF 25); la foto se achica antes de subir.
+var WA_ADJ_TOPE = { imagen: 20, documento: 25, video: 16, audio: 16 };
+var WA_ADJ_MIME = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', txt: 'text/plain', csv: 'text/csv', mp4: 'video/mp4', mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/ogg', amr: 'audio/amr' };
+function _waAdjExt(nombre){ var x = /\.([a-z0-9]{1,5})$/i.exec(String(nombre || '')); return x ? x[1].toLowerCase() : ''; }
+// Qué es el archivo para Meta: '' = no se puede mandar
+function waAdjTipo(file){
+  var t = String((file && file.type) || '').toLowerCase(), e = _waAdjExt(file && file.name);
+  if(/^image\//.test(t) || /^(jpe?g|png|webp|gif|heic|heif)$/.test(e)) return 'imagen';
+  if(t === 'video/mp4' || e === 'mp4') return 'video';
+  if(/^(mp3|m4a|aac|ogg|opus|amr)$/.test(e) || /^audio\/(mpeg|mp4|aac|ogg|amr)/.test(t)) return 'audio';
+  if(/^(pdf|docx?|xlsx?|pptx?|txt|csv)$/.test(e) || t === 'application/pdf') return 'documento';
+  return '';
+}
+function _waAdjMime(file, tipo){ var e = _waAdjExt(file && file.name); return tipo === 'imagen' ? 'image/jpeg' : (WA_ADJ_MIME[e] || String((file && file.type) || '').toLowerCase() || 'application/octet-stream'); }
+function _waAdjPeso(b){ return b >= 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+// Por qué no se puede mandar ese archivo ('' = sí se puede)
+function waAdjError(file, conv){
+  if(!file) return 'Elige un archivo';
+  var tipo = waAdjTipo(file);
+  if(!tipo) return /\.(mov|avi|mkv|webm|3gp)$/i.test(String(file.name || '')) || /^video\//.test(String(file.type || '')) ? 'Ese video no es MP4: WhatsApp e Instagram solo reciben videos MP4.' : 'Ese tipo de archivo no se puede mandar por aquí. Sirven fotos, PDF, Word, Excel, PowerPoint, videos MP4 y audios.';
+  if(file.size > WA_ADJ_TOPE[tipo] * 1048576) return 'Pesa ' + _waAdjPeso(file.size) + ': ' + (tipo === 'imagen' ? 'las fotos' : tipo === 'documento' ? 'los documentos' : tipo === 'video' ? 'los videos' : 'los audios') + ' van hasta ' + WA_ADJ_TOPE[tipo] + ' MB.';
+  if(conv && conv.canal === 'instagram' && tipo === 'documento' && _waAdjMime(file, tipo) !== 'application/pdf') return 'Por Instagram solo se pueden mandar documentos en PDF.';
+  if(conv && conv.canal === 'instagram' && tipo === 'audio' && !/^(m4a|aac|mp4|wav)$/.test(_waAdjExt(file.name))) return 'Por Instagram solo se pueden mandar audios M4A o AAC.';
+  return '';
+}
+function waAdjuntar(id){
+  var c = _waConv(id); if(!c) return;
+  if(!waVentanaAbierta(c)){ toast('La ventana para escribirle está cerrada: hay que esperar a que vuelva a escribir.', 'error'); return; }
+  var inp = document.createElement('input'); inp.type = 'file';
+  inp.accept = 'image/*,video/mp4,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv';
+  inp.onchange = function(){ if(inp.files && inp.files[0]) waAdjuntoRevisar(id, inp.files[0]); };
+  inp.click();
+}
+// La ventana para revisar antes de mandar: el archivo, su peso y el texto que lo acompaña
+function waAdjuntoRevisar(id, file){
+  var c = _waConv(id); if(!c || !file) return;
+  var err = waAdjError(file, c); if(err){ toast(err, 'error'); return; }
+  var tipo = waAdjTipo(file), ta = document.getElementById('wa-texto');
+  if(window._waAdj && window._waAdj.vista){ try{ URL.revokeObjectURL(window._waAdj.vista); }catch(e){} }
+  var vista = ''; if(tipo === 'imagen'){ try{ vista = URL.createObjectURL(file); }catch(e){} }
+  window._waAdj = { id: id, file: file, tipo: tipo, vista: vista };
+  document.getElementById('mtt').textContent = tipo === 'imagen' ? 'Mandar foto' : tipo === 'documento' ? 'Mandar documento' : tipo === 'video' ? 'Mandar video' : 'Mandar audio';
+  document.getElementById('msb').textContent = 'Por ' + (c.canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' a ' + (c.nombre || c.clienteNombre || 'la persona');
+  document.getElementById('modal-box').className = 'modal';
+  document.getElementById('mbd').innerHTML = '<div class="rs-v"><div class="wa-adj-ver">' + (vista ? '<img src="' + _waEsc(vista) + '" alt="">' : '<div class="ar">' + (tipo === 'documento' ? '📄' : tipo === 'video' ? '🎬' : '🎵') + '</div>')
+    + '<div style="flex:1;min-width:0"><b>' + _waEsc(file.name || 'archivo') + '</b><div class="cs">' + _waAdjPeso(file.size) + (tipo === 'imagen' ? ' · se manda como foto' : '') + '</div>'
+    + (tipo === 'audio' ? '<div class="cs" style="margin-top:8px">El audio va solo' + (c.canal === 'instagram' ? '' : '; si escribes un texto, sale como un mensaje aparte') + '.</div>' : '')
+    + '<label class="cs" style="display:block;margin-top:10px">Texto que va con ' + (tipo === 'imagen' ? 'la foto' : tipo === 'documento' ? 'el documento' : tipo === 'video' ? 'el video' : 'el audio') + ' (opcional)</label>'
+    + '<textarea class="fta" id="wa-adj-txt" rows="3">' + _waEsc(ta && ta.getAttribute && ta.getAttribute('data-conv') === id ? ta.value : (window._waBorradores[id] || '')) + '</textarea></div></div>'
+    + '<div class="cs" id="wa-adj-est" style="margin-top:10px"></div></div>';
+  S.saveFn = null;
+  document.getElementById('mft').innerHTML = '<button class="btn btn-g" onclick="waAdjuntoCancelar()">Cancelar</button><button class="btn btn-p" id="wa-adj-btn" onclick="waAdjuntoEnviar()">Enviar</button>';
+  document.getElementById('ov').style.display = 'flex';
+}
+// Cancelar corta también una subida a medias: el archivo ya no sale
+function waAdjuntoCancelar(){
+  var a = window._waAdj; window._waAdj = null;
+  if(a){ a.cancelado = true; try{ if(a.tarea && typeof a.tarea.cancel === 'function') a.tarea.cancel(); }catch(e){} try{ if(a.vista) URL.revokeObjectURL(a.vista); }catch(e){} }
+  closeM();
+}
+// La foto se achica en el navegador (lado mayor 1600 px, JPG sobre fondo blanco): pesa poco y WhatsApp la recibe siempre
+function _waAchicarFoto(file){
+  return new Promise(function(ok, mal){
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function(){
+      var k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      var cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob(function(b){ b ? ok(b) : mal(new Error('No se pudo preparar la foto')); }, 'image/jpeg', 0.85);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); mal(new Error('Esa foto no se pudo abrir (si es HEIC del iPhone, mándala como JPG)')); };
+    img.src = url;
+  });
+}
+// Dónde queda en Storage: redes_equipo/<conversación>/<hora>-<al azar>-<nombre>, todo con letras, números, punto, guion
+function waAdjRuta(id, nombre, tipo, ahora){
+  var limpio = function(x){ return String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, ''); };
+  var n = limpio(nombre).slice(-60) || 'archivo';
+  if(tipo === 'imagen') n = n.replace(/\.[a-z0-9]{1,5}$/i, '') + '.jpg';
+  return 'redes_equipo/' + (limpio(id) || 'conv') + '/' + (ahora || Date.now()) + '-' + Math.random().toString(36).slice(2, 8) + '-' + n;
+}
+function waAdjuntoEnviar(){
+  var a = window._waAdj; if(!a || a.ocupado) return;
+  var c = _waConv(a.id); if(!c) return;
+  var txt = String((document.getElementById('wa-adj-txt') || {}).value || '').trim();
+  var btn = document.getElementById('wa-adj-btn'), est = document.getElementById('wa-adj-est');
+  var decir = function(t){ if(est) est.textContent = t; };
+  var soltar = function(){ a.ocupado = false; if(btn){ btn.disabled = false; btn.textContent = 'Enviar'; } };
+  var mime = _waAdjMime(a.file, a.tipo), nombre = String(a.file.name || 'archivo').slice(0, 120);
+  // Si mientras subía la ventana se cerró (Cancelar, la X o un toque afuera) o se abrió otro archivo, este ya no sale
+  var vigente = function(){ return !a.cancelado && window._waAdj === a && !!document.getElementById('wa-adj-btn'); };
+  var listo = function(url){
+    if(!vigente()){ a.ocupado = false; return; }
+    if(!waEnviarEquipo(a.id, txt, '', { url: url, tipo: a.tipo, nombre: nombre, mime: mime })){ soltar(); return; }
+    var ta = document.getElementById('wa-texto'); if(ta && ta.getAttribute && ta.getAttribute('data-conv') === a.id) ta.value = '';
+    _waGuardarBorrador(a.id, '');
+    if(a.vista){ try{ URL.revokeObjectURL(a.vista); }catch(e){} }
+    window._waAdj = null; closeM();
+    toast((a.tipo === 'imagen' ? 'Foto enviada' : a.tipo === 'documento' ? 'Documento enviado' : a.tipo === 'video' ? 'Video enviado' : 'Audio enviado'), 'success');
+  };
+  a.ocupado = true; if(btn){ btn.disabled = true; btn.textContent = 'Enviando…'; }
+  // En la demostración (sin Meta conectado) no se sube nada: se muestra el archivo tal cual
+  if(!waConectadoCanal(c.canal)){ var local = ''; try{ local = URL.createObjectURL(a.file); }catch(e){} listo(local || 'about:blank'); return; }
+  if(typeof storage === 'undefined' || !storage || typeof storage.ref !== 'function'){ soltar(); toast('Sin conexión al almacenamiento de archivos', 'error'); return; }
+  decir(a.tipo === 'imagen' ? 'Preparando la foto…' : 'Subiendo…');
+  (a.tipo === 'imagen' ? _waAchicarFoto(a.file) : Promise.resolve(a.file)).then(function(blob){
+    decir('Subiendo…');
+    if(!vigente()) throw { cancelado: true };
+    var ref = storage.ref().child(waAdjRuta(a.id, nombre, a.tipo)), tarea = ref.put(blob, { contentType: mime });
+    a.tarea = tarea;
+    if(tarea && typeof tarea.on === 'function') tarea.on('state_changed', function(sn){ if(sn && sn.totalBytes > 0) decir('Subiendo… ' + Math.round(sn.bytesTransferred / sn.totalBytes * 100) + '%'); }, function(){});
+    return Promise.resolve(tarea).then(function(){ return ref.getDownloadURL(); });
+  }).then(function(url){ decir(''); listo(url); })
+    .catch(function(e){ if(a.cancelado || (e && (e.cancelado || e.code === 'storage/canceled')) || !vigente()){ a.ocupado = false; return; } soltar(); decir(''); toast('No se pudo subir el archivo: ' + (e && (e.message || e.code) || e), 'error'); });
+}
+
 // ── Del chat a la solicitud (Adam, 24-oct-2026: "arranca con todo") ──
 // Abre la Nueva solicitud con lo que Paola anotó en el chat, para no volver a escribirlo. Lo que no tiene casilla
 // (la inicial que tiene, a qué se dedica, el resumen) va en las notas. El vendedor revisa y completa antes de guardar.
@@ -521,15 +684,32 @@ function _waRepintarFicha(){ var f = document.getElementById('wa-ficha'), ctx = 
 // Fotos, publicaciones compartidas, videos y adjuntos (Adam, 24-oct-2026: "cuando el usuario manda una imagen el sistema
 // como que crashea"): salían como una burbuja vacía. Las fotos de Instagram vienen de un enlace de Meta que vence; si ya
 // no se puede mostrar, lo dice en vez de quedar en blanco.
-var WA_ADJ = { imagen: '📷 Foto', video: '🎬 Video', audio: '🎤 Audio', documento: '📄 Documento', publicacion: '📌 Compartió una publicación', historia: '📣 Te mencionó en una historia', adjunto: '📎 Adjunto' };
-function _waHtmlAdjunto(m){
-  var url = m.medio && m.medio.url ? String(m.medio.url) : '', t = m.tipo || '', foto = url && (t === 'imagen' || t === 'publicacion');
-  var img = foto ? '<a class="wa-foto-msg" href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + _waEsc(url) + '" alt="Foto" loading="lazy" referrerpolicy="no-referrer" onerror="_waImgFallo(this)"></a>' : (url && !WA_ADJ[t] ? '<img src="' + _waEsc(url) + '" alt="" referrerpolicy="no-referrer" onerror="_waImgFallo(this)">' : '');
-  if(!WA_ADJ[t] || t === 'imagen' && foto) return img;
+var WA_ADJ = { imagen: '📷 Foto', video: '🎬 Video', audio: '🎤 Audio', documento: '📄 Documento', sticker: '🙂 Sticker', publicacion: '📌 Compartió una publicación', historia: '📣 Te mencionó en una historia', adjunto: '📎 Adjunto' };
+// 23-nov-2026 (Adam: "notas de voz"): el audio y el video se oyen y se ven aquí mismo, el documento sale con su
+// nombre, y lo que no quedó guardado al llegar se puede bajar con un toque mientras WhatsApp lo tenga (7 días).
+var WA_MEDIO_DIAS = 7;
+function _waHtmlAdjunto(m, convId){
+  var md = m.medio || {}, url = md.url ? String(md.url) : '', t = m.tipo || '', foto = url && (t === 'imagen' || t === 'publicacion' || t === 'sticker');
+  var img = foto ? '<a class="wa-foto-msg' + (t === 'sticker' ? ' wa-stk' : '') + '" href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + _waEsc(url) + '" alt="Foto" loading="lazy" referrerpolicy="no-referrer" onerror="_waImgFallo(this)"></a>' : (url && !WA_ADJ[t] ? '<img src="' + _waEsc(url) + '" alt="" referrerpolicy="no-referrer" onerror="_waImgFallo(this)">' : '');
+  if(!WA_ADJ[t] || (t === 'imagen' || t === 'sticker') && foto) return img;
+  var abrir = url ? ' · <a href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '';
+  if(url && t === 'audio') return '<div class="wa-adj">' + (md.voz ? '🎤 Nota de voz' : '🎵 Audio') + abrir + '<audio controls preload="none" src="' + _waEsc(url) + '" onpause="_waSonPara()" onended="_waSonPara()" onerror="_waSonFallo(this)"></audio></div>';
+  if(url && t === 'video') return '<div class="wa-adj">🎬 Video' + abrir + '<video controls playsinline preload="metadata" src="' + _waEsc(url) + '" onpause="_waSonPara()" onended="_waSonPara()" onerror="_waSonFallo(this)"></video></div>';
+  if(url && t === 'documento') return '<div class="wa-adj">📄 <a href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer">' + _waEsc(md.nombre || 'Documento') + '</a></div>';
+  var etiqueta = t === 'audio' && md.voz ? '🎤 Nota de voz' : t === 'documento' && md.nombre ? '📄 ' + _waEsc(md.nombre) : WA_ADJ[t];
+  // WhatsApp guarda 7 días lo que mandó la persona: si no quedó en el sistema, se baja con un toque
+  if(!url && md.id && m.direccion === 'entrante' && convId && m.id && String(m.id).indexOf('local-') !== 0){
+    var dias = m.hora ? (Date.now() - new Date(m.hora).getTime()) / 86400000 : 0;
+    return '<div class="wa-adj">' + etiqueta + (dias < WA_MEDIO_DIAS
+      ? '<button type="button" class="wa-bajar" onclick="waPedirMedio(\'' + _waEsc(convId) + '\',\'' + _waEsc(m.id) + '\',this)">Bajar</button>'
+      : '<small>Ya no se puede bajar: WhatsApp guarda los archivos 7 días.</small>') + '</div>';
+  }
   var tituloPub = t === 'publicacion' && m.texto ? '<div class="pub">«' + _waEsc(m.texto) + '»</div>' : '';
-  var nota = !url && (t === 'adjunto' || t === 'historia' || t === 'publicacion' || t === 'video') ? '<small>Instagram no deja verlo aquí: ábrelo en la app de Instagram.</small>' : '';
-  return img + '<div class="wa-adj">' + WA_ADJ[t] + (url && !foto ? ' · <a href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '') + tituloPub + nota + '</div>';
+  var nota = !url && (t === 'adjunto' || t === 'historia' || t === 'publicacion' || (t === 'video' && !md.id)) ? '<small>Instagram no deja verlo aquí: ábrelo en la app de Instagram.</small>' : '';
+  return img + '<div class="wa-adj">' + etiqueta + (url && !foto ? ' · <a href="' + _waEsc(url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '') + tituloPub + nota + '</div>';
 }
+// El navegador no pudo abrir el audio o el video (enlace vencido, o un formato que ese navegador no reproduce)
+function _waSonFallo(el){ if(!el || !el.parentNode || el.getAttribute('data-fallo')) return; el.setAttribute('data-fallo', '1'); var s = document.createElement('small'); s.textContent = 'No se pudo reproducir aquí: toca «Abrir» para oírlo o verlo aparte.'; el.parentNode.replaceChild(s, el); _waSonPara(); }
 function _waImgFallo(img){ var a = img && img.closest ? img.closest('a') || img : img; if(!a || !a.parentNode) return; var d = document.createElement('div'); d.className = 'wa-adj'; d.innerHTML = '📷 Foto<small>Ya no se puede mostrar aquí (los enlaces de Instagram vencen): ábrela en la app de Instagram.</small>'; a.parentNode.replaceChild(d, a); }
 
 // "Pasar a…": el vendedor de la conversación, en la ficha

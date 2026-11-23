@@ -104,7 +104,14 @@ function armarDeps(cfg) {
   const metaPara = id => (id === '1415108271676379' ? mVentas : m);
   const ig = configurado(sec(IG_TOKEN)) && configurado(sec(IG_CUENTA)) ? meta.clienteInstagram({ accessToken: sec(IG_TOKEN), accountId: sec(IG_CUENTA) }) : null;
   // Bajar una foto por su enlace (las de Instagram) para guardarla en Storage antes de que venza
-  const bajarUrl = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return { bytes: Buffer.from(await r.arrayBuffer()), mime: String(r.headers.get('content-type') || '').split(';')[0] }; };
+  // tope (bytes): si pesa más no se baja (23-nov-2026: también audios, videos y archivos)
+  const bajarUrl = async (url, tope) => {
+    const r = await fetch(url, { signal: AbortSignal.timeout(25000) }); if (!r.ok) throw new Error('HTTP ' + r.status);
+    const grande = () => Object.assign(new Error('El archivo pesa más de lo que se puede guardar'), { codigo: 'grande' });
+    if (tope && +r.headers.get('content-length') > tope) throw grande();
+    const bytes = Buffer.from(await r.arrayBuffer()); if (tope && bytes.length > tope) throw grande();
+    return { bytes, mime: String(r.headers.get('content-type') || '').split(';')[0] };
+  };
   return { bases, storage: storageDe, bajarUrl, meta: m, metaPara, metaIG: ig, instagramId: configurado(sec(IG_CUENTA)) ? sec(IG_CUENTA) : '', ventas: catalogoVentas, cfg, ahora: () => new Date().toISOString(), hoy: hoyCaracas, log: (q, d) => logger.info(q, d || {}),
     cerebro: { leerComprobante: async ({ bytes, mime }) => { const r = await cerebro.leerComprobante({ apiKey: sec(ANTHROPIC), bytes, mime }); anotarGasto('cobranza', r && r.gasto); return r; }, pensar: async ({ sistema, mensajes, calidad, area }) => { const r = await cerebro.pensar({ apiKey: sec(ANTHROPIC), sistema, mensajes, calidad }); anotarGasto(area || 'ventas', r && r.gasto); return r; } } };
 }
@@ -177,7 +184,8 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
   }
   if (req.method !== 'POST') return res.status(405).send('método no permitido');
 
-  // El panel: POST /equipo { empresa, conv, texto } · { empresa, conv, accion: 'vendedor', vendedor } (Pasar a…)
+  // El panel: POST /equipo { empresa, conv, texto, imagen?, adjunto? } · { empresa, conv, accion: 'vendedor', vendedor } (Pasar a…)
+  //           POST /equipo { empresa, conv, accion: 'medio', msg } (bajar ahora el archivo de un mensaje)
   //           POST /equipo { accion: 'resumenGrupo', fresco? } (módulo PAGASI 18 + 26)
   //           POST /equipo { accion: 'preguntaAI', pregunta, historial } (módulo AI)
   if (/\/equipo\/?$/.test(req.path || '')) {
@@ -238,9 +246,17 @@ exports.whatsappWebhook = onRequest({ region: 'us-east1', invoker: 'public', sec
       } catch (e) { return res.status(e.codigo === 'permiso' ? 403 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
     }
     if (!topeEquipo(quien.uid)) return res.status(429).json({ error: 'Demasiados mensajes seguidos: espera un minuto', codigo: 'tope' });
+    // Bajar ahora la nota de voz, el video o el documento de un mensaje que no quedó guardado al llegar (23-nov-2026)
+    if ((req.body || {}).accion === 'medio') {
+      try {
+        const b = req.body || {}, cfg = await cfgAsistente();
+        const r = await procesar.medioDeMensaje(armarDeps(cfg), { empresa: String(b.empresa || quien.empresa), convId: String(b.conv || ''), msgId: String(b.msg || ''), quien });
+        return res.status(200).json(Object.assign({ ok: true }, r));
+      } catch (e) { return res.status(e.codigo === 'permiso' ? 403 : e.codigo === 'vencido' ? 410 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
+    }
     try {
       const cfg = await cfgAsistente();
-      const r = await procesar.enviarEquipo(armarDeps(cfg), { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), texto: (req.body || {}).texto, imagen: (req.body || {}).imagen, por: quien.nombre, quien });
+      const r = await procesar.enviarEquipo(armarDeps(cfg), { empresa: String((req.body || {}).empresa || quien.empresa), convId: String((req.body || {}).conv || ''), texto: (req.body || {}).texto, imagen: (req.body || {}).imagen, adjunto: (req.body || {}).adjunto, por: quien.nombre, quien });
       return res.status(200).json({ ok: true, metaId: r.metaId });
     } catch (e) { return res.status(e.codigo === 'ventana' ? 409 : e.codigo === 'permiso' ? 403 : 400).json({ error: e.message, codigo: e.codigo || '' }); }
   }

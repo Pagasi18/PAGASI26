@@ -36,8 +36,40 @@ const RAZON_A_ATENCION = { pide_persona: 'pide_persona', queja: 'queja', comprob
 // sin los caracteres que podrían armar código en el navegador (auditoría del 24-oct-2026, A4)
 function sinPeligro(v) { return String(v == null ? '' : v).replace(/[<>"'`\\&]/g, '').replace(/\s+/g, ' ').trim(); }
 function telDe(waId) { const d = String(waId || '').replace(/\D/g, ''); return d ? '+' + d : ''; }
-function extDe(mime) { return mime === 'image/png' ? 'png' : mime === 'application/pdf' ? 'pdf' : mime === 'image/webp' ? 'webp' : 'jpg'; }
-function textoLista(m) { return m.texto || ({ imagen: '📷 Imagen', audio: '🎤 Audio', documento: '📄 Documento', video: '🎬 Video', publicacion: '📌 Compartió una publicación', historia: '📣 Te mencionó en una historia', adjunto: '📎 Adjunto' })[m.tipo] || 'Mensaje'; }
+// La extensión del archivo que se guarda: por su tipo; si no se conoce, por el nombre que traía (un .docx ya no queda como .jpg)
+const EXT_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf',
+  'audio/ogg': 'ogg', 'audio/opus': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/amr': 'amr', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/webm': 'webm',
+  'video/mp4': 'mp4', 'video/3gpp': '3gp', 'video/quicktime': 'mov', 'video/webm': 'webm',
+  'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-powerpoint': 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx', 'text/plain': 'txt', 'text/csv': 'csv' };
+function extDe(mime, nombre) {
+  const m = String(mime || '').split(';')[0].trim().toLowerCase();
+  if (EXT_MIME[m]) return EXT_MIME[m];
+  const x = /\.([a-z0-9]{1,5})$/i.exec(String(nombre || ''));
+  if (x) return x[1].toLowerCase();
+  return /^audio\//.test(m) ? 'ogg' : /^video\//.test(m) ? 'mp4' : (!m || /^image\//.test(m)) ? 'jpg' : 'bin';
+}
+function textoLista(m) { return m.texto || ({ imagen: '📷 Imagen', audio: m.medio && m.medio.voz ? '🎤 Nota de voz' : '🎤 Audio', documento: '📄 Documento', video: '🎬 Video', sticker: '🙂 Sticker', publicacion: '📌 Compartió una publicación', historia: '📣 Te mencionó en una historia', adjunto: '📎 Adjunto' })[m.tipo] || 'Mensaje'; }
+// Sin los campos vacíos (Firestore no acepta undefined y no hace falta guardar '' ni false)
+const limpio = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false));
+// Lo que manda la persona se guarda en Storage para verlo o escucharlo en el panel (23-nov-2026: "no me deja… notas
+// de voz"). Meta solo deja bajar un archivo de WhatsApp durante 7 días, y los enlaces de Instagram vencen en horas.
+const TOPE_MEDIO = 25 * 1024 * 1024;
+// El nombre del archivo sale del FINAL del id del mensaje: los ids de Instagram miden unos 164 caracteres y son iguales
+// hasta el 89, así que con el principio todos los archivos de una persona caían en la misma ruta y se pisaban
+// (revisión del 23-nov-2026; pasaba con las fotos desde el 24-oct).
+function idCorto(metaId) { return String(metaId || '').replace(/[^\w.-]/g, '_').slice(-80) || 'sin-id'; }
+function rutaMedio(carpeta, quien, metaId, mime, nombre) { return carpeta + '/' + (String(quien || '').replace(/[^\w.-]/g, '_') || 'sin') + '/' + idCorto(metaId) + '.' + extDe(mime, nombre); }
+async function guardarMedioWa(deps, { empresa, tel, msgRef, m, em }) {
+  try {
+    const b = await ((em && em.bajarMedio) ? em : deps.meta).bajarMedio(m.medio.id, TOPE_MEDIO);
+    const ruta = rutaMedio('redes_whatsapp', String(tel).replace('+', ''), m.metaId, b.mime, m.medio.nombre);
+    const url = await deps.storage(empresa).subir(ruta, b.bytes, b.mime);
+    const medio = limpio({ id: m.medio.id, url, path: ruta, mime: b.mime, nombre: m.medio.nombre, voz: m.medio.voz });
+    await msgRef.set({ medio }, { merge: true });
+    return medio;
+  } catch (e) { deps.log('medio-fallo', { tipo: m.tipo, codigo: (e && e.codigo) || '', error: String(e && e.message || e).slice(0, 120) }); return null; }
+}
 
 async function docs(q) { const s = await q.get(); return (s.docs || []).map(d => Object.assign({ id: d.id }, d.data())); }
 
@@ -135,7 +167,7 @@ async function procesarMensaje(deps, m) {
   const porVentas = areaDe(deps, m, '') === 'ventas';
   const convRef = db.collection('conversaciones').doc((porVentas ? 'wav:' : 'wa:') + tel);
   const msgRef = convRef.collection('mensajes').doc(m.metaId);
-  const entrante = { metaId: m.metaId, direccion: 'entrante', autor: 'cliente', tipo: m.tipo, texto: m.texto || '', medio: m.medio ? { id: m.medio.id, mime: m.medio.mime } : null, estado: 'recibido', hora: m.hora || ahora };
+  const entrante = { metaId: m.metaId, direccion: 'entrante', autor: 'cliente', tipo: m.tipo, texto: m.texto || '', medio: m.medio ? Object.assign({ id: m.medio.id, mime: m.medio.mime }, limpio({ nombre: m.medio.nombre, voz: m.medio.voz })) : null, estado: 'recibido', hora: m.hora || ahora };
   try { await msgRef.create(entrante); } catch (e) { return { saltado: 'repetido', empresa: u.empresa }; }
 
   const convSnap = await convRef.get();
@@ -151,22 +183,28 @@ async function procesarMensaje(deps, m) {
   deps.log('entrante', { canal: 'whatsapp', area, empresa: u.empresa, tipo: m.tipo, cliente: !!u.clienteId });
   const emWa = emisor(deps, 'whatsapp', base);
   if (emWa.marcarLeido) emWa.marcarLeido(m.metaId).catch(() => {});
+  // En cobranza la foto o el documento sigue su camino de comprobante (más abajo); todo lo demás —y todo lo que
+  // llega al WhatsApp de ventas— se guarda aquí, antes de que conteste la asistente
+  // La descarga corre A LA PAR de lo que sigue (no retrasa la respuesta de la asistente) y se espera al final:
+  // guardarMedioWa nunca falla hacia afuera
+  const pMedio = (m.medio && m.medio.id && (area === 'ventas' || !(m.tipo === 'imagen' || m.tipo === 'documento'))) ? guardarMedioWa(deps, { empresa: u.empresa, tel, msgRef, m, em: emWa }) : null;
+  try {
 
   // VENTAS por WhatsApp: el mismo asistente que en Instagram, ya con el telefono de la persona
   if (area === 'ventas') {
     if (base.modo === 'humano') return { empresa: u.empresa, area, callado: true };
     if (!responde(deps, 'whatsappVentas')) return { empresa: u.empresa, area, callado: true, apagada: true };
-    return responderVentas(deps, { db, convRef, conv, base, canal: 'whatsapp', hoy, ahora, nombrePerfil: m.nombre, usuario: '', telefono: tel.replace('+', ''), leadId: 'wa:' + tel, convId: (porVentas ? 'wav:' : 'wa:') + tel, empresa: u.empresa, entranteId: m.metaId });
+    return await responderVentas(deps, { db, convRef, conv, base, canal: 'whatsapp', hoy, ahora, nombrePerfil: m.nombre, usuario: '', telefono: tel.replace('+', ''), leadId: 'wa:' + tel, convId: (porVentas ? 'wav:' : 'wa:') + tel, empresa: u.empresa, entranteId: m.metaId });
   }
 
   // Una imagen o un documento: posible comprobante. Se guarda y se le pasa al equipo.
   if (m.medio && (m.tipo === 'imagen' || m.tipo === 'documento')) {
     let medio = null, leido = null;
     try {
-      const b = await deps.meta.bajarMedio(m.medio.id);
-      const ruta = 'comprobantes_whatsapp/' + tel.replace('+', '') + '/' + m.metaId + '.' + extDe(b.mime);
+      const b = await deps.meta.bajarMedio(m.medio.id, TOPE_MEDIO);
+      const ruta = 'comprobantes_whatsapp/' + tel.replace('+', '') + '/' + m.metaId + '.' + extDe(b.mime, m.medio.nombre);
       const url = await deps.storage(u.empresa).subir(ruta, b.bytes, b.mime);
-      medio = { url, path: ruta, mime: b.mime };
+      medio = Object.assign({ url, path: ruta, mime: b.mime }, limpio({ nombre: m.medio.nombre }));
       await msgRef.set({ medio }, { merge: true });
       if (u.clienteId && deps.cerebro && deps.cerebro.leerComprobante) { try { leido = await deps.cerebro.leerComprobante({ bytes: b.bytes, mime: b.mime }); } catch (e) { deps.log('recibo-fallo', { error: String(e && e.message || e).slice(0, 120) }); } }
     } catch (e) { deps.log('medio-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
@@ -208,6 +246,7 @@ async function procesarMensaje(deps, m) {
   if (cambios.atencion && !(conv && conv.atencion)) cambios.atencionDesde = ahora;   // desde cuándo espera a una persona
   await responder(deps, convRef, base, hablaron && ctx.cliente ? briefing.sinNombre(r.reply, ctx.cliente.nombre) : r.reply, ahora, cambios);
   return { empresa: u.empresa, respondido: true, handoff: !!r.handoff, draft: r.draft || null };
+  } finally { if (pMedio) await pMedio; }
 }
 
 // Instagram: ventas. Siempre en la 26, sin cliente ni ledger.
@@ -221,16 +260,24 @@ async function procesarInstagram(deps, m) {
   try { await msgRef.create(entrante); } catch (e) { return { saltado: 'repetido', empresa: '26', canal: 'instagram' }; }
   // La foto (o la de la publicación compartida) se copia a Storage: el enlace de Meta vence en horas y después la
   // pantalla ya no la puede mostrar (24-oct-2026). Si falla, queda el enlace original.
-  if (deps.bajarUrl && entrante.medio && entrante.medio.url && (m.tipo === 'imagen' || m.tipo === 'publicacion')) {
+  // 23-nov-2026: también los audios (notas de voz), los videos y los archivos, para escucharlos y verlos en el panel
+  // Corre a la par de la respuesta de Paola y se espera al final. Un reel o una publicación de video que la persona
+  // comparte no se copia (es público y pesa mucho): solo los videos que manda ella.
+  const copiar = deps.bajarUrl && entrante.medio && entrante.medio.url && ['imagen', 'publicacion', 'audio', 'video', 'documento'].includes(m.tipo) && !(m.tipo === 'video' && entrante.medio.tipoMeta && entrante.medio.tipoMeta !== 'video');
+  const pCopia = !copiar ? null : (async () => {
     try {
-      const b = await deps.bajarUrl(entrante.medio.url);
-      if (b && b.bytes && /^image\//.test(b.mime || '') && b.bytes.length <= 8 * 1024 * 1024) {
-        const ruta = 'redes_instagram/' + igsid + '/' + String(m.metaId).replace(/[^\w.-]/g, '_').slice(0, 80) + '.' + extDe(b.mime);
+      const b = await deps.bajarUrl(entrante.medio.url, TOPE_MEDIO);
+      const foto = m.tipo === 'imagen' || m.tipo === 'publicacion', mime = String((b && b.mime) || '');
+      // cada tipo con lo suyo (una página de error de Meta no se guarda como si fuera el audio)
+      const sirve = foto ? /^image\//.test(mime) && b.bytes.length <= 8 * 1024 * 1024 : (m.tipo === 'audio' ? /^(audio|video)\//.test(mime) : m.tipo === 'video' ? /^video\//.test(mime) : /^(application\/(pdf|msword|vnd\.)|text\/(plain|csv))/.test(mime)) && b.bytes.length <= TOPE_MEDIO;
+      if (b && b.bytes && sirve) {
+        const ruta = 'redes_instagram/' + igsid + '/' + idCorto(m.metaId) + '.' + extDe(b.mime);
         const url = await deps.storage('26').subir(ruta, b.bytes, b.mime);
         await msgRef.set({ medio: { url, path: ruta, mime: b.mime, original: entrante.medio.url, tipoMeta: entrante.medio.tipoMeta } }, { merge: true });
       }
     } catch (e) { deps.log('medio-ig-fallo', { error: String(e && e.message || e).slice(0, 120) }); }
-  }
+  })();
+  try {
 
   const convSnap = await convRef.get();
   const conv = convSnap.exists ? convSnap.data() : null;
@@ -245,7 +292,8 @@ async function procesarInstagram(deps, m) {
   if (base.modo === 'humano') return { empresa: '26', canal: 'instagram', callado: true };
   if (!responde(deps, 'instagram')) return { empresa: '26', canal: 'instagram', callado: true, apagada: true };
 
-  return responderVentas(deps, { db, convRef, conv, base, canal: 'instagram', hoy, ahora, nombrePerfil: perfil.nombre, usuario: perfil.usuario, telefono: '', leadId: 'ig:' + igsid, empresa: '26', entranteId: m.metaId });
+  return await responderVentas(deps, { db, convRef, conv, base, canal: 'instagram', hoy, ahora, nombrePerfil: perfil.nombre, usuario: perfil.usuario, telefono: '', leadId: 'ig:' + igsid, empresa: '26', entranteId: m.metaId });
+  } finally { if (pCopia) await pCopia; }
 }
 
 // El asistente de ventas (WhatsApp o Instagram): briefing con el catalogo, respuesta, y el lead
@@ -718,31 +766,69 @@ function puedeCanal(quien, canal, empresa) {
   if (quien.admin) return true;
   return quien.empresa === empresa && quien.rol !== 'Vendedor Concesionario' && (quien.permisos || []).includes(canal);
 }
+// El área, igual que en las Reglas de Firestore (veArea): con los permisos nuevos manda 'redes' (ventas: Instagram y el
+// WhatsApp de ventas) o 'redescob' (el WhatsApp de cobranza); un usuario de antes, sin ninguno de los dos, entra con el
+// permiso del canal. Antes el servidor solo miraba el canal: quien tenía Redes Cobranza podía escribir en una
+// conversación de ventas si conocía su id (23-nov-2026, antes de sumar los adjuntos).
+function puedeConv(quien, conv, empresa) {
+  const canal = canalDe(conv);
+  if (!puedeCanal(quien, canal, empresa)) return false;
+  if (quien.admin) return true;
+  const p = quien.permisos || [], nuevos = p.includes('redes') || p.includes('redescob');
+  const cobranza = canal === 'whatsapp' && ((conv && conv.area) || 'cobranza') === 'cobranza';
+  return cobranza ? (nuevos ? p.includes('redescob') : p.includes('whatsapp')) : (nuevos ? p.includes('redes') : p.includes(canal));
+}
 // Las fotos que manda el equipo: solo las del sitio (catálogo) o las de Firebase Storage
 const FOTO_OK = /^https:\/\/((18\.)?pagasi\.io\/assets\/[\w\/.%-]+\.(jpe?g|png|webp)|firebasestorage\.googleapis\.com\/[^\s"'<>]+)$/i;
-async function enviarEquipo(deps, { empresa, convId, texto, por, quien, imagen }) {
+// Lo que adjunta el equipo desde el panel (23-nov-2026: "no me deja mandar fotos ni anexar documentos… notas de voz"):
+// el panel lo sube a Storage, a la carpeta redes_equipo de la 18 o de la 26, y aquí llega el enlace. Solo esos dos
+// depósitos y solo esa carpeta.
+const ADJ_OK = /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/(pagasi26-65ced|pagasi-v2)\.(firebasestorage\.app|appspot\.com)\/o\/redes_equipo%2F[\w.%-]+\?alt=media&token=[\w-]+$/;
+const ADJ_ETIQUETA = { imagen: '📷 Foto', documento: '📄 Documento', audio: '🎤 Audio', video: '🎬 Video' };
+function leerAdjunto(adjunto) {
+  if (!adjunto || typeof adjunto !== 'object') return null;
+  const adj = { url: String(adjunto.url || '').trim(), tipo: String(adjunto.tipo || ''), nombre: sinPeligro(adjunto.nombre).slice(0, 120), mime: String(adjunto.mime || '').toLowerCase().replace(/[^\w.+\/;=-]/g, '').slice(0, 100), voz: adjunto.voz === true };
+  if (!ADJ_OK.test(adj.url) || !Object.prototype.hasOwnProperty.call(ADJ_ETIQUETA, adj.tipo)) throw Object.assign(new Error('Ese archivo no se puede mandar'), { codigo: 'adjunto' });
+  return adj;
+}
+async function enviarEquipo(deps, { empresa, convId, texto, por, quien, imagen, adjunto }) {
   const db = deps.bases[empresa]; if (!db) throw Object.assign(new Error('Compañía desconocida'), { codigo: 'empresa' });
   texto = String(texto || '').trim(); imagen = String(imagen || '').trim();
+  const adj = leerAdjunto(adjunto);
   if (imagen && !FOTO_OK.test(imagen)) throw Object.assign(new Error('Esa foto no se puede mandar'), { codigo: 'imagen' });
-  if (!texto && !imagen) throw Object.assign(new Error('Sin texto'), { codigo: 'texto' });
+  if (!texto && !imagen && !adj) throw Object.assign(new Error('Sin texto'), { codigo: 'texto' });
   const ref = db.collection('conversaciones').doc(convId);
   const d = await ref.get(); if (!d.exists) throw Object.assign(new Error('Conversación no encontrada'), { codigo: 'conversacion' });
   const conv = d.data(), ahora = deps.ahora(), canal = canalDe(conv);
-  if (quien && !puedeCanal(quien, canal, empresa)) throw Object.assign(new Error('No tienes el canal ' + (canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' para escribir'), { codigo: 'permiso' });
+  if (quien && !puedeConv(quien, conv, empresa)) throw Object.assign(new Error(puedeCanal(quien, canal, empresa) ? 'No tienes acceso a esa conversación' : 'No tienes el canal ' + (canal === 'instagram' ? 'Instagram' : 'WhatsApp') + ' para escribir'), { codigo: 'permiso' });
   const desde = conv.ultimoEntranteHora ? Date.parse(ahora) - Date.parse(conv.ultimoEntranteHora) : Infinity;
   const limite = canal === 'instagram' ? 7 * 24 : 24;
   if (desde >= limite * 3600 * 1000) throw Object.assign(new Error(canal === 'instagram' ? 'Pasaron más de 7 días desde el último mensaje de la persona: hay que esperar a que vuelva a escribir.' : 'La ventana de 24 horas está cerrada: solo se puede escribir cuando el cliente vuelva a escribir.'), { codigo: 'ventana' });
   const em = emisor(deps, canal, conv); if (!em) throw Object.assign(new Error('Ese canal no está configurado'), { codigo: 'canal' });
   const humano = canal === 'instagram' && desde >= 24 * 3600 * 1000;
   let metaId;
-  if (imagen) {
+  if (adj) {
+    const para = destino(conv);
+    if (canal === 'instagram') {
+      // Instagram: el archivo y después el texto. De documentos solo acepta PDF.
+      if (adj.tipo === 'documento' && adj.mime !== 'application/pdf') throw Object.assign(new Error('Por Instagram solo se pueden mandar documentos en PDF'), { codigo: 'adjunto' });
+      metaId = adj.tipo === 'imagen' ? await em.enviarImagen(para, adj.url, { humano }) : await em.enviarAdjunto(para, adj.tipo === 'documento' ? 'file' : adj.tipo, adj.url, { humano });
+      if (texto) await em.enviarTexto(para, texto, { humano });
+    }
+    // WhatsApp: el texto va como pie de la foto, del documento o del video; el audio no lleva pie
+    else if (adj.tipo === 'imagen') metaId = await em.enviarImagen(para, adj.url, texto);
+    else if (adj.tipo === 'documento') metaId = await em.enviarDocumento(para, adj.url, adj.nombre, texto);
+    else if (adj.tipo === 'video') metaId = await em.enviarVideo(para, adj.url, texto);
+    else { metaId = await em.enviarAudio(para, adj.url, adj.voz); if (texto) await em.enviarTexto(para, texto); }
+  } else if (imagen) {
     // WhatsApp lleva el texto como pie de la foto; Instagram, la foto y después el texto
     if (canal === 'instagram') { metaId = await em.enviarImagen(destino(conv), imagen, { humano }); if (texto) await em.enviarTexto(destino(conv), texto, { humano }); }
     else metaId = await em.enviarImagen(destino(conv), imagen, texto);
   } else metaId = await em.enviarTexto(destino(conv), texto, { humano });
-  const msg = { metaId, direccion: 'saliente', autor: 'equipo', tipo: imagen ? 'imagen' : 'texto', texto, estado: 'enviado', error: '', hora: ahora, por: por || 'Equipo' };
-  if (imagen) msg.medio = { url: imagen };
-  if (!texto) texto = '📷 Foto';
+  const msg = { metaId, direccion: 'saliente', autor: 'equipo', tipo: adj ? adj.tipo : imagen ? 'imagen' : 'texto', texto, estado: 'enviado', error: '', hora: ahora, por: por || 'Equipo' };
+  if (adj) msg.medio = limpio({ url: adj.url, mime: adj.mime, nombre: adj.nombre, voz: adj.voz });
+  else if (imagen) msg.medio = { url: imagen };
+  if (!texto) texto = adj ? (adj.voz ? '🎤 Nota de voz' : ADJ_ETIQUETA[adj.tipo]) : '📷 Foto';
   await ref.collection('mensajes').doc(metaId || ('eq-' + Date.now())).set(msg);
   // El primero del equipo que escribe queda como vendedor de la conversación (no se borra al devolverla a Paola).
   // Si esperaba a una persona, ya la atendieron: se quita la marca (24-oct-2026; antes solo con Visto o Atender yo).
@@ -750,6 +836,44 @@ async function enviarEquipo(deps, { empresa, convId, texto, por, quien, imagen }
   const respuesta = conv.atencion && conv.atencionDesde ? { ultimaRespuesta: { desde: conv.atencionDesde, hasta: ahora, por: por || 'Equipo' } } : {};
   await ref.set(Object.assign({ modo: 'humano', atendidoPor: por || 'Equipo', atencion: '', noLeidos: 0, ultimoMensaje: texto, ultimoMensajeHora: ahora, ultimoAutor: 'equipo', actualizado: ahora }, respuesta, conv.vendedor ? {} : { vendedor: por || 'Equipo' }), { merge: true });
   return { metaId };
+}
+
+// Bajar AHORA un archivo que mandó la persona y que no quedó guardado al llegar (los de antes del 23-nov-2026, o uno
+// que falló): el panel lo pide al tocar «Bajar». WhatsApp lo deja bajar 7 días con su id; de Instagram queda el
+// enlace de Meta, que vence en horas.
+async function medioDeMensaje(deps, { empresa, convId, msgId, quien }) {
+  const db = deps.bases[empresa]; if (!db) throw Object.assign(new Error('Compañía desconocida'), { codigo: 'empresa' });
+  const ref = db.collection('conversaciones').doc(String(convId || ''));
+  const d = await ref.get(); if (!d.exists) throw Object.assign(new Error('Conversación no encontrada'), { codigo: 'conversacion' });
+  const conv = d.data(), canal = canalDe(conv);
+  if (!quien || !puedeConv(quien, conv, empresa)) throw Object.assign(new Error('No tienes acceso a esa conversación'), { codigo: 'permiso' });
+  const msgRef = ref.collection('mensajes').doc(String(msgId || ''));
+  const md = await msgRef.get(); if (!md.exists) throw Object.assign(new Error('Mensaje no encontrado'), { codigo: 'mensaje' });
+  const m = md.data(), medio = m.medio || {};
+  if (medio.url && medio.path) return { medio };   // ya estaba guardado
+  if (m.direccion !== 'entrante') throw Object.assign(new Error('Ese mensaje no tiene un archivo que bajar'), { codigo: 'mensaje' });
+  let b, ruta;
+  try {
+    if (canal === 'instagram') {
+      if (!medio.url || !deps.bajarUrl) throw Object.assign(new Error('sin enlace'), { codigo: 'vencido' });
+      b = await deps.bajarUrl(medio.url, TOPE_MEDIO);
+      if (!b || !b.bytes || !b.bytes.length || /^text\/html/.test(String(b.mime || ''))) throw Object.assign(new Error('enlace vencido'), { codigo: 'vencido' });
+      ruta = rutaMedio('redes_instagram', conv.igsid, m.metaId || msgId, b.mime, medio.nombre);
+    } else {
+      if (!medio.id) throw Object.assign(new Error('sin archivo'), { codigo: 'vencido' });
+      const em = emisor(deps, 'whatsapp', conv);
+      b = await ((em && em.bajarMedio) ? em : deps.meta).bajarMedio(medio.id, TOPE_MEDIO);
+      ruta = rutaMedio('redes_whatsapp', String(conv.telE164 || '').replace('+', ''), m.metaId || msgId, b.mime, medio.nombre);
+    }
+  } catch (e) {
+    deps.log('medio-pedido-fallo', { canal, codigo: (e && e.codigo) || '', error: String(e && e.message || e).slice(0, 120) });
+    if (e && e.codigo === 'grande') throw Object.assign(new Error('El archivo pesa más de 25 MB y no se guarda en el sistema.'), { codigo: 'grande' });
+    throw Object.assign(new Error(canal === 'instagram' ? 'Instagram ya no deja bajar ese archivo: el enlace venció. Ábrelo en la app de Instagram.' : 'WhatsApp ya no deja bajar ese archivo: solo los guarda 7 días.'), { codigo: 'vencido' });
+  }
+  const url = await deps.storage(empresa).subir(ruta, b.bytes, b.mime);
+  const nuevo = limpio(Object.assign({}, medio, { url, path: ruta, mime: b.mime }, canal === 'instagram' ? { original: medio.url } : {}));
+  await msgRef.set({ medio: nuevo }, { merge: true });
+  return { medio: nuevo };
 }
 
 // El vendedor de la conversación (Adam, 24-oct-2026: "necesito también filtros por vendedores"). Queda
@@ -767,4 +891,4 @@ async function cambiarVendedor(deps, { empresa, convId, vendedor, quien }) {
   return { vendedor: v };
 }
 
-module.exports = { palabraClave, motoDeTexto, textoComentaMoto, COMENTA_PUBLICO, mayus, textoLista, seguimientoVentas, textoSeguimiento, SEGUIMIENTO_TEXTO, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, yaHablaron, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
+module.exports = { palabraClave, motoDeTexto, textoComentaMoto, COMENTA_PUBLICO, mayus, textoLista, seguimientoVentas, textoSeguimiento, SEGUIMIENTO_TEXTO, procesarAviso, procesarMensaje, procesarInstagram, procesarComentario, procesarEstado, enviarEquipo, medioDeMensaje, extDe, ADJ_OK, puedeConv, cambiarVendedor, accionConversacion, ETAPAS, repartir, puedeCanal, sinPeligro, ubicar, telClave, contexto, areaDe, clienteDesdeLead, frenado, FRENO, llegoOtro, ultimosMensajes, yaHablaron, repite, recortarEnlaces, CORTESIA, ACK_COMPROBANTE, telDe };
