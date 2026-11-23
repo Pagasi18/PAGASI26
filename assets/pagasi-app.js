@@ -1593,6 +1593,36 @@ function getCreditoCuotaBase(c){
 // Sin cargos todo sigue con la cuenta de siempre (cuotaQ), sin mover ningún número.
 function credConCargos(c){ return !!(c && Array.isArray(c.cargos) && c.cargos.length && typeof CreditoLedger !== 'undefined' && CreditoLedger.cargosTotal && CreditoLedger.cargosTotal(c) > 0); }
 function getCreditoMontoCuota(c, numero){ return credConCargos(c) ? CreditoLedger.montoDeCuota(c, numero) : getCreditoCuotaBase(c); }
+// El total del CONTRATO de la moto: c.total sin los cargos extra. Es el que usan las cuentas de interés, servicios,
+// Protect, el reparto de QuickBooks y el libro contable: un cargo (aceite, cauchos…) es capital que se recupera, no
+// ganancia, y no puede cambiar lo que ya se repartió de los cobros viejos (revisión del 23-nov-2026).
+function getCreditoTotalContrato(c){ var t = parseFloat((c && c.total) || 0) || 0; return credConCargos(c) ? Math.max(0, Math.round((t - CreditoLedger.cargosTotal(c)) * 100) / 100) : t; }
+// De lo que pagó cada cobro, cuánto fue a cargos extra: dentro de cada cuota, en la proporción del cargo en esa cuota
+// (una cuota de $88,50 con $8,50 de aceite: de cada dólar cobrado a esa cuota, 9,6 centavos son del aceite).
+// Devuelve { pagoId: monto }. pagos: los del crédito (o todos); si no se pasan, S.pagos.
+function cargosPorPago(c, pagos){
+  if(!credConCargos(c)) return {};
+  var L = (Array.isArray(pagos) ? pagos : ((typeof S !== 'undefined' && S && S.pagos) || [])).filter(function(p){ return p && String(p.cred || p.creditoId || '') === String(c.id); });
+  var est; try { est = CreditoLedger.generarEstadoCredito(c, L, {}); } catch(e){ return {}; }
+  var m = {};
+  ((est && est.cuotas) || []).forEach(function(q){
+    if(!(q.cargo > 0) || !(q.monto > 0)) return;
+    (q.aplicaciones || []).forEach(function(a){ if(a && a.pagoId) m[a.pagoId] = (m[a.pagoId] || 0) + (parseFloat(a.monto) || 0) * q.cargo / q.monto; });
+  });
+  Object.keys(m).forEach(function(k){ m[k] = Math.round(m[k] * 100) / 100; });
+  return m;
+}
+function cargoDePago(c, p, pagos){ if(!c || !p || !credConCargos(c)) return 0; var x = cargosPorPago(c, pagos)[p.id] || 0; return Math.max(0, Math.min(parseFloat(p.monto) || 0, x)); }
+// La cuota que le toca ahora (la próxima sin pagar) y el vencido «por días» de los reportes de mora (cuota × cuotas
+// vencidas): con cargos cada cuota va con su monto; sin cargos, la cuenta de siempre con la cuota pactada.
+function getCreditoCuotaQueToca(c){ return credConCargos(c) ? getCreditoMontoCuota(c, getCreditoCuotasPagadas(c) + 1) : (parseFloat(c && (c.cuotaQ || c.cuota) || 0)); }
+function getCreditoVencidoPorCuotas(c, nCuotas){
+  var q = parseFloat(c && (c.cuotaQ || c.cuota) || 0);
+  if(!credConCargos(c) || !(nCuotas > 0)) return q * nCuotas;
+  var p = getCreditoCuotasPagadas(c), tot = getCreditoTotalCuotas(c), t = 0;
+  for(var k = 1; k <= nCuotas && p + k <= tot; k++) t += getCreditoMontoCuota(c, p + k);
+  return t;
+}
 // ── Indice de pagos confirmados por credito ──────────────────────────────
 // getCreditoPagosConfirmados recorria los ~2.500 pagos completos por CADA
 // credito. La pantalla de creditos lo llama ~12.000 veces por redibujo (KPIs,
@@ -1646,7 +1676,9 @@ function getCreditoCuotasPagadas(c){
   if(credConCargos(c)){
     var cobrado = getCreditoPagosConfirmados(c) + 0.000001, acum = 0, k = 0;
     while(k < totalCuotas && acum + CreditoLedger.montoDeCuota(c, k + 1) <= cobrado){ acum += CreditoLedger.montoDeCuota(c, k + 1); k++; }
-    return k;
+    // como sin cargos: nunca menos que las cuotas anotadas en el crédito (el descuento de una liquidación o un pago
+    // eliminado «que sigue contando» no están en lo cobrado; revisión del 23-nov-2026)
+    return Math.max(0, Math.min(totalCuotas, Math.max(parseInt(c.pagado, 10) || 0, k)));
   }
   var cuotaBase = getCreditoCuotaBase(c);
   var pagadoRegistrado = parseInt(c.pagado,10) || 0;

@@ -159,7 +159,9 @@ function _coroAsientos(){
     // ocurrieron comercialmente, asi que no van al libro. El resto del app ya los
     // excluye; sin esto un solo credito anulado con datos malos deforma todo el ER.
     if(est==='pendiente_revision'||est==='rechazado'||est==='rechazada'||est==='cancelado') return;
-    var total=r2(c.total), fin=r2(c.fin);
+    // El préstamo es el del CONTRATO: los cargos extra (aceite, cauchos…) no son ingresos por servicios ni cambian
+    // el asiento de un mes ya cerrado; cada cargo se asienta más abajo, en su propia fecha (revisión 23-nov-2026)
+    var total=r2((typeof getCreditoTotalContrato==='function') ? getCreditoTotalContrato(c) : c.total), fin=r2(c.fin);
     if(!(total>0)){ avisos.credsSinPlan++; return; }
     if(!(fin>0)) fin=total;
     var fch=String(c.fecha||'').slice(0,10);
@@ -170,6 +172,19 @@ function _coroAsientos(){
     var clave = mes+'|'+tramo;
     if(!porMes[clave]) porMes[clave]={total:0,fin:0,carga:0,mes:mes,tramo:tramo};
     porMes[clave].total+=total; porMes[clave].fin+=fin; porMes[clave].carga+=Math.max(0,total-fin);
+    // Cada cargo extra vivo: sube la cuenta por cobrar en el mes en que se puso, contra la cuenta puente (es capital
+    // que se le financió al cliente, sin carga de servicios)
+    if(typeof credConCargos==='function' && credConCargos(c)){
+      (c.cargos||[]).forEach(function(cg){
+        if(!cg||cg.eliminado) return;
+        var mc=r2(cg.monto); if(!(mc>0)) return;
+        var fc=String(cg.fecha||cg.creado||fch).slice(0,10), mesC=fc.slice(0,7); if(!mesC) return;
+        var trC=(pDesde && fc < pDesde) ? 'a' : ((pHasta && fc > pHasta) ? 'z' : 'd');
+        var kc=mesC+'|'+trC;
+        if(!porMes[kc]) porMes[kc]={total:0,fin:0,carga:0,mes:mesC,tramo:trC};
+        porMes[kc].total+=mc; porMes[kc].fin+=mc;
+      });
+    }
   });
   Object.keys(porMes).forEach(function(clave){
     var g=porMes[clave], mes=g.mes;

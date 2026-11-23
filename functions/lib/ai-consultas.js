@@ -78,7 +78,7 @@ function armar(emp, creds, pagos, concs, gracia, hoy) {
       activo, diasAtraso: dias, saldo: activo ? r2(G.saldoPendiente(c, idx)) : 0, vencido: activo && dias > 0 ? r2(G.vencidoDe(c, est, hoy)) : 0,
       cuotasPagadas: est ? est.cuotasPagadas : (parseInt(c0.pagado, 10) || 0), cuotasTotal: est ? est.totalCuotas : (parseInt(c0.totalCuotas, 10) || 0),
       // la próxima cuota con su cargo extra, y lo financiado después de la moto (aceite, cauchos…: 23-nov-2026)
-      proximaCuota: est && est.cuotas && est.cuotas[est.cuotasPagadas] ? r2(est.cuotas[est.cuotasPagadas].monto) : (parseFloat(c0.cuotaQ || c0.cuota) || 0),
+      proximaCuota: !activo ? 0 : (est && est.cuotas && est.cuotas[est.cuotasPagadas] ? r2(est.cuotas[est.cuotasPagadas].monto) : (parseFloat(c0.cuotaQ || c0.cuota) || 0)),
       cargosExtra: r2((Array.isArray(c0.cargos) ? c0.cargos : []).filter(g => g && !g.eliminado).reduce((t, g) => t + (parseFloat(g.monto) || 0), 0)),
       vencidas: []
     };

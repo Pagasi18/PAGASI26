@@ -50,17 +50,25 @@
   function cargosVivos(cred){
     return (Array.isArray(cred && cred.cargos) ? cred.cargos : []).filter(function(cg){ return cg && !cg.eliminado; });
   }
+  // Si el plan se acorta después de poner un cargo, las partes que quedaron más allá de la última cuota se cobran
+  // en la última: antes desaparecían del calendario pero seguían en el total, y el crédito cerraba debiendo
+  // (revisión del 23-nov-2026).
+  function _parteEnCuota(cred, x, numero){
+    if(!x) return false;
+    var k = i(x.numero), tot = totalCuotas(cred);
+    return k === numero || (tot > 0 && numero === tot && k > tot);
+  }
   function cargoDeCuota(cred, numero){
     var t = 0;
     cargosVivos(cred).forEach(function(cg){
-      (Array.isArray(cg.cuotas) ? cg.cuotas : []).forEach(function(x){ if(x && i(x.numero) === numero) t += n(x.monto); });
+      (Array.isArray(cg.cuotas) ? cg.cuotas : []).forEach(function(x){ if(_parteEnCuota(cred, x, numero)) t += n(x.monto); });
     });
     return r2(t);
   }
   function conceptoDeCuota(cred, numero){
     var l = [];
     cargosVivos(cred).forEach(function(cg){
-      if((Array.isArray(cg.cuotas) ? cg.cuotas : []).some(function(x){ return x && i(x.numero) === numero && n(x.monto) > 0; })) l.push(String(cg.concepto || 'cargo extra'));
+      if((Array.isArray(cg.cuotas) ? cg.cuotas : []).some(function(x){ return _parteEnCuota(cred, x, numero) && n(x.monto) > 0; })) l.push(String(cg.concepto || 'cargo extra'));
     });
     return l.join(', ');
   }

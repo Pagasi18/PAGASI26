@@ -238,7 +238,7 @@ PG.reportes = function(){
     var _mc = parseFloat(c.cuotaQ||c.cuota||0);
     for(var _qi=(est.cuotasPagadas||0); _qi<est.cuotas.length; _qi++){
       var _q = est.cuotas[_qi];
-      if(_q && _q.fechaVence) _rpFutCuotas.push({ fecha:_q.fechaVence, monto:_mc });
+      if(_q && _q.fechaVence) _rpFutCuotas.push({ fecha:_q.fechaVence, monto:(_q.cargo>0 ? _q.monto : _mc) });   // con cargo extra, la cuota con su cargo
     }
   });
   var _rpHoyISO = _cbISO(new Date());
@@ -461,7 +461,7 @@ PG.reportes = function(){
         <tbody>${(function(){
           var ranked = _SCREDS.filter(c=>!c.eliminado).map(function(c){
             var precio=parseFloat(c.precioBaseReal||c.precio||0);
-            var total=parseFloat(c.total||0);
+            var total=(typeof getCreditoTotalContrato==='function') ? getCreditoTotalContrato(c) : parseFloat(c.total||0);   // sin cargos extra: no son spread
             var spread=total-precio;
             var apy=parseFloat(c.apy||(c.plan&&c.plan.apy)||0);
             return {c:c, spread:spread, apy:apy};
@@ -658,8 +658,9 @@ PG.reportes = function(){
           var k=c.modelo;
           if(!mods[k]) mods[k]={n:0,ingreso:0,spread:0};
           mods[k].n++;
-          mods[k].ingreso+=parseFloat(c.total||0);
-          mods[k].spread+=parseFloat(c.total||0)-parseFloat(c.precioBaseReal||c.precio||0);
+          var _tc=(typeof getCreditoTotalContrato==='function') ? getCreditoTotalContrato(c) : parseFloat(c.total||0);   // sin cargos extra
+          mods[k].ingreso+=_tc;
+          mods[k].spread+=_tc-parseFloat(c.precioBaseReal||c.precio||0);
         });
         var arr=Object.keys(mods).map(function(k){return {k:k,n:mods[k].n,ingreso:mods[k].ingreso,spread:mods[k].spread};})
           .sort(function(a,b){return b.n-a.n;}).slice(0,6);
@@ -1420,7 +1421,7 @@ function _contGenerarCuerpo(){
   var totalEgresosSem      = egresosSemana.reduce(function(a,e){ return a+(e.monto||0); },0);
   var totalInicialesSemana = contratosNuevos.reduce(function(a,c){ return a+(parseFloat(c.ini)||0); },0);
   var credsMoraTotal       = credsMoraList.reduce(function(a,c){
-    return a+(parseFloat(c.cuotaQ||c.cuota||0)*Math.max(0,Math.floor(c.mora/15)));
+    return a+((typeof credConCargos==='function' && credConCargos(c)) ? getCreditoVencidoPorCuotas(c, Math.max(0,Math.floor(c.mora/15))) : (parseFloat(c.cuotaQ||c.cuota||0)*Math.max(0,Math.floor(c.mora/15))));
   },0);
   var ivaCredMotosPeriodo  = contratosNuevos.reduce(function(a,c){
     var p=parseFloat(c.precioBaseReal||c.precio||0); return a+(p-p/1.16);
@@ -1550,7 +1551,7 @@ function _contGenerarCuerpo(){
       var cli=(S.clientes||[]).find(function(x){ return x.nombre===c.cli; })||{};
       var cuotaV=parseFloat(c.cuotaQ||c.cuota||0);
       var cVenc=Math.max(0,Math.floor(c.mora/15));
-      var saldo=cuotaV*cVenc, int=saldo*0.025;
+      var saldo=(typeof credConCargos==='function' && credConCargos(c)) ? getCreditoVencidoPorCuotas(c, cVenc) : cuotaV*cVenc, int=saldo*0.025;
       totMoraUSD+=saldo; totIntUSD+=int;
       var nivel,nc,nb,accion;
       if(c.mora>30){nivel='Crítico +30d';nc='red';nb='var(--reds)';accion='⚖ Acción judicial — contactar bufete hoy';}
@@ -1697,7 +1698,7 @@ function _contGenerarCuerpo(){
     if(c.mora>30){niv='CRÍTICO';tip='JUDICIAL';acc='Art. 599 CPC — solicitar secuestro del bien al bufete';pla='Inmediato';}
     else if(c.mora>14){niv='PENDIENTE';tip='COBRANZA';acc='Emitir carta formal de mora + propuesta reestructuración';pla='3 días hábiles';}
     else{niv='EN GESTIÓN';tip='COBRANZA';acc='Contacto WhatsApp + verificar referencias';pla='7 días';}
-    alertas.push({ct:(c.id||'—')+' / '+c.cli, al:c.mora+'d mora · Saldo vencido: '+fmt(cuotaV*cVenc), tip, pla, est:niv, res:c.mora>30?'Bufete':'Administrador'});
+    alertas.push({ct:(c.id||'—')+' / '+c.cli, al:c.mora+'d mora · Saldo vencido: '+fmt((typeof credConCargos==='function' && credConCargos(c)) ? getCreditoVencidoPorCuotas(c, cVenc) : cuotaV*cVenc), tip, pla, est:niv, res:c.mora>30?'Bufete':'Administrador'});
   });
   var sinFac=pagosSemana.filter(function(p){ return !(S.facturas||[]).find(function(f){ return f.pagoId===p.id&&!f.anulada; }); });
   if(sinFac.length) alertas.push({ct:'SENIAT',al:sinFac.length+' cobro(s) sin factura fiscal emitida',tip:'TRIBUTARIO',pla:'Antes declaración IVA',est:'URGENTE',res:'Contador'});

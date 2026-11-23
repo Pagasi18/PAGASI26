@@ -66,6 +66,8 @@ function _metoRepartir(R, cobrado){
 // pone de entrada, no la financia nadie, y no lleva Protect.
 function _metoPagosDe(creds, desde, hasta){
   var porCred = {};
+  // lo que un cobro pagó de un cargo extra (aceite…) no es del contrato de la moto: no entra en este reparto
+  var _conCargo = {}; (creds||[]).forEach(function(c){ if(c && typeof credConCargos==='function' && credConCargos(c)) _conCargo[String(c.id)] = c; });
   (S.pagos||[]).forEach(function(p){
     if(!p || p.eliminado || p.estado!=='confirmado') return;
     if(p.esInicial || p.tipoOperacion==='inicial_credito') return;
@@ -73,7 +75,7 @@ function _metoPagosDe(creds, desde, hasta){
     if(desde && f < desde) return;
     if(hasta && f > hasta) return;
     var k = String(p.cred||p.creditoId||'');
-    porCred[k] = (porCred[k]||0) + (parseFloat(p.monto)||0);
+    porCred[k] = (porCred[k]||0) + (parseFloat(p.monto)||0) - (_conCargo[k] ? cargoDePago(_conCargo[k], p) : 0);
   });
   return porCred;
 }

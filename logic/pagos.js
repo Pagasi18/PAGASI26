@@ -586,7 +586,7 @@ function openAmort(id){
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Cuota quincenal</span><span style="font-weight:800;color:var(--p1)">${fmt(cuota)}</span></div>
           ${c.cuotaEditada?`<div style="display:flex;justify-content:space-between;gap:10px;color:var(--amber)"><span style="font-weight:700">Cuota escrita a mano</span><span style="font-weight:700">la fórmula daba ${fmt(c.cuotaFormula)}</span></div>`:''}
           ${apyCred>0?`<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">FDC</span><span style="font-weight:700">${apyCred.toFixed(2)}%</span></div>`:''}
-          ${(precioBase-inicial)>0?`<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">ROI</span><span style="font-weight:700;color:var(--green)">${((totalCredito-(precioBase-inicial))/(precioBase-inicial)*100).toFixed(2)}%</span></div>`:''}
+          ${(precioBase-inicial)>0?`<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">ROI</span><span style="font-weight:700;color:var(--green)">${((totalCredito-((typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal)?CreditoLedger.cargosTotal(c):0)-(precioBase-inicial))/(precioBase-inicial)*100).toFixed(2)}%</span></div>`:''}
         </div>
       </div>
     </div>
@@ -654,6 +654,7 @@ function _cargoReparto(monto, n){
   return l;
 }
 function cargoExtraAbrir(credId){
+  window._cgGuardando=false;
   if(typeof isAdminUser!=='function' || !isAdminUser()){ toast('Solo un administrador puede agregar un cargo extra','error'); return; }
   var c=S.creds.find(function(x){return x.id===credId;}); if(!c){ toast('Crédito no encontrado','error'); return; }
   var libres=_cargoCuotasLibres(c);
@@ -700,7 +701,8 @@ function _cargoArmar(c){
 function cargoExtraVista(credId){
   var c=S.creds.find(function(x){return x.id===credId;}); var el=$('cg_vista'); if(!c||!el) return;
   var a=_cargoArmar(c), btn=$('cg_guardar');
-  if(btn) btn.disabled=!!a.err;
+  // mientras se está guardando el botón no se vuelve a encender al tocar un campo (un segundo toque guardaba otro cargo)
+  if(btn && !window._cgGuardando) btn.disabled=!!a.err;
   if(a.err){ el.innerHTML='<div style="color:var(--ink3)">'+a.err.replace(/</g,'&lt;')+'</div>'; return; }
   var cal=(typeof CreditoLedger!=='undefined')?CreditoLedger.crearCalendarioCuotas(c,{}):[];
   var filas=a.cuotas.map(function(x){ var q=cal[x.numero-1]||{}; var antes=getCreditoMontoCuota(c,x.numero); return '<div style="display:flex;justify-content:space-between;gap:8px"><span>Cuota '+x.numero+(q.fechaVence?' · '+q.fechaVence:'')+'</span><span><s style="color:var(--ink3)">'+fmt(antes)+'</s> → <b>'+fmt(antes+x.monto)+'</b></span></div>'; }).join('');
@@ -710,10 +712,12 @@ function cargoExtraVista(credId){
 }
 function cargoExtraGuardar(credId){
   if(typeof isAdminUser!=='function' || !isAdminUser()){ toast('Solo un administrador puede agregar un cargo extra','error'); return; }
-  var ci=S.creds.findIndex(function(x){return x.id===credId;}); if(ci<0) return;
-  var c=S.creds[ci], a=_cargoArmar(c);
+  if(window._cgGuardando) return;   // ya hay un cargo guardándose
+  var c=S.creds.find(function(x){return x.id===credId;}); if(!c) return;
+  var a=_cargoArmar(c);
   if(a.err){ toast(a.err,'error'); return; }
-  var btn=$('cg_guardar'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  var btn=$('cg_guardar'); window._cgGuardando=true; if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  var soltar=function(){ window._cgGuardando=false; if(btn){ btn.disabled=false; btn.textContent='＋ Agregar cargo'; } };
   var cargo={ id:'CG-'+Date.now(), concepto:a.concepto, monto:a.monto, cuotas:a.cuotas, fecha:hoyLocalISO(), creado:new Date().toISOString(),
     creadoPor:(S.currentUser&&S.currentUser.nombre)||'', creadoPorUid:(S.currentUser&&S.currentUser.uid)||'' };
   // en la base: se AGREGA el cargo y se SUMA al total (sin reescribir el crédito entero)
@@ -722,16 +726,23 @@ function cargoExtraGuardar(credId){
     : { cargos: (c.cargos||[]).concat([cargo]), total: Math.round(((parseFloat(c.total)||0)+a.monto)*100)/100 };
   Promise.resolve(DB.updateCred(credId, upd)).then(function(ok){
     // _dbSilent devuelve false si no se pudo guardar (y ya mostró el error): no se toca nada aquí
-    if(ok === false){ if(btn){ btn.disabled=false; btn.textContent='＋ Agregar cargo'; } return; }
-    S.creds[ci].cargos=(Array.isArray(S.creds[ci].cargos)?S.creds[ci].cargos:[]).concat([cargo]);
-    S.creds[ci].total=Math.round(((parseFloat(S.creds[ci].total)||0)+a.monto)*100)/100;
+    if(ok === false){ soltar(); return; }
+    window._cgGuardando=false;
+    // El tiempo real suele traer el cambio ANTES de que la escritura confirme (la foto local de Firestore): si el
+    // crédito ya trae este cargo no se vuelve a sumar. Antes quedaba doble en memoria (total $1.028, cuotas de $97)
+    // y el recálculo de abajo guardaba la próxima cuota mal (revisión del 23-nov-2026).
+    var cc=S.creds.find(function(x){return x.id===credId;});
+    if(cc && !(Array.isArray(cc.cargos) && cc.cargos.some(function(g){ return g && g.id===cargo.id; }))){
+      cc.cargos=(Array.isArray(cc.cargos)?cc.cargos:[]).concat([cargo]);
+      cc.total=Math.round(((parseFloat(cc.total)||0)+a.monto)*100)/100;
+    }
     if(typeof logActividad==='function') logActividad('cargo_extra_creado','creditos',credId,{concepto:a.concepto, monto:a.monto, cuotas:a.cuotas.map(function(x){return x.numero;})});
     if(typeof recalcularCreditoDesdePagos==='function') recalcularCreditoDesdePagos(credId);
     if(typeof calcularMoraAuto==='function') calcularMoraAuto();
     toast('Cargo extra agregado: '+a.concepto+' '+fmt(a.monto)+' en '+a.n+(a.n===1?' cuota':' cuotas'),'success');
     openAmort(credId);
   }).catch(function(e){
-    if(btn){ btn.disabled=false; btn.textContent='＋ Agregar cargo'; }
+    soltar();
     toast('No se pudo guardar el cargo: '+String(e&&e.message||e).slice(0,120),'error');
   });
 }

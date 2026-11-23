@@ -156,6 +156,61 @@ ctx.firebase = { firestore: Object.assign(() => ({}), { FieldValue: FV }) };
   const idxVacio = new Map();
   ok('módulo 18 + 26: sin pagos a mano, lo cobrado de respaldo cuenta cada cuota con su cargo (6 × 80 = 480; con 7 pagadas: 568,50)', G.saldoPendiente(conCargo({ pagado: 7 }), idxVacio) === 994 - 568.5);
 
+  // ══ 8. La revisión del 23-nov-2026 (después de publicar): lo que encontró y quedó arreglado ══
+  // 8.1 Al guardar, el tiempo real trae el cambio ANTES de que la escritura confirme: no se suma dos veces
+  ctx.S.currentUser = { uid: 'adm', nombre: 'Adam', rol: 'Administrador', permisos: [] };
+  ctx.S.creds = [base()]; ctx.S.pagos = pagos(6); escritos.length = 0;
+  setv('cg_concepto', 'ACEITE'); setv('cg_monto', '34'); setv('cg_n', '4'); setv('cg_desde', '7');
+  els.cg_guardar = Object.assign(elemento(), { disabled: false, textContent: '' });
+  ctx.DB = Object.assign({}, ctx.DB, { updateCred: (id, u) => {
+    escritos.push({ id, u });
+    // la foto local de Firestore: reemplaza el objeto del crédito con el cargo ya puesto, antes de confirmar
+    if (u.cargos && u.cargos.__union) ctx.S.creds = [Object.assign({}, ctx.S.creds[0], { cargos: (ctx.S.creds[0].cargos || []).concat([u.cargos.__union]), total: ctx.S.creds[0].total + u.total.__inc })];
+    return new Promise(r => setImmediate(() => r(true)));
+  } });
+  ctx.cargoExtraGuardar('CRED-440');
+  ok('mientras guarda, el botón queda apagado aunque se toque un campo', els.cg_guardar.disabled === true && (ctx.cargoExtraVista('CRED-440'), els.cg_guardar.disabled === true));
+  ctx.cargoExtraGuardar('CRED-440');   // un segundo toque mientras guarda
+  await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r));
+  ok('un segundo toque mientras guarda no manda otro cargo', escritos.filter(x => x.u && x.u.cargos).length === 1);
+  ok('con la foto del tiempo real llegando primero, el cargo queda UNA vez (antes: 2 cargos, total $1.028)', ctx.S.creds[0].cargos.length === 1 && ctx.S.creds[0].total === 994);
+  const rec = escritos.filter(x => x.u && 'saldoProxCuota' in x.u).pop();
+  ok('...y el recálculo guarda la próxima cuota en $88,50 (antes $97)', rec && rec.u.saldoProxCuota === 88.5 && rec.u.pagado === 6);
+
+  // 8.2 Si el plan se acorta, las partes del cargo que quedaron después de la última cuota se cobran en la última
+  const corto = conCargo({ totalCuotas: 8, plazo: 4, total: 80 * 8 + 34 });
+  e = L.generarEstadoCredito(corto, pagos(6), { today: '2026-11-23', diasGracia: 5 });
+  ok('plan acortado a 8 cuotas con el cargo en 7–10: la cuota 8 lleva las partes de la 8, 9 y 10 ($80 + $25,50)', e.cuotas[6].monto === 88.5 && e.cuotas[7].monto === 105.5 && e.cuotas[7].conceptoCargo === 'ACEITE' && Math.abs(e.saldoPendiente - (674 - 480)) < 0.01);
+  ok('...sin acortar, todo igual (la última cuota no recibe nada)', L.cargoDeCuota(conCargo(), 12) === 0 && L.cargoDeCuota(conCargo(), 10) === 8.5);
+
+  // 8.3 El total del CONTRATO (sin cargos) y cuánto de cada cobro fue al cargo
+  ctx.S.creds = [conCargo({ pagado: 7 })];
+  ctx.S.pagos = pagos(6).concat([{ id: 'P7', cred: 'CRED-440', monto: 88.5, fecha: '2026-12-01', estado: 'confirmado' }, { id: 'P8', cred: 'CRED-440', monto: 80, fecha: '2026-12-15', estado: 'confirmado' }]);
+  const cq = ctx.S.creds[0], cpp = ctx.cargosPorPago(cq);
+  ok('el total del contrato de la moto sigue siendo $960 (el total con el aceite es $994); sin cargos, el total tal cual', ctx.getCreditoTotalContrato(cq) === 960 && ctx.getCreditoTotalContrato(base({ total: 1156.2887168404159 })) === 1156.2887168404159);
+  ok('de cada cobro, lo que fue al aceite: $8,50 del pago completo de la cuota 7; $7,68 de un abono de $80 a la cuota 8; nada de los pagos viejos', cpp.P7 === 8.5 && cpp.P8 === 7.68 && !cpp.P1 && ctx.cargoDePago(cq, ctx.S.pagos[0]) === 0 && JSON.stringify(ctx.cargosPorPago(base())) === '{}');
+  // 8.4 QuickBooks y el Dashboard Finanzas: los cobros viejos se reparten como antes del cargo
+  const antesQB = ctx.qbPartirPago(base(), 80), conQB = ctx.qbPartirPago(cq, 80);
+  ok('QuickBooks: un cobro de $80 del crédito con aceite se reparte igual que antes de ponerle el cargo', JSON.stringify(antesQB) === JSON.stringify(conQB) && antesQB.amortizacion + antesQB.servicios + antesQB.intereses + antesQB.protect === 80);
+  // 8.5 Cuotas pagadas con cargos: nunca menos que las anotadas en el crédito (descuento de liquidación, pago «que sigue contando»)
+  ctx.S.creds = [conCargo({ pagado: 12, estado: 'completado' })]; ctx.S.pagos = pagos(10);
+  ok('con cargos, las cuotas pagadas no bajan de las anotadas en el crédito (liquidación con descuento: 12 de 12)', ctx.getCreditoCuotasPagadas(ctx.S.creds[0]) === 12);
+  // 8.6 El libro contable: agosto no cambia y el cargo se asienta en noviembre, sin ingresos por servicios
+  const libro = (creds) => { ctx.S.creds = creds; ctx.S.pagos = []; ctx.S.movimientos = []; ctx.S.egresos = []; ctx.S.coroDesde = ''; ctx.S.coroHasta = ''; return ctx._coroAsientos().lineas.filter(l => /^CRED\//.test(l.doc)); };
+  const sinC = libro([base()]), conC = libro([conCargo({ cargos: [Object.assign({}, CARGO, { fecha: '2026-11-23' })] })]);
+  const de = (LL, doc, cod) => LL.filter(l => l.doc === doc && l.cod === cod).reduce((a, l) => a + (l.debe || 0) - (l.haber || 0), 0);
+  ok('libro contable: el asiento de agosto (préstamo $960, puente $621, servicios $339) queda igual con el aceite', de(conC, 'CRED/2026/08', '1122001') === de(sinC, 'CRED/2026/08', '1122001') && de(conC, 'CRED/2026/08', '1122001') === 960 && de(conC, 'CRED/2026/08', '5112001') === -339 && de(conC, 'CRED/2026/08', '1129001') === -621);
+  ok('...y el aceite se asienta en noviembre: +$34 por cobrar contra la cuenta puente, nada a ingresos', de(conC, 'CRED/2026/11', '1122001') === 34 && de(conC, 'CRED/2026/11', '1129001') === -34 && de(conC, 'CRED/2026/11', '5112001') === 0 && !sinC.some(l => l.doc === 'CRED/2026/11'));
+  // 8.7 Editar el crédito: sin cargos el total queda tal cual (no se redondea)
+  ok('editar un crédito sin cargos no le redondea el total', ctx._wzCredPlanFields({ total: 1156.2887168404159 }, null).total === 1156.2887168404159 && ctx._wzCredPlanFields({ total: 1156.2887168404159 }, base()).total === 1156.2887168404159);
+  // 8.8 Los reportes de mora: la cuota que toca y el vencido por cuotas, con el cargo
+  ctx.S.creds = [conCargo({ pagado: 6, mora: 20, estado: 'mora' })]; ctx.S.pagos = pagos(6);
+  ok('reportes de mora: la cuota que toca es $88,50 y dos cuotas vencidas son $177 (sin cargos: $80 y $160)', ctx.getCreditoCuotaQueToca(ctx.S.creds[0]) === 88.5 && ctx.getCreditoVencidoPorCuotas(ctx.S.creds[0], 2) === 177 && ctx.getCreditoCuotaQueToca(base()) === 80 && ctx.getCreditoVencidoPorCuotas(base(), 2) === 160);
+  // 8.9 La ficha en PDF y la AI
+  const fsrc = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  ok('ficha PDF: «Monto próxima cuota» vuelve a ser la cuota pactada en créditos sin cargo', /infoChip\('Monto próxima cuota', cuotasRest>0 \? fmt\(\(typeof credConCargos==='function' && credConCargos\(c\) && _LA\.montos && _LA\.montos\[cuotasPag\]\) \|\| cuota\)/.test(fsrc('logic/reportes.js')));
+  ok('AI: un crédito que ya no está vivo no tiene «próxima cuota»', /proximaCuota: !activo \? 0 : /.test(fsrc('functions/lib/ai-consultas.js')));
+
   console.log('\n' + pass + ' OK · ' + fail + ' fallas');
   process.exit(fail ? 1 : 0);
 })().catch(x => { console.log('FALLA la prueba se cayó: ' + (x && x.stack || x)); process.exit(1); });

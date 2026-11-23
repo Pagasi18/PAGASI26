@@ -279,7 +279,7 @@ function _dfDatos(){
   var creds = _concFiltrar(S.creds||[]).filter(function(c){ return c && !c.eliminado && c.estado!=='cancelado' && enR(c.fecha); });
   var activos = creds.filter(function(c){ return c.estado==='activo'||c.estado==='mora'; });
   var principal = function(c){ var p=parseFloat(c.precio)||0, i=parseFloat(c.ini)||0; return Math.max(0, p-i); };
-  var totalPI = function(c){ var t=parseFloat(c.total)||0; if(t>0) return t; var f=principal(c); var fac=parseFloat(c.factor)||((typeof PLAN!=='undefined'&&PLAN.factor)||2.102343121528029); return f*fac; };
+  var totalPI = function(c){ var t=(typeof getCreditoTotalContrato==='function') ? getCreditoTotalContrato(c) : (parseFloat(c.total)||0); if(t>0) return t; var f=principal(c); var fac=parseFloat(c.factor)||((typeof PLAN!=='undefined'&&PLAN.factor)||2.102343121528029); return f*fac; };
   var interes = function(c){ return Math.max(0, totalPI(c)-principal(c)); };
   var saldo = function(c){ return (typeof getCreditoSaldoPendiente==='function') ? (getCreditoSaldoPendiente(c)||0) : 0; };
   var sum = function(arr, fn){ return arr.reduce(function(a,c){ return a+fn(c); },0); };
@@ -303,6 +303,9 @@ function _dfDatos(){
     var m = parseFloat(p.monto)||0; cuotasTot += m;
     var c = credIdx[p.cred]; var ratio = 0;
     if(c){ var pr=principal(c), tt=totalPI(c); ratio = tt>0 ? pr/tt : 0; }
+    // lo que el cobro pagó de un cargo extra (aceite…) es capital que vuelve, no interés ni servicios
+    var cgD = (c && typeof cargoDePago==='function') ? cargoDePago(c, p) : 0;
+    if(cgD > 0){ cuotasPrin += cgD; m = m - cgD; }
     cuotasPrin += m*ratio; cuotasInt += m*(1-ratio);
     var pt = partirResto(c, m*(1-ratio));
     cuotasInteres += pt.interes; cuotasProtect += pt.protect; cuotasServicios += pt.servicios;
@@ -674,7 +677,7 @@ function dfReporte(key, formato){
       var cl=(S.clientes||[]).find(function(x){ return x && ((c.clienteId&&String(x.id)===String(c.clienteId))||x.nombre===c.cli); })||{};
       var cv=Math.ceil((parseFloat(c.mora)||0)/15);
       var gest=Array.isArray(c.gestiones)?c.gestiones:[];
-      rowsM.push([c.id, c.cli||'', cl.tel||'', sedeDe(c), c.modelo||'', (parseFloat(c.mora)||0), (parseFloat(c.cuotaQ||c.cuota)||0), cv, d.saldo(c), estadoLbl(c), gest.length?gest.length:'—']);
+      rowsM.push([c.id, c.cli||'', cl.tel||'', sedeDe(c), c.modelo||'', (parseFloat(c.mora)||0), ((typeof getCreditoCuotaQueToca==='function' && credConCargos(c)) ? getCreditoCuotaQueToca(c) : (parseFloat(c.cuotaQ||c.cuota)||0)), cv, d.saldo(c), estadoLbl(c), gest.length?gest.length:'—']);
     });
     secciones.push({ titulo:'Detalle ('+d.enMora.length+') — el historial de gestiones está en la sección siguiente',
       headers:['Crédito','Cliente','Teléfono','Sede','Modelo','Días','Cuota','C. venc.','Saldo (P+I)','Estado de gestión','Gest.'],
@@ -822,6 +825,13 @@ function descargarAmortPDF(){
   var saldoPorCuota = _LA.saldos;
   var sal = c.fin||0;
   var amortRows = '';
+  // Con un cargo extra en la cuota, el PDF lo dice bajo el monto (el interés, el capital y el saldo de la tabla son
+  // los del contrato de la moto; el cargo va aparte)
+  var _cgNotaPdf = function(k){
+    if(typeof CreditoLedger==='undefined' || !CreditoLedger.cargoDeCuota) return '';
+    var cg = CreditoLedger.cargoDeCuota(c, k); if(!(cg > 0)) return '';
+    return '<div style="font-size:8.5px;font-weight:600;color:#b45309">incluye '+fmt(cg)+' de '+String(CreditoLedger.conceptoDeCuota(c, k)||'cargo extra').toLowerCase().replace(/[<>&"']/g,'')+'</div>';
+  };
   for(var i=1;i<=totalCuotas;i++){
     var intMontoRaw = sal*tQ;
     var capMonto = cuota - intMontoRaw;
@@ -835,7 +845,7 @@ function descargarAmortPDF(){
       + '<td style="text-align:center;font-weight:700">'+i+'</td>'
       + '<td>'+fechaStr+'</td>'
       + '<td style="font-weight:'+(pd?'600':'700')+';color:'+(pd?'#999':parcialA?'#b45309':proxA?'#2563EB':'#111')+'">'+estado+'</td>'
-      + '<td style="text-align:right;font-weight:700;color:'+(parcialA?'#b45309':'inherit')+'">'+(parcialA?fmt(saldoPorCuota[i-1])+' pend.':fmt((_LA.montos&&_LA.montos[i-1])||cuota))+'</td>'
+      + '<td style="text-align:right;font-weight:700;color:'+(parcialA?'#b45309':'inherit')+'">'+(parcialA?fmt(saldoPorCuota[i-1])+' pend.':fmt((_LA.montos&&_LA.montos[i-1])||cuota))+_cgNotaPdf(i)+'</td>'
       + '<td style="text-align:right;color:#b78a14">'+fmt(Math.max(0,intMontoRaw))+'</td>'
       + '<td style="text-align:right">'+fmt(Math.max(0,capMonto))+'</td>'
       + '<td style="text-align:right;color:#666">'+fmt(Math.max(0,sal))+'</td>'
@@ -941,7 +951,7 @@ function descargarAmortPDF(){
       ${infoChip('Saldo pendiente', fmt(saldoPend), saldoPend>0?'#c22':'#0a7a3f')}
       ${infoChip('Progreso pago', pctPagado+'%', '#2563EB')}
       ${infoChip('Próximo vencimiento', proxFecha)}
-      ${infoChip('Monto próxima cuota', cuotasRest>0 ? fmt(((_LA.saldos&&_LA.saldos[cuotasPag]>0.001)?_LA.saldos[cuotasPag]:((_LA.montos&&_LA.montos[cuotasPag])||cuota))) : 'Completado')}
+      ${infoChip('Monto próxima cuota', cuotasRest>0 ? fmt((typeof credConCargos==='function' && credConCargos(c) && _LA.montos && _LA.montos[cuotasPag]) || cuota) : 'Completado')}
       ${infoChip('Días de mora', c.mora>0 ? (c.mora+' días') : 'Al día', c.mora>0?'#c22':'#0a7a3f')}
     </div>
 
@@ -1209,8 +1219,9 @@ function exportarCSV(tipo, formato){
     _cobCreds.forEach(function(c){
       var cli = (S.clientes||[]).find(function(x){return String(x.id)===String(c.cliId)||(x.nombre||'')===(c.cli||'');});
       var cuotasV = Math.ceil((c.mora||0)/15);
-      var montoMora = cuotasV * parseFloat(c.cuotaQ||c.cuota||0);
-      rows.push(row([c.id,c.cli,c.modelo||'',c.mora||0,cuotasV,montoMora,c.cuotaQ||c.cuota||0,getCreditoSaldoPendiente(c),(cli&&cli.tel)||'']));
+      var _conCg = typeof credConCargos==='function' && credConCargos(c);   // con cargos extra, cada cuota con su monto
+      var montoMora = _conCg ? getCreditoVencidoPorCuotas(c, cuotasV) : cuotasV * parseFloat(c.cuotaQ||c.cuota||0);
+      rows.push(row([c.id,c.cli,c.modelo||'',c.mora||0,cuotasV,montoMora,_conCg ? getCreditoCuotaQueToca(c) : (c.cuotaQ||c.cuota||0),getCreditoSaldoPendiente(c),(cli&&cli.tel)||'']));
     });
   } else {
     toast('Tipo de export desconocido','error'); return;
@@ -1340,11 +1351,11 @@ function generarReporte(tipo){
     var enMora = S.creds.filter(function(c){return !c.eliminado&&(c.mora>0||c.estado==='vencido');});
     html_content = '<div class="stat-grid">'
       +'<div class="stat-box"><div class="stat-v">'+enMora.length+'</div><div class="stat-l">Clientes en mora</div></div>'
-      +'<div class="stat-box"><div class="stat-v">$'+enMora.reduce(function(a,c){return a+(c.cuotaQ||c.cuota||0);},0).toFixed(2)+'</div><div class="stat-l">Cuotas pendientes</div></div>'
+      +'<div class="stat-box"><div class="stat-v">$'+enMora.reduce(function(a,c){return a+((typeof credConCargos==='function' && credConCargos(c)) ? getCreditoCuotaQueToca(c) : (c.cuotaQ||c.cuota||0));},0).toFixed(2)+'</div><div class="stat-l">Cuotas pendientes</div></div>'
       +'</div>'
       +'<table><thead><tr><th>Crédito</th><th>Cliente</th><th>Moto</th><th>Cuotas vencidas</th><th>Cuota</th><th>Cobrador</th></tr></thead><tbody>'
       +enMora.map(function(c){
-        return '<tr><td>'+c.id+'</td><td>'+c.cli+'</td><td>'+c.modelo+'</td><td><span class="badge red">'+c.mora+' vencidas</span></td><td>$'+(c.cuotaQ||c.cuota||0).toFixed(2)+'</td><td>'+(c.cobrador||'—')+'</td></tr>';
+        return '<tr><td>'+c.id+'</td><td>'+c.cli+'</td><td>'+c.modelo+'</td><td><span class="badge red">'+c.mora+' vencidas</span></td><td>$'+((typeof credConCargos==='function' && credConCargos(c)) ? getCreditoCuotaQueToca(c) : (c.cuotaQ||c.cuota||0)).toFixed(2)+'</td><td>'+(c.cobrador||'—')+'</td></tr>';
       }).join('')
       +'</tbody></table>';
 

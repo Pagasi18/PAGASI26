@@ -152,7 +152,7 @@ function qbPartirPago(c, monto){
   var m = _qbR2(monto);
   var principal = Math.max(0, (parseFloat(c && c.precio) || 0) - (parseFloat(c && c.ini) || 0));
   var porPlan = function(){
-    var t = parseFloat(c && c.total) || 0;
+    var t = (typeof getCreditoTotalContrato === 'function') ? getCreditoTotalContrato(c) : (parseFloat(c && c.total) || 0);   // sin los cargos extra
     if(!(t > 0)) t = principal * ((c && parseFloat(c.factor)) || (typeof PLAN !== 'undefined' && PLAN && PLAN.factor) || 0);
     var a = _qbR2(m * (t > 0 ? Math.min(1, principal / t) : 1));
     return { amortizacion: a, resto: _qbR2(m - a) };
@@ -450,10 +450,15 @@ function qbFacturas(ctx){
     if(!venc[c.id]) venc[c.id] = _qbVencimientos(c, _qbPagosDe(ctx, c.id));
     var fac = facPorPago[String(p.id)], cobrado = _qbR2(p.monto), igtf = fac ? _qbR2(fac.igtf) : 0;
     if(!(igtf > 0 && igtf < cobrado)) igtf = 0;
-    var partes = qbPartirPago(c, _qbR2(cobrado - igtf));
+    // Lo que este cobro pagó de un cargo extra (aceite, cauchos…) es capital que vuelve: va entero a amortización y
+    // no entra en el reparto de intereses, servicios ni Protect (revisión del 23-nov-2026)
+    var cgP = (typeof cargoDePago === 'function') ? _qbR2(cargoDePago(c, p, _qbPagosDe(ctx, c.id))) : 0;
+    if(!(cgP > 0 && cgP <= cobrado - igtf)) cgP = 0;
+    var partes = qbPartirPago(c, _qbR2(cobrado - igtf - cgP));
+    if(cgP) partes.amortizacion = _qbR2(partes.amortizacion + cgP);
     if(igtf) partes.igtf = igtf;
     var lineas = qbLineas(partes), v = venc[c.id].pagos[p.id] || {}, fecha = _qbISO(p.fecha), edi = [p.editadoEn, p.restauradoEn].filter(Boolean).sort().pop() || '';
-    var tipo = _qbTipoCobro(p, cobrado, venc[c.id].cuota, (v.cuotas || []).length);
+    var tipo = _qbTipoCobro(p, _qbR2(cobrado - cgP), venc[c.id].cuota, (v.cuotas || []).length);   // contra la cuota pactada, sin el cargo
     var nro = _qbNroTxt((ctx.nros || {})[p.id]);
     var d = { numero: nro || String(p.id), sinNumero: !nro, pagoId: p.id, factura: fac ? String(fac.numero) : '', cred: c.id, fecha: fecha, vence: _qbMasDias(fecha, QB_DIAS_TERMINOS),
       servicio: v.fechaVence || fecha, cuotas: v.cuotas || [], nota: 'CONTRATO Nº ' + c.id + (fac ? ' · FACTURA FISCAL Nº ' + fac.numero : ''),
