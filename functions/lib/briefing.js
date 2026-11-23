@@ -35,7 +35,11 @@ function estadoCredito(cred, pagos, hoy) {
     totalPagado: Math.round((est.totalPagado || 0) * 100) / 100, saldoPendiente: Math.round((est.saldoPendiente || 0) * 100) / 100,
     completado, proxima: prox ? { numero: prox.numero, monto: Math.round(prox.saldo * 100) / 100, vence: prox.fechaVence, enDias: dias(hoy, prox.fechaVence) } : null,
     vencidas: vencidas.map(q => ({ numero: q.numero, monto: Math.round(q.saldo * 100) / 100, vence: q.fechaVence, dias: dias(q.fechaVence, hoy) })),
-    montoVencido: Math.round(vencidas.reduce((s, q) => s + q.saldo, 0) * 100) / 100, diasAtraso: vencidas.length ? Math.max(...vencidas.map(q => dias(q.fechaVence, hoy))) : 0
+    montoVencido: Math.round(vencidas.reduce((s, q) => s + q.saldo, 0) * 100) / 100, diasAtraso: vencidas.length ? Math.max(...vencidas.map(q => dias(q.fechaVence, hoy))) : 0,
+    // Cargos extra (23-nov-2026, el aceite del crédito 440): lo que se financió después de la moto y se
+    // suma a ciertas cuotas. Solo los que todavía tienen cuotas por pagar, para que Patricia lo explique.
+    cargos: (Array.isArray(cred.cargos) ? cred.cargos : []).filter(g => g && !g.eliminado && (g.cuotas || []).some(x => { const q = cuotas[(parseInt(x.numero, 10) || 0) - 1]; return q && q.saldo > 0.001; }))
+      .map(g => ({ concepto: String(g.concepto || 'cargo extra'), monto: Math.round((parseFloat(g.monto) || 0) * 100) / 100, cuotas: (g.cuotas || []).map(x => ({ numero: parseInt(x.numero, 10) || 0, monto: Math.round((parseFloat(x.monto) || 0) * 100) / 100 })).filter(x => x.numero > 0) }))
   };
 }
 
@@ -72,6 +76,7 @@ function armar(ctx) {
   vivos.forEach(c => {
     const e = c;
     let t = `CRÉDITO ${e.id} · ${e.moto}${e.placa ? ' · placa ' + e.placa : ''}: cuota quincenal de ${money(e.cuotaQ)}, ${e.pagadas} de ${e.totalCuotas} cuotas pagadas, ha pagado ${money(e.totalPagado)} y le faltan ${money(e.saldoPendiente)}.`;
+    (e.cargos || []).forEach(g => { const ns = g.cuotas.map(x => x.numero); if (ns.length) t += ` Además financió ${g.concepto} por ${money(g.monto)}: se suma ${g.cuotas.every(x => x.monto === g.cuotas[0].monto) ? money(g.cuotas[0].monto) + ' a' : 'a'} ${ns.length === 1 ? 'la cuota ' + ns[0] : 'las cuotas ' + ns.join(', ')} (por eso esas cuotas valen más que la quincenal).`; });
     if (e.completado) t += ' El crédito está PAGADO por completo.';
     else if (e.vencidas.length) t += ` TIENE ${e.vencidas.length} CUOTA${e.vencidas.length === 1 ? '' : 'S'} VENCIDA${e.vencidas.length === 1 ? '' : 'S'} por ${money(e.montoVencido)} (la más vieja venció el ${fecha(e.vencidas[0].vence)}, hace ${e.diasAtraso} días${e.diasAtraso <= DIAS_GRACIA ? ', todavía en días de gracia, sin recargo' : ', ya genera mora'}).` + (e.proxima ? ` La siguiente cuota vence el ${fecha(e.proxima.vence)}.` : '');
     else if (e.proxima) t += ` Va AL DÍA: su próxima cuota es la ${e.proxima.numero}, ${money(e.proxima.monto)}, vence el ${fecha(e.proxima.vence)} (${e.proxima.enDias === 0 ? 'hoy' : e.proxima.enDias === 1 ? 'mañana' : 'en ' + e.proxima.enDias + ' días'}).`;

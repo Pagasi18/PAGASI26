@@ -141,6 +141,8 @@ PG.pagos = function(){
       }catch(e){ prox=null; }
     }
     vencidoTotal=Math.round(vencidoTotal*100)/100;
+    // la cuota que toca con su monto real (si lleva un cargo extra, como el aceite del 440, vale más)
+    if(prox && prox.monto>0) cuotaMonto=prox.monto;
     if(prox && prox.fechaVence){
       cuotaNum=prox.numero;
       venceStr=prox.fechaVence;
@@ -426,7 +428,7 @@ PG.pagos = function(){
           <td class="tds">${item.cuotaNum}/${c.totalCuotas||c.plazo*2||24}</td>
           <td><span class="bdg ${bcls}" style="font-size:9px">${badge}</span></td>
           <td class="tds"><div style="color:${col};font-weight:700">${lbl}</div>${fechaFmt?`<div style="font-size:10px;color:var(--ink3);font-weight:600;margin-top:2px;text-transform:capitalize">${fechaFmt}</div>`:''}</td>
-          <td style="font-weight:800;font-family:var(--fd);color:${item.nVencidas>=1?'var(--red)':'var(--ink)'}">${item.nVencidas>=1?fmt(item.vencido):fmt(item.proxSaldo)}${item.nVencidas>=2?`<div style="font-size:9.5px;font-weight:700;color:var(--ink3);margin-top:2px;white-space:nowrap">${item.nVencidas} cuotas vencidas · ${fmt(item.cuotaMonto)} c/u</div>`:(item.nVencidas===1?`<div style="font-size:9.5px;font-weight:600;color:var(--ink3);margin-top:2px;white-space:nowrap">1 cuota vencida</div>`:`<div style="font-size:9.5px;font-weight:600;color:var(--ink3);margin-top:2px;white-space:nowrap">${item.proxSaldo<item.cuotaMonto-0.01?`abonó ${fmt(item.cuotaMonto-item.proxSaldo)} de ${fmt(item.cuotaMonto)}`:'próxima cuota'}</div>`)}</td>
+          <td style="font-weight:800;font-family:var(--fd);color:${item.nVencidas>=1?'var(--red)':'var(--ink)'}">${item.nVencidas>=1?fmt(item.vencido):fmt(item.proxSaldo)}${item.nVencidas>=2?`<div style="font-size:9.5px;font-weight:700;color:var(--ink3);margin-top:2px;white-space:nowrap">${item.nVencidas} cuotas vencidas${(typeof credConCargos==='function'&&credConCargos(item.cred))?'':' · '+fmt(item.cuotaMonto)+' c/u'}</div>`:(item.nVencidas===1?`<div style="font-size:9.5px;font-weight:600;color:var(--ink3);margin-top:2px;white-space:nowrap">1 cuota vencida</div>`:`<div style="font-size:9.5px;font-weight:600;color:var(--ink3);margin-top:2px;white-space:nowrap">${item.proxSaldo<item.cuotaMonto-0.01?`abonó ${fmt(item.cuotaMonto-item.proxSaldo)} de ${fmt(item.cuotaMonto)}`:'próxima cuota'}</div>`)}</td>
           <td class="tds" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${conc||''}">${conc||'—'}</td>
           <td>${_cuotaNotaSelect(c)}</td>
           <td>${_gestionCobroCell(c)}</td>
@@ -643,7 +645,7 @@ function _cobExpFilas(items){
     var nota=_notaCobranzaOpt(c.cobranzaStatus||'').t;
     return { cli:c.cli||'', tel:cl.tel||'', credId:c.id||'', conc:conc, modelo:c.modelo||'',
       cuotaLbl:(it.cuotaNum||'')+'/'+(c.totalCuotas||((parseInt(c.plazo,10)||0)*2)||''),
-      vence:it.venceStr||'', dm:dm, nVenc:it.nVencidas||0, cuotaMonto:it.cuotaMonto||0,
+      vence:it.venceStr||'', dm:dm, nVenc:it.nVencidas||0, cuotaMonto:it.cuotaMonto||0, conCargos:(typeof credConCargos==='function'&&credConCargos(it.cred)),
       vencido:it.nVencidas>=1?it.vencido:0, saldo:saldo,
       estado:_cobXlsEstado(it), nota:nota==='— Sin nota'?'':nota,
       acuerdo:c.fechaCompromiso||'', cobrador:c.cobrador||'' };
@@ -855,7 +857,7 @@ function _cobExpPdf(data, alcLbl, perLbl, items){
         +'<td class="mut">'+esc(r.modelo)+'</td>'
         +'<td class="mut" style="white-space:nowrap">'+esc(r.vence)+'</td>'
         +'<td class="num"><span class="'+(r.dm>0?'dm':'dm0')+'">'+(r.dm>0?r.dm+'d':'—')+'</span></td>'
-        +'<td class="num">'+(r.nVenc>=1?'<div class="b" style="color:#E8335A">'+fmt(r.vencido)+'</div><div class="sub">'+r.nVenc+' cuota'+(r.nVenc!==1?'s':'')+' × '+fmt(r.cuotaMonto)+'</div>':'<div class="mut">—</div><div class="sub">próx. '+fmt(r.cuotaMonto)+'</div>')+'</td>'
+        +'<td class="num">'+(r.nVenc>=1?'<div class="b" style="color:#E8335A">'+fmt(r.vencido)+'</div><div class="sub">'+r.nVenc+' cuota'+(r.nVenc!==1?'s':'')+(r.conCargos?'':' × '+fmt(r.cuotaMonto))+'</div>':'<div class="mut">—</div><div class="sub">próx. '+fmt(r.cuotaMonto)+'</div>')+'</td>'
         +'<td class="num b">'+(r.saldo==null?'—':fmt(r.saldo))+'</td>'
         +'<td><span class="pill" style="color:'+pc[0]+';background:'+pc[1]+'">'+esc(r.estado)+'</span>'
           +(r.nota?'<div class="sub">'+esc(r.nota)+'</div>':'')

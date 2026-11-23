@@ -40,7 +40,10 @@ PG.reportes = function(){
   const creds = _SCREDS.filter(c=>!c.eliminado);
   const nTotal = creds.length;
   const cartera = credsActivos.reduce((a,c)=>a+(typeof getCreditoSaldoPendiente==='function'?getCreditoSaldoPendiente(c):0),0);
-  const cuotaEsp = credsActivos.reduce((a,c)=>a+parseFloat(c.cuotaQ||c.cuota||0),0);
+  // la cuota que toca de cada crédito, con su cargo extra si lleva (23-nov-2026)
+  const _rpCuotaToca = c => (typeof getCreditoMontoCuota==='function') ? getCreditoMontoCuota(c, (parseInt(c.pagado,10)||0)+1) : parseFloat(c.cuotaQ||c.cuota||0);
+  const _rpCargos = c => (typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal) ? CreditoLedger.cargosTotal(c) : 0;
+  const cuotaEsp = credsActivos.reduce((a,c)=>a+_rpCuotaToca(c),0);
   const cuotaEspMes = cuotaEsp*2;
   const pctCobro = cuotaEsp>0?Math.min(100,Math.round(totalCuotas/cuotaEsp*100)):0;
   const tasaMora = credsActivos.length>0?Math.round(credsMora.length/credsActivos.length*100):0;
@@ -56,6 +59,7 @@ PG.reportes = function(){
     const cuotaV=parseFloat(c.cuotaQ||c.cuota||0);
     const totalC=c.totalCuotas||c.plazo*2;
     const pagado=c.pagado||0;
+    if(_rpCargos(c)>0 && typeof getCreditoSaldoPendiente==='function') return a+getCreditoSaldoPendiente(c);   // con cargos: total − cobrado
     return a+Math.max(0,cuotaV*(totalC-pagado));
   },0);
 
@@ -117,7 +121,7 @@ PG.reportes = function(){
       const cm = cuotaFecha.getMonth();
       const bucket = futMeses.find(x=>x.y===cy && x.m===cm);
       if(bucket){
-        bucket.esperado += cuotaMonto;
+        bucket.esperado += (typeof getCreditoMontoCuota==='function') ? Math.max(cuotaMonto, getCreditoMontoCuota(c, k)) : cuotaMonto;   // con su cargo extra
         bucket.cuotas += 1;
       }
     }
@@ -146,7 +150,7 @@ PG.reportes = function(){
   const topClientes=credsActivos.map(c=>{
     const cuotaV=parseFloat(c.cuotaQ||c.cuota||0);
     const totalC=c.totalCuotas||c.plazo*2;
-    const saldo=Math.max(0,cuotaV*(totalC-(c.pagado||0)));
+    const saldo=(_rpCargos(c)>0 && typeof getCreditoSaldoPendiente==='function') ? getCreditoSaldoPendiente(c) : Math.max(0,cuotaV*(totalC-(c.pagado||0)));
     return {cli:c.cli,modelo:c.modelo,saldo,mora:c.mora,id:c.id};
   }).sort((a,b)=>b.saldo-a.saldo).slice(0,8);
 
@@ -529,7 +533,7 @@ PG.reportes = function(){
         <tbody>${credsMora.sort((a,b)=>b.mora-a.mora).slice(0,8).map(c=>`<tr onclick="openAmort('${c.id}')" style="cursor:pointer">
           <td><div class="tdm">${c.cli}</div><div class="tds">${c.modelo||'—'}</div></td>
           <td><span class="bdg ${c.mora>60?'b-r':c.mora>30?'b-a':'b-b'}">${c.mora}d</span></td>
-          <td style="font-weight:700;color:var(--red)">${fmt(c.cuotaQ||c.cuota||0)}</td>
+          <td style="font-weight:700;color:var(--red)">${fmt(_rpCuotaToca(c))}</td>
         </tr>`).join('')}</tbody>
       </table></div>`:`<div style="text-align:center;padding:28px;color:var(--green);font-size:13px;font-weight:700">✓ Sin créditos en mora</div>`}
     </div>

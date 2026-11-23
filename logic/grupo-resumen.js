@@ -82,8 +82,13 @@
     if(e && e.n) return e.sum;
     if(Array.isArray(c.pagosRegistrados) && c.pagosRegistrados.length)
       return c.pagosRegistrados.reduce(function(a, h){ return a + (parseFloat(h.montoPagado) || 0); }, 0);
-    return (parseInt(c.pagado, 10) || 0) * cuotaBase(c);
+    var nP = parseInt(c.pagado, 10) || 0;
+    if(c && Array.isArray(c.cargos) && c.cargos.length && ledgerMontoDeCuota){ var sP = 0; for(var kP = 1; kP <= nP; kP++) sP += ledgerMontoDeCuota(c, kP); return sP; }   // con cargos extra
+    return nP * cuotaBase(c);
   }
+  // el monto de la cuota «k» con sus cargos extra (23-nov-2026), si el ledger está a mano
+  var ledgerMontoDeCuota = null;
+  try { ledgerMontoDeCuota = (typeof CreditoLedger !== 'undefined' && CreditoLedger.montoDeCuota) ? CreditoLedger.montoDeCuota : ((typeof require === 'function') ? (function(){ try { return require('./credito-ledger.js').montoDeCuota; } catch(e){ return null; } })() : null); } catch(e){ ledgerMontoDeCuota = null; }
   function saldoPendiente(c, idx){ return Math.max(0, (parseFloat((c && c.total) || 0) || 0) - pagosConfirmados(c, idx)); }
 
   // El calendario de cuotas de un crédito con sus pagos ya aplicados (el ledger del panel), o
@@ -97,12 +102,13 @@
   // Lo vencido de un crédito atrasado: el saldo de sus cuotas vencidas o, si no hay ninguna,
   // lo que falta de la próxima (el mismo cálculo del Dashboard)
   function vencidoDe(c, est, hoy){
-    if(!est) return parseFloat(c.cuotaQ || c.cuota) || 0;
+    var cuotaQueToca = function(){ return (ledgerMontoDeCuota && c && Array.isArray(c.cargos) && c.cargos.length) ? ledgerMontoDeCuota(c, (parseInt(c.pagado, 10) || 0) + 1) : (parseFloat(c.cuotaQ || c.cuota) || 0); };
+    if(!est) return cuotaQueToca();
     var venc = 0, n = 0;
     (est.cuotas || []).forEach(function(q){ if(q && q.saldo > 0.001 && q.fechaVence && q.fechaVence < hoy){ venc += q.saldo; n++; } });
     if(n) return venc;
     var prox = (est.cuotas || [])[est.cuotasPagadas];
-    return prox ? (prox.saldo || 0) : (parseFloat(c.cuotaQ || c.cuota) || 0);
+    return prox ? (prox.saldo || 0) : cuotaQueToca();
   }
   // Los pagos de cada crédito, para no recorrer todos los pagos por cada crédito. El ledger los
   // filtra con String(p.cred) === String(c.id): agruparlos con la misma llave da lo mismo.

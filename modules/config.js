@@ -828,7 +828,7 @@ function auditCompleta(){
     var cuotaBase = parseFloat(c.cuotaQ||c.cuota)||0;
     var pagadoCounter = parseInt(c.pagado,10)||0;
     if(cuotaBase>0){
-      var cuotasReales = Math.floor((pagadoReal+0.000001)/cuotaBase);
+      var cuotasReales = (typeof credConCargos==='function' && credConCargos(c) && typeof getCreditoCuotasPagadas==='function') ? getCreditoCuotasPagadas(c) : Math.floor((pagadoReal+0.000001)/cuotaBase);
       if(Math.abs(cuotasReales - pagadoCounter) > 1){
         addIssue('Créditos','media','Crédito',c.id,
           'Contador de cuotas (<strong>'+pagadoCounter+'</strong>) no coincide con pagos registrados (<strong>'+cuotasReales+' cuotas</strong> según montos)',

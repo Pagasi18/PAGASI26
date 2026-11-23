@@ -835,7 +835,7 @@ function descargarAmortPDF(){
       + '<td style="text-align:center;font-weight:700">'+i+'</td>'
       + '<td>'+fechaStr+'</td>'
       + '<td style="font-weight:'+(pd?'600':'700')+';color:'+(pd?'#999':parcialA?'#b45309':proxA?'#2563EB':'#111')+'">'+estado+'</td>'
-      + '<td style="text-align:right;font-weight:700;color:'+(parcialA?'#b45309':'inherit')+'">'+(parcialA?fmt(saldoPorCuota[i-1])+' pend.':fmt(cuota))+'</td>'
+      + '<td style="text-align:right;font-weight:700;color:'+(parcialA?'#b45309':'inherit')+'">'+(parcialA?fmt(saldoPorCuota[i-1])+' pend.':fmt((_LA.montos&&_LA.montos[i-1])||cuota))+'</td>'
       + '<td style="text-align:right;color:#b78a14">'+fmt(Math.max(0,intMontoRaw))+'</td>'
       + '<td style="text-align:right">'+fmt(Math.max(0,capMonto))+'</td>'
       + '<td style="text-align:right;color:#666">'+fmt(Math.max(0,sal))+'</td>'
@@ -941,7 +941,7 @@ function descargarAmortPDF(){
       ${infoChip('Saldo pendiente', fmt(saldoPend), saldoPend>0?'#c22':'#0a7a3f')}
       ${infoChip('Progreso pago', pctPagado+'%', '#2563EB')}
       ${infoChip('Próximo vencimiento', proxFecha)}
-      ${infoChip('Monto próxima cuota', cuotasRest>0 ? fmt(cuota) : 'Completado')}
+      ${infoChip('Monto próxima cuota', cuotasRest>0 ? fmt(((_LA.saldos&&_LA.saldos[cuotasPag]>0.001)?_LA.saldos[cuotasPag]:((_LA.montos&&_LA.montos[cuotasPag])||cuota))) : 'Completado')}
       ${infoChip('Días de mora', c.mora>0 ? (c.mora+' días') : 'Al día', c.mora>0?'#c22':'#0a7a3f')}
     </div>
 
@@ -1036,7 +1036,7 @@ function descargarEstadoPDF(){
       }).join('<br>');
     }
     // Lo que el cliente debe por esa cuota hoy
-    var montoTxt = parcial ? fmt(L.saldos[i-1])+' pend.' : fmt(cuota);
+    var montoTxt = parcial ? fmt(L.saldos[i-1])+' pend.' : fmt((L.montos&&L.montos[i-1])||cuota);   // con su cargo extra, si lleva
 
     rowsHTML += '<tr style="'+(pd?'opacity:.6;background:#fafafa':parcial?'background:#fff7ed':'')+'">'
       + '<td style="text-align:center;font-weight:700">'+i+'</td>'
@@ -1064,7 +1064,7 @@ function descargarEstadoPDF(){
         <div style="font-size:10.5px;color:#666;margin-top:2px">Documento generado el ${hoy}</div>
       </div>
       <div style="text-align:right;font-size:11px;color:#666">
-        <div><strong>Cuota:</strong> ${fmt(cuota)}</div>
+        <div><strong>Cuota:</strong> ${fmt(cuota)}${(typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal&&CreditoLedger.cargosTotal(c)>0)?' <span style="color:#b45309">(+ cargos extra: '+(c.cargos||[]).filter(function(g){return g&&!g.eliminado;}).map(function(g){ var ns=(g.cuotas||[]).map(function(x){return x.numero;}); return String(g.concepto||'').replace(/[<>&]/g,'')+' '+fmt(g.monto)+(ns.length?' en las cuotas '+ns[0]+(ns.length>1?' a '+ns[ns.length-1]:''):''); }).join('; ')+')</span>':''}</div>
         <div><strong>Progreso:</strong> ${cuotasPag} de ${totalCuotas}</div>
         ${L.aviso?`<div style="color:#b45309;font-weight:700;margin-top:2px">Por pagar ahora: ${fmt(L.aviso.falta)}</div>`:''}
       </div>

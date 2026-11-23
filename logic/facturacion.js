@@ -249,7 +249,8 @@ function _facCuotasDePago(p, cred){
     return led.filter(function(h){ return parseInt(h.cuota, 10) === n; })
               .reduce(function(a, h){ return a + (parseFloat(h.montoPagado) || 0); }, 0);
   }
-  var ultParcial = cuotaBase > 0 && (pagadoEnCuota(max) < cuotaBase - 0.01);
+  var montoMax = (typeof getCreditoMontoCuota === 'function') ? Math.max(cuotaBase, getCreditoMontoCuota(cred, max) || 0) : cuotaBase;   // con su cargo extra
+  var ultParcial = cuotaBase > 0 && (pagadoEnCuota(max) < montoMax - 0.01);
   if(min === max){
     return (ultParcial ? 'abono a cuota ' : 'cuota ') + min + sufijo;
   }

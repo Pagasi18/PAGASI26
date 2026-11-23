@@ -857,8 +857,10 @@ function verCliente(id){
       var totalCr=cr.totalCuotas||cr.plazo*2;
       var cuotaV=parseFloat(cr.cuotaQ||cr.cuota||0);
       var abonado=Array.isArray(cr.pagosRegistrados)?cr.pagosRegistrados.reduce(function(a,h){return a+(h.montoPagado||0);},0):(cr.pagado||0)*cuotaV;
-      var saldo=Math.max(0,parseFloat((cuotaV*totalCr-abonado).toFixed(2)));
-      var pct=cuotaV*totalCr>0?Math.round(abonado/(cuotaV*totalCr)*100):0;
+      // con los cargos extra (el aceite del 440): si no, salía «✓ Saldado» debiendo el cargo
+      var totalConCargos=cuotaV*totalCr+((typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal)?CreditoLedger.cargosTotal(cr):0);
+      var saldo=Math.max(0,parseFloat((totalConCargos-abonado).toFixed(2)));
+      var pct=totalConCargos>0?Math.round(abonado/totalConCargos*100):0;
       var tuvoMoraCr=(cr.tuvoMoraHistorica===true)||pagos.some(function(p){return p.cred===cr.id&&(p.mora||0)>0;});
       html += '<div class="li" style="flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer" onclick="openAmort(\''+cr.id+'\')">'
         + '<div style="display:flex;width:100%;align-items:center;gap:8px">'
@@ -1091,9 +1093,10 @@ function empleadoDashHTML(){
   const cobradoMes = misPagosMes.reduce((a,p)=>a+(p.monto||0),0);
 
   // ─── METAS (calculadas: meta = 80% de lo cobrable) ───
+  const _cuotaQueToca = c => (typeof getCreditoMontoCuota==='function' && typeof getCreditoCuotasPagadas==='function') ? getCreditoMontoCuota(c, getCreditoCuotasPagadas(c)+1) : parseFloat(c.cuotaQ||c.cuota||0);   // con su cargo extra, si lleva
   const esperadoSemana = activos.reduce((a,c)=>{
     // cuotas que deberían vencerse esta semana
-    return a + parseFloat(c.cuotaQ||c.cuota||0) * 0.5;
+    return a + _cuotaQueToca(c) * 0.5;
   }, 0);
   const metaSemana = Math.round(esperadoSemana * 0.8);
   const avanceMeta = metaSemana > 0 ? Math.min(100, Math.round((cobradoSemana/metaSemana)*100)) : 0;
@@ -1137,8 +1140,8 @@ function empleadoDashHTML(){
   }).map(c=>({...c, _proxima:proximaCuota(c)}))
     .sort((a,b)=>a._proxima-b._proxima);
 
-  const totalAcobrarMora = enMora.reduce((a,c)=>a+parseFloat(c.cuotaQ||c.cuota||0),0);
-  const totalAcobrarSem = enSemana.reduce((a,c)=>a+parseFloat(c.cuotaQ||c.cuota||0),0);
+  const totalAcobrarMora = enMora.reduce((a,c)=>a+_cuotaQueToca(c),0);
+  const totalAcobrarSem = enSemana.reduce((a,c)=>a+_cuotaQueToca(c),0);
   const totalAcobrar = totalAcobrarMora + totalAcobrarSem;
 
   // ─── CLIENTES POR LLAMAR HOY (mora + vence hoy) ───
@@ -1252,7 +1255,7 @@ function empleadoDashHTML(){
         const esMora = c.mora>0;
         const urgColor = esMora ? (c.mora>30?'var(--red)':'var(--amber)') : 'var(--p1)';
         const urgTxt = esMora ? c.mora+'d mora' : 'Vence hoy';
-        const cuota = fmt(c.cuotaQ||c.cuota||0);
+        const cuota = fmt(_cuotaQueToca(c));
         const telClean = (c.tel||'').replace(/\D/g,'');
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surf2);border-radius:10px;border-left:3px solid ${urgColor}">
           <div style="flex:1;min-width:0">
@@ -1299,7 +1302,7 @@ function empleadoDashHTML(){
           <td style="white-space:nowrap"><span style="font-size:10px;font-weight:800;color:${diaColor};text-transform:uppercase">${diaLbl}</span></td>
           <td class="tdm">${c.cli}<div class="tds" style="font-size:10px">${c.tel||''}</div></td>
           <td class="tds">${c.modelo}</td>
-          <td style="font-weight:700;font-family:var(--fd)">${fmt(c.cuotaQ||c.cuota||0)}</td>
+          <td style="font-weight:700;font-family:var(--fd)">${fmt(_cuotaQueToca(c))}</td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn btn-p btn-xs" onclick="openPagoRapido('${c.id}')" title="Cobrar"></button>
             ${c.tel?`<a href="https://wa.me/58${(c.tel||'').replace(/\D/g,'')}" target="_blank" class="btn btn-xs" style="background:#25D366;color:#fff;border-color:#25D366;padding:4px 7px" title="WhatsApp"></a>`:''}

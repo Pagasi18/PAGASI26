@@ -606,6 +606,8 @@ function buildMensajeNotif(tipo, d){
   var totalPagado = cr ? getCreditoPagosConfirmados(cr) : 0;
   var saldoPend = cr ? getCreditoSaldoPendiente(cr) : 0;
   var cuotaNum = cr ? Math.min(cuotasPagadas+1, totalCuotas) : 0;
+  // la cuota que toca, con su cargo extra si lleva (23-nov-2026, el aceite del 440)
+  if(cr && typeof getCreditoMontoCuota==='function' && cuotaNum>0){ var _mq = getCreditoMontoCuota(cr, cuotaNum); if(_mq > 0) cuota = fmt(_mq); }
   var cuotasRest = totalCuotas - cuotasPagadas;
   var montoTotal = cr ? parseFloat(cr.total||cr.fin||0) : 0;
   var pct = totalCuotas > 0 ? Math.round(cuotasPagadas/totalCuotas*100) : 0;

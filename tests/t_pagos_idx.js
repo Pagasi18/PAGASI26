@@ -28,9 +28,10 @@ function viejaPagosConfirmados(S, c) {
 
 function montar(S) {
   const timers = [];
-  const f = new Function('S', 'setTimeout', 'getCreditoCuotaBase',
+  // credConCargos: los créditos de esta prueba no tienen cargos extra (eso se prueba en t_cargo_extra.js)
+  const f = new Function('S', 'setTimeout', 'getCreditoCuotaBase', 'credConCargos',
     BLOQUE + '\nreturn { nueva: getCreditoPagosConfirmados, invalidar: _pagosIdxInvalidar };');
-  const api = f(S, fn => { timers.push(fn); return timers.length; }, c => (parseFloat((c && (c.cuotaQ || c.cuota)) || 0)) || 0);
+  const api = f(S, fn => { timers.push(fn); return timers.length; }, c => (parseFloat((c && (c.cuotaQ || c.cuota)) || 0)) || 0, () => false);
   return { api, siguienteTick: () => { timers.splice(0).forEach(fn => fn()); } };
 }
 

@@ -1,4 +1,6 @@
 // Logica de graficos Chart.js. Extraido mecanicamente de assets/pagasi-app.js.
+// La cuota «k» de un crédito con sus cargos extra (23-nov-2026, el aceite del 440); sin cargos, «base»
+function _cuotaConCargo(c, k, base){ var m = (typeof getCreditoMontoCuota === 'function') ? (parseFloat(getCreditoMontoCuota(c, k)) || 0) : 0; return m > base ? m : base; }
 function wtInjectDataLabels(){
   if(window.innerWidth > 820) return; // solo en mobile
   document.querySelectorAll('.tw table').forEach(function(table){
@@ -546,7 +548,7 @@ function renderCredCobrosChart(){
         if(t > ahora + 30*MS_DIA) break;
         var dTs = new Date(new Date(t).getFullYear(), new Date(t).getMonth(), new Date(t).getDate()).getTime();
         var b = buckets.find(function(bk){ return bk.dayTs === dTs; });
-        if(b){ b.monto += cuotaV; b.cuotas++; }
+        if(b){ b.monto += _cuotaConCargo(c, k, cuotaV); b.cuotas++; }
       }
     });
   } else if(periodo === 'quincenal'){
@@ -568,7 +570,7 @@ function renderCredCobrosChart(){
         var t = inicio + k*MS_QUINCENA;
         if(t > ahora + 8*MS_QUINCENA) break;
         for(var bi=0; bi<buckets.length; bi++){
-          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += cuotaV; buckets[bi].cuotas++; break; }
+          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += _cuotaConCargo(c, k, cuotaV); buckets[bi].cuotas++; break; }
         }
       }
     });
@@ -590,7 +592,7 @@ function renderCredCobrosChart(){
         var t = inicio + k*MS_QUINCENA;
         if(t > buckets[buckets.length-1].fin) break;
         for(var bi=0; bi<buckets.length; bi++){
-          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += cuotaV; buckets[bi].cuotas++; break; }
+          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += _cuotaConCargo(c, k, cuotaV); buckets[bi].cuotas++; break; }
         }
       }
     });
@@ -651,7 +653,7 @@ function _cobrosProgramadosBuckets(periodo){
         if(t > ahora + 30*MS_DIA) break;
         var dTs = new Date(new Date(t).getFullYear(), new Date(t).getMonth(), new Date(t).getDate()).getTime();
         var b = buckets.find(function(bk){ return bk.dayTs === dTs; });
-        if(b){ b.monto += cuotaV; b.cuotas++; }
+        if(b){ b.monto += _cuotaConCargo(c, k, cuotaV); b.cuotas++; }
       }
     });
   } else if(periodo === 'quincenal'){
@@ -673,7 +675,7 @@ function _cobrosProgramadosBuckets(periodo){
         var t = inicio + k*MS_QUINCENA;
         if(t > ahora + 8*MS_QUINCENA) break;
         for(var bi=0; bi<buckets.length; bi++){
-          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += cuotaV; buckets[bi].cuotas++; break; }
+          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += _cuotaConCargo(c, k, cuotaV); buckets[bi].cuotas++; break; }
         }
       }
     });
@@ -695,7 +697,7 @@ function _cobrosProgramadosBuckets(periodo){
         var t = inicio + k*MS_QUINCENA;
         if(t > buckets[buckets.length-1].fin) break;
         for(var bi=0; bi<buckets.length; bi++){
-          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += cuotaV; buckets[bi].cuotas++; break; }
+          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += _cuotaConCargo(c, k, cuotaV); buckets[bi].cuotas++; break; }
         }
       }
     });
@@ -717,7 +719,7 @@ function _cobrosProgramadosBuckets(periodo){
         var t = inicio + k*MS_QUINCENA;
         if(t > buckets[buckets.length-1].fin) break;
         for(var bi=0; bi<buckets.length; bi++){
-          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += cuotaV; buckets[bi].cuotas++; break; }
+          if(t >= buckets[bi].ini && t < buckets[bi].fin){ buckets[bi].monto += _cuotaConCargo(c, k, cuotaV); buckets[bi].cuotas++; break; }
         }
       }
     });

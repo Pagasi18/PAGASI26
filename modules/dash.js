@@ -203,7 +203,9 @@ PG.dash = function(){
   // próximas cuotas: la más cercana primero (misma fecha estimada que ya usaba esta tarjeta)
   const _diasProx = c => { if(!c.fecha) return 999; var st=parseFechaLocal(c.fecha); var v=new Date(st.getTime()+(((c.pagado||0)+1)*15*24*60*60*1000)); return Math.round((v-new Date())/(24*60*60*1000)); };
   const _proxOrd = hoy.slice().sort((a,b)=>_diasProx(a)-_diasProx(b));
-  const _proxMonto = hoy.reduce((a,c)=>a+(parseFloat(c.cuotaQ||c.cuota)||0),0);
+  // la cuota que toca de cada crédito, con su cargo extra si lleva (el aceite del 440, 23-nov-2026)
+  const _cuotaToca = c => (typeof getCreditoMontoCuota==='function') ? getCreditoMontoCuota(c, (parseInt(c.pagado,10)||0)+1) : (parseFloat(c.cuotaQ||c.cuota)||0);
+  const _proxMonto = hoy.reduce((a,c)=>a+_cuotaToca(c),0);
   const _proxLbl = d => d < 0 ? (d === -1 ? 'ayer' : 'hace ' + (-d) + 'd') : d === 0 ? 'hoy' : d === 1 ? 'mañana' : 'en ' + d + 'd';
   const _moraMeses = (function(){ try{ return (typeof getMoraMensual==='function') ? (getMoraMensual()||[]) : []; }catch(e){ return []; } })();
   const _moraMax = Math.max(1, ..._moraMeses.map(x=>x.mora||0));
@@ -535,7 +537,7 @@ PG.dash = function(){
       <div class="kx-big" style="color:${moraEnCartera>0?'var(--red)':'var(--green)'}">${moraEnCartera>0?moraEnCartera:'✓'}</div>
       <div class="kx-sub">${moraEnCartera>0?'requieren gestión · los más atrasados':'todos al día'}</div>
       <div class="kx-pie kx-list">
-        ${_moraOrd.length?_moraOrd.slice(0,3).map(c=>`<div class="kx-li"><span class="kx-bd kx-bd-r">${c.mora}d</span><span class="kx-nm">${_escD(c.cli)}</span><b style="color:var(--red)">${fmt(c.cuotaQ||c.cuota)}</b></div>`).join(''):'<div class="kx-vacio">Sin clientes en mora</div>'}
+        ${_moraOrd.length?_moraOrd.slice(0,3).map(c=>`<div class="kx-li"><span class="kx-bd kx-bd-r">${c.mora}d</span><span class="kx-nm">${_escD(c.cli)}</span><b style="color:var(--red)">${fmt(_cuotaToca(c))}</b></div>`).join(''):'<div class="kx-vacio">Sin clientes en mora</div>'}
       </div>
     </div>
 
@@ -549,7 +551,7 @@ PG.dash = function(){
       <div class="kx-big">${hoy.length}</div>
       <div class="kx-sub">${_pesos0(_proxMonto)} por cobrar</div>
       <div class="kx-pie kx-list">
-        ${_proxOrd.length?_proxOrd.slice(0,3).map(c=>{const d=_diasProx(c);return `<div class="kx-li"><span class="kx-bd ${d<0?'kx-bd-r':d<=1?'kx-bd-a':'kx-bd-g'}">${_proxLbl(d)}</span><span class="kx-nm">${_escD(c.cli)}</span><b>${fmt(c.cuotaQ||c.cuota)}</b></div>`;}).join(''):'<div class="kx-vacio">Sin cuotas próximas</div>'}
+        ${_proxOrd.length?_proxOrd.slice(0,3).map(c=>{const d=_diasProx(c);return `<div class="kx-li"><span class="kx-bd ${d<0?'kx-bd-r':d<=1?'kx-bd-a':'kx-bd-g'}">${_proxLbl(d)}</span><span class="kx-nm">${_escD(c.cli)}</span><b>${fmt(_cuotaToca(c))}</b></div>`;}).join(''):'<div class="kx-vacio">Sin cuotas próximas</div>'}
       </div>
     </div>
 

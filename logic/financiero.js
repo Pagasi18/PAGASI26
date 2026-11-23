@@ -121,7 +121,9 @@ function _wzCredPlanFields(r, fallback){
     // sufren esto porque cuota, plazo y fin nunca valen 0 de verdad; la inicial si.
     ini: (typeof r.ini === 'number' && isFinite(r.ini)) ? r.ini : (parseFloat(fallback.ini) || 0),
     fin: r.fin || fallback.fin || 0,
-    total: r.total || fallback.total || 0,
+    // Al editar, el plan recalcula el total (cuota × cuotas): se le vuelven a sumar los cargos extra
+    // del crédito (el aceite del 440, 23-nov-2026); si no, el cargo se borraría del total al guardar
+    total: r.total ? Math.round((r.total + ((typeof CreditoLedger !== 'undefined' && CreditoLedger.cargosTotal) ? CreditoLedger.cargosTotal(fallback) : 0)) * 100) / 100 : (fallback.total || 0),
     cuota: r.cuotaQ || fallback.cuota || 0,
     cuotaQ: r.cuotaQ || fallback.cuotaQ || 0,
     cuotaM: r.cuotaM || fallback.cuotaM || 0,

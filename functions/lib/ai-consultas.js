@@ -77,6 +77,9 @@ function armar(emp, creds, pagos, concs, gracia, hoy) {
       estado: activo ? (dias > 0 ? 'en mora' : 'al día') : (e.estado === 'completado' ? 'completado' : (guardado === 'recuperada' ? 'recuperado' : guardado || 'otro')),
       activo, diasAtraso: dias, saldo: activo ? r2(G.saldoPendiente(c, idx)) : 0, vencido: activo && dias > 0 ? r2(G.vencidoDe(c, est, hoy)) : 0,
       cuotasPagadas: est ? est.cuotasPagadas : (parseInt(c0.pagado, 10) || 0), cuotasTotal: est ? est.totalCuotas : (parseInt(c0.totalCuotas, 10) || 0),
+      // la próxima cuota con su cargo extra, y lo financiado después de la moto (aceite, cauchos…: 23-nov-2026)
+      proximaCuota: est && est.cuotas && est.cuotas[est.cuotasPagadas] ? r2(est.cuotas[est.cuotasPagadas].monto) : (parseFloat(c0.cuotaQ || c0.cuota) || 0),
+      cargosExtra: r2((Array.isArray(c0.cargos) ? c0.cargos : []).filter(g => g && !g.eliminado).reduce((t, g) => t + (parseFloat(g.monto) || 0), 0)),
       vencidas: []
     };
     // Las cuotas que ya vencieron: lo pagado hasta el día en que vencía, lo pagado después y lo que falta
@@ -399,7 +402,7 @@ function creditos(D, a, hoy) {
   l = l.slice().sort((x, y) => ((pts.get(y) || 0) - (pts.get(x) || 0)) || cmp(x, y));
   const max = Math.max(1, Math.min(25, parseInt(a.limite, 10) || 10));
   return Object.assign({ estado_buscado: { en_mora: 'en mora', activos: 'activos', completados: 'completados', todos: 'todos' }[est] || est, encontrados: l.length, mostrados: Math.min(max, l.length), creditos: l.slice(0, max).map(v => ({ credito: v.id, cliente: v.cliente, empresa: 'PAGASI ' + v.empresa, concesionario: v.concesionario, vendedor: v.vendedor, modelo: v.modelo,
-    fecha_venta: v.fecha, estado: v.estado, dias_atraso: v.diasAtraso, vencido: v.vencido, saldo_por_cobrar: v.saldo, cuota_quincenal: v.cuota, cuotas_pagadas: v.cuotasPagadas, cuotas_total: v.cuotasTotal })) }, r);
+    fecha_venta: v.fecha, estado: v.estado, dias_atraso: v.diasAtraso, vencido: v.vencido, saldo_por_cobrar: v.saldo, cuota_quincenal: v.cuota, proxima_cuota: v.proximaCuota, cargos_extra: v.cargosExtra, cuotas_pagadas: v.cuotasPagadas, cuotas_total: v.cuotasTotal })) }, r);
 }
 function puntualidad(D, a, hoy) {
   const per = periodo(a, hoy, G.mesMas(hoy.slice(0, 7), -5) + '-01'), emps = empresas(a), por = a.agrupar_por || 'mes';

@@ -20,7 +20,7 @@ PG.creditos = function(){
 
   // ─── 2. VALORES FINANCIEROS ───
   const carteraViva = activos.reduce((a,c)=>a+getCreditoSaldoPendiente(c),0);
-  const cuotaEspQuincena = activos.reduce((a,c)=>a+parseFloat(c.cuotaQ||c.cuota||0),0);
+  const cuotaEspQuincena = activos.reduce((a,c)=>a+getCreditoMontoCuota(c, getCreditoCuotasPagadas(c)+1),0);   // con sus cargos extra
   const cuotaEspMes = cuotaEspQuincena*2;
   const valorTotal = registradosCreds.reduce((a,c)=>a+parseFloat(c.total||0),0);
   const cobradoAll = allCreds.reduce((a,c)=>a+getCreditoPagosConfirmados(c),0);
@@ -29,7 +29,7 @@ PG.creditos = function(){
 
   // Capital desembolsado vs spread (intereses) proyectado
   const precioBaseTotal = registradosCreds.reduce((a,c)=>a+parseFloat(c.precioBaseReal||c.precio||0),0);
-  const totalACobrarReg = registradosCreds.reduce((a,c)=>a+parseFloat(c.total||0),0);
+  const totalACobrarReg = registradosCreds.reduce((a,c)=>a+parseFloat(c.total||0)-((typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal)?CreditoLedger.cargosTotal(c):0),0);   // sin los cargos extra: no son interés
   const spreadTotal = Math.max(0, totalACobrarReg - precioBaseTotal);
   const spreadCobrado = Math.max(0, (cobradoAll+inicialAll) - precioBaseTotal); // solo cuando cobrado cubre capital
   const spreadPctGanado = spreadTotal>0 ? Math.round(Math.max(0, spreadCobrado)/spreadTotal*100) : 0;
@@ -71,7 +71,7 @@ PG.creditos = function(){
       const t = inicio + k*MS_QUINCENA;
       for(const sem of semanas){
         if(t >= sem.ini && t < sem.fin){
-          sem.monto += cuotaV;
+          sem.monto += getCreditoMontoCuota(c, k);   // con su cargo extra, si lleva
           sem.cuotas += 1;
           break;
         }
@@ -314,7 +314,7 @@ PG.creditos = function(){
     <tbody>${(()=>{const _cp=pgGet('creditos');return filtered.slice((_cp-1)*50,_cp*50).map(c=>{
       var totalCuotas = getCreditoTotalCuotas(c);
       var cuotaVal = getCreditoCuotaBase(c);
-      var totalFinanciado = cuotaVal * totalCuotas;
+      var totalFinanciado = cuotaVal * totalCuotas + ((typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal)?CreditoLedger.cargosTotal(c):0);   // con los cargos extra
       var totalAbonado = getCreditoPagosConfirmados(c);
       var saldoPendiente = getCreditoSaldoPendiente(c);
       if(c.estado==='completado' || c.estado==='cancelado') saldoPendiente = 0;
@@ -343,7 +343,7 @@ PG.creditos = function(){
       <td class="tds" style="font-family:var(--fd);font-size:11px;color:var(--ink3);white-space:nowrap">${fechaFmt}${horaCre?`<div style="font-size:9.5px;opacity:.75">${horaCre}</div>`:''}</td>
       <td style="font-family:var(--fd);font-size:11.5px;color:var(--ink3)">${fmt(precio)}</td>
       <td style="font-family:var(--fd);font-size:11.5px;font-weight:700">${fmt(totalC)}</td>
-      <td style="font-weight:900;font-family:var(--fd);color:var(--p1)">${fmt(cuotaVal)}</td>
+      <td style="font-weight:900;font-family:var(--fd);color:var(--p1)">${(()=>{ const _n=cuotasPagadasReal+1, _m=getCreditoMontoCuota(c,_n); return _m>cuotaVal+0.001 ? fmt(_m)+'<div style="font-size:9px;font-weight:700;color:var(--amber)" title="'+String((typeof CreditoLedger!=='undefined'&&CreditoLedger.conceptoDeCuota)?CreditoLedger.conceptoDeCuota(c,_n):'').replace(/"/g,'')+'">+ cargo extra</div>' : fmt(cuotaVal); })()}</td>
       <td style="min-width:110px"><div class="tds" style="margin-bottom:3px">${cuotasPagadasReal}/${totalCuotas}</div><div class="prog"><div class="pf ${c.mora>0?'p-r':'p-p'}" style="width:${pct}%"></div></div></td>
       <td style="font-weight:900;font-family:var(--fd);color:${saldoColor}">${saldoPendiente===0?'✓ $0':fmt(saldoPendiente)}</td>
       <td>${moraCell}</td>

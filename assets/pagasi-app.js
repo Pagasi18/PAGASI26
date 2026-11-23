@@ -259,7 +259,7 @@ function pushNotifChequearAhora(){
     (S.creds||[]).forEach(function(c){
       if(c.eliminado || c.estado !== 'activo' || !c.fecha) return;
       var inicio = new Date(c.fecha);
-      var siguiente = new Date(inicio.getTime() + (((c.pagado||0)+1) * 15 * 24 * 60 * 60 * 1000));
+      var siguiente = new Date(inicio.getTime() + (((credConCargos(c) ? getCreditoCuotasPagadas(c) : (c.pagado||0))+1) * 15 * 24 * 60 * 60 * 1000));
       siguiente.setHours(0,0,0,0);
       if(siguiente.getTime() === hoy.getTime() || siguiente.getTime() === manana.getTime()){
         venceProx++;
@@ -351,6 +351,7 @@ function generarReporteMensual(){
   // ─── CARTERA ───
   var cartera = (S.creds||[]).filter(function(c){ return !c.eliminado && c.estado === 'activo'; })
     .reduce(function(a,c){
+      if(credConCargos(c)) return a + getCreditoSaldoPendiente(c);   // con cargos: total (con cargos) − cobrado
       var tot = (parseFloat(c.cuotaQ||c.cuota||0) * (c.totalCuotas || (c.plazo||0)*2));
       var pag = (parseFloat(c.cuotaQ||c.cuota||0) * (parseInt(c.pagado,10)||0));
       return a + Math.max(0, tot - pag);
@@ -519,7 +520,7 @@ function reporteMensualHtml(){
       +'<td style="'+tdStyle('font-weight:700;color:#111')+'">'+(c.cli||'—')+'</td>'
       +'<td style="'+tdStyle()+'">'+(c.modelo||'—')+'</td>'
       +'<td style="'+tdStyle('text-align:center;font-family:Nunito,sans-serif;font-weight:900;color:'+moraColor)+'">'+c.mora+'d</td>'
-      +'<td style="'+tdStyle('text-align:right;font-family:Nunito,sans-serif;font-weight:700')+'">'+r.fmtUsd(c.cuotaQ||c.cuota||0)+'</td></tr>';
+      +'<td style="'+tdStyle('text-align:right;font-family:Nunito,sans-serif;font-weight:700')+'">'+r.fmtUsd(getCreditoMontoCuota(c, getCreditoCuotasPagadas(c)+1))+'</td></tr>';
   }).join('') : trEmpty(5,'Sin clientes en mora 🎉');
 
   var trIngresos = r.pagosMesAct.length ? r.pagosMesAct.slice(0,20).map(function(p){
@@ -815,7 +816,7 @@ function generarReportePeriodo(periodo, opts){
   var margen=cobrado>0?Math.round(utilidad/cobrado*100):0;
 
   var credsActivos=(S.creds||[]).filter(function(c){return !c.eliminado&&c.estado==='activo';});
-  var cartera=credsActivos.reduce(function(a,c){var tot=num(c.cuotaQ||c.cuota)*(c.totalCuotas||(c.plazo||0)*2); var pag=num(c.cuotaQ||c.cuota)*(parseInt(c.pagado,10)||0); return a+Math.max(0,tot-pag);},0);
+  var cartera=credsActivos.reduce(function(a,c){if(credConCargos(c)) return a+getCreditoSaldoPendiente(c); var tot=num(c.cuotaQ||c.cuota)*(c.totalCuotas||(c.plazo||0)*2); var pag=num(c.cuotaQ||c.cuota)*(parseInt(c.pagado,10)||0); return a+Math.max(0,tot-pag);},0);
   var enMora=(S.creds||[]).filter(function(c){return !c.eliminado&&c.estado==='activo'&&(parseInt(c.mora,10)||0)>0;}).sort(function(a,b){return (parseInt(b.mora,10)||0)-(parseInt(a.mora,10)||0);});
   var moraGraves=enMora.filter(function(c){return (parseInt(c.mora,10)||0)>30;});
   var tasaMora=credsActivos.length>0?Math.round(enMora.length/credsActivos.length*100):0;
@@ -866,7 +867,7 @@ function reportePeriodoHtml(periodo, opts){
   var trEg=r.egresosWin.length?r.egresosWin.slice().sort(byFechaAsc).map(function(e){return '<tr><td class="mut">'+r.fmtFecha(e.fecha)+'</td><td class="b" style="color:#111">'+esc(e.concepto||e.descripcion||'—')+'</td><td class="mut">'+esc(e.categoria||'Sin categoría')+'</td><td class="r num rd">-'+r.fmtUsd(e.monto)+'</td></tr>';}).join(''):empty(4,'Sin egresos en este período');
   var trEgCat=r.egresosListados.length?r.egresosListados.map(function(e){return '<tr><td class="b" style="color:#111">'+esc(e.cat)+'</td><td class="r mut">'+e.count+'</td><td class="r num rd">'+r.fmtUsd(e.total)+'</td></tr>';}).join(''):empty(3,'Sin egresos');
   var trCred=r.creditosNuevosArr.length?r.creditosNuevosArr.slice().sort(byFechaAsc).map(function(c){return '<tr><td class="mut mono">'+esc(c.id||'—')+'</td><td class="b" style="color:#111">'+esc(c.cli||'—')+'</td><td>'+esc(c.modelo||'—')+'</td><td class="r num">'+r.fmtUsd(c.precio)+'</td><td class="r num" style="color:#2563EB">'+r.fmtUsd(c.cuotaQ||c.cuota||0)+'</td><td class="c mut">'+r.fmtFecha(c.fecha)+'</td></tr>';}).join(''):empty(6,'Sin créditos nuevos en este período');
-  var trMora=r.enMora.length?r.enMora.map(function(c){var mc=(c.mora||0)>30?'#dc2626':(c.mora||0)>15?'#ea580c':'#ca8a04';return '<tr><td class="mut mono">'+esc(c.id||'—')+'</td><td class="b" style="color:#111">'+esc(c.cli||'—')+'</td><td>'+esc(c.modelo||'—')+'</td><td class="c num" style="color:'+mc+'">'+c.mora+'d</td><td class="r num">'+r.fmtUsd(c.cuotaQ||c.cuota||0)+'</td></tr>';}).join(''):empty(5,'Sin clientes en mora');
+  var trMora=r.enMora.length?r.enMora.map(function(c){var mc=(c.mora||0)>30?'#dc2626':(c.mora||0)>15?'#ea580c':'#ca8a04';return '<tr><td class="mut mono">'+esc(c.id||'—')+'</td><td class="b" style="color:#111">'+esc(c.cli||'—')+'</td><td>'+esc(c.modelo||'—')+'</td><td class="c num" style="color:'+mc+'">'+c.mora+'d</td><td class="r num">'+r.fmtUsd(getCreditoMontoCuota(c, getCreditoCuotasPagadas(c)+1))+'</td></tr>';}).join(''):empty(5,'Sin clientes en mora');
   var trCob=r.topCobradores.length?r.topCobradores.map(function(c,i){return '<tr><td class="mut">'+(i+1)+'</td><td class="b" style="color:#111">'+esc(c.nombre)+'</td><td class="r num g">'+r.fmtUsd(c.total)+'</td><td class="r mut">'+c.count+'</td></tr>';}).join(''):empty(4,'Sin cobros registrados');
   var trCli=r.topClientes.length?r.topClientes.map(function(c,i){return '<tr><td class="mut">'+(i+1)+'</td><td class="b" style="color:#111">'+esc(c.nombre)+'</td><td class="r num g">'+r.fmtUsd(c.total)+'</td><td class="r mut">'+c.count+'</td></tr>';}).join(''):empty(4,'Sin clientes que pagaron');
   var trSede=r.pagosPorSede.map(function(s){return '<tr><td class="b" style="color:#111">'+esc(s.sede)+'</td><td class="r mut">'+s.count+'</td><td class="r num g">'+r.fmtUsd(s.total)+'</td></tr>';}).join('');
@@ -1587,6 +1588,11 @@ function getCreditoTotalCuotas(c){
 function getCreditoCuotaBase(c){
   return parseFloat((c&&(c.cuotaQ||c.cuota)) || 0) || 0;
 }
+// Cargos extra (23-nov-2026, el aceite del crédito 440): con cargos las cuotas no valen todas lo
+// mismo, así que lo que se cuenta «en cuotas» se cuenta una por una con el monto de cada cuota.
+// Sin cargos todo sigue con la cuenta de siempre (cuotaQ), sin mover ningún número.
+function credConCargos(c){ return !!(c && Array.isArray(c.cargos) && c.cargos.length && typeof CreditoLedger !== 'undefined' && CreditoLedger.cargosTotal && CreditoLedger.cargosTotal(c) > 0); }
+function getCreditoMontoCuota(c, numero){ return credConCargos(c) ? CreditoLedger.montoDeCuota(c, numero) : getCreditoCuotaBase(c); }
 // ── Indice de pagos confirmados por credito ──────────────────────────────
 // getCreditoPagosConfirmados recorria los ~2.500 pagos completos por CADA
 // credito. La pantalla de creditos lo llama ~12.000 veces por redibujo (KPIs,
@@ -1628,12 +1634,20 @@ function getCreditoPagosConfirmados(c){
   if(Array.isArray(c.pagosRegistrados) && c.pagosRegistrados.length){
     return c.pagosRegistrados.reduce(function(a,h){ return a + (parseFloat(h.montoPagado)||0); }, 0);
   }
+  if(credConCargos(c)){ var sumaQ = 0, nQ = parseInt(c.pagado,10)||0; for(var kq = 1; kq <= nQ; kq++) sumaQ += CreditoLedger.montoDeCuota(c, kq); return sumaQ; }
   return (parseInt(c.pagado,10)||0) * getCreditoCuotaBase(c);
 }
 // ── fin indice de pagos ──────────────────────────────────────────────────
 function getCreditoCuotasPagadas(c){
   if(!c) return 0;
   var totalCuotas = getCreditoTotalCuotas(c);
+  // Con cargos: las cuotas completas que alcanza lo cobrado, contando cada una con su monto
+  // (dividir entre cuotaQ daría de más: con todo pagado menos el aceite marcaría todas pagadas)
+  if(credConCargos(c)){
+    var cobrado = getCreditoPagosConfirmados(c) + 0.000001, acum = 0, k = 0;
+    while(k < totalCuotas && acum + CreditoLedger.montoDeCuota(c, k + 1) <= cobrado){ acum += CreditoLedger.montoDeCuota(c, k + 1); k++; }
+    return k;
+  }
   var cuotaBase = getCreditoCuotaBase(c);
   var pagadoRegistrado = parseInt(c.pagado,10) || 0;
   var pagadoPorMonto = cuotaBase>0 ? Math.floor((getCreditoPagosConfirmados(c)+0.000001)/cuotaBase) : pagadoRegistrado;

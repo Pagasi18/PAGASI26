@@ -42,6 +42,36 @@
     return n(cred && (cred.cuotaQ || cred.cuota));
   }
 
+  // ── Cargos extra (23-nov-2026, Adam: "le financié 34$ de un aceite… es el mismo crédito 440",
+  // en 4 cuotas de $8,50). Algo que se financia DESPUÉS de la moto (aceite, cauchos, casco…) y se
+  // suma a ciertas cuotas: cred.cargos = [{ id, concepto, monto, cuotas: [{ numero, monto }] }].
+  // cred.total ya incluye los cargos (lo sube quien agrega el cargo). La cuota pactada (cuotaQ)
+  // no cambia: es la del contrato. Aquí, cada cuota vale cuotaQ + lo de los cargos en esa cuota.
+  function cargosVivos(cred){
+    return (Array.isArray(cred && cred.cargos) ? cred.cargos : []).filter(function(cg){ return cg && !cg.eliminado; });
+  }
+  function cargoDeCuota(cred, numero){
+    var t = 0;
+    cargosVivos(cred).forEach(function(cg){
+      (Array.isArray(cg.cuotas) ? cg.cuotas : []).forEach(function(x){ if(x && i(x.numero) === numero) t += n(x.monto); });
+    });
+    return r2(t);
+  }
+  function conceptoDeCuota(cred, numero){
+    var l = [];
+    cargosVivos(cred).forEach(function(cg){
+      if((Array.isArray(cg.cuotas) ? cg.cuotas : []).some(function(x){ return x && i(x.numero) === numero && n(x.monto) > 0; })) l.push(String(cg.concepto || 'cargo extra'));
+    });
+    return l.join(', ');
+  }
+  function cargosTotal(cred){
+    return r2(cargosVivos(cred).reduce(function(a, cg){ return a + n(cg.monto); }, 0));
+  }
+  // El monto de la cuota «numero» (1, 2, …): la pactada más lo de los cargos en esa cuota
+  function montoDeCuota(cred, numero){
+    return r2(cuotaBase(cred) + cargoDeCuota(cred, numero));
+  }
+
   function pagosAplicables(credId, pagos, opts){
     opts = opts || {};
     return (Array.isArray(pagos) ? pagos : [])
@@ -94,16 +124,19 @@
 
     for(var k = 1; k <= count; k++){
       var vence = inicio ? new Date(inicio.getTime() + k * QUINCENA_MS) : null;
-      cuotas.push({
+      var cargo = cargoDeCuota(cred, k);
+      var q = {
         numero: k,
         fechaVence: isoDate(vence),
-        monto: r2(montoCuota),
+        monto: r2(montoCuota + cargo),
         pagado: 0,
-        saldo: r2(montoCuota),
+        saldo: r2(montoCuota + cargo),
         estado: 'pendiente',
         diasMora: 0,
         aplicaciones: []
-      });
+      };
+      if(cargo > 0){ q.cargo = cargo; q.conceptoCargo = conceptoDeCuota(cred, k); }
+      cuotas.push(q);
     }
 
     if(today){
@@ -185,6 +218,8 @@
       creditoId: cred && cred.id,
       totalCuotas: cuotas.length,
       cuotaBase: r2(cuotaBase(cred)),
+      montoProxCuota: prox ? r2(prox.monto) : 0,
+      cargosTotal: cargosTotal(cred),
       cuotasPagadas: pagadas,
       saldoProxCuota: prox ? r2(prox.saldo) : 0,
       saldoPendiente: saldoPendiente,
@@ -206,8 +241,19 @@
       fecha: cred.creado || cred.fecha || '',
       creditoId: cred.id,
       cliente: cred.cli || '',
-      monto: r2((n(cred.ini) || 0) + (n(cred.total) || 0)),
+      monto: r2((n(cred.ini) || 0) + (n(cred.total) || 0) - cargosTotal(cred)),
       detalle: 'Credito creado'
+    });
+
+    cargosVivos(cred).forEach(function(cg){
+      ledger.push({
+        tipo: 'cargo_extra',
+        fecha: cg.fecha || cg.creado || '',
+        creditoId: cred.id,
+        cargoId: cg.id || '',
+        monto: r2(cg.monto),
+        detalle: 'Cargo extra: ' + String(cg.concepto || '')
+      });
     });
 
     if(n(cred.ini) > 0){
@@ -266,6 +312,10 @@
   }
 
   var api = {
+    cargoDeCuota: cargoDeCuota,
+    cargosTotal: cargosTotal,
+    montoDeCuota: montoDeCuota,
+    conceptoDeCuota: conceptoDeCuota,
     crearCalendarioCuotas: crearCalendarioCuotas,
     generarEstadoCredito: generarEstadoCredito,
     generarLedgerCredito: generarLedgerCredito,

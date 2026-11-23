@@ -1,4 +1,8 @@
 // Logica de pagos, cobranza, mora y liquidaciones. Extraido mecanicamente de assets/pagasi-app.js.
+// El monto de la cuota «numero» de un crédito: la pactada más sus cargos extra (23-nov-2026, el aceite
+// del crédito 440). Sin cargos es la cuota de siempre.
+// (un cargo solo suma: la cuota nunca vale menos que la pactada)
+function _montoCuotaDe(c, numero){ var base = parseFloat(c && (c.cuotaQ || c.cuota)) || 0, m = (typeof getCreditoMontoCuota === 'function') ? (parseFloat(getCreditoMontoCuota(c, numero)) || 0) : 0; return m > base ? m : base; }
 function restaurarPago(id){
   if(!requireDeletePermission()) return;
   var p=S.pagos.find(function(x){return x.id===id;});
@@ -153,9 +157,9 @@ function openAddPago(preCredId){
         ? JSON.parse(JSON.stringify(c2.pagosRegistrados))
         : [];
 
-      // Reconstruir saldo por cuota desde el historial completo
+      // Reconstruir saldo por cuota desde el historial completo (cada cuota con su monto: puede llevar un cargo extra)
       var saldoPorCuota=[];
-      for(var qi=0;qi<totalCuotas;qi++) saldoPorCuota[qi]=cuotaVal;
+      for(var qi=0;qi<totalCuotas;qi++) saldoPorCuota[qi]=_montoCuotaDe(c2, qi+1);
       historial.forEach(function(h){
         var idx=h.cuota-1;
         if(idx>=0&&idx<totalCuotas)
@@ -245,7 +249,7 @@ function openAddPago(preCredId){
 
       var msg='✓ Pago de '+fmt(monto)+' registrado';
       if(cuotasAfectadas.length>1) msg+=' · Cuotas '+cuotasAfectadas[0]+' a '+cuotasAfectadas[cuotasAfectadas.length-1]+' cubiertas';
-      if(saldoProxCuota>0&&saldoProxCuota<cuotaVal) msg+=' · Próxima cuota: solo '+fmt(saldoProxCuota)+' pendiente';
+      if(saldoProxCuota>0&&saldoProxCuota<_montoCuotaDe(c2, cuotasPagadas+1)) msg+=' · Próxima cuota: solo '+fmt(saldoProxCuota)+' pendiente';
       pgSet('pagos',1);
       toast(msg,'success');
 
@@ -296,9 +300,10 @@ function _pagoDuplicadoConfirmar(nuevo){
 }
 function updPagoMonto(sel){
   const opt=(sel&&sel.options)&&sel.options[sel.selectedIndex];if(!opt)return;
-  const cuotaBase=parseFloat(opt.dataset.cuotaq||opt.dataset.cuota)||0;
   var credId=sel&&sel.value;
   var cred=credId&&S.creds.find(function(x){return x.id===credId;});
+  // la próxima cuota con su monto (si lleva un cargo extra, ese día toca más que la cuota pactada)
+  const cuotaBase=cred ? _montoCuotaDe(cred, (parseInt(cred.pagado,10)||0)+1) : (parseFloat(opt.dataset.cuotaq||opt.dataset.cuota)||0);
   // Si tiene saldo pendiente parcial en la próxima cuota, mostrar ese monto
   var montoPendiente=cuotaBase;
   if(cred&&cred.saldoProxCuota>0&&cred.saldoProxCuota<cuotaBase){
@@ -327,8 +332,9 @@ function saldosPorCuota(c){
   var cuota = parseFloat((c && (c.cuotaQ || c.cuota)) || 0) || 0;
   var n = (c && (c.totalCuotas || (c.plazo * 2))) || 0;
   var historial = (c && c.pagosRegistrados) || [];
-  var saldos = [], abonos = {};
-  for(var qi = 0; qi < n; qi++) saldos[qi] = cuota;
+  var saldos = [], abonos = {}, montos = [];
+  // cada cuota con su monto: la pactada más sus cargos extra (sin cargos, todas iguales a «cuota»)
+  for(var qi = 0; qi < n; qi++){ montos[qi] = _montoCuotaDe(c, qi + 1); saldos[qi] = montos[qi]; }
   // Los abonos tal como quedaron registrados (es lo que se le muestra al cliente)
   historial.forEach(function(h){
     if(!abonos[h.cuota]) abonos[h.cuota] = [];
@@ -356,17 +362,17 @@ function saldosPorCuota(c){
   var pagadas = Math.max(0, Math.min((typeof getCreditoCuotasPagadas === 'function' ? getCreditoCuotasPagadas(c) : 0), n));
   var estados = saldos.map(function(s, idx){
     if(s <= 0.001) return 'pagada';
-    if(s < cuota - 0.001) return 'parcial';
+    if(s < montos[idx] - 0.001) return 'parcial';
     return (idx + 1) === pagadas + 1 ? 'proxima' : 'pendiente';
   });
   // Aviso para el cliente: la primera cuota a medias
   var iParcial = estados.indexOf('parcial');
   var aviso = iParcial < 0 ? null : {
     cuota: iParcial + 1,
-    abonado: parseFloat((cuota - saldos[iParcial]).toFixed(2)),
+    abonado: parseFloat((montos[iParcial] - saldos[iParcial]).toFixed(2)),
     falta: saldos[iParcial]
   };
-  return {cuota:cuota, n:n, saldos:saldos, abonos:abonos, estados:estados, pagadas:pagadas, aviso:aviso};
+  return {cuota:cuota, montos:montos, n:n, saldos:saldos, abonos:abonos, estados:estados, pagadas:pagadas, aviso:aviso};
 }
 
 // AMORTIZACIÓN
@@ -393,7 +399,9 @@ function openAmort(id){
   for(let i=1;i<=n;i++){
     const int=sal*tQ,cap=cuota-int;sal-=cap;
     const pd=saldoPorCuota[i-1]<=0.001;
-    const parcial=!pd&&saldoPorCuota[i-1]<cuota-0.001;
+    const montoI=(_L.montos&&_L.montos[i-1])||cuota;          // con un cargo extra, esa cuota vale más
+    const parcial=!pd&&saldoPorCuota[i-1]<montoI-0.001;
+    const cargoI=(typeof CreditoLedger!=='undefined'&&CreditoLedger.cargoDeCuota)?CreditoLedger.cargoDeCuota(c,i):0;
     const esProx=!pd&&!parcial&&i===pagado+1;
     const fd=new Date(startDate.getTime()+(i*15*24*60*60*1000));
     const fechaStr=fd.toLocaleDateString('es-VE',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -423,7 +431,7 @@ function openAmort(id){
       <div style="font-size:10px;font-weight:700;color:${fechaColor}">${fechaStr}</div>
       <div>${cuotaDisplay}</div>
       <div style="font-size:10px">${pagoDetalle||'—'}</div>
-      <div style="font-weight:${pd||parcial?'700':'800'};color:${pd?'var(--ink3)':parcial?'var(--amber)':'var(--p1)'};font-size:${pd?'10':'12'}px">${pd?fmt(cuota):parcial?fmt(montoPendienteReal)+' pend.':fmt(cuota)}</div>
+      <div style="font-weight:${pd||parcial?'700':'800'};color:${pd?'var(--ink3)':parcial?'var(--amber)':'var(--p1)'};font-size:${pd?'10':'12'}px">${pd?fmt(montoI):parcial?fmt(montoPendienteReal)+' pend.':fmt(montoI)}${cargoI>0?'<div style="font-size:9px;font-weight:700;color:var(--amber)">incluye '+fmt(cargoI)+' de '+String(CreditoLedger.conceptoDeCuota(c,i)||'cargo extra').toLowerCase().replace(/[<>&]/g,'')+'</div>':''}</div>
       <div style="color:var(--amber);font-size:10px">${fmt(Math.max(0,int))}</div>
       <div style="font-size:10px">${fmt(Math.max(0,cap))}</div>
       <div style="color:var(--ink3);font-size:10px">${fmt(Math.max(0,sal))}</div>
@@ -434,14 +442,16 @@ function openAmort(id){
   var proxIdx=pagado; // base 0
   const proxFd=new Date(startDate.getTime()+((proxIdx+1)*15*24*60*60*1000));
   const proxFecha=proxFd.toLocaleDateString('es-VE',{day:'2-digit',month:'long',year:'numeric'});
-  var proxMonto=saldoProxCuota>0&&saldoProxCuota<cuota ? saldoProxCuota : cuota;
+  var montoProx=(_L.montos&&_L.montos[pagado])||cuota;       // la próxima cuota con su cargo extra, si tiene
+  var proxMonto=saldoProxCuota>0&&saldoProxCuota<montoProx ? saldoProxCuota : montoProx;
 
   // ─────────────── DATOS ADICIONALES DEL CRÉDITO ───────────────
   var cliente = S.clientes.find(function(x){return x.nombre===c.cli || (c.cliId && String(x.id)===String(c.cliId));}) || {};
   var totalCredito = parseFloat(c.total||0);
   var precioBase = parseFloat(c.precioBaseReal||c.precio||0);
   var inicial = parseFloat(c.ini||0);
-  var spreadCredito = Math.max(0, totalCredito - precioBase);
+  // el spread es de la moto: los cargos extra (aceite, cauchos…) no son interés
+  var spreadCredito = Math.max(0, totalCredito - ((typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal)?CreditoLedger.cargosTotal(c):0) - precioBase);
   var cobradoReal = getCreditoPagosConfirmados(c);
   // Inicial REALMENTE pagada = suma de pagos iniciales confirmados (no el plan c.ini),
   // para que el KPI no oculte un descuadre entre lo pactado y lo recibido.
@@ -569,7 +579,7 @@ function openAmort(id){
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Precio moto</span><span style="font-weight:700">${fmt(precioBase)}</span></div>
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Inicial (${Math.round((inicial/precioBase)*100)||0}%)</span><span style="font-weight:700">${fmt(inicial)}</span></div>
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Total financiado</span><span style="font-weight:700">${fmt(precioBase-inicial)}</span></div>
-          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Monto total a pagar</span><span style="font-weight:800;color:var(--p1)">${fmt(totalCredito)}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Monto total a pagar</span><span style="font-weight:800;color:var(--p1)">${fmt(totalCredito)}</span></div>${(typeof CreditoLedger!=='undefined'&&CreditoLedger.cargosTotal&&CreditoLedger.cargosTotal(c)>0)?`<div style="display:flex;justify-content:space-between;gap:10px;font-size:11px"><span style="color:var(--ink3)">incluye cargos extra</span><span style="font-weight:700;color:var(--amber)">${fmt(CreditoLedger.cargosTotal(c))} · ${(c.cargos||[]).filter(function(g){return g&&!g.eliminado;}).map(function(g){return String(g.concepto||'').replace(/[<>&]/g,'');}).join(', ')}</span></div>`:''}
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Intereses (spread)</span><span style="font-weight:700;color:var(--amber)">${fmt(spreadCredito)}</span></div>
           <div style="display:flex;justify-content:space-between;gap:10px;padding-top:6px;border-top:1px dashed var(--rim2)"><span style="color:var(--ink3);font-weight:600">Plazo</span><span style="font-weight:700">${plazoMeses} meses (${n} cuotas)</span></div>
           <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink3);font-weight:600">Cuota mensual</span><span style="font-weight:700">${fmt(cuotaMensual)}</span></div>
@@ -606,7 +616,7 @@ function openAmort(id){
     </div>
 
     ${infoLiquidacion}
-    ${saldoProxCuota>0&&saldoProxCuota<cuota?`<div style="background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.3);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:10px">La cuota ${pagado+1} tiene un abono de <strong>${fmt(cuota-saldoProxCuota)}</strong> — solo quedan <strong>${fmt(saldoProxCuota)}</strong> por pagar.</div>`:''}
+    ${saldoProxCuota>0&&saldoProxCuota<montoProx?`<div style="background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.3);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:10px">La cuota ${pagado+1} tiene un abono de <strong>${fmt(montoProx-saldoProxCuota)}</strong> — solo quedan <strong>${fmt(saldoProxCuota)}</strong> por pagar.</div>`:''}
 
     <!-- ═══════ TABLA DE AMORTIZACIÓN ═══════ -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px">
@@ -627,8 +637,103 @@ function openAmort(id){
   var _cliIdAmort = c.clienteId || c.cliId || '';
   var _cliAmort = S.clientes.find(function(x){return (c.clienteId&&String(x.id)===String(c.clienteId))||(c.cliId&&String(x.id)===String(c.cliId))||x.nombre===c.cli;});
   if(_cliAmort) _cliIdAmort = _cliAmort.id;
-  $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cerrar</button>'+(_cliIdAmort?'<button class="btn btn-g" onclick="closeM();verCliente(\''+_cliIdAmort+'\')" >Ver perfil</button>':'')+(estadoCred==='activo'?'<button class="btn btn-g" onclick="closeM();openPagoRapido(\''+c.id+'\')" >Registrar pago</button>':'')+(((estadoCred==='activo'||estadoCred==='mora')&&typeof _cobPuedeAcordar==='function'&&_cobPuedeAcordar())?'<button class="btn btn-g" onclick="acuerdoAcordar(\''+c.id+'\')" title="Acordar pago mensual con fecha de compromiso">\ud83d\uddd3\ufe0f '+(c.fechaCompromiso?('Acuerdo: '+c.fechaCompromiso):'Acordar mensual')+'</button>':'')+'<button class="btn btn-g" onclick="descargarEstadoPDF()">↓ Descargar estado</button><button class="btn btn-p" onclick="descargarAmortPDF()">↓ Descargar PDF</button>';
+  $('mft').innerHTML='<button class="btn btn-g" onclick="closeM()">Cerrar</button>'+(_cliIdAmort?'<button class="btn btn-g" onclick="closeM();verCliente(\''+_cliIdAmort+'\')" >Ver perfil</button>':'')+(estadoCred==='activo'?'<button class="btn btn-g" onclick="closeM();openPagoRapido(\''+c.id+'\')" >Registrar pago</button>':'')+(((estadoCred==='activo'||estadoCred==='mora')&&typeof _cobPuedeAcordar==='function'&&_cobPuedeAcordar())?'<button class="btn btn-g" onclick="acuerdoAcordar(\''+c.id+'\')" title="Acordar pago mensual con fecha de compromiso">\ud83d\uddd3\ufe0f '+(c.fechaCompromiso?('Acuerdo: '+c.fechaCompromiso):'Acordar mensual')+'</button>':'')+(((estadoCred==='activo'||estadoCred==='mora')&&typeof isAdminUser==='function'&&isAdminUser())?'<button class="btn btn-g" onclick="cargoExtraAbrir(\''+c.id+'\')" title="Algo que se financia después de la moto (aceite, cauchos, casco…): se suma a las próximas cuotas">＋ Cargo extra</button>':'')+'<button class="btn btn-g" onclick="descargarEstadoPDF()">↓ Descargar estado</button><button class="btn btn-p" onclick="descargarAmortPDF()">↓ Descargar PDF</button>';
   $('ov').style.display='flex';
+}
+
+// ── CARGO EXTRA (23-nov-2026, Adam: "le financié 34$ de un aceite… es el mismo crédito 440", en 4 cuotas
+// de $8,50). Algo que se financia DESPUÉS de la moto y se suma a ciertas cuotas del mismo crédito: el
+// contrato y la cuota pactada no cambian; el total del crédito sube. Solo administradores.
+function _cargoCuotasLibres(c){
+  var est = (typeof CreditoLedger!=='undefined') ? CreditoLedger.generarEstadoCredito(c, S.pagos||[], {diasGracia:(typeof PLAN!=='undefined'&&PLAN.diasGracia!=null)?PLAN.diasGracia:5}) : null;
+  return (est && est.cuotas || []).filter(function(q){ return q.saldo > 0.001; });   // las que todavía no están pagadas completas
+}
+function _cargoReparto(monto, n){
+  var cent = Math.round(monto*100), base = Math.floor(cent/n), l = [];
+  for(var k=0;k<n;k++) l.push((base + (k===n-1 ? cent - base*n : 0))/100);   // el último lleva los centavos que sobran
+  return l;
+}
+function cargoExtraAbrir(credId){
+  if(typeof isAdminUser!=='function' || !isAdminUser()){ toast('Solo un administrador puede agregar un cargo extra','error'); return; }
+  var c=S.creds.find(function(x){return x.id===credId;}); if(!c){ toast('Crédito no encontrado','error'); return; }
+  var libres=_cargoCuotasLibres(c);
+  if(!libres.length){ toast('Este crédito no tiene cuotas por pagar','error'); return; }
+  var esc=function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  setMicon('pago');
+  $('mtt').textContent='Cargo extra · '+c.id;
+  $('msb').textContent=(c.cli||'')+' · cuota pactada '+fmt(getCreditoCuotaBase(c));
+  $('modal-box').className='modal';
+  var optsDesde=libres.map(function(q){ return '<option value="'+q.numero+'">Cuota '+q.numero+' · vence '+esc(q.fechaVence)+(q.pagado>0.001?' (con abono)':'')+'</option>'; }).join('');
+  var optsN=''; for(var k=1;k<=Math.min(12,libres.length);k++) optsN+='<option value="'+k+'"'+(k===Math.min(4,libres.length)?' selected':'')+'>'+k+(k===1?' cuota':' cuotas')+'</option>';
+  $('mbd').innerHTML='<div class="fgr c1" style="gap:10px">'
+    +'<div style="font-size:12px;color:var(--ink2);line-height:1.5;background:var(--gs);border-radius:8px;padding:9px 12px">Para algo que el cliente se lleva después de la moto (aceite, cauchos, casco, repuestos…) y paga con sus cuotas. El contrato y la cuota pactada no cambian: esas cuotas valen más y el total del crédito sube.</div>'
+    +'<div class="fg"><label>¿Qué se financió? *</label><input class="fi" id="cg_concepto" maxlength="40" placeholder="Ej.: ACEITE" oninput="cargoExtraVista(\''+c.id+'\')"></div>'
+    +'<div class="fgr c2" style="gap:10px">'
+    +'<div class="fg"><label>Monto (US$) *</label><input class="fi" id="cg_monto" type="number" min="0.01" step="0.01" placeholder="0.00" oninput="cargoExtraVista(\''+c.id+'\')"></div>'
+    +'<div class="fg"><label>En cuántas cuotas *</label><select class="fs" id="cg_n" onchange="cargoExtraVista(\''+c.id+'\')">'+optsN+'</select></div>'
+    +'</div>'
+    +'<div class="fg"><label>Desde la cuota</label><select class="fs" id="cg_desde" onchange="cargoExtraVista(\''+c.id+'\')">'+optsDesde+'</select></div>'
+    +'<div id="cg_vista" style="font-size:12px;line-height:1.55"></div>'
+    +'</div>';
+  $('mft').innerHTML='<button class="btn btn-g btn-sm" onclick="openAmort(\''+c.id+'\')">Volver</button><button class="btn btn-p btn-sm" id="cg_guardar" onclick="cargoExtraGuardar(\''+c.id+'\')">＋ Agregar cargo</button>';
+  $('ov').style.display='flex';
+  cargoExtraVista(c.id);
+}
+// Lo que va a pasar, antes de guardar
+function _cargoArmar(c){
+  var concepto=String(($('cg_concepto')||{}).value||'').trim().replace(/\s+/g,' ').slice(0,40);
+  var monto=Math.round((parseFloat(($('cg_monto')||{}).value)||0)*100)/100;
+  var n=parseInt(($('cg_n')||{}).value,10)||0, desde=parseInt(($('cg_desde')||{}).value,10)||0;
+  var total=getCreditoTotalCuotas(c), libres=_cargoCuotasLibres(c), primeraLibre=libres.length?libres[0].numero:total+1;
+  var err='';
+  if(!concepto) err='Escribe qué se financió (por ejemplo, ACEITE).';
+  else if(!(monto>0)) err='El monto tiene que ser mayor que 0.';
+  else if(monto>5000) err='El monto es muy alto para un cargo extra (máximo $5.000).';
+  else if(!(n>=1)) err='Elige en cuántas cuotas.';
+  else if(desde<primeraLibre) err='Solo se puede sumar a cuotas que todavía no están pagadas (desde la '+primeraLibre+').';
+  else if(desde+n-1>total) err='El crédito tiene '+total+' cuotas: desde la '+desde+' caben '+(total-desde+1)+' como mucho.';
+  var partes=err?[]:_cargoReparto(monto,n);
+  if(!err && partes.some(function(x){ return !(x>0); })) err='El monto es muy chico para repartirlo en '+n+' cuotas.';
+  var cuotas=err?[]:partes.map(function(m,k){ return {numero:desde+k, monto:m}; });
+  return { concepto:concepto, monto:monto, n:n, desde:desde, cuotas:cuotas, err:err };
+}
+function cargoExtraVista(credId){
+  var c=S.creds.find(function(x){return x.id===credId;}); var el=$('cg_vista'); if(!c||!el) return;
+  var a=_cargoArmar(c), btn=$('cg_guardar');
+  if(btn) btn.disabled=!!a.err;
+  if(a.err){ el.innerHTML='<div style="color:var(--ink3)">'+a.err.replace(/</g,'&lt;')+'</div>'; return; }
+  var cal=(typeof CreditoLedger!=='undefined')?CreditoLedger.crearCalendarioCuotas(c,{}):[];
+  var filas=a.cuotas.map(function(x){ var q=cal[x.numero-1]||{}; var antes=getCreditoMontoCuota(c,x.numero); return '<div style="display:flex;justify-content:space-between;gap:8px"><span>Cuota '+x.numero+(q.fechaVence?' · '+q.fechaVence:'')+'</span><span><s style="color:var(--ink3)">'+fmt(antes)+'</s> → <b>'+fmt(antes+x.monto)+'</b></span></div>'; }).join('');
+  var tot=parseFloat(c.total||0)||0;
+  el.innerHTML='<div style="background:var(--surf2);border:1px solid var(--rim);border-radius:8px;padding:9px 12px">'+filas
+    +'<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--rim);display:flex;justify-content:space-between"><span>Total del crédito</span><span><s style="color:var(--ink3)">'+fmt(tot)+'</s> → <b>'+fmt(tot+a.monto)+'</b></span></div></div>';
+}
+function cargoExtraGuardar(credId){
+  if(typeof isAdminUser!=='function' || !isAdminUser()){ toast('Solo un administrador puede agregar un cargo extra','error'); return; }
+  var ci=S.creds.findIndex(function(x){return x.id===credId;}); if(ci<0) return;
+  var c=S.creds[ci], a=_cargoArmar(c);
+  if(a.err){ toast(a.err,'error'); return; }
+  var btn=$('cg_guardar'); if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  var cargo={ id:'CG-'+Date.now(), concepto:a.concepto, monto:a.monto, cuotas:a.cuotas, fecha:hoyLocalISO(), creado:new Date().toISOString(),
+    creadoPor:(S.currentUser&&S.currentUser.nombre)||'', creadoPorUid:(S.currentUser&&S.currentUser.uid)||'' };
+  // en la base: se AGREGA el cargo y se SUMA al total (sin reescribir el crédito entero)
+  var upd = (typeof firebase!=='undefined' && firebase.firestore && firebase.firestore.FieldValue)
+    ? { cargos: firebase.firestore.FieldValue.arrayUnion(cargo), total: firebase.firestore.FieldValue.increment(a.monto) }
+    : { cargos: (c.cargos||[]).concat([cargo]), total: Math.round(((parseFloat(c.total)||0)+a.monto)*100)/100 };
+  Promise.resolve(DB.updateCred(credId, upd)).then(function(ok){
+    // _dbSilent devuelve false si no se pudo guardar (y ya mostró el error): no se toca nada aquí
+    if(ok === false){ if(btn){ btn.disabled=false; btn.textContent='＋ Agregar cargo'; } return; }
+    S.creds[ci].cargos=(Array.isArray(S.creds[ci].cargos)?S.creds[ci].cargos:[]).concat([cargo]);
+    S.creds[ci].total=Math.round(((parseFloat(S.creds[ci].total)||0)+a.monto)*100)/100;
+    if(typeof logActividad==='function') logActividad('cargo_extra_creado','creditos',credId,{concepto:a.concepto, monto:a.monto, cuotas:a.cuotas.map(function(x){return x.numero;})});
+    if(typeof recalcularCreditoDesdePagos==='function') recalcularCreditoDesdePagos(credId);
+    if(typeof calcularMoraAuto==='function') calcularMoraAuto();
+    toast('Cargo extra agregado: '+a.concepto+' '+fmt(a.monto)+' en '+a.n+(a.n===1?' cuota':' cuotas'),'success');
+    openAmort(credId);
+  }).catch(function(e){
+    if(btn){ btn.disabled=false; btn.textContent='＋ Agregar cargo'; }
+    toast('No se pudo guardar el cargo: '+String(e&&e.message||e).slice(0,120),'error');
+  });
 }
 
 // ── COBRANZA: LLAMADA, WHATSAPP, RECUPERACION ──
@@ -666,7 +771,9 @@ function whatsappCliente(credId){
   var saldoPendiente = getCreditoSaldoPendiente(c);
   var cuotaNum2 = Math.min(cuotasPagadas2+1, totalCuotas2);
   var cuotasRest2 = totalCuotas2-cuotasPagadas2;
-  var cuotaStr = fmt(c.cuotaQ||c.cuota||0);
+  // la cuota que toca, con su cargo extra si lleva (p. ej. el aceite del crédito 440)
+  var cargo2 = (typeof CreditoLedger!=='undefined' && CreditoLedger.cargoDeCuota) ? CreditoLedger.cargoDeCuota(c, cuotaNum2) : 0;
+  var cuotaStr = fmt(_montoCuotaDe(c, cuotaNum2)) + (cargo2 > 0 ? ' (incluye ' + fmt(cargo2) + ' de ' + String(CreditoLedger.conceptoDeCuota(c, cuotaNum2) || 'cargo extra').toLowerCase() + ')' : '');
   var pct2 = totalCuotas2>0?Math.round(cuotasPagadas2/totalCuotas2*100):0;
   var fechaProxima='', fechaVencFin2='';
   if(c.fecha){
@@ -900,12 +1007,14 @@ function getSaldoPendienteCredito(credId){
   if(!c) return 0;
   var cuotaVal=parseFloat(c.cuotaQ||c.cuota||0);
   var totalCuotas=c.totalCuotas||((parseInt(c.plazo,10)||0)*2);
-  var totalFinanciado=parseFloat((cuotaVal*totalCuotas).toFixed(2));
+  // cada cuota con su monto (la pactada más sus cargos extra)
+  var totalFinanciado=0; for(var qf=1; qf<=totalCuotas; qf++) totalFinanciado+=_montoCuotaDe(c, qf);
+  totalFinanciado=parseFloat(totalFinanciado.toFixed(2));
   var totalAbonado=0;
   if(Array.isArray(c.pagosRegistrados) && c.pagosRegistrados.length){
     totalAbonado=c.pagosRegistrados.reduce(function(a,h){ return a + (parseFloat(h.montoPagado)||0); },0);
   } else {
-    totalAbonado=(parseFloat(c.pagado)||0)*cuotaVal;
+    var nPag=parseInt(c.pagado,10)||0; for(var qa=1; qa<=nPag; qa++) totalAbonado+=_montoCuotaDe(c, qa);
   }
   var resultado=parseFloat((totalFinanciado-totalAbonado).toFixed(2));if(resultado<0.05)resultado=0;if(c.estado==='completado'||c.estado==='cancelado')resultado=0;return Math.max(0,resultado);
 }
@@ -1019,7 +1128,7 @@ function ejecutarLiquidacionAnticipada(){
   var totalCuotas=c.totalCuotas||((parseInt(c.plazo,10)||0)*2);
   var historial=Array.isArray(c.pagosRegistrados)?JSON.parse(JSON.stringify(c.pagosRegistrados)):[];
   var saldoPorCuota=[];
-  for(var qi=0;qi<totalCuotas;qi++) saldoPorCuota[qi]=cuotaVal;
+  for(var qi=0;qi<totalCuotas;qi++) saldoPorCuota[qi]=_montoCuotaDe(c, qi+1);   // con sus cargos extra
   historial.forEach(function(h){
     var idx=(h.cuota||0)-1;
     if(idx>=0&&idx<totalCuotas) saldoPorCuota[idx]=Math.max(0,parseFloat((saldoPorCuota[idx]-(parseFloat(h.montoPagado)||0)).toFixed(2)));
@@ -1229,7 +1338,7 @@ function recalcularCreditoDesdePagos(credId){
 
   var historial=[];
   var saldoPorCuota=[];
-  for(var qi=0;qi<totalCuotas;qi++) saldoPorCuota[qi]=cuotaVal;
+  for(var qi=0;qi<totalCuotas;qi++) saldoPorCuota[qi]=_montoCuotaDe(c, qi+1);   // con sus cargos extra
 
   pagosAplicables.forEach(function(p){
     var montoRestante=parseFloat(p.monto)||0;
