@@ -666,8 +666,12 @@ const BASE = [
 const COND_BASE = Object.freeze({ apy:400, seguroPct:0, inicialMin:30, inicialMax:60, plazos:Object.freeze([6,9,12]) });   // 6-nov-2026, Adam: "apy a 400, inicial a 30%" (antes 500 y 40)
 // Firebase de la compania que sirve la pagina. preparar-clon-26.sh pone aqui el de PAGASI 26.
 // La llave web de Firebase es publica por diseno: lo que protege los datos son las Reglas.
-// Veloz que aun no tienen precio: en la web salen con "Pregunta el precio". Es el respaldo
-// hasta que se carguen en el modulo (alli Liz les pone precio, foto o los oculta).
+// Las 5 Veloz que el 13-oct aun no tenian precio. 23-nov-2026, Adam: "estos hay que eliminarlos,
+// pero desde el sistema no me aparecen": la web los mostraba de respaldo cuando el catalogo no tenia
+// un modelo con el mismo nombre (Liz renombro la DT 170 y los scooters nunca se cargaron), y desde el
+// modulo no se podian quitar. Ya NO se muestran: en la web solo sale lo que esta en el catalogo del
+// sistema. Quedan aqui solo para «Cargar los modelos de la web» con el catalogo vacio y para los
+// nombres de las metricas viejas.
 const BASE_PROXIMOS = [
   { id:901, sede:'veloz', sedeName:'Veloz', modelo:'DT 170', name:'DT 170', cat:'170cc · Doble propósito', cc:'170cc', type:'Doble propósito', promo:true, image:'assets/motos/veloz-dt-170.jpg' },
   { id:902, sede:'veloz', sedeName:'Veloz', modelo:'HS-300-2A LA RUTERA', name:'La Rutera · HS-300-2A', cat:'300cc · Adventure', cc:'300cc', type:'Adventure · Ruta', promo:true, image:'assets/motos/veloz-hs-300-2a-rutera.jpg' },
@@ -678,7 +682,7 @@ const BASE_PROXIMOS = [
 const FB_PUBLICO = { projectId:'pagasi26-65ced', apiKey:'AIzaSyD6IznQjzF7Tdq7UJMXT4rSBdbCNpsmij4' };
 const CLAVE_CACHE = 'pagasi_catalogo_v1';
 let lista = BASE.map(m => Object.freeze(Object.assign({disponible:true}, m)));
-let cond = COND_BASE, origen = 'base', cargando = null, proximosLista = BASE_PROXIMOS.slice(), proximosDeLaBase = false;
+let cond = COND_BASE, origen = 'base', cargando = null, proximosLista = [], proximosDeLaBase = false;
 
 const num = (v, def) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
 function condValidas(c){
@@ -761,10 +765,9 @@ function aplicar(motos, c, desde){
     const visibles = motos.filter(m => m && m.disponible !== false).map(m => Object.isFrozen(m) ? m : Object.freeze(Object.assign({}, m)));
     const conPrecio = visibles.filter(m => !m.sinPrecio && m.precio > 0), sinPrecio = visibles.filter(m => m.sinPrecio || !(m.precio > 0));
     if(conPrecio.length) lista = conPrecio;
-    // Si la base ya tiene modelos sin precio, mandan esos; si no, el respaldo (sin repetir nombres)
+    // Los «Pregunta el precio» son solo los del catalogo del sistema sin precio (Liz los maneja ahi)
     proximosDeLaBase = proximosDeLaBase || motos.some(m => m && (m.sinPrecio || !(m.precio > 0)));
-    if(proximosDeLaBase) proximosLista = sinPrecio;
-    else { const ya = motos.map(m => normalize(m.modelo)); proximosLista = BASE_PROXIMOS.filter(p => !ya.includes(normalize(p.modelo))); }
+    proximosLista = sinPrecio;
   }
   if(c) cond = condValidas(c);
   origen = desde || origen;

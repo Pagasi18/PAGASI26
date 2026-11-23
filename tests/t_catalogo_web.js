@@ -62,6 +62,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('cargar() pide el catálogo una sola vez, a la base de la compañía', llamadas === 1 && /projects\/(pagasi-v2|pagasi26-65ced)\/databases\/\(default\)\/documents\/catalogo\?/.test(urlPedida) && /key=AIza/.test(urlPedida));
   ok('la web muestra solo lo disponible, con el precio de Liz', C.origen === 'firestore' && C.motos.length === 2 && !C.get(2) && C.get(1).precio === 1400);
   ok('el que no tiene precio va aparte, para "Pregunta el precio" (y no a las cuotas)', C.proximos.length === 1 && C.proximos[0].modelo === 'SIN PRECIO' && !C.get(48));
+  ok('«Pregunta el precio» sale SOLO de lo que está en el catálogo del sistema: las 5 Veloz fijas del código ya no aparecen aunque falten en la base (23-nov-2026, Adam: «hay que eliminarlos, pero desde el sistema no me aparecen»)', (() => { const C5 = catalogoNuevo({}); C5.aplicar([{ id: 1, modelo: 'NEW HORSE 150', precio: 1400, disponible: true }], null, 'firestore'); return C5.proximos.length === 0; })());
   ok('y calcula con las condiciones guardadas (700%, seguro 5%)', C.condiciones.apy === 700 && C.plan(1).seguro === 70);
   ok('guarda una copia en el navegador para la próxima visita', JSON.parse(guardado.pagasi_catalogo_v1).motos.length === 4);
   const C2 = catalogoNuevo({ localStorage: ls, fetch: () => Promise.reject(new Error('sin internet')) });
@@ -69,7 +70,7 @@ ok('condiciones con datos malos vuelven a las de respaldo', C.condValidas({ apy:
   ok('sin internet: usa la última copia buena', C2.origen === 'cache' && C2.get(1).precio === 1400 && C2.condiciones.apy === 700);
   const C3 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:false, status:403, json:() => Promise.resolve({}) }) });
   await C3.cargar();
-  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 400 && C3.proximos.length === 5);
+  ok('si la base no deja leer (Reglas): sigue la lista de respaldo, sin romperse (y sin las 5 «por confirmar» fijas: 23-nov-2026)', C3.origen === 'base' && C3.motos.length === 49 && C3.condiciones.apy === 400 && C3.proximos.length === 0);
   const C4 = catalogoNuevo({ fetch: () => Promise.resolve({ ok:true, json:() => Promise.resolve({}) }) });
   await C4.cargar();
   ok('catálogo vacío en la base: sigue la lista de respaldo', C4.origen === 'base' && C4.motos.length === 49);
