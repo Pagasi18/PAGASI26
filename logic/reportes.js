@@ -1129,30 +1129,33 @@ function descargarContratoPDF(){
 }
 
 function descargarContratoPDFById(credId){
-  // Selecciona el crédito en el dropdown y usa renderContrato() para generar el HTML
-  var sel = $('sel-cred');
-  if(sel){
-    // Asegurarnos de que la opción existe en el select antes de asignar
-    var opt = Array.prototype.find.call(sel.options||[], function(o){return String(o.value)===String(credId);});
-    if(opt) sel.value = credId;
-  }
-  // Si no estamos en la página de contratos, navegar brevemente para que #cz exista
+  // Si no estamos en la página de contratos, navegar brevemente para que #cz y los desplegables existan
   if(!$('cz')){ nav('contratos'); }
   setTimeout(function(){
-    // Forzar que renderContrato use el credId correcto: si el select no existe o no coincide,
-    // guardamos temporalmente y restauramos
-    var prevSel = sel ? sel.value : null;
-    if(sel) sel.value = credId;
-    // La version del contrato es la del credito, no la que este en el selector
-    var td = $('sel-tipo-doc'), cc = (S.creds||[]).find(function(x){ return String(x.id)===String(credId); });
-    var prevTd = td ? td.value : null;
+    var cc = (S.creds||[]).find(function(x){ return String(x.id)===String(credId); });
+    // El crédito se elige en el desplegable y renderContrato() arma el HTML. Si no está en la lista
+    // (cancelado o recuperado) se agrega, como hace «Ver»: antes el desplegable quedaba vacío y el PDF
+    // salía con el contrato del PRIMER crédito bajo el nombre del que se pidió (visto el 24-nov-2026).
+    var sel = $('sel-cred');
+    if(sel){
+      var has = Array.prototype.some.call(sel.options||[], function(o){ return String(o.value)===String(credId); });
+      if(!has){
+        var o = document.createElement('option');
+        o.value = credId;
+        o.textContent = credId + (cc ? (' — '+(cc.cli||'')+' · '+(cc.modelo||'')) : '');
+        sel.appendChild(o);
+      }
+      sel.value = credId;
+    }
+    // La version del contrato es la del credito, no la que este en el selector. Y se queda puesta:
+    // los dos desplegables muestran el crédito y el documento que acaba de salir. Antes el tipo volvía
+    // al que tenía, y con «Descargar PDF» ese crédito podía salir después con la hoja de otro.
+    var td = $('sel-tipo-doc');
     if(td && cc && typeof _contratoVersionDe==='function') td.value = _contratoVersionDe(cc);
     renderContrato();
-    if(td && prevTd!==null) td.value = prevTd;
     var cz = $('cz');
     if(!cz){ toast('No se pudo generar el contrato','error'); return; }
     _abrirVentanaImpresion(_tituloContrato(credId), cz.innerHTML, {sinHeader:true});
-    if(sel && prevSel!==null) sel.value = prevSel;
   }, 150);
 }
 // EXPORTAR CSV

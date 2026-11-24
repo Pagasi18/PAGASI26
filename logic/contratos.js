@@ -177,12 +177,17 @@ function _avisarEmpresaContrato(){
 var _CONTRATO_DRA_DESDE = '2026-08-31';
 // La tercera version (financiamiento + Pagasi Protect) vive en
 // contratos-protect.js y define _CONTRATO_PROTECT_DESDE.
+// La cuarta (Gasto Administrativo y pago exclusivo en dolares, 24-nov-2026) vive en
+// contratos-ga.js: _CONTRATO_GA_DESDE y _contratoGaLeToca().
 
 function _contratoVersionDe(c){
   if(!c) return 'protect';   // en PAGASI 26 solo existe el contrato de hoy
   // 1. Si el credito trae la version grabada, esa manda (para el futuro)
   var v = String(c.contratoVersion||'').trim();
   if(v) return v;
+  // 1b. El contrato con Gasto Administrativo (contratos-ga.js, desde el 24-nov-2026, solo en la
+  //     compania nueva) va por la fecha del CREDITO, firmado o no: uno anterior conserva su hoja.
+  if(typeof _contratoGaLeToca==='function' && _contratoGaLeToca(c)) return 'ga';
   // 2. Todavia sin firmar → le toca el contrato vigente hoy
   var pDesde = (typeof _CONTRATO_PROTECT_DESDE!=='undefined') ? _CONTRATO_PROTECT_DESDE : null;
   if(!c.contratoFirmado) return 'protect';
@@ -231,6 +236,7 @@ function renderContrato(){
   // reserva de dominio + cesion). Salen siempre en pareja: la cesion no tiene
   // sentido sin la venta que la origina.
   var tipo = ($('sel-tipo-doc')&&$('sel-tipo-doc').value) || 'protect';
+  if(tipo==='ga' && typeof _renderContratoGA==='function') return _renderContratoGA();
   if(tipo==='protect' && typeof _renderContratoProtect==='function') return _renderContratoProtect();
   if(tipo==='dra' && typeof _renderContratosDRA==='function') return _renderContratosDRA();
   if(tipo==='pagare') return _renderPagare();
@@ -1262,7 +1268,8 @@ function _htmlContratosDelDia(fecha){
   var partes = [];
   for(var i=0;i<lista.length;i++){
     var _v = _contratoVersionDe(lista[i]);
-    var h = (_v==='protect' && typeof _htmlContratoProtect==='function') ? _htmlContratoProtect(lista[i].id)
+    var h = (_v==='ga' && typeof _htmlContratoGA==='function') ? _htmlContratoGA(lista[i].id)
+          : (_v==='protect' && typeof _htmlContratoProtect==='function') ? _htmlContratoProtect(lista[i].id)
           : (_v==='dra' && typeof _htmlContratosDRA==='function') ? _htmlContratosDRA(lista[i].id)
           : _htmlContratoAgenteCobro(true, lista[i].id);
     if(h) partes.push((i?salto:'') + h);
