@@ -445,7 +445,8 @@ function _htmlContratoGA(credId){
       + '</div>')
     // El Anexo B es corto: va entero, para que «B.1 Monto» no quede al pie de una hoja y la cifra en la siguiente
     + '<div style="'+S_.anexo+';break-inside:avoid;page-break-inside:avoid">' + _gaAnexoB(D, S_) + '</div>'
-    + anexo(_gaAnexoC(D, S_))
+    // El Anexo C tampoco se parte: con fiador y direcciones largas la firma quedaba sola en una hoja (revisión del 24-nov-2026)
+    + '<div style="'+S_.anexo+';break-inside:avoid;page-break-inside:avoid">' + _gaAnexoC(D, S_) + '</div>'
     // El Anexo D (recaudos y KYC) va entero en su propia hoja: es el que se
     // llena a mano con el cliente delante y no puede quedar partido.
     + '<div style="page-break-before:always;break-inside:avoid">' + _gaAnexoD(D, S_) + '</div>'

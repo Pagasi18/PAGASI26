@@ -69,6 +69,7 @@ const conDet = ctx._htmlContratoGA('M-1');
 ok('...y si la ficha de la empresa trae el desglose, lo imprime (sin dejar pasar código)', /Gestión &lt;b&gt;y&lt;\/b&gt; trámite/.test(conDet) && /US\$ 500\.00/.test(conDet) && /US\$ 341\.78/.test(conDet));
 delete ctx._empresa.gastoAdmDetalle;
 ok('Anexo C: la constancia de recepción ya no lleva las filas del GPS', /ANEXO “C” — CONSTANCIA DE RECEPCIÓN DEL VEHÍCULO/.test(t) && /Llaves recibidas/.test(t) && !/apagado remoto instalado/.test(t));
+ok('los Anexos B y C van enteros: ninguno se parte entre dos hojas (la firma del C no puede quedar sola)', ['ANEXO “B” — DETALLE DEL GASTO ADMINISTRATIVO', 'ANEXO “C” — CONSTANCIA DE RECEPCIÓN DEL VEHÍCULO'].every(x => /break-inside:avoid;page-break-inside:avoid"><div[^>]*>$/.test(h.slice(0, h.indexOf(x)))));
 ok('Anexo D: recaudos y conocimiento del cliente, como antes', /ANEXO “D” — RECAUDOS Y DECLARACIÓN DE CONOCIMIENTO DEL CLIENTE/.test(t) && /D\.3 Declaración PEP/.test(t));
 
 // ════════ 4. Con fiador (el documento del abogado no trae la fianza: se conserva la del v3 mientras responde) ════════
