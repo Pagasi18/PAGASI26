@@ -1513,17 +1513,38 @@ function _clearInviteParams(){
     window.history.replaceState({}, document.title, url);
   } catch(e) {}
 }
+// Lo que viene del link (el correo va en la dirección) se escribe en la página como TEXTO, nunca como
+// código: antes se pegaba tal cual y un link armado a propósito podía meter una etiqueta en la entrada.
+function _invEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function _invToken(d){ return (d && (d.token || d.inviteToken)) || ''; }
+function _invAviso(msg){
+  var e = $('invite-err');
+  if(!e) return;
+  if(msg){ e.textContent = msg; e.style.display = 'block'; } else { e.style.display = 'none'; }
+}
 function _showInviteScreenForDoc(docData){
   var invSc = $('invite-screen');
   var loginSc = $('login-screen');
   if(loginSc) loginSc.style.display = 'none';
+  // El formulario se abre al instante con datos provisionales y se actualiza cuando llega la invitación
+  // de la base. Si es el MISMO link y ya estaba abierto, el invitado puede haber empezado a escribir: no
+  // se le borra nada (antes se le vaciaban el nombre y la clave a mitad de camino, 24-nov-2026).
+  var yaAbierta = !!(invSc && invSc.style.display === 'flex' && S.pendingInvite && _invToken(S.pendingInvite)
+                     && _invToken(S.pendingInvite) === _invToken(docData));
   if(invSc) invSc.style.display = 'flex';
   S.pendingInvite = docData || null;
-  if($('inv_nombre')) $('inv_nombre').value = docData && docData.nombre && docData.nombre!==docData.email ? docData.nombre : '';
-  if($('inv_pass')) $('inv_pass').value = '';
-  if($('inv_pass2')) $('inv_pass2').value = '';
-  if($('invite-err')) $('invite-err').style.display = 'none';
-  if($('inv-footer')) $('inv-footer').innerHTML = 'Invitación para <b>' + ((docData&&docData.email)||'') + '</b><br>Elige tu nombre y tu clave para activar la cuenta.';
+  var nomInv = (docData && docData.nombre && docData.nombre!==docData.email) ? docData.nombre : '';
+  if($('inv_nombre') && (!yaAbierta || !String($('inv_nombre').value||'').trim())) $('inv_nombre').value = nomInv;
+  if(!yaAbierta){
+    if($('inv_pass')) $('inv_pass').value = '';
+    if($('inv_pass2')) $('inv_pass2').value = '';
+    _invAviso('');
+  }
+  // El aviso va en el recuadro de arriba (#inv-info), que salía vacío; el pie se parte en columnas.
+  var caja = $('inv-info') || $('inv-footer');
+  if(caja) caja.innerHTML = 'Invitación para <b>' + _invEsc((docData&&docData.email)||'') + '</b><br>Elige tu nombre y tu clave para activar la cuenta.';
 }
 function _resolverInvitacionPendiente(){
   if(!auth) return;
@@ -1545,13 +1566,18 @@ function _resolverInvitacionPendiente(){
     // Luego intentar cargar datos completos de Firestore para pre-rellenar nombre/rol si es posible
     if(db){
       db.collection('invitaciones').doc(token).get().then(function(doc){
+        if(window._activandoInvitacion) return;   // ya pulsó «Crear mi cuenta»: no tocar el formulario
         if(doc.exists){
           var d = doc.data()||{};
-          if(d.usado){ return; } // ya usada, pero no forzamos salida (el usuario ya ve el form)
+          if(d.usado){ _invAviso(_INV_MSG.usada); return; }
           d.token = token;
           _showInviteScreenForDoc(d); // actualizar con datos completos
+        } else {
+          // Leer una invitación por su token está permitido sin sesión: si no está, fue anulada
+          // (el administrador la revocó o mandó otra) o el link llegó cortado.
+          _invAviso(_INV_MSG.noExiste);
         }
-      }).catch(function(){}); // ignorar errores de permisos
+      }).catch(function(){}); // sin conexión: se confirma otra vez al pulsar «Crear mi cuenta»
     }
     return;
   }
@@ -1594,6 +1620,49 @@ function _resolverInvitacionPendiente(){
   });
 }
 
+// ══════════════════════════════════════════════════════════════════
+// ACEPTAR UNA INVITACIÓN: PRIMERO SE CONFIRMA, DESPUÉS SE CREA LA CUENTA
+// ══════════════════════════════════════════════════════════════════
+// 24-nov-2026, Adam: «no me entra este usuario». El invitado había creado su cuenta, pero la ficha con
+// su rol no se guardó y el sistema lo sacaba al entrar. La base solo acepta la ficha si trae EXACTAMENTE
+// el rol y los permisos de la invitación; el formulario se abre con datos provisionales (rol Empleado,
+// sin permisos) mientras llega la invitación, y con internet lento se podía pulsar «Crear mi cuenta»
+// antes: la cuenta quedaba creada y la ficha rechazada. Ahora, al pulsar el botón, la invitación se lee
+// de la base y se espera por ella. Si no se puede leer, no existe o ya se usó, se dice y NO se crea nada.
+var _INV_MSG = {
+  lenta: 'No se pudo confirmar tu invitación porque la conexión está muy lenta o se cortó. Espera unos segundos y vuelve a pulsar «Crear mi cuenta».',
+  noExiste: 'Esta invitación ya no existe: fue anulada o el link llegó incompleto. Pídele al administrador que te mande el link de nuevo.',
+  usada: 'Esta invitación ya fue utilizada. Entra con tu correo y tu contraseña en la pantalla de inicio.',
+  ficha: 'Tu cuenta quedó creada, pero no se pudo terminar de activar. Vuelve a pulsar «Crear mi cuenta» con la MISMA contraseña. Si se repite, avísale al administrador.'
+};
+function _invError(code, msg){ var e = new Error(msg); e.code = code; return e; }
+// Una promesa que no puede quedarse colgada: si en `ms` no respondió, falla con el mensaje dado.
+function _invConTiempo(promesa, ms, code, msg){
+  return new Promise(function(resolve, reject){
+    var listo = false;
+    var t = setTimeout(function(){ if(listo) return; listo = true; reject(_invError(code, msg)); }, ms);
+    Promise.resolve(promesa).then(
+      function(v){ if(listo) return; listo = true; clearTimeout(t); resolve(v); },
+      function(e){ if(listo) return; listo = true; clearTimeout(t); reject(e); });
+  });
+}
+// Devuelve la invitación tal como está en la base (con su token). Las invitaciones antiguas, que vivían
+// en la ficha del usuario, siguen como estaban.
+function _invConfirmar(pending){
+  if(pending && pending._legacy) return Promise.resolve(pending);
+  var token = _invToken(pending);
+  if(!db || !token) return Promise.reject(_invError('pagasi/invitacion-lenta', _INV_MSG.lenta));
+  var lectura = db.collection('invitaciones').doc(token).get().then(function(doc){
+    if(!doc.exists) throw _invError('pagasi/invitacion-no-existe', _INV_MSG.noExiste);
+    var d = doc.data() || {};
+    if(d.usado === true) throw _invError('pagasi/invitacion-usada', _INV_MSG.usada);
+    if(!d.email) throw _invError('pagasi/invitacion-no-existe', _INV_MSG.noExiste);
+    d.token = token;
+    return d;
+  }, function(){ throw _invError('pagasi/invitacion-lenta', _INV_MSG.lenta); });
+  return _invConTiempo(lectura, 20000, 'pagasi/invitacion-lenta', _INV_MSG.lenta);
+}
+
 function aceptarInvitacion() {
   var nombre = (($('inv_nombre') || {}).value || '').trim();
   var pass = (($('inv_pass') || {}).value || '');
@@ -1630,7 +1699,7 @@ function aceptarInvitacion() {
 
   var btn = $('inv-btn');
   if (btn) btn.disabled = true;
-  showLoader('Activando cuenta...', '');
+  showLoader('Confirmando tu invitación...', '');
 
   // ── FIX: carrera al aceptar una invitación ──
   // createUserWithEmailAndPassword dispara onAuthStateChanged ANTES de que
@@ -1644,8 +1713,10 @@ function aceptarInvitacion() {
   var token = pending.token || pending.inviteToken || null;
   var isLegacy = !!(pending._legacy && pending.inviteTempPass);
   var _activacionData = null;
+  var cuentaLista = false;   // ya hay cuenta en Auth: si algo falla después, el mensaje lo dice
 
   function finalizarActivacion(user) {
+    cuentaLista = true;
     return user.updateProfile({ displayName: nombre })
       .then(function(){
         var updateData = {
@@ -1676,7 +1747,9 @@ function aceptarInvitacion() {
           updateData.inviteLink = firebase.firestore.FieldValue.delete();
         }
         _activacionData = updateData;
-        return db.collection('usuarios').doc(user.uid).set(updateData, { merge: true });
+        // Con la conexión caída esta escritura no falla: se queda esperando para siempre con el cartel
+        // de «Activando cuenta...» girando. Se le da un tiempo y, si no, se dice qué hacer.
+        return _invConTiempo(db.collection('usuarios').doc(user.uid).set(updateData, { merge: true }), 25000, 'pagasi/ficha-lenta', _INV_MSG.ficha);
       })
       .then(function(){
         // Hidratar la sesión ANTES de arrancar la app: el listener salió temprano
@@ -1713,6 +1786,16 @@ function aceptarInvitacion() {
       });
   }
 
+  var p = _invConfirmar(pending).then(function(confirmada){
+    // De aquí en adelante mandan los datos de la base, no los provisionales del formulario.
+    pending = confirmada;
+    S.pendingInvite = confirmada;
+    token = pending.token || pending.inviteToken || null;
+    showLoader('Activando cuenta...', '');
+    return _invActivar();
+  });
+
+  function _invActivar(){
   var p;
   if (isLegacy) {
     // Flujo legacy: iniciar sesión con contraseña temporal y actualizarla
@@ -1747,14 +1830,28 @@ function aceptarInvitacion() {
       .then(function(r){ return r.user; })
       .then(finalizarActivacion);
   }
+  return p;
+  }
 
   p.catch(function(e) {
     window._activandoInvitacion = false;
     hideLoader();
     if (btn) btn.disabled = false;
-    var msg = e.message || 'Error al activar la cuenta';
-    if(e.code === 'auth/email-already-in-use') msg = 'Este email ya tiene una cuenta. Inicia sesión con tu contraseña, o usa «¿Olvidaste tu contraseña?» en la pantalla de inicio para restablecerla y entrar.';
-    if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'La contraseña no coincide con la cuenta existente. Si ya intentaste activarla antes, escribe la MISMA contraseña de esa vez.';
+    e = e || {};
+    var code = String(e.code || '');
+    // Los mensajes propios (pagasi/...) ya vienen en español y dicen qué hacer. Los de Firebase llegan
+    // en inglés («Missing or insufficient permissions»): se traducen a algo que el invitado entienda.
+    var msg = (code.indexOf('pagasi/') === 0 && e.message) ? e.message : '';
+    if(!msg){
+      if(code === 'auth/email-already-in-use') msg = 'Este email ya tiene una cuenta. Inicia sesión con tu contraseña, o usa «¿Olvidaste tu contraseña?» en la pantalla de inicio para restablecerla y entrar.';
+      else if(code === 'auth/wrong-password' || code === 'auth/invalid-credential') msg = 'La contraseña no coincide con la cuenta existente. Si ya intentaste activarla antes, escribe la MISMA contraseña de esa vez.';
+      else if(code === 'auth/network-request-failed' || code === 'unavailable') msg = 'Sin conexión a internet. Revisa tu red y vuelve a pulsar «Crear mi cuenta»' + (cuentaLista ? ' con la MISMA contraseña.' : '.');
+      else if(code === 'auth/weak-password') msg = 'Esa contraseña es muy fácil de adivinar. Usa una de 6 caracteres o más.';
+      else if(code === 'auth/too-many-requests') msg = 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.';
+      else if(code === 'auth/invalid-email') msg = 'El correo de esta invitación no es válido. Pídele al administrador que te invite de nuevo.';
+      else if(code === 'permission-denied' || /insufficient permissions/i.test(String(e.message||''))) msg = _INV_MSG.ficha;
+      else msg = (cuentaLista ? _INV_MSG.ficha : 'No se pudo activar la cuenta. Vuelve a intentarlo en unos segundos.') + (e.message ? ' (Detalle: ' + e.message + ')' : '');
+    }
     if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
   });
 }
@@ -1793,7 +1890,7 @@ if (auth) {
             S.currentUser = null;
             var _lsD = $('login-screen'); if (_lsD) _lsD.style.display = 'flex';
             var _arD = $('app-root'); if (_arD) _arD.style.display = 'none';
-            var _erD = $('login-err'); if (_erD) { _erD.textContent = 'Esta cuenta no tiene acceso al sistema. Pedile a un administrador que te dé acceso.'; _erD.style.display = 'block'; }
+            var _erD = $('login-err'); if (_erD) { _erD.textContent = 'Esta cuenta todavía no tiene acceso al sistema. Si te invitaron, abre otra vez el link de tu invitación y escribe tu misma contraseña. Si no tienes el link, pídeselo a un administrador.'; _erD.style.display = 'block'; }
             return;
           }
           var data = doc.data() || {};
