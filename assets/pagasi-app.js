@@ -3765,11 +3765,26 @@ function nav(p){
       }
     }
   } else {
-    $('cnt').innerHTML=`<div class="empty"><span class="e-ic" style="font-size:28px;opacity:0.3;display:block;margin-bottom:10px">···</span><div class="e-tt">En desarrollo</div></div>`;
+    $('cnt').innerHTML = _pantallaQueNoCargo() || `<div class="empty"><span class="e-ic" style="font-size:28px;opacity:0.3;display:block;margin-bottom:10px">···</span><div class="e-tt">En desarrollo</div></div>`;
   }
   updateBadge();
   wtInjectDataLabels();
   _perfAnotar('nav', p, Date.now() - _navT0);
+}
+
+// 24-nov-2026: una pantalla sin su archivo no es una pantalla «En desarrollo». Si el vigilante de
+// carga de admin.html (PGCarga) sabe que algún archivo no llegó, o lo está volviendo a pedir, se
+// dice eso y se ofrece recargar. Si llega al reintento, el vigilante pinta la pantalla solo.
+function _pantallaQueNoCargo(){
+  try{
+    var c = (typeof window !== 'undefined' && window) ? window.PGCarga : null;
+    var e = (c && typeof c.estado === 'function') ? c.estado() : null;
+    if(!e || !((e.perdidos || []).length || (e.pendientes || []).length)) return '';
+    return '<div class="empty" style="padding:80px 20px;text-align:center">'
+      + '<div class="e-tt" style="font-size:18px;font-weight:800;margin-bottom:8px">Esta pantalla no terminó de cargar</div>'
+      + '<div style="font-size:13px;color:var(--ink3);line-height:1.6;max-width:380px;margin:0 auto 16px">Una parte del sistema no llegó del servidor. Toca «Recargar» para abrirla.</div>'
+      + '<button class="btn btn-p" onclick="location.reload()">Recargar</button></div>';
+  }catch(_e){ return ''; }
 }
 
 // ── Mobile: inyectar data-label en celdas de tabla para CSS card layout ──

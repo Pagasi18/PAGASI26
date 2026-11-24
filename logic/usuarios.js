@@ -1782,7 +1782,7 @@ function aceptarInvitacion() {
         _clearInviteParams();
         S.pendingInvite = null;
         $('invite-screen').style.display = 'none';
-        if (!window._appInited) { window._appInited = true; init(); }
+        if (!window._appInited) { window._appInited = true; _conTodoCargado(function(){ if (window._appInited) init(); }); }
       });
   }
 
@@ -1858,6 +1858,25 @@ function aceptarInvitacion() {
 
 
 function iniciarListenerSolicitudes(){}
+
+// ── Entrar solo con el sistema completo (24-nov-2026) ───────
+// Ese día GitHub le negó UN archivo a un navegador (modules/concesionarios.js, error 503 al
+// estrenar versión) y el sistema abrió sin ese módulo, sin avisar. El vigilante de carga de
+// admin.html (PGCarga) lo vuelve a pedir; aquí la entrada espera a que termine, para no
+// arrancar con un archivo de menos y quedar a medias. Un día normal no hay nada pendiente y
+// fn corre en el acto, igual que antes. Sin vigilante (pruebas, otra página) tampoco espera.
+// Mientras espera se ve el cartel de «cargando» y no una pantalla vacía.
+function _conTodoCargado(fn){
+  var c = (typeof window !== 'undefined' && window) ? window.PGCarga : null;
+  if(!c || typeof c.alTerminar !== 'function'){ fn(); return; }
+  var corrio = false, cartel = false;
+  c.alTerminar(function(){
+    corrio = true;
+    if(cartel && typeof hideLoader === 'function') hideLoader();
+    fn();
+  });
+  if(!corrio && typeof showLoader === 'function'){ cartel = true; showLoader('Terminando de cargar el sistema...', 'Un momento'); }
+}
 
 // ── Arranque con Firebase Auth ──────────────────────────────
 if (auth) {
@@ -1939,7 +1958,8 @@ if (auth) {
           // ── Log de inicio de sesión ──
           if(typeof logActividad === 'function') logActividad('login','auth',user.uid,{rol:S.currentUser.rol});
           // Inicializar la app SOLO para usuarios autorizados (con ficha válida en 'usuarios').
-          if (!window._appInited) { window._appInited = true; init(); }
+          // _conTodoCargado: si un archivo del sistema se está volviendo a pedir, init() lo espera.
+          if (!window._appInited) { window._appInited = true; _conTodoCargado(function(){ if (window._appInited) init(); }); }
         }).catch(function(){
           // Misma salvedad: durante una activación en curso, esperar.
           if (window._activandoInvitacion) return;

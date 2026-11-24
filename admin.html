@@ -13,6 +13,246 @@
 <title>Pagasi — Sistema de Crédito</title>
 <link rel="icon" type="image/png" href="assets/pegaso.png">
 <link rel="apple-touch-icon" href="assets/pegaso-icon.png">
+<!-- VIGILANTE DE CARGA (24-nov-2026). Va ESCRITO AQUI y no en un archivo aparte: si GitHub le
+     negara justo ese archivo no quedaria nadie para reintentar. Tiene que ser el PRIMER script. -->
+<script id="pg-carga">
+// El 24-nov-2026, minutos despues de publicar, GitHub Pages le contesto 503 a UNO de los ~85
+// archivos del sistema (modules/concesionarios.js). Los demas cargaron: Concesionarios no
+// existio en esa sesion y nadie se entero hasta recargar. Al estrenar version todos los
+// navegadores piden todos los archivos a la vez y al servidor se le cae alguno; segundos
+// despues ya lo entrega.
+// Que hace esto:
+//  1. Ve cuando un archivo PROPIO (assets/, logic/, modules/) no llega.
+//  2. Lo vuelve a pedir unas pocas veces, con una espera corta, uno por uno y en el orden
+//     en que la pagina los pide.
+//  3. Si llega tarde: la entrada al sistema lo espera (PGCarga.alTerminar) y, si el sistema
+//     ya estaba abierto, se repinta la pantalla.
+//  4. Si el que falto es uno que los demas necesitan PARA CARGAR (ESENCIALES), o alguno
+//     revento al cargar por faltarle otro, pegarlo al final no arregla nada: se recarga la
+//     pagina una sola vez, sola.
+//  5. Si ni asi llega: un aviso arriba, en espanol, con el boton «Recargar». Nunca en silencio.
+// tests/t_carga_orden.js comprueba con los archivos de verdad que todos, menos los
+// ESENCIALES, pueden llegar tarde sin romper nada. Si esa prueba falla, la lista se amplia.
+(function(){
+  'use strict';
+  var INTENTOS = 3;                       // reintentos por archivo
+  var ESPERAS = [400, 1200, 3000];        // ms antes del 1.º, 2.º y 3.er reintento
+  var TOPE_ESPERA = 10000;                // lo maximo que la entrada espera por un archivo que no llega
+  var ESENCIALES = ['assets/pagasi-app.js'];
+  var RECARGA_KEY = 'pg_carga_recarga', RECARGA_CADA = 120000;   // una recarga sola cada 2 min, no mas
+
+  var pendientes = [];    // {src, ruta, intentos, cuando} en el orden en que la pagina los pide
+  var perdidos = [];      // no llegaron ni reintentando
+  var recuperados = [];   // llegaron tarde
+  var esperando = [];     // quien aguarda a que esto termine (la entrada al sistema)
+  var trabajando = false, enRonda = false, reloj = null, ordenRoto = false, dclPaso = false, puente = false;
+
+  function rutaDe(src){ return String(src || '').split('#')[0].split('?')[0]; }
+  // Propio = ruta relativa a un .js. Lo de afuera (Firebase, Chart.js) no se toca.
+  function esPropio(src){ return !!src && !/^([a-z][a-z0-9+.-]*:)?\/\//i.test(src) && /\.js$/i.test(rutaDe(src)); }
+
+  window.addEventListener('error', function(ev){
+    var el = ev && ev.target;
+    if(el && el.tagName){                  // algo de la pagina que no llego (script, imagen, hoja de estilos)
+      if(el.tagName !== 'SCRIPT' || el.__pgTardio) return;   // un reintento avisa por su propio onerror
+      var src = el.getAttribute('src');
+      if(esPropio(src)) fallo(src);
+      return;
+    }
+    // Un error normal de JavaScript. Si es de un archivo propio que REVIENTA AL CARGAR mientras
+    // falta otro, es que le faltaba ese otro.
+    var cs = document.currentScript;
+    if(cs && esPropio(cs.getAttribute('src')) && (pendientes.length || perdidos.length)) ordenRoto = true;
+  }, true);
+  document.addEventListener('DOMContentLoaded', function(){ dclPaso = true; });
+
+  function fallo(src){
+    var ruta = rutaDe(src);
+    for(var i = 0; i < pendientes.length; i++){ if(pendientes[i].ruta === ruta) return; }
+    pendientes.push({ src: src, ruta: ruta, intentos: 0, cuando: Date.now() + ESPERAS[0] });
+    if(ESENCIALES.indexOf(ruta) > -1) ordenRoto = true;
+    try{ console.warn('[carga] no llegó ' + ruta + ': se vuelve a pedir'); }catch(e){}
+    trabajando = true;
+    programar();
+  }
+  // Cada archivo lleva su propia espera; el reloj se pone para el que toque primero
+  function programar(){
+    if(enRonda || !pendientes.length) return;
+    var primero = pendientes[0].cuando;
+    pendientes.forEach(function(p){ if(p.cuando < primero) primero = p.cuando; });
+    if(reloj) clearTimeout(reloj);
+    reloj = setTimeout(ronda, Math.max(0, primero - Date.now()));
+  }
+  // Una ronda: los que ya cumplieron su espera se piden UNA vez, uno detras de otro y en el
+  // orden de la pagina (asi, si llegan, entran en su orden)
+  function ronda(){
+    reloj = null; enRonda = true;
+    var ahora = Date.now() + 30, i = 0;
+    var lista = pendientes.filter(function(p){ return p.cuando <= ahora; });
+    (function siguiente(){
+      if(i < lista.length) return intentar(lista[i++], siguiente);
+      enRonda = false;
+      if(pendientes.length) return programar();
+      trabajando = false;
+      terminar();
+    })();
+  }
+  function quitar(p){ var i = pendientes.indexOf(p); if(i > -1) pendientes.splice(i, 1); }
+  function intentar(p, sigue){
+    p.intentos++;
+    ponerPuente();
+    var antes = pantalla();
+    var s = document.createElement('script');
+    s.charset = 'utf-8';
+    s.async = false;
+    s.__pgTardio = true;
+    s.onload = function(){
+      quitar(p); recuperados.push(p.ruta);
+      try{ console.warn('[carga] ' + p.ruta + ' llegó al reintento ' + p.intentos); }catch(e){}
+      estrenar(antes);
+      sigue();
+    };
+    s.onerror = function(){
+      if(s.parentNode) s.parentNode.removeChild(s);
+      if(p.intentos >= INTENTOS){ quitar(p); perdidos.push(p.ruta); }
+      else p.cuando = Date.now() + ESPERAS[Math.min(p.intentos, ESPERAS.length - 1)];
+      sigue();
+    };
+    // &r=N: otra direccion, para que ni el navegador ni el servidor devuelvan el fallo guardado
+    s.src = p.src + (p.src.indexOf('?') > -1 ? '&' : '?') + 'r=' + p.intentos;
+    (document.head || document.documentElement).appendChild(s);
+  }
+  function terminar(){
+    if(!perdidos.length && ordenRoto && recargarSola()) return;
+    if(perdidos.length || ordenRoto) avisar();
+    soltar();
+    repintar();
+  }
+  // Recarga sola UNA vez: si a los 2 minutos vuelve a hacer falta, decide la persona con el boton
+  function recargarSola(){
+    try{
+      var ahora = Date.now(), ultima = Number(sessionStorage.getItem(RECARGA_KEY)) || 0;
+      if(ultima && ahora - ultima < RECARGA_CADA) return false;
+      sessionStorage.setItem(RECARGA_KEY, String(ahora));
+      if(sessionStorage.getItem(RECARGA_KEY) !== String(ahora)) return false;
+      location.reload();
+      return true;
+    }catch(e){ return false; }
+  }
+
+  // ── Quien espera a que termine (logic/usuarios.js: la entrada al sistema) ──
+  // Sin nada pendiente corre EN EL ACTO: un dia normal no cambia nada.
+  function alTerminar(fn){
+    if(!trabajando){ fn(); return; }
+    var hecho = false;
+    var una = function(){ if(hecho) return; hecho = true; fn(); };
+    esperando.push(una);
+    setTimeout(una, TOPE_ESPERA);
+  }
+  function soltar(){
+    var lista = esperando; esperando = [];
+    lista.forEach(function(f){ try{ f(); }catch(e){ try{ console.error(e); }catch(_e){} } });
+  }
+
+  // ── Repintar ──
+  function pantalla(){
+    try{
+      if(typeof S !== 'undefined' && S && S.currentUser && S.page && typeof PG !== 'undefined' && PG)
+        return { pagina: S.page, tenia: typeof PG[S.page] === 'function' };
+    }catch(e){}
+    return null;
+  }
+  // La pantalla abierta decia «En desarrollo» porque su archivo no habia llegado: ya llego
+  function estrenar(antes){
+    try{
+      var hoy = pantalla();
+      if(antes && hoy && antes.pagina === hoy.pagina && !antes.tenia && hoy.tenia && typeof nav === 'function') nav(hoy.pagina);
+    }catch(e){ try{ console.warn('[carga] repintar:', e); }catch(_e){} }
+  }
+  // El resto: el mismo redibujo de cuando llegan datos nuevos (respeta ventanas abiertas y lo que se escribe)
+  function repintar(){
+    try{ if(pantalla() && typeof scheduleRealtimeRender === 'function') scheduleRealtimeRender(); }
+    catch(e){ try{ console.warn('[carga] repintar:', e); }catch(_e){} }
+  }
+
+  // Un archivo que llega despues de DOMContentLoaded y se apunta a ese evento se quedaria
+  // esperando para siempre (logic/charts.js aplica asi el tema guardado): se le llama enseguida.
+  // Solo vale para los archivos reintentados; lo demas usa el addEventListener de siempre.
+  function ponerPuente(){
+    if(puente) return; puente = true;
+    var original = document.addEventListener;
+    document.addEventListener = function(tipo, fn){
+      var cs = document.currentScript;
+      if(tipo === 'DOMContentLoaded' && dclPaso && cs && cs.__pgTardio && typeof fn === 'function'){
+        setTimeout(function(){
+          var ev; try{ ev = new Event('DOMContentLoaded'); }catch(e){ ev = { type: 'DOMContentLoaded' }; }
+          fn.call(document, ev);
+        }, 0);
+        return;
+      }
+      return original.apply(this, arguments);
+    };
+  }
+
+  // ── El aviso. Con estilos propios: la hoja de estilos tambien pudo no llegar ──
+  function nombreDe(ruta){
+    try{
+      var m = /^modules\/([^\/]+)\.js$/.exec(ruta);
+      if(m && typeof PGL !== 'undefined' && PGL && PGL[m[1]]) return PGL[m[1]];
+    }catch(e){}
+    return '';
+  }
+  function avisar(){
+    var grave = ordenRoto;
+    var nombres = [];
+    perdidos.forEach(function(r){ var n = nombreDe(r); if(n && nombres.indexOf(n) < 0) nombres.push(n); });
+    var texto = grave
+      ? 'El sistema no terminó de cargar. Toca «Recargar» para abrirlo completo. Si este aviso vuelve a salir, revisa tu conexión a internet.'
+      : 'No se pudo cargar una parte del sistema' + (nombres.length ? ' (' + nombres.join(', ') + ')' : '') + '. Lo demás funciona, pero esa parte puede fallar hasta que recargues.';
+    var viejo = document.getElementById('pg-carga-aviso');
+    if(viejo && viejo.parentNode) viejo.parentNode.removeChild(viejo);
+    var caja = document.createElement('div');
+    caja.id = 'pg-carga-aviso';
+    caja.setAttribute('role', 'alert');
+    caja.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top, 0px));background:#B4233F;color:#fff;font:600 14px/1.45 Nunito,system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 28px rgba(11,11,30,.28)';
+    var t = document.createElement('div');
+    t.style.cssText = 'flex:1 1 260px;min-width:0';
+    t.textContent = texto;
+    if(perdidos.length){
+      var det = document.createElement('div');
+      det.style.cssText = 'margin-top:2px;font-weight:400;font-size:12px;opacity:.85;word-break:break-word';
+      det.textContent = 'Lo que no llegó: ' + perdidos.join(', ');
+      t.appendChild(det);
+    }
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'pg-carga-recargar';
+    b.textContent = 'Recargar';
+    b.style.cssText = 'flex:0 0 auto;min-height:44px;border:0;border-radius:10px;padding:10px 18px;background:#fff;color:#B4233F;font:800 14px/1 inherit;cursor:pointer';
+    b.onclick = function(){ location.reload(); };
+    caja.appendChild(t);
+    caja.appendChild(b);
+    if(!grave){
+      var c = document.createElement('button');
+      c.type = 'button';
+      c.id = 'pg-carga-seguir';
+      c.textContent = 'Seguir así';
+      c.style.cssText = 'flex:0 0 auto;min-height:44px;border:1px solid rgba(255,255,255,.6);border-radius:10px;padding:9px 14px;background:transparent;color:#fff;font:700 13px/1 inherit;cursor:pointer';
+      c.onclick = function(){ if(caja.parentNode) caja.parentNode.removeChild(caja); };
+      caja.appendChild(c);
+    }
+    (document.body || document.documentElement).appendChild(caja);
+  }
+
+  window.PGCarga = {
+    alTerminar: alTerminar,
+    estado: function(){
+      return { trabajando: trabajando, ordenRoto: ordenRoto, pendientes: pendientes.map(function(p){ return p.ruta; }),
+               recuperados: recuperados.slice(), perdidos: perdidos.slice() };
+    }
+  };
+})();
+</script>
 <!-- Firebase SDK embebido — funciona sin internet y sin servidor -->
 <script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -20,8 +260,8 @@
 
 
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Nunito+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/pagasi.css?v=26-20261124-1140">
-<link rel="stylesheet" href="assets/pagasi-mobile.css?v=26-20261124-1140">
+<link rel="stylesheet" href="assets/pagasi.css?v=26-20261124-1458">
+<link rel="stylesheet" href="assets/pagasi-mobile.css?v=26-20261124-1458">
 <script charset="utf-8" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -221,90 +461,90 @@
 </div>
 <div class="toasts" id="toasts"></div>
 <script charset="utf-8" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-<script charset="utf-8" src="assets/pagasi-app.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/categorias-egreso.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="assets/public/mayusculas.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/financiero.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/centro.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/usuarios.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/aliados-accesos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/documentos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/clientes.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/motos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/moto-pagos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/configuracion.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/bcv-auto.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/tasas.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/multimoneda.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/scores.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/creditos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/credito-ledger.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/gamificacion.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/pagos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/contratos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/gps.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/contratos-dra.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/contratos-protect.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/contratos-ga.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/egresos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/facturacion.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/comisiones.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/reportes.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/exportar.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/libros-iva.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/coromoto.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/metodologia.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/quickbooks.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/cuentas.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/charts.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/backups.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/notificaciones.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/concesionarios.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/concesionarios-chart.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/aprobaciones.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/solicitudes-web.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/aml.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="assets/public/catalog.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/catalogo.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/catalogo-folleto.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/metricas.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/portal.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/whatsapp.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/centro.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/comisiones.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/aprobaciones.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/cumplimiento.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/catalogo.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/metricas.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/grupo.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/grupo-graficos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/ai.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/concesionarios.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/dash.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/halloween.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/clientes.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/motos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/creditos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/pagos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/cobranza.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/whatsapp.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/redes.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/plan.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/contratos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/gps.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/notif.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/calculadora.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/reportes.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/proyeccion.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/recursos.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/conta.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/scores.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/config.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/cuentas.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="modules/users.js?v=26-20261124-1140"></script>
+<script charset="utf-8" src="assets/pagasi-app.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/categorias-egreso.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="assets/public/mayusculas.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/financiero.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/centro.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/usuarios.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/aliados-accesos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/documentos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/clientes.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/motos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/moto-pagos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/configuracion.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/bcv-auto.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/tasas.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/multimoneda.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/scores.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/creditos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/credito-ledger.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/gamificacion.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/pagos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/contratos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/gps.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/contratos-dra.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/contratos-protect.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/contratos-ga.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/egresos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/facturacion.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/comisiones.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/reportes.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/exportar.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/libros-iva.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/coromoto.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/metodologia.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/quickbooks.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/cuentas.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/charts.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/backups.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/notificaciones.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/concesionarios.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/concesionarios-chart.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/aprobaciones.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/solicitudes-web.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/aml.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="assets/public/catalog.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/catalogo.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/catalogo-folleto.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/metricas.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/portal.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/whatsapp.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/centro.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/comisiones.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/aprobaciones.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/cumplimiento.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/catalogo.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/metricas.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/grupo.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/grupo-graficos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/ai.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/concesionarios.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/dash.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/halloween.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/clientes.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/motos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/creditos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/pagos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/cobranza.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/whatsapp.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/redes.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/plan.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/contratos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/gps.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/notif.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/calculadora.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/reportes.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/proyeccion.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/recursos.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/conta.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/scores.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/config.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/cuentas.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="modules/users.js?v=26-20261124-1458"></script>
 
-<script charset="utf-8" src="logic/movil.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/movil-navegacion.js?v=26-20261124-1140"></script>
-<script charset="utf-8" src="logic/movil-ventas.js?v=26-20261124-1140"></script>
+<script charset="utf-8" src="logic/movil.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/movil-navegacion.js?v=26-20261124-1458"></script>
+<script charset="utf-8" src="logic/movil-ventas.js?v=26-20261124-1458"></script>
 </body>
 </html>
