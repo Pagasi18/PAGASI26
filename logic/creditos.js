@@ -2942,12 +2942,22 @@ function _wzGuardar(){
   // solicitud NUEVA revisa todo, también a un cliente que ya existe: es justo el caso de quien quedó
   // debiendo y vuelve por otra moto. Al EDITAR un crédito solo cuenta lo que cambió en la ficha.
   if(typeof lnPuerta==='function'){
-    // (el cliente del crédito que se edita se busca igual que más abajo: por el elegido o por su cédula)
-    var _lnCiWz = String(WZ.ci||'').replace(/\s/g,'').toLowerCase();
-    var _lnFichaWz = !window._wzEditando ? null : ((S.clientes||[]).find(function(c){ return !c.eliminado && WZ.clienteSel && String(c.id)===String(WZ.clienteSel); })
-      || (S.clientes||[]).find(function(c){ return !c.eliminado && c.cedula && _lnCiWz && String(c.cedula).replace(/\s/g,'').toLowerCase()===_lnCiWz; }) || null);
-    if(!lnPuerta({ origen:'solicitud', nom:WZ.nom, ci:WZ.ci, fiador_ci:(String(WZ.fiador_tiene||'')==='no' ? '' : WZ.fiador_ci), r1ci:WZ.r1ci, r1t:WZ.r1t, r2ci:WZ.r2ci, r2t:WZ.r2t, concesionarioId:WZ.concesionarioId,
-                   yaGuardadas: _lnFichaWz ? lnClavesDeFicha(_lnFichaWz) : null }, _wzGuardar)) return;
+    // Al editar, «lo que ya tenía» es lo que tenía ESE crédito (su cliente, su fiador, sus referencias),
+    // no la ficha del cliente que esté elegido ahora: cambiarle el cliente o ponerle un fiador que no
+    // tenía sí se revisa. Con «Sin fiador» la solicitud no guarda nada del fiador, así que no se revisa.
+    var _lnEd = window._wzEditando || null;
+    var _lnCredEd = _lnEd ? ((S.creds||[]).find(function(x){ return x.id===_lnEd; }) || null) : null;
+    var _lnCliEd = !_lnCredEd ? null : ((S.clientes||[]).find(function(c){ return !c.eliminado && _lnCredEd.clienteId!=null && String(c.id)===String(_lnCredEd.clienteId); })
+      || (S.clientes||[]).find(function(c){ return !c.eliminado && c.nombre && c.nombre===_lnCredEd.cli; }) || null);
+    var _lnBtn = document.querySelector('#wz-overlay button[onclick="_wzGuardar()"]');
+    if(!lnPuerta({ origen:'solicitud', nom:WZ.nom, ci:WZ.ci, fiador_ci:_wzFiadorDato('fiador_ci'), r1ci:WZ.r1ci, r1t:WZ.r1t, r2ci:WZ.r2ci, r2t:WZ.r2t, concesionarioId:WZ.concesionarioId,
+                   yaGuardadas: _lnCredEd ? lnClavesDeCredito(_lnCredEd, _lnCliEd) : null,
+                   // si cierran la ventana mientras se consulta, o ya es otro crédito, no se guarda nada
+                   vigente: function(){ var o = document.getElementById('wz-overlay'); return !!(o && o.style.display !== 'none') && (window._wzEditando || null) === _lnEd; } },
+                 _wzGuardar, function(){ if(_lnBtn) _lnBtn.disabled = false; })){
+      if(_lnBtn) _lnBtn.disabled = true;   // mientras consulta, el botón no se puede volver a pulsar
+      return;
+    }
   }
   var btn = document.querySelector('#wz-overlay button[onclick="_wzGuardar()"]');
   if(btn){ btn.textContent='Guardando...'; btn.disabled=true; }

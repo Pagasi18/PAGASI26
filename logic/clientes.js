@@ -1850,8 +1850,12 @@ function _cliGuardar(){
   // no se guarda. Al EDITAR una ficha solo cuenta lo que cambió, no lo que ya tenía guardado.
   if(typeof lnPuerta==='function'){
     var _lnFicha = edId ? (S.clientes||[]).find(function(x){ return String(x.id)===String(edId); }) : null;
-    if(!lnPuerta({ origen:'cliente', nom:WZ.nom, ci:WZ.ci, fiador_ci:(String(WZ.fiador_tiene||'')==='no' ? '' : WZ.fiador_ci), r1ci:WZ.r1ci, r1t:WZ.r1t, r2ci:WZ.r2ci, r2t:WZ.r2t,
-                   yaGuardadas: _lnFicha ? lnClavesDeFicha(_lnFicha) : null }, _cliGuardar)) return;
+    // La cédula del fiador se revisa aunque esté marcado «Sin fiador»: esta ficha la guarda igual, y si
+    // no, quedaba en la ficha sin revisar y después pasaba como dato «que ya tenía».
+    if(!lnPuerta({ origen:'cliente', nom:WZ.nom, ci:WZ.ci, fiador_ci:WZ.fiador_ci, r1ci:WZ.r1ci, r1t:WZ.r1t, r2ci:WZ.r2ci, r2t:WZ.r2t,
+                   yaGuardadas: _lnFicha ? lnClavesDeFicha(_lnFicha) : null,
+                   // si cancelan o cierran mientras se consulta, no se guarda
+                   vigente: function(){ var o = document.getElementById('wz-overlay'); return !!(o && o.style.display !== 'none') && String(WZ.clienteEditId||'') === String(edId||''); } }, _cliGuardar)) return;
   }
   nextClienteIdAsync().then(function(_nextCliId){
   var obj={

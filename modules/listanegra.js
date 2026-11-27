@@ -2,6 +2,9 @@
 // listas, anotar personas y ver a quién frenó el sistema. La lógica y el freno viven en logic/lista-negra.js.
 // La ven Verificación (permiso «Lista negra») y los administradores. Agregar: quien la ve. Modificar o
 // eliminar: solo un administrador (así lo pidió Luis, y las Reglas de la base lo exigen igual).
+// Ningún dato de la base va escrito dentro de un onclick (va en data-…): un aviso de «frenado» lo puede
+// crear cualquier empleado con el id que quiera, y un id con comilla se salía del texto y corría código en
+// la sesión de Verificación (revisión del 26-nov-2026).
 var _ln = { tab: 'buscar', manual: [], auto: [], avisos: [], suscrito: false, error: '', filtro: '', consulta: '', resultado: null, buscando: false };
 
 function lnSuscribir(){
@@ -84,7 +87,7 @@ function _lnResultadoHtml(){
   var n = [hay(R.manual), hay(R.auto), sanc.length > 0, hay(R.malapagas)].filter(Boolean).length;
   var cab = '<div style="padding:12px 14px;border-radius:12px;margin-bottom:10px;font-weight:900;font-size:14px;' + (n ? 'background:#DC2626;color:#fff' : 'background:var(--gs);color:var(--green);border:1px solid var(--rim)') + '">'
     + 'Cédula ' + _lnEsc(R.clave.slice(1)) + ': ' + (n ? 'aparece en ' + n + ' lista' + (n === 1 ? '' : 's') : 'no aparece en ninguna lista') + '</div>';
-  var agregar = hay(R.manual) ? '' : '<div style="margin-top:10px"><button class="btn btn-g btn-sm" onclick="lnAbrir(\'\', \'' + _lnEsc(R.clave.slice(1)) + '\')">+ Anotarla en la lista negra</button></div>';
+  var agregar = hay(R.manual) ? '' : '<div style="margin-top:10px"><button class="btn btn-g btn-sm" data-ced="' + _lnEsc(R.clave.slice(1)) + '" onclick="lnAbrir(\'\', this.dataset.ced)">+ Anotarla en la lista negra</button></div>';
   return cab + '<div style="display:grid;gap:8px">' + cajas.join('') + '</div>' + agregar;
 }
 
@@ -103,7 +106,7 @@ function _lnTablaHtml(){
       return '<tr><td style="white-space:nowrap;font-weight:700">' + _lnEsc(x.cedula) + '</td><td>' + _lnEsc(x.nombre) + '</td><td style="white-space:nowrap">' + _lnEsc(x.telefono || '') + '</td>'
         + '<td>' + _lnEsc(x.motivo || '') + '</td><td style="font-size:12px;color:var(--ink2)">' + (auto ? _lnDetalleAuto(x) : _lnEsc(x.comentario || '')) + '</td>'
         + '<td><span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;background:' + (auto ? 'var(--surf2)' : 'var(--gs)') + ';color:var(--ink2);white-space:nowrap">' + (auto ? 'Automático' : 'A mano') + '</span></td>'
-        + '<td style="white-space:nowrap;text-align:right">' + (!auto && admin ? '<button class="btn btn-g btn-xs" onclick="lnAbrir(\'' + _lnEsc(x._id) + '\')">Editar</button> <button class="btn btn-g btn-xs" style="color:var(--red)" onclick="lnEliminar(\'' + _lnEsc(x._id) + '\')">Eliminar</button>' : '') + '</td></tr>';
+        + '<td style="white-space:nowrap;text-align:right">' + (!auto && admin ? '<button class="btn btn-g btn-xs" data-id="' + _lnEsc(x._id) + '" onclick="lnAbrir(this.dataset.id)">Editar</button> <button class="btn btn-g btn-xs" style="color:var(--red)" data-id="' + _lnEsc(x._id) + '" onclick="lnEliminar(this.dataset.id)">Eliminar</button>' : '') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 }
 
@@ -191,7 +194,8 @@ function lnEliminar(id){
 function lnResolver(avisoId, autorizar){
   var a = _ln.avisos.find(function(x){ return x._id === avisoId; });
   if(!a) return;
-  var claves = (a.coincidencias || []).map(function(c){ return c.clave; });
+  // Solo claves con forma de clave: el aviso lo escribe quien fue frenado, y no se le cree cualquier cosa
+  var claves = (Array.isArray(a.coincidencias) ? a.coincidencias : []).map(function(c){ return String((c && c.clave) || ''); }).filter(function(k){ return /^[CT][0-9]{6,10}$/.test(k); });
   var marca = { estado: autorizar ? 'autorizado' : 'rechazado', resueltoPor: _lnQuien(), resueltoEn: new Date().toISOString() };
   var paso = autorizar ? lnDarPase(claves, 'Autorizado desde Frenados', avisoId) : Promise.resolve();
   paso.then(function(){ return db.collection('listaNegraAvisos').doc(avisoId).update(marca); }).then(function(){
@@ -203,7 +207,8 @@ function _lnFrenadosHtml(){
   if(!_ln.avisos.length) return '<div style="padding:18px;color:var(--ink3);font-size:13px">El sistema no ha frenado a nadie todavía.</div>';
   return '<div style="display:grid;gap:8px">' + _ln.avisos.map(function(a){
     var pend = a.estado === 'pendiente';
-    var que = (a.coincidencias || []).map(function(c){
+    var que = (Array.isArray(a.coincidencias) ? a.coincidencias : []).filter(function(c){ return c && typeof c === 'object'; }).map(function(c){
+      c = { clave: String(c.clave || ''), papel: String(c.papel || '') };
       var quien = _lnDeClave(c.clave).map(function(x){ return '<b>' + _lnEsc(x.nombre) + '</b> (' + _lnEsc(x.motivo || '') + (x._origen === 'manual' && x.comentario ? ': ' + _lnEsc(x.comentario) : '') + ')'; }).join(', ');
       return '· ' + _lnEsc(c.papel) + ' — ' + (c.clave.charAt(0) === 'T' ? 'teléfono ' : 'cédula ') + _lnEsc(c.clave.slice(1)) + (quien ? ' → ' + quien : '');
     }).join('<br>');
@@ -211,7 +216,7 @@ function _lnFrenadosHtml(){
       + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div style="font-weight:800;font-size:13px">' + _lnEsc(a.usuario || 'Alguien') + ' quiso cargar a ' + _lnEsc(a.nombre || 'un cliente') + (a.cedula ? ' (' + _lnEsc(a.cedula) + ')' : '') + '</div>'
       + '<div style="font-size:11.5px;color:var(--ink3)">' + _lnEsc(_lnFecha(a.fecha)) + '</div></div>'
       + '<div style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:6px 0 8px">' + que + '</div>'
-      + (pend ? '<button class="btn btn-p btn-sm" onclick="lnResolver(\'' + _lnEsc(a._id) + '\', true)">Autorizar ' + LN_PASE_DIAS + ' días</button> <button class="btn btn-g btn-sm" onclick="lnResolver(\'' + _lnEsc(a._id) + '\', false)">No autorizar</button>'
+      + (pend ? '<button class="btn btn-p btn-sm" data-id="' + _lnEsc(a._id) + '" onclick="lnResolver(this.dataset.id, true)">Autorizar ' + LN_PASE_DIAS + ' días</button> <button class="btn btn-g btn-sm" data-id="' + _lnEsc(a._id) + '" onclick="lnResolver(this.dataset.id, false)">No autorizar</button>'
         : '<span style="font-size:11.5px;font-weight:800;color:' + (a.estado === 'autorizado' ? 'var(--green)' : 'var(--ink3)') + '">' + (a.estado === 'autorizado' ? 'Autorizado' : 'No autorizado') + ' por ' + _lnEsc(a.resueltoPor || '') + '</span>')
       + '</div>';
   }).join('') + '</div>';

@@ -57,8 +57,10 @@ const fila = (h, nombre) => (h.match(new RegExp('<tr[^>]*><th class="qv-n" scope
   const tab = els['users-tab-content'].innerHTML;
   ok('al abrirla sale el buscador, el filtro «¿Quién ve…?» y la tabla', /id="qv-buscar"/.test(tab) && /id="qv-modulo"/.test(tab) && /¿Quién ve Cobranza\?/.test(tab) && /class="qv-t"/.test(tab));
   ok('cuando llega la lista de usuarios se vuelve a pintar', /if\(S\.usersTab==='permisos'\) _qvPintar\(\);/.test(src('logic/usuarios.js')));
+  // La Lista negra solo existe en la compañía que vende: en PAGASI 18 esa columna no sale
+  const NCOL = run("typeof lnAqui === 'function' && lnAqui()") ? 26 : 25;
   const cols = run('_qvColumnas()').map(c => c.id);
-  ok('las columnas: los módulos del menú y los dos permisos especiales (26: con AI desde el 21-nov y Lista negra desde el 26-nov)', cols.length === 26 && cols.includes('listanegra') && cols[0] === 'dash' && cols.includes('grupo') && cols.includes('ai') && cols.includes('redescob') && cols.slice(-2).join() === 'perm_delete,perm_condiciones');
+  ok('las columnas: los módulos del menú y los dos permisos especiales (25 con AI desde el 21-nov; 26 con Lista negra donde se vende)', cols.length === NCOL && cols.includes('listanegra') === (NCOL === 26) && cols[0] === 'dash' && cols.includes('grupo') && cols.includes('ai') && cols.includes('redescob') && cols.slice(-2).join() === 'perm_delete,perm_condiciones');
   ok('...sin Centro (escondido), Aprobaciones (sale sola con Créditos) ni Files (lo ven todos)', !cols.includes('centro') && !cols.includes('aprobaciones') && !cols.includes('recursos'));
 
   // ══ 2. Lo que se ve ══
@@ -75,13 +77,13 @@ const fila = (h, nombre) => (h.match(new RegExp('<tr[^>]*><th class="qv-n" scope
   ok('la fila del vendedor de concesionario no se toca y dice por qué', !/onclick="qvCambiar\('vc'/.test(h) && /title="Vendedor de concesionario: su rol solo deja/.test(h));
   ok('las personas van por rol, con el título de cada grupo y cuántos son', /class="qv-sec-t"[^>]*><span>Gerentes<\/span> <em>1<\/em>/.test(h) && h.indexOf('<span>Gerentes</span>') < h.indexOf('<span>Empleados</span>') && h.indexOf('<span>Empleados</span>') < h.indexOf('<span>Contadores</span>') && h.indexOf('<span>Contadores</span>') < h.indexOf('<span>Vendedores de concesionario</span>') && h.indexOf('<span>Vendedores de concesionario</span>') < h.indexOf('<span>Suspendidos</span>'));
   ok('arriba de cada columna dice cuántas personas lo ven (sin contar suspendidos)', /class="qv-k[^"]*" data-c="1" title="4 personas ven Clientes">4</.test(h) && /data-c="0" title="3 personas ven Dashboard">3</.test(h));
-  ok('cada columna lleva el ícono del módulo, y los dos especiales el suyo', (h.match(/<span class="qv-ico" aria-hidden="true"><svg/g) || []).length === 26);
+  ok('cada columna lleva el ícono del módulo, y los dos especiales el suyo', (h.match(/<span class="qv-ico" aria-hidden="true"><svg/g) || []).length === NCOL);
   ok('al pasar el mouse se ilumina la columna', /onmouseover="qvCruz\(event\)"/.test(h) && /<style id="qv-cruz-css"><\/style>/.test(h) && /data-c="5"/.test(h));
   ok('donde no hay acceso va un punto suave, no un cuadrito vacío', /class="qv-c qv-no"[^>]*><i><\/i><\/button>/.test(h));
   ok('las demás son botones', /onclick="qvCambiar\('sam','users'\)"/.test(h) && /aria-pressed="true"[^>]*onclick="qvCambiar\('sam','pagos'\)"/.test(h));
   ok('al tocar el nombre se abre su ventana de permisos de siempre', /onclick="editarUsuario\('sam'\)">Sámanta Prueba</.test(h));
   ok('un nombre con código no se cuela', !/<img src=x/.test(h) && /&lt;img src=x onerror=alert\(1\)&gt;/.test(h));
-  ok('en el teléfono: una tarjeta por persona con lo que tiene y lo que no', /class="qv-cards"/.test(h) && /class="qv-chip qv-si"[^>]*>✓ Cobranza</.test(h) && /<span class="qv-cuenta">\d+ de 26<\/span>/.test(h)
+  ok('en el teléfono: una tarjeta por persona con lo que tiene y lo que no', /class="qv-cards"/.test(h) && /class="qv-chip qv-si"[^>]*>✓ Cobranza</.test(h) && new RegExp('<span class="qv-cuenta">\\d+ de ' + NCOL + '</span>').test(h)
     && /@media \(max-width:720px\)\{\.qv-tabla-wrap\{display:none\}\.qv-cards\{display:flex\}/.test(src('assets/pagasi.css')));
   // filtros
   els['qv-buscar'] = elemento(); els['qv-buscar'].value = 'samanta'; els['qv-modulo'] = elemento(); ctx.qvFiltro(); h = els['qv-cuerpo'].innerHTML;

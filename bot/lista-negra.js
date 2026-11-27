@@ -32,7 +32,10 @@ function atrasoDe(cred, pagos, hoy) {
 // De los datos de UNA compañía, quién entra a la lista automática: { C<cédula>: {...} }
 function autoDeEmpresa(empresa, datos, hoy) {
   const pagosPorCred = {};
-  (datos.pagos || []).forEach(p => { if (!p || p.eliminado) return; (pagosPorCred[p.cred] || (pagosPorCred[p.cred] = [])).push(p); });
+  // TODOS los pagos van al motor de cuotas, que es quien decide cuáles cuentan: un pago eliminado «manteniendo
+  // la amortización» sigue pagando la cuota. Si se quitaban aquí, el robot anotaba como mala paga a alguien que
+  // el sistema da al día (revisión del 26-nov-2026).
+  (datos.pagos || []).forEach(p => { if (!p) return; (pagosPorCred[p.cred] || (pagosPorCred[p.cred] = [])).push(p); });
   const creditos = (datos.creditos || []).map(c => Object.assign({}, c, { dias: atrasoDe(c, pagosPorCred[c.id] || [], hoy) }));
   return LN.lnAutoDe(empresa, creditos, datos.clientes || []);
 }
@@ -63,6 +66,13 @@ function plan(lista, marcas, yaDocs, yaMarcas) {
   return { escribir, borrar, marcar, desmarcar };
 }
 
+// Una base que responde sin créditos o sin clientes no es «nadie debe»: es una lectura mala. Con eso el plan
+// borraría de la lista a todos los de esa compañía, así que mejor no escribir nada.
+function lecturaCreible(datos) { return !!datos && (datos.creditos || []).length > 0 && (datos.clientes || []).length > 0; }
+// El log es público: de un error solo sale su código o su tipo, nunca el mensaje (puede traer la ruta de un
+// documento, que lleva la cédula).
+function errorParaElLog(e) { return String((e && (e.code || e.name)) || 'error').replace(/[^A-Za-z0-9_\- ]/g, '').slice(0, 40); }
+
 async function leerEmpresa(proyecto) {
   const { Firestore } = require('@google-cloud/firestore');
   const db = new Firestore({ projectId: proyecto });
@@ -80,6 +90,7 @@ async function main() {
   const hoy = hoyCaracas(), partes = [];
   for (const emp of Object.keys(PROYECTOS)) {
     const datos = await leerEmpresa(PROYECTOS[emp]);
+    if (!lecturaCreible(datos)) throw Object.assign(new Error('lectura vacía'), { code: 'lectura-vacia-' + emp });
     const m = autoDeEmpresa(emp, datos, hoy);
     const rec = Object.keys(m).filter(k => m[k].motivo === 'Moto recuperada').length;
     console.log('PAGASI ' + emp + ': ' + datos.creditos.length + ' créditos · ' + datos.clientes.length + ' clientes → ' + Object.keys(m).length + ' personas en mala paga (' + rec + ' con moto recuperada)');
@@ -104,5 +115,5 @@ async function main() {
   console.log('Escrito en ' + DESTINO + ': ' + ops.length + ' cambios (' + ahora + ')');
 }
 
-module.exports = { atrasoDe, autoDeEmpresa, juntar, marcasDe, plan, hoyCaracas };
-if (require.main === module) main().catch(e => { console.error('FALLO:', e && e.message || e); process.exit(1); });
+module.exports = { atrasoDe, autoDeEmpresa, juntar, marcasDe, plan, hoyCaracas, lecturaCreible, errorParaElLog };
+if (require.main === module) main().catch(e => { console.error('FALLO: ' + errorParaElLog(e) + ' (no se escribió nada más)'); process.exit(1); });

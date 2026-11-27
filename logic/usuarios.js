@@ -2023,7 +2023,10 @@ function _qvNorm(s){ return String(s == null ? '' : s).normalize('NFD').replace(
 function _qvColumnas(){
   var cols = [];
   QV_GRUPOS.forEach(function(g){
-    MODULOS.forEach(function(m){ if(m.grupo === g && !QV_FUERA[m.id]) cols.push({ id:m.id, label:m.label, grupo:g }); });
+    MODULOS.forEach(function(m){
+      if(m.id === 'listanegra' && typeof lnAqui === 'function' && !lnAqui()) return;   // en PAGASI 18 ese módulo no existe
+      if(m.grupo === g && !QV_FUERA[m.id]) cols.push({ id:m.id, label:m.label, grupo:g });
+    });
   });
   QV_ESPECIALES.forEach(function(e){ cols.push({ id:e.id, label:e.label, corto:e.corto, grupo:'Especiales' }); });
   return cols;

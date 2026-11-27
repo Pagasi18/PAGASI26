@@ -53,6 +53,16 @@ function lnClavesDeFicha(c){
   lnClavesDe({ ci: c.cedula || c.ci, fiador_ci: c.fiador_ci, r1ci: r1.ci, r1t: r1.tel, r2ci: r2.ci, r2t: r2.tel }).forEach(function(x){ m[x.clave] = 1; });
   return m;
 }
+// Y las de un CRÉDITO ya guardado: lo que ese crédito tenía (su cliente, su fiador y sus referencias),
+// no lo que diga hoy la ficha del cliente que esté elegido en la pantalla. Así, al editar un crédito,
+// cambiarle el cliente o ponerle un fiador que no tenía SÍ se revisa, y no frena por una referencia
+// vieja de la ficha que ese crédito nunca llevó (revisión del 26-nov-2026).
+function lnClavesDeCredito(cred, cliente){
+  cred = cred || {}; cliente = cliente || {};
+  var m = {};
+  lnClavesDe({ ci: cliente.cedula || cliente.ci, fiador_ci: cred.fiador_ci, r1ci: cred.r1ci, r1t: cred.r1t, r2ci: cred.r2ci, r2t: cred.r2t }).forEach(function(x){ m[x.clave] = 1; });
+  return m;
+}
 function lnFirma(claves){ return (claves || []).map(function(x){ return x.clave; }).sort().join('|'); }
 function lnPaseVigente(pase, ahoraISO){ return !!(pase && String(pase.hasta || '') >= String(ahoraISO || new Date().toISOString())); }
 
@@ -62,7 +72,8 @@ function lnPaseVigente(pase, ahoraISO){ return !!(pase && String(pase.hasta || '
 function lnAutoDe(empresa, creditos, clientes, umbral){
   umbral = umbral == null ? LN_AUTO_DIAS : umbral;
   var porId = {}, porNombre = {};
-  (clientes || []).forEach(function(c){ if(!c || c.eliminado) return; porId[String(c.id)] = c; if(c.nombre) porNombre[String(c.nombre)] = c; });
+  // (los créditos viejos se enlazan por nombre: solo vale si ese nombre es de UN solo cliente, para no anotar a un tocayo)
+  (clientes || []).forEach(function(c){ if(!c || c.eliminado) return; porId[String(c.id)] = c; if(c.nombre){ var k = String(c.nombre); porNombre[k] = (k in porNombre) ? null : c; } });
   var out = {};
   (creditos || []).forEach(function(cr){
     if(!cr || cr.eliminado) return;
@@ -160,7 +171,7 @@ function lnVentana(frenan, datos, alAutorizar){
   if(puede){
     detalle = '<div style="margin-top:14px;padding:10px 12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;font-size:12.5px;color:#7F1D1D;text-align:left;line-height:1.55">'
       + '<b>Solo tú lo ves (tienes acceso a la Lista negra):</b><br>'
-      + frenan.map(function(c){ return '· ' + _lnEsc(c.papel) + ' — ' + (c.clave.charAt(0) === 'T' ? 'teléfono' : 'cédula') + ' ' + _lnEsc(c.clave.slice(1)) + ' (' + c.fuentes.map(function(f){ return f === 'auto' ? 'mala paga automática' : 'anotado a mano'; }).join(' y ') + ')'; }).join('<br>')
+      + frenan.map(function(c){ var k = String(c.clave || ''); return '· ' + _lnEsc(c.papel) + ' — ' + (k.charAt(0) === 'T' ? 'teléfono' : 'cédula') + ' ' + _lnEsc(k.slice(1)) + ' (' + (c.fuentes || []).map(function(f){ return f === 'auto' ? 'mala paga automática' : 'anotado a mano'; }).join(' y ') + ')'; }).join('<br>')
       + '</div>';
   }
   var w = document.createElement('div');
@@ -205,13 +216,19 @@ function lnPuerta(datos, continuar, alFrenar){
   if(_lnLibres[firma] && Date.now() - _lnLibres[firma] < 120000) return true;
   if(window._lnRevisando) return false;
   window._lnRevisando = true;
+  // Mientras se consulta (hasta 8 segundos con mala conexión) el usuario puede cerrar o cancelar la
+  // ventana. `datos.vigente()` dice si la pantalla sigue siendo la misma: si no, NO se guarda nada.
+  // Antes el guardado se disparaba igual: Cancelar guardaba la ficha, y cerrar un crédito en edición
+  // lo volvía a guardar como una solicitud nueva (revisión del 26-nov-2026).
+  var sigue = function(){ try{ return !(datos && typeof datos.vigente === 'function') || !!datos.vigente(); }catch(e){ return false; } };
   lnConsultar(claves).then(function(r){
     window._lnRevisando = false;
+    if(!sigue()){ if(alFrenar) alFrenar(); return; }
     if(r.error) console.warn('lista negra: no se pudo revisar; la venta sigue', r.error && r.error.message);
     var frenan = r.coincidencias.filter(function(c){ return !c.pase; });
     if(!frenan.length){ _lnLibres[firma] = Date.now(); continuar(); return; }
     lnAvisoGuardar(frenan, datos);
-    lnVentana(frenan, datos, function(){ _lnLibres[firma] = Date.now(); continuar(); });
+    lnVentana(frenan, datos, function(){ if(!sigue()) return; _lnLibres[firma] = Date.now(); continuar(); });
     if(alFrenar) alFrenar();
   });
   return false;
@@ -250,5 +267,5 @@ if(typeof document !== 'undefined' && document.addEventListener){
 }
 
 if(typeof module !== 'undefined' && module.exports){
-  module.exports = { LN_MENSAJE: LN_MENSAJE, LN_AUTO_DIAS: LN_AUTO_DIAS, lnCedKey: lnCedKey, lnTelKey: lnTelKey, lnClavesDe: lnClavesDe, lnClavesDeFicha: lnClavesDeFicha, lnFirma: lnFirma, lnPaseVigente: lnPaseVigente, lnAutoDe: lnAutoDe };
+  module.exports = { LN_MENSAJE: LN_MENSAJE, LN_AUTO_DIAS: LN_AUTO_DIAS, lnCedKey: lnCedKey, lnTelKey: lnTelKey, lnClavesDe: lnClavesDe, lnClavesDeFicha: lnClavesDeFicha, lnClavesDeCredito: lnClavesDeCredito, lnFirma: lnFirma, lnPaseVigente: lnPaseVigente, lnAutoDe: lnAutoDe };
 }

@@ -19,6 +19,7 @@ ok('se revisan las cédulas del cliente, el fiador y las referencias, y el telé
   JSON.stringify(claves.map(x => x.clave + ':' + x.papel)) === JSON.stringify(['C11111111:cliente', 'C22222222:fiador', 'C33333333:referencia 1', 'T4141111111:referencia 1', 'T4122222222:referencia 2']));
 ok('una misma cédula repetida se revisa una sola vez', LN.lnClavesDe({ ci: 'V-11111111', fiador_ci: '11111111' }).length === 1);
 ok('las claves de una ficha ya guardada salen igual', Object.keys(LN.lnClavesDeFicha({ cedula: 'V-11111111', fiador_ci: 'V-22222222', ref1: { ci: '', tel: '0414-1111111' }, ref2: {} })).sort().join() === 'C11111111,C22222222,T4141111111');
+ok('las claves de un CRÉDITO son las de su cliente, su fiador y sus referencias (no las de la ficha de hoy)', Object.keys(LN.lnClavesDeCredito({ fiador_ci: '', r1ci: 'V-33333333', r1t: '0414-1111111', r2t: '' }, { cedula: 'V-11111111', fiador_ci: 'V-22222222' })).sort().join() === 'C11111111,C33333333,T4141111111');
 ok('el visto bueno vence', LN.lnPaseVigente({ hasta: '2026-12-01T00:00:00.000Z' }, '2026-11-26T12:00:00.000Z') && !LN.lnPaseVigente({ hasta: '2026-11-20T00:00:00.000Z' }, '2026-11-26T12:00:00.000Z') && !LN.lnPaseVigente(null));
 ok('el aviso dice exactamente lo que pidió Luis', LN.LN_MENSAJE === 'Coincidencia con Cédula en Contrato Anterior. ERROR BL26. Comunicarse con Departamento de Verificación Documental');
 
@@ -36,6 +37,7 @@ const auto = LN.lnAutoDe('26', [
   { id: 'M-8', estado: 'mora', cli: 'UNO', dias: 45 }                       // crédito viejo enlazado por nombre
 ], clientes);
 ok('entra quien tiene MÁS de 30 días de atraso o una moto recuperada, y nadie más', Object.keys(auto).sort().join() === 'C11111111,C33333333' && LN.LN_AUTO_DIAS === 30);
+ok('un crédito viejo enlazado por nombre no anota a un tocayo: si dos clientes se llaman igual, no se adivina', Object.keys(LN.lnAutoDe('26', [{ id: 'M-1', estado: 'mora', cli: 'JUAN PEREZ', dias: 90 }], [{ id: 'A', nombre: 'JUAN PEREZ', cedula: 'V-10000001' }, { id: 'B', nombre: 'JUAN PEREZ', cedula: 'V-10000002' }])).length === 0);
 ok('...con su motivo, su teléfono y de qué crédito sale', auto.C11111111.motivo === 'Mala paga' && auto.C11111111.telKey === 'T4141111111' && auto.C11111111.detalle.length === 2 && auto.C11111111.detalle[0].credito === 'M-1' && auto.C11111111.detalle[0].empresa === '26'
   && auto.C33333333.motivo === 'Moto recuperada' && auto.C33333333.detalle[0].recuperada === true);
 
@@ -52,6 +54,15 @@ const credAtrasado = { id: 'M-9', fecha: '2026-08-01', cuotaQ: 80, totalCuotas: 
 ok('los días de atraso salen del mismo motor de cuotas del sistema', bot.atrasoDe(credAtrasado, [], '2026-11-26') > 90 && bot.atrasoDe(Object.assign({}, credAtrasado, { fecha: '2026-11-20' }), [], '2026-11-26') === 0);
 const deEmp = bot.autoDeEmpresa('18', { creditos: [credAtrasado], pagos: [], clientes: [{ id: 'K1', nombre: 'UNO', cedula: 'V-11111111' }].map(c => c) }, '2026-11-26');
 ok('...y un crédito sin cliente enlazado no rompe nada', Object.keys(deEmp).length === 0);
+const cliK = [{ id: 'K1', nombre: 'UNO', cedula: 'V-11111111', tel: '0414-1111111' }];
+const credK = Object.assign({}, credAtrasado, { clienteId: 'K1', cli: 'UNO' });
+ok('un crédito con su cliente y sin pagos, vencido hace meses, entra', Object.keys(bot.autoDeEmpresa('18', { creditos: [credK], pagos: [], clientes: cliK }, '2026-11-26')).join() === 'C11111111');
+const pagosAlDia = [1,2,3,4,5,6,7].map(i => ({ id: 'P' + i, cred: 'M-9', monto: 80, fecha: '2026-08-' + String(10 + i), estado: 'confirmado' }));
+ok('...con sus cuotas pagadas, no', Object.keys(bot.autoDeEmpresa('18', { creditos: [credK], pagos: pagosAlDia, clientes: cliK }, '2026-11-26')).length === 0);
+ok('...y tampoco si esos pagos están eliminados «manteniendo la amortización» (el sistema lo da al día)', Object.keys(bot.autoDeEmpresa('18', { creditos: [credK], pagos: pagosAlDia.map(p => Object.assign({}, p, { eliminado: true, mantenerEnAmortizacion: true })), clientes: cliK }, '2026-11-26')).length === 0);
+ok('...pero un pago eliminado de verdad no cuenta', Object.keys(bot.autoDeEmpresa('18', { creditos: [credK], pagos: pagosAlDia.map(p => Object.assign({}, p, { eliminado: true })), clientes: cliK }, '2026-11-26')).length === 1);
+ok('si una base responde sin créditos o sin clientes, el robot no escribe (borraría a todos)', bot.lecturaCreible({ creditos: [credK], clientes: cliK }) && !bot.lecturaCreible({ creditos: [], clientes: cliK }) && !bot.lecturaCreible({ creditos: [credK], clientes: [] }) && /if \(!lecturaCreible\(datos\)\) throw/.test(src('bot/lista-negra.js')));
+ok('el log público no repite el mensaje de un error (puede traer una cédula)', bot.errorParaElLog(Object.assign(new Error('5 NOT_FOUND: listaNegraAuto/C12345678'), { code: 'not-found' })) === 'not-found' && !/\d{6}/.test(bot.errorParaElLog(new Error('x C12345678'))) && !/e\.message/.test(src('bot/lista-negra.js').split('if (require.main')[1]));
 // El robot corre desde el repositorio de PAGASI 18 (lee las dos bases y escribe en la 26): el otro no lleva este archivo.
 const wfRuta = path.join(ROOT, '.github/workflows/lista-negra.yml');
 if (fs.existsSync(wfRuta)) { const wf = fs.readFileSync(wfRuta, 'utf8'); ok('el robot corre dos veces al día y se puede lanzar a mano sin escribir', /cron: '20 10,17 \* \* \*'/.test(wf) && /solo_leer/.test(wf) && /node lista-negra\.js/.test(wf)); }
@@ -115,6 +126,17 @@ const limpiar = () => { ventanas.length = 0; vm.runInContext('_lnLibres = {}; _l
   await vueltas();
   ok('con todos limpios la puerta consulta y deja seguir', r === false && siguio === 1 && ventanas.length === 0 && B.lecturas === 6);
   ok('...y la segunda pasada (el guardado de verdad) ya no vuelve a consultar', ctx.lnPuerta(FORM, () => { siguio++; }) === true && B.lecturas === 6);
+
+  // 4a-bis. Cancelan o cierran la ventana mientras el sistema consulta: NO se guarda
+  B = baseFalsa({}); ctx.db = B; limpiar(); siguio = 0; let abierta = true, soltado = 0;
+  ctx.lnPuerta(Object.assign({}, FORM, { vigente: () => abierta }), () => { siguio++; }, () => { soltado++; }); abierta = false; await vueltas();
+  ok('si cierran la ventana mientras se consulta, no se guarda nada', siguio === 0 && soltado === 1 && ventanas.length === 0);
+  ctx.lnPuerta(Object.assign({}, FORM, { vigente: () => true }), () => { siguio++; }); await vueltas();
+  ok('...y con la ventana abierta sigue como siempre', siguio === 1);
+  B = baseFalsa({ listaNegraIndice: { 'M-C11111111': {} } }); ctx.db = B; limpiar(); siguio = 0; abierta = true; como('Empleado', ['dash', 'listanegra']);
+  ctx.lnPuerta(Object.assign({}, FORM, { vigente: () => abierta }), () => { siguio++; }); await vueltas(); abierta = false; els['ln-ventana-pase'].onclick(); await vueltas();
+  ok('...ni se guarda si autorizan con la ventana del cliente ya cerrada', siguio === 0);
+  como('Vendedor', ['dash', 'clientes', 'creditos']);
 
   // 4b. El cliente está anotado a mano: frena
   B = baseFalsa({ listaNegraIndice: { 'M-C11111111': { t: 'manual' } } }); ctx.db = B; limpiar(); siguio = 0; let frenado = 0;
@@ -199,7 +221,7 @@ const limpiar = () => { ventanas.length = 0; vm.runInContext('_lnLibres = {}; _l
   ok('...pero no ve los botones de modificar ni eliminar (son de administrador)', !/lnEliminar\(/.test(html) && !/>Editar</.test(html));
   como('Administrador', []);
   html = ctx.PG.listanegra();
-  ok('un administrador sí, y solo en lo anotado a mano', (html.match(/lnEliminar\(/g) || []).length === 1 && /lnAbrir\('C77777777'\)/.test(html));
+  ok('un administrador sí, y solo en lo anotado a mano', (html.match(/lnEliminar\(/g) || []).length === 1 && /data-id="C77777777" onclick="lnAbrir\(this\.dataset\.id\)"/.test(html));
 
   // Agregar
   como('Empleado', ['dash', 'listanegra']);
@@ -225,8 +247,12 @@ const limpiar = () => { ventanas.length = 0; vm.runInContext('_lnLibres = {}; _l
   ctx.lnGuardar('C77777777'); await vueltas();
   ok('al modificar cambia los datos y la marca del teléfono nuevo; la del viejo se queda porque otro la usa', B.datos.listaNegra.C77777777.motivo === 'Fraude' && B.datos.listaNegra.C77777777.telKey === 'T4241112233' && !!B.datos.listaNegraIndice['M-T4241112233'] && !!B.datos.listaNegraIndice['M-T4147777777'] && B.datos.listaNegra.C77777777.cedulaKey === 'C77777777');
   vm.runInContext('_ln.suscrito = false;', ctx); ctx.PG.listanegra();
+  llenar({ ln_nom: 'PERSONA SIETE', ln_tel: '0426-9998877', ln_mot: 'Fraude', ln_com: '' });
+  ctx.lnGuardar('C77777777'); await vueltas();
+  ok('...y cuando el teléfono viejo no lo usa nadie más, su marca sí se quita', !B.datos.listaNegraIndice['M-T4241112233'] && !!B.datos.listaNegraIndice['M-T4269998877']);
+  vm.runInContext('_ln.suscrito = false;', ctx); ctx.PG.listanegra();
   ctx.lnEliminar('C77777777'); await vueltas();
-  ok('al eliminar se van el registro y sus marcas, y el sistema deja de frenar', !B.datos.listaNegra.C77777777 && !B.datos.listaNegraIndice['M-C77777777'] && !B.datos.listaNegraIndice['M-T4241112233']);
+  ok('al eliminar se van el registro y sus marcas, y el sistema deja de frenar', !B.datos.listaNegra.C77777777 && !B.datos.listaNegraIndice['M-C77777777'] && !B.datos.listaNegraIndice['M-T4269998877']);
 
   // Buscar
   como('Empleado', ['dash', 'listanegra']);
@@ -247,6 +273,12 @@ const limpiar = () => { ventanas.length = 0; vm.runInContext('_lnLibres = {}; _l
   vm.runInContext("_ln.tab = 'frenados'; _ln.suscrito = false;", ctx);
   html = ctx.PG.listanegra();
   ok('Verificación ve a quién frenó el sistema y por qué', /VENDEDOR UNO quiso cargar a CLIENTE X/.test(html) && /PERSONA OCHO/.test(html) && /1 por revisar/.test(html) && /Autorizar 7 días/.test(html));
+  ok('los botones no llevan el id escrito dentro del código: va en un dato aparte', /data-id="A1" onclick="lnResolver\(this\.dataset\.id, true\)"/.test(html) && !/lnResolver\('/.test(html));
+  B.datos.listaNegraAvisos["x');window.PWN=1;//"] = { fecha: '2026-11-26T16:00:00.000Z', uid: 'U-M', usuario: '<img src=x onerror=alert(1)>', estado: 'pendiente', nombre: 'Y', coincidencias: [{ clave: 12345, papel: null }, 'basura', null] };
+  vm.runInContext('_ln.suscrito = false;', ctx); html = ctx.PG.listanegra();
+  ok('un aviso armado con mala intención no corre código ni rompe la pestaña', !/onclick="[^"]*PWN/.test(html) && /data-id="x&#39;\);window\.PWN=1;\/\/"/.test(html) && !/<img src=x/.test(html) && /VENDEDOR UNO quiso cargar/.test(html));
+  ctx.lnResolver("x');window.PWN=1;//", true); await vueltas();
+  ok('...y al autorizarlo no se crea ningún visto bueno con claves inventadas', Object.keys(B.datos.listaNegraPases || {}).every(k => /^[CT][0-9]{6,10}$/.test(k)));
   ctx.lnResolver('A1', true); await vueltas();
   ok('...al autorizar queda el visto bueno y el aviso resuelto', !!B.datos.listaNegraPases.C88888888 && B.datos.listaNegraAvisos.A1.estado === 'autorizado' && B.datos.listaNegraAvisos.A1.resueltoPor === 'Empleado de prueba');
 
@@ -256,8 +288,26 @@ const limpiar = () => { ventanas.length = 0; vm.runInContext('_lnLibres = {}; _l
   ok('Nuevo Cliente pasa por la puerta ANTES de guardar', fCli.indexOf('lnPuerta(') > 0 && fCli.indexOf('lnPuerta(') < fCli.indexOf('nextClienteIdAsync()') && /origen:'cliente'/.test(fCli) && /yaGuardadas: _lnFicha \? lnClavesDeFicha\(_lnFicha\) : null/.test(fCli));
   const fWz = cre.slice(cre.indexOf('function _wzGuardar(){'), cre.indexOf('function _wzGuardar(){') + 3200);
   ok('Nueva Solicitud pasa por la puerta lo primero, antes de guardar nada (ni la moto nueva del catálogo)', fWz.indexOf('lnPuerta(') > 0 && fWz.indexOf('lnPuerta(') < fWz.indexOf("btn.textContent='Guardando...'") && /origen:'solicitud'/.test(fWz));
-  ok('al EDITAR un crédito, el cliente se busca por el elegido o por su cédula, para no frenarlo por lo que ya tenía', /var _lnFichaWz = !window\._wzEditando \? null : /.test(fWz) && /_lnCiWz/.test(fWz));
-  ok('quien marcó «sin fiador» no queda frenado por un fiador que ya no va', (cli + cre).split("fiador_ci:(String(WZ.fiador_tiene||'')==='no' ? '' : WZ.fiador_ci)").length === 3);
+  ok('al EDITAR un crédito, lo «ya guardado» sale de ESE crédito y de su cliente original', /yaGuardadas: _lnCredEd \? lnClavesDeCredito\(_lnCredEd, _lnCliEd\) : null/.test(fWz) && /var _lnCredEd = _lnEd \? /.test(fWz) && !/_lnFichaWz/.test(cre));
+  ok('...y si cierran la ventana o ya es otro crédito, no se guarda', /vigente: function\(\)\{[^}]*wz-overlay[^}]*\(window\._wzEditando \|\| null\) === _lnEd; \}/.test(fWz));
+  ok('la solicitud revisa el fiador que de verdad va al crédito (con «Sin fiador» no guarda ninguno)', /fiador_ci:_wzFiadorDato\('fiador_ci'\)/.test(fWz) && /fiador_ci: _wzFiadorDato\('fiador_ci'\)/.test(cre));
+  ok('la ficha de cliente revisa SIEMPRE la cédula del fiador, porque la guarda aunque diga «Sin fiador»', /fiador_ci:WZ\.fiador_ci, r1ci:WZ\.r1ci/.test(fCli) && /fiador_ci: WZ\.fiador_ci\|\|''/.test(cli) && !/fiador_tiene\|\|''\)==='no' \? '' : WZ\.fiador_ci/.test(cli + cre));
+  ok('...y si cancelan mientras se consulta, la ficha no se guarda', /vigente: function\(\)\{[^}]*wz-overlay[^}]*clienteEditId[^}]*\}/.test(fCli));
+  // Con el crédito y la ficha de mentira: qué se revisa de verdad al editar
+  const credViejo = { id: 'M-50', clienteId: 'K1', cli: 'UNO', fiador_ci: '', r1ci: '', r1t: '0414-3333333', r2ci: '', r2t: '' };
+  const fichaHoy = { id: 'K1', nombre: 'UNO', cedula: 'V-11111111', fiador_ci: 'V-22222222', ref1: { tel: '0412-9999999' }, ref2: {} };
+  const yaCred = ctx.lnClavesDeCredito(credViejo, fichaHoy);
+  B = baseFalsa({ listaNegraIndice: { 'M-C22222222': {}, 'M-C88888888': {}, 'M-T4143333333': {} } }); ctx.db = B; limpiar(); let pasa = 0;
+  let rr = ctx.lnPuerta({ ci: 'V-11111111', fiador_ci: '', r1t: '0414-3333333', yaGuardadas: yaCred }, () => { pasa++; });
+  ok('editar un crédito sin cambiarle nada no frena, aunque su referencia esté hoy en la lista', rr === true && B.lecturas === 0);
+  ctx.lnPuerta({ ci: 'V-11111111', fiador_ci: 'V-22222222', r1t: '0414-3333333', yaGuardadas: yaCred }, () => { pasa++; }); await vueltas();
+  ok('ponerle al crédito el fiador de la ficha (que el crédito no tenía) SÍ se revisa y frena', pasa === 0 && ventanas.length === 1);
+  limpiar();
+  ctx.lnPuerta({ ci: 'V-88888888', fiador_ci: '', r1t: '0414-3333333', yaGuardadas: yaCred }, () => { pasa++; }); await vueltas();
+  ok('cambiarle el cliente por uno de la lista también frena', pasa === 0 && ventanas.length === 1);
+  const apr = src('logic/aprobaciones.js');
+  const fApr = apr.slice(apr.indexOf('function _aprAprobarConfirm('), apr.indexOf('function _aprAprobarConfirm(') + 3600);
+  ok('al APROBAR una solicitud se vuelve a revisar, antes de activarla', fApr.indexOf('lnPuerta(') > 0 && fApr.indexOf('lnPuerta(') < fApr.indexOf("c.estado = 'activo';") && /origen:'aprobación'/.test(fApr) && /function\(\)\{ _aprAprobarConfirm\(credId\); \}/.test(fApr));
   const reglas = src('firestore.rules');
   const bloque = n => { const i = reglas.indexOf('match /' + n + '/{'); return i < 0 ? '' : reglas.slice(i, reglas.indexOf('\n    }\n', i)); };
   ok('Reglas: la lista la lee y la llena quien tiene el permiso; modificar y eliminar, solo un administrador',

@@ -156,6 +156,15 @@ function _aprAprobarConfirm(credId){
   if(!metodo){ toast('Elige en qué cuenta entró la inicial','error'); return; }
   var ref = ($('apr_ini_ref')&&$('apr_ini_ref').value) || '';
   if(!(monto>0)){ toast('Indica la inicial recibida','error'); return; }
+  // Lista negra (26-nov-2026): al aprobar se vuelve a revisar. La solicitud pudo entrar cuando la consulta
+  // falló, o a la persona la anotaron después de que el vendedor la cargó.
+  if(typeof lnPuerta==='function'){
+    var _lnCli = (S.clientes||[]).find(function(x){ return x && !x.eliminado && c.clienteId!=null && String(x.id)===String(c.clienteId); })
+              || (S.clientes||[]).find(function(x){ return x && !x.eliminado && x.nombre && x.nombre===c.cli; }) || {};
+    if(!lnPuerta({ origen:'aprobación', nom:c.cli, ci:_lnCli.cedula, fiador_ci:c.fiador_ci, r1ci:c.r1ci, r1t:c.r1t, r2ci:c.r2ci, r2t:c.r2t, concesionarioId:c.concesionarioId,
+                   vigente: function(){ var o = $('ov'); return !!(o && o.style.display !== 'none' && $('apr_ini_monto')) && c.estado === 'pendiente_revision'; } },
+                 function(){ _aprAprobarConfirm(credId); })) return;
+  }
   var nombreUser = (S.currentUser&&S.currentUser.nombre)||'Admin';
   c.estado = 'activo';
   c.aprobadoEn = new Date().toISOString();
