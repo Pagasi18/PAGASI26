@@ -648,16 +648,21 @@ function dfReporte(key, formato){
     d.pagos.slice().sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); }).forEach(function(p){
       var m=parseFloat(p.monto)||0; var c=d.credIdx[p.cred]; var ratio=0;
       if(c){ var pr=d.principal(c), tt=d.totalPI(c); ratio=tt>0?pr/tt:0; }
-      var mp=m*ratio, pt=d.partirResto(c, m*(1-ratio)), iva=pt.protect*_DF_IVA_PROTECT;
-      tot+=m; tp+=mp; ti+=pt.interes; tpr+=pt.protect; tsv+=pt.servicios; tiva+=iva;
+      var mp=m*ratio, pt=d.partirResto(c, m*(1-ratio));
+      // El contador, 27-nov-2026: "cuando sumas los conceptos y el IVA, no cuadra con el monto pagado". Este reporte
+      // ponía el Protect completo y además un 16 % "aparte" que nadie le cobra al cliente. Aquí el IVA va DENTRO del
+      // Protect (regla de Adam del 23-sep-2026, la misma de QuickBooks): base = Protect ÷ 1,16 e IVA = el resto, así
+      // Principal + Interés + Protect + Otros + IVA = lo pagado. Solo este reporte: las tarjetas del dashboard no cambian.
+      var prBase=Math.round(pt.protect/(1+_DF_IVA_PROTECT)*100)/100, iva=pt.protect-prBase;
+      tot+=m; tp+=mp; ti+=pt.interes; tpr+=prBase; tsv+=pt.servicios; tiva+=iva;
       // "Recibido en": como se cobro la cuota (Adam, 11-sep-2026). "N° Referencia":
       // el numero de la transferencia o comprobante (Adam, 14-sep-2026). Mismos datos
       // y mismos nombres que el formulario de pago. La referencia va como TEXTO para
       // que no se pierdan los ceros a la izquierda.
-      rows.push([p.fecha||'', p.id, p.cred||'', p.cli||'', p.metodo||p.cuenta||'—', String(p.referencia||'').trim()||'—', m, mp, pt.interes, pt.protect, pt.servicios, iva]);
+      rows.push([p.fecha||'', p.id, p.cred||'', p.cli||'', p.metodo||p.cuenta||'—', String(p.referencia||'').trim()||'—', m, mp, pt.interes, prBase, pt.servicios, iva]);
     });
     secciones.push({ titulo:'Detalle de cuotas cobradas ('+d.pagos.length+')',
-      headers:['Fecha','Pago','Crédito','Cliente','Recibido en','N° Referencia','Monto','Principal (moto)','Interés','Pagasi Protect','Otros servicios','IVA 16% Protect (aparte)'],
+      headers:['Fecha','Pago','Crédito','Cliente','Recibido en','N° Referencia','Monto','Principal (moto)','Interés','Pagasi Protect (sin IVA)','Otros servicios','IVA 16% (dentro del Protect)'],
       rows:rows, nums:[6,7,8,9,10,11], total:['TOTAL','','','','','',tot,tp,ti,tpr,tsv,tiva] });
     horizontal = true;
   } else if(key==='mora'){

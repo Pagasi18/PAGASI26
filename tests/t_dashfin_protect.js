@@ -98,5 +98,20 @@ const f498=filas.find(f=>f && f[0]==='CRED-498'), f499=filas.find(f=>f && f[0]==
 ok('CRED-498 sale como Servicios y CRED-499 como Pagasi Protect', f498 && f498[4]==='Servicios' && f499 && f499[4]==='Pagasi Protect');
 ok('el CRED-498 no tiene Protect ni interés', f498 && f498[hdr.indexOf('Pagasi Protect')]===0 && f498[hdr.indexOf('Interés')]===0 && f498[hdr.indexOf('Otros servicios')]===900);
 
+// El contador, 27-nov-2026: en el reporte de Cuotas cobradas "cuando sumas los conceptos y el IVA, no cuadra con el
+// monto pagado". En ESE reporte el IVA va dentro del Protect (÷ 1,16), como en QuickBooks. El dashboard no cambia.
+global.S.pagos=[{id:'P1',cred:'CRED-498',fecha:'2026-09-21',monto:75,estado:'confirmado'},{id:'P2',cred:'CRED-499',fecha:'2026-09-22',monto:75,estado:'confirmado'},{id:'P3',cred:'CRED-499',fecha:'2026-09-07',monto:600,estado:'confirmado',esInicial:true}];
+excel=null; API.dfReporte('cuotas','excel');
+{
+  const fc=(excel&&excel.filas)||[], ih=fc.findIndex(r=>Array.isArray(r) && r.indexOf('Monto')>-1 && r.indexOf('Principal (moto)')>-1), h=fc[ih]||[];
+  const iM=h.indexOf('Monto'), iP=h.indexOf('Principal (moto)'), iI=h.indexOf('Interés'), iPr=h.indexOf('Pagasi Protect (sin IVA)'), iS=h.indexOf('Otros servicios'), iV=h.indexOf('IVA 16% (dentro del Protect)');
+  const det=fc.slice(ih+1).filter(r=>Array.isArray(r) && typeof r[iM]==='number' && r[iM]>0);
+  ok('cuotas cobradas: las columnas dicen que el Protect va sin IVA y que el IVA va dentro', ih>-1 && iPr>-1 && iV>-1 && h.indexOf('IVA 16% Protect (aparte)')===-1);
+  ok('cuotas cobradas: en cada fila principal + interés + Protect + otros + IVA = lo pagado', det.length>=2 && det.every(r=>cerca(r[iP]+r[iI]+r[iPr]+r[iS]+r[iV], r[iM])));
+  const conPr=det.filter(r=>r[iPr]>0);
+  ok('cuotas cobradas: el IVA es el 16 % de la base del Protect, por dentro (no un 16 % encima)', conPr.length>=1 && conPr.every(r=>Math.abs(r[iV]-r[iPr]*0.16)<0.011));
+  { const dd=API._dfDatos(); ok('el dashboard no cambió: su tarjeta de IVA sigue con el criterio de antes', dd.cuotasProtect>0 && cerca(dd.ivaCobrado,dd.cuotasProtect*0.16)); }
+}
+
 console.log(''); console.log(pass+' pruebas OK, '+fail+' fallas');
 if(fail) process.exitCode=1;
