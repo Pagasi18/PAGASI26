@@ -1845,6 +1845,14 @@ function _cliGuardar(){
   var cedNorm=(WZ.ci||'').replace(/\s/g,'').toLowerCase();
   var dup=(S.clientes||[]).find(function(x){ return !x.eliminado && x.cedula && x.cedula.replace(/\s/g,'').toLowerCase()===cedNorm && String(x.id)!==String(edId||''); });
   if(dup){ toast(' Ya existe un cliente con esa cédula: '+dup.nombre,'error'); return; }
+  // Lista negra (26-nov-2026): antes de guardar se revisan las cédulas del cliente, el fiador y las
+  // referencias, y el teléfono de las referencias. Si alguna está en la lista, sale el aviso en clave y
+  // no se guarda. Al EDITAR una ficha solo cuenta lo que cambió, no lo que ya tenía guardado.
+  if(typeof lnPuerta==='function'){
+    var _lnFicha = edId ? (S.clientes||[]).find(function(x){ return String(x.id)===String(edId); }) : null;
+    if(!lnPuerta({ origen:'cliente', nom:WZ.nom, ci:WZ.ci, fiador_ci:(String(WZ.fiador_tiene||'')==='no' ? '' : WZ.fiador_ci), r1ci:WZ.r1ci, r1t:WZ.r1t, r2ci:WZ.r2ci, r2t:WZ.r2t,
+                   yaGuardadas: _lnFicha ? lnClavesDeFicha(_lnFicha) : null }, _cliGuardar)) return;
+  }
   nextClienteIdAsync().then(function(_nextCliId){
   var obj={
     id: edId || _nextCliId,

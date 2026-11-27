@@ -6,7 +6,7 @@ var PG_MENU_GROUPS=[
   {label:'Mi trabajo',keys:['dash','clientes','creditos']},
   {label:'Seguimiento',keys:['pagos','cobranza','redes','redescob','gps','notif']},
   {label:'Finanzas',keys:['grupo','ai','reportes','cuentas','comisiones','conta']},
-  {label:'Administración',keys:['concesionarios','users','catalogo','metricas','cumplimiento','plan','config','centro','scores','recursos']}
+  {label:'Administración',keys:['concesionarios','users','catalogo','metricas','cumplimiento','listanegra','plan','config','centro','scores','recursos']}
 ];
 var PG_MENU_HINTS={grupo:'Las dos compañías juntas',ai:'Pregúntale a los datos',dash:'Tu actividad y próximos pasos',clientes:'Buscar o registrar un cliente',motos:'Consultar el inventario',creditos:'Consultar el estado de un crédito',calculadora:'Simular inicial y cuotas',contratos:'Preparar los documentos',aprobaciones:'Solicitudes por revisar',pagos:'Pagos y cuotas de clientes',redes:'Chats de ventas: Instagram y WhatsApp',redescob:'Chats de cobranza por WhatsApp',gps:'Ubicación y seguimiento',notif:'Avisos de tu cuenta',cuentas:'Saldos y movimientos',concesionarios:'Sedes y aliados',users:'Equipo y permisos',catalogo:'Productos de la página web'};
 function pgNavElement(tag,cls,text){var el=document.createElement(tag);if(cls)el.className=cls;if(text!=null)el.textContent=String(text);return el;}

@@ -702,6 +702,52 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // == Lista negra (26-nov-2026) ==
+    // Personas con las que no se vuelve a hacer negocio sin que Verificacion lo autorice. La lista la
+    // lee y la llena quien tiene el permiso "listanegra" (y los administradores); modificar o eliminar,
+    // solo un administrador. El vendedor NO lee la lista: solo puede preguntar por UNA marca del indice,
+    // sabiendo la cedula o el telefono, y esa marca no dice quien es ni por que esta.
+    function veListaNegra() { return esInterno() && (esAdmin() || permiso('listanegra')); }
+    match /listaNegra/{id} {
+      allow read: if veListaNegra();
+      allow create: if veListaNegra() && request.resource.data.cedulaKey == id;
+      allow update: if esAdmin() && request.resource.data.cedulaKey == resource.data.cedulaKey;
+      allow delete: if esAdmin();
+    }
+    // "Mala paga" automatica (mas de 30 dias de atraso o moto recuperada, en la 18 o la 26): la escribe
+    // solo el robot bot/lista-negra.js con su cuenta de servicio, que no pasa por estas Reglas.
+    match /listaNegraAuto/{id} {
+      allow read: if veListaNegra();
+      allow write: if false;
+    }
+    // La lista publica de malapagas.com, cargada una vez: solo para el buscador, de a una cedula.
+    match /malapagas/{id} {
+      allow get: if veListaNegra();
+      allow list, write: if false;
+    }
+    // Las marcas: M-<clave> las pone el panel al anotar a alguien; A-<clave> las pone el robot.
+    match /listaNegraIndice/{clave} {
+      allow get: if esStaff();
+      allow list: if false;
+      allow create, update: if veListaNegra() && clave.matches('M-[CT][0-9]{6,10}');
+      allow delete: if esAdmin() && clave.matches('M-[CT][0-9]{6,10}');
+    }
+    // Cada vez que el sistema freno a alguien. Lo anota quien fue frenado (con su propio uid) y lo ve
+    // y lo resuelve Verificacion.
+    match /listaNegraAvisos/{id} {
+      allow create: if esStaff() && request.resource.data.uid == request.auth.uid && request.resource.data.estado == 'pendiente';
+      allow read: if veListaNegra();
+      allow update: if veListaNegra()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'resueltoPor', 'resueltoEn']);
+      allow delete: if esAdmin();
+    }
+    // El visto bueno de Verificacion para una clave, con fecha de vencimiento.
+    match /listaNegraPases/{clave} {
+      allow get: if esStaff();
+      allow list: if veListaNegra();
+      allow create, update, delete: if veListaNegra();
+    }
+
     match /logs/{id} {
       allow read: if esAdmin();
       allow create: if esStaff();

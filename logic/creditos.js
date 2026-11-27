@@ -2937,6 +2937,18 @@ function _wzFaltaCuentaInicial(ini){
 }
 function _wzGuardar(){
   _wzCollectVisibleValues();
+  // Lista negra (26-nov-2026): lo PRIMERO, antes de guardar nada (ni la moto nueva del catálogo). Se
+  // revisan las cédulas del cliente, el fiador y las referencias, y el teléfono de las referencias. Una
+  // solicitud NUEVA revisa todo, también a un cliente que ya existe: es justo el caso de quien quedó
+  // debiendo y vuelve por otra moto. Al EDITAR un crédito solo cuenta lo que cambió en la ficha.
+  if(typeof lnPuerta==='function'){
+    // (el cliente del crédito que se edita se busca igual que más abajo: por el elegido o por su cédula)
+    var _lnCiWz = String(WZ.ci||'').replace(/\s/g,'').toLowerCase();
+    var _lnFichaWz = !window._wzEditando ? null : ((S.clientes||[]).find(function(c){ return !c.eliminado && WZ.clienteSel && String(c.id)===String(WZ.clienteSel); })
+      || (S.clientes||[]).find(function(c){ return !c.eliminado && c.cedula && _lnCiWz && String(c.cedula).replace(/\s/g,'').toLowerCase()===_lnCiWz; }) || null);
+    if(!lnPuerta({ origen:'solicitud', nom:WZ.nom, ci:WZ.ci, fiador_ci:(String(WZ.fiador_tiene||'')==='no' ? '' : WZ.fiador_ci), r1ci:WZ.r1ci, r1t:WZ.r1t, r2ci:WZ.r2ci, r2t:WZ.r2t, concesionarioId:WZ.concesionarioId,
+                   yaGuardadas: _lnFichaWz ? lnClavesDeFicha(_lnFichaWz) : null }, _wzGuardar)) return;
+  }
   var btn = document.querySelector('#wz-overlay button[onclick="_wzGuardar()"]');
   if(btn){ btn.textContent='Guardando...'; btn.disabled=true; }
 
