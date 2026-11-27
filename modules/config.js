@@ -88,6 +88,17 @@ PG.config = function(){
     </div>
   </div>
 
+  <!-- Idioma del sistema (27-nov-2026): cada usuario elige el suyo; se guarda en su ficha -->
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div><div class="ct">🌐 Idioma del sistema</div><div class="cs">Cambia el idioma de tu panel. El de cada usuario lo pone el administrador en Usuarios. Los contratos, recibos y mensajes al cliente siguen saliendo en español.</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        ${typeof pgIdiomaSelectHTML==='function' ? pgIdiomaSelectHTML('cfg_idioma', (S.currentUser&&S.currentUser.idioma)||'es') : ''}
+        <button class="btn btn-p btn-sm" onclick="if(typeof pgIdiomaGuardar==='function')pgIdiomaGuardar(document.getElementById('cfg_idioma').value)">Guardar idioma</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Tabs de configuración -->
   <div style="display:flex;gap:0;border-bottom:2px solid var(--rim);margin-bottom:16px">
     ${[

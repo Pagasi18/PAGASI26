@@ -3209,6 +3209,11 @@ function _attachCurrentUserListener(uid){
         setTimeout(function(){ try{ auth.signOut(); }catch(e){} }, 1200);
         return;
       }
+      // Idioma del panel (27-nov-2026): si se lo cambian desde Usuarios, se aplica sin recargar.
+      if((data.idioma||'es') !== (S.currentUser.idioma||'es')){
+        S.currentUser.idioma = data.idioma || 'es';
+        if(typeof pgIdiomaUsuario === 'function') pgIdiomaUsuario();
+      }
       var prevRol = S.currentUser.rol;
       var prevPerms = (S.currentUser.permisos||[]).slice().sort().join('|');
       var nuevoRol = data.rol || S.currentUser.rol;

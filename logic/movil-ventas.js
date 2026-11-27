@@ -151,7 +151,7 @@ function pgMobileUpdateSections(){
       if(!done&&typeof _wzChipVal==='function')done=Array.prototype.some.call(panel.querySelectorAll('[id$="_g"]'),function(group){return !!_wzChipVal(group.id);});
       text=done?'Con datos':'Opcional';
     }
-    if(state&&state.textContent!==text)state.textContent=text;
+    if(state&&(typeof pgTextoEs==='function'?pgTextoEs(state):state.textContent)!==text)state.textContent=text;
     panel.classList.toggle('is-complete',done);
   });
 }

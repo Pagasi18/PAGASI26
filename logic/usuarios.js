@@ -996,6 +996,8 @@ function openInviteUser(){
     + '<div class="fg"><label>Nombre completo</label><input class="fi" id="invu_nombre" placeholder="Nombre completo"></div>'
     + '<div class="fg"><label>🎂 Cumpleaños</label><input class="fi" id="invu_cumple" type="date" placeholder="dd/mm/aaaa"></div>'
     + '</div>'
+    // Idioma del panel para este usuario (27-nov-2026): lo elige el admin al invitar.
+    + '<div class="fg" style="margin-top:10px"><label>🌐 Idioma del sistema para este usuario</label>'+(typeof pgIdiomaSelectHTML==='function'?pgIdiomaSelectHTML('invu_idioma','es'):'')+'</div>'
     +'</div>'
 
     // Sección 2: Rol (tarjetas)
@@ -1050,6 +1052,7 @@ function openInviteUser(){
       email: email,
       nombre: nombre || email,
       cumpleanos: cumple || '',
+      idioma: (typeof pgIdiomaValido==='function' && $('invu_idioma')) ? pgIdiomaValido($('invu_idioma').value) : 'es',
       rol: rol,
       permisos: permisos,
       creadoPor: (S.currentUser&&S.currentUser.nombre)||'Admin',
@@ -1327,6 +1330,7 @@ function editarUsuario(uid){
       +'<div class="fg"><label>Cargo — es lo que ve el empleado debajo de su nombre</label>'
       +'<input class="fi" id="eu_cargo" maxlength="40" placeholder="Archivologa, Gerente de Cobranzas, Analista de Contratos..." value="'+String(u.cargo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')+'">'
       +'<div style="font-size:10.5px;color:var(--ink3);margin-top:4px">Si lo dejas vacio se sigue viendo el rol, como hasta ahora.</div></div>'
+      +'<div class="fg"><label>🌐 Idioma del sistema para este usuario</label>'+(typeof pgIdiomaSelectHTML==='function'?pgIdiomaSelectHTML('eu_idioma',u.idioma):'')+'</div>'
       +'<div class="fg"><label>Rol — manda en los permisos; no se lo mostramos a nadie mas</label><select class="fs" id="eu_rol">'
       +(function(){
         // Oferta de roles disponibles — incluimos el rol actual aunque sea legacy, para no perderlo por error
@@ -1383,7 +1387,8 @@ function editarUsuario(uid){
       // Antes se navegaba de inmediato (fire-and-forget) y usersReload() releía
       // Firestore ganándole la carrera a la escritura -> el rol "revertía" solo.
       // Además, si la escritura se rechaza (permisos/reglas), ya NO marcamos éxito.
-      DB.updateUsuario(uid,{rol:rol,cargo:cargo,permisos:permisos,comisiones:comNueva,concesionarios:concesAsig}).then(function(ok){
+      var idiomaNuevo = (typeof pgIdiomaValido==='function' && $('eu_idioma')) ? pgIdiomaValido($('eu_idioma').value) : (u.idioma||'es');   // idioma del panel de este usuario
+      DB.updateUsuario(uid,{rol:rol,cargo:cargo,idioma:idiomaNuevo,permisos:permisos,comisiones:comNueva,concesionarios:concesAsig}).then(function(ok){
         if(ok===false){
           toast('El rol NO se guardó (Firebase rechazó el cambio). Revisá el mensaje de error y avisá.','error');
           return;
@@ -1393,7 +1398,7 @@ function editarUsuario(uid){
         try{
           if(typeof _usersCache !== 'undefined' && Array.isArray(_usersCache)){
             var cached = _usersCache.find(function(x){ return x.uid === uid; });
-            if(cached){ cached.rol = rol; cached.cargo = cargo; cached.permisos = permisos; cached.comisiones = comNueva; cached.concesionarios = concesAsig; }
+            if(cached){ cached.rol = rol; cached.cargo = cargo; cached.idioma = idiomaNuevo; cached.permisos = permisos; cached.comisiones = comNueva; cached.concesionarios = concesAsig; }
           }
         }catch(e){}
         // Si es el usuario actual, actualizar currentUser y re-render switcher
@@ -1739,6 +1744,7 @@ function aceptarInvitacion() {
           inviteAcceptedAt: new Date().toISOString(),
           debeActualizar: false
         };
+        if(pending.idioma === 'en') updateData.idioma = 'en';   // idioma elegido por el admin al invitar
         // Limpiar campos temporales del flujo legacy. Solo cuando el doc YA existe:
         // si fuese una creación, borrar inviteToken viola la regla de Firestore
         // (exige que inviteToken sea string) y la escritura se denegaría.
@@ -1764,6 +1770,7 @@ function aceptarInvitacion() {
           comisiones: _activacionData.comisiones || null,
           lastLogin: new Date().toISOString()
         });
+        if(typeof pgIdiomaUsuario === 'function') pgIdiomaUsuario();   // idioma que le puso el admin en la invitacion
         var _sbUn = document.querySelector('.sb-un');
         if (_sbUn) _sbUn.textContent = S.currentUser.nombre;
         var _sbAv = document.querySelector('.sb-av');
@@ -1947,6 +1954,7 @@ if (auth) {
             concesionarios: data.concesionarios || [],
             comisiones: data.comisiones || null
           });
+          if(typeof pgIdiomaUsuario === 'function') pgIdiomaUsuario();   // el panel sale en el idioma de su ficha
           var sbUn = document.querySelector('.sb-un');
           if (sbUn) sbUn.textContent = S.currentUser.nombre;
           var sbAv = document.querySelector('.sb-av');

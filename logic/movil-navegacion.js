@@ -37,7 +37,7 @@ function pgMobileNavigationRefresh(){
     }
   }
   var label=pgMobileModuleLabel(S.page);
-  if(title.textContent!==label)title.textContent=label;
+  if((typeof pgTextoEs==='function'?pgTextoEs(title):title.textContent)!==label)title.textContent=label;
 }
 function pgMobileMenuEntries(){
   var seen={},labels={},groups=[];
