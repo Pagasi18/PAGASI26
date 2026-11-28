@@ -2438,7 +2438,7 @@ var DB = {
       db.collection('config').doc('planes').get(),
       lee('facturas'),
       lee('concesionarios'),
-      db.collection('config').doc('inventarioOficina').get(),
+      NADA,   // (28-nov-2026) aquí se bajaba config/inventarioOficina para todos; ahora el inventario de oficina lo lee su módulo al abrirlo
       sedesVC ? VACIO : db.collection('gps').get(),
       viaRT ? realtimeBootListo(45000) : NADA,
     ]).then(function(snaps){
@@ -2530,12 +2530,9 @@ var DB = {
       if(fac) S.facturas = fac;
       if(conc) S.concesionarios = conc;
       S.gps = snaps[14] ? read(snaps[14], true) : [];
-      try {
-        var _invDoc = snaps[13];
-        S.inventarioOficina = (_invDoc && _invDoc.exists && Array.isArray((_invDoc.data()||{}).items))
-          ? _invDoc.data().items
-          : (function(){ try{ return JSON.parse(localStorage.getItem('pagasi_inv_oficina')||'[]'); }catch(e){ return []; } })();
-      } catch(e){ S.inventarioOficina = S.inventarioOficina || []; }
+      // (28-nov-2026) El inventario de oficina ya no llega aquí ni se saca de la copia vieja del navegador
+      // ('pagasi_inv_oficina'): esa copia podía subirse a la base como si fuera la lista buena. Lo lee su módulo.
+      if(!Array.isArray(S.inventarioOficina)) S.inventarioOficina = [];
       // ── Admin total (sin sedes asignadas) → SIEMPRE arranca con "Todos" ──
       // Solo restauramos el concesionario guardado si el usuario tiene sedes específicas
       // asignadas (no es admin total). Esto evita que el admin se quede pegado en una sede.
@@ -2708,7 +2705,9 @@ DB.numerarFacturas = function(ids){
 // Con merge: cuadrar una cuenta no pisa las otras.
 DB.getMultimoneda = function(){ if(!db) return Promise.resolve(null); return db.collection('config').doc('multimoneda').get().then(function(d){ return d.exists ? d.data() : null; }); };
 DB.guardarAperturaBs = function(nombre, ap){ if(!db) return Promise.resolve(false); var o = { aperturas: {}, actualizado: new Date().toISOString() }; o.aperturas[nombre] = clean(ap); return _dbSilent(function(){ return db.collection('config').doc('multimoneda').set(o, { merge: true }); }); };
-DB.saveInventarioOficina = function(){ if(!db) return Promise.resolve(false); return _dbSilent(function(){ return db.collection('config').doc('inventarioOficina').set({items:(S.inventarioOficina||[]), actualizado:new Date().toISOString()}); }); };
+// (28-nov-2026) El inventario de oficina ya no se guarda desde aquí: DB.saveInventarioOficina escribía la lista COMPLETA con lo
+// que este navegador tenía en memoria y pisaba lo que otra persona hubiera cargado. Ahora cada cambio va en una transacción:
+// invGuardar(), en logic/inventario-oficina.js.
 // Gestiones de cobranza guardadas en el propio crédito (creditos/{id}.gestiones)
 // — evita una colección aparte bloqueada por las reglas; cargan junto con S.creds.
 DB.addGestion = function(credId, nota){
@@ -2794,6 +2793,9 @@ var MODULOS = [
   // quien tenga este permiso; el vendedor solo ve el aviso en clave cuando el sistema lo frena.
   {id:'listanegra', label:'Lista negra', grupo:'Sistema'},
   {id:'catalogo', label:'Catálogo web', grupo:'Sistema'},
+  // 28-nov-2026, Adam: "sácame ese módulo de finanzas y ponlo solo". El inventario de oficina era una pestaña de
+  // Finanzas; ahora es un módulo con su permiso. Lo ven los administradores y a quien se le marque.
+  {id:'inventario', label:'Inventario de oficina', grupo:'Sistema'},
   {id:'metricas', label:'Métricas web', grupo:'Análisis'},
   // 21-nov-2026, Adam: "un modulo nuevo que se llame PAGASI 18 + 26": lo basico de las dos companias
   // juntas. Lo ven los administradores; a los demas se les da marcando este permiso.
@@ -3048,7 +3050,7 @@ function fmtFecha(iso){
 }
 const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const sbg=s=>({activo:'b-g',mora:'b-r',recuperada:'b-a',recuperado:'b-a',disponible:'b-p',financiada:'b-p',inventario:'b-b',confirmado:'b-g',pendiente:'b-a',completado:'b-g',propia:'b-g',cancelado:'b-r'}[s]||'b-x');
-const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Canal WhatsApp',instagram:'Canal Instagram',redes:'Redes Ventas',redescob:'Redes Cobranza',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',listanegra:'Lista negra',catalogo:'Catálogo web',metricas:'Métricas web',grupo:'PAGASI 18 + 26',ai:'AI'};
+const PGL={dash:'Dashboard',centro:'Centro de trabajo',clientes:'Clientes',motos:'Motocicletas',creditos:'Créditos',pagos:'Cobranza',whatsapp:'Canal WhatsApp',instagram:'Canal Instagram',redes:'Redes Ventas',redescob:'Redes Cobranza',cobranza:'Cobranza',contratos:'Contratos',gps:'GPS',notif:'Notificaciones',calculadora:'Calculadora',reportes:'Finanzas',cuentas:'Cuentas',comisiones:'Comisiones',conta:'Finanzas',plan:'Plan & Precios',config:'Configuración',scores:'Scores',users:'Usuarios',concesionarios:'Concesionarios',aprobaciones:'Aprobaciones',recursos:'Files',cumplimiento:'Cumplimiento',listanegra:'Lista negra',catalogo:'Catálogo web',inventario:'Inventario de oficina',metricas:'Métricas web',grupo:'PAGASI 18 + 26',ai:'AI'};
 
 // perm_condiciones (20-nov-2026, Adam: "necesito darle acceso a María Fernanda para que ella pueda
 // cambiar también"): deja cambiar las Condiciones del plan del Catálogo web (tasa, seguro e inicial)
@@ -3070,7 +3072,7 @@ function permisosConCanales(permisos){
 // ══════════════════════════════════════════
 var ROL_PERMISOS = {
   // Acceso total: dueño del sistema
-  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','listanegra','catalogo','metricas','grupo','ai','perm_delete'],
+  Administrador: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas','plan','config','users','cumplimiento','listanegra','catalogo','inventario','metricas','grupo','ai','perm_delete'],
   // Supervisa operaciones, ve reportes, NO toca config ni usuarios
   Gerente: ['dash','centro','clientes','motos','creditos','pagos','cobranza','redes','redescob','whatsapp','instagram','contratos','notif','reportes','cuentas'],
   // Cobra en la oficina: ve todos los clientes, registra pagos, ve cobranza y deudores
@@ -3294,6 +3296,7 @@ var PG_NAVICONS = {
   catalogo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg>',
   cumplimiento:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
   listanegra:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
+  inventario:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>',
   gps:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>',
   dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>',
   centro:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>',
@@ -3365,7 +3368,7 @@ function renderSidebar(){
       // 16-oct-2026: el menu del empleado no listaba Concesionarios ni Cumplimiento, asi que el
       // permiso se daba y el modulo no aparecia (Adam: "le puse concesionarios y nada").
       // Mismos modulos que el menu general; el permiso sigue decidiendo cual se ve.
-      {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','listanegra','catalogo']},
+      {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','listanegra','catalogo','inventario']},
     ];
     var iconMapEmp = {
       dash:'DB',centro:'WK',clientes:'CLI',motos:'MOT',creditos:'SOL',pagos:'PAG',
@@ -3429,7 +3432,7 @@ function renderSidebar(){
     {label:'Gestión', keys:['clientes','motos','creditos','pagos','redes','redescob']},
     {label:'Operaciones',keys:['contratos','gps','notif','calculadora','aprobaciones']},
     {label:'Análisis', keys:['reportes','cuentas','comisiones','metricas']},
-    {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','listanegra','catalogo']},
+    {label:'Sistema', keys:['plan','config','concesionarios','scores','users','cumplimiento','listanegra','catalogo','inventario']},
   ];
   var iconMap = {
     dash:'DB',centro:'WK',clientes:'CLI',motos:'MOT',creditos:'FIN',pagos:'PAG',

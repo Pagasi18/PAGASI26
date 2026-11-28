@@ -203,7 +203,7 @@ const limpiar = () => { ventanas.length = 0; vm.runInContext('_lnLibres = {}; _l
 
   // ════════ 5. El módulo ════════
   ok('está en la lista de módulos, en los dos menús, en el del teléfono y con su nombre', dentro('MODULOS').some(m => m.id === 'listanegra' && m.label === 'Lista negra') && dentro('PGL.listanegra') === 'Lista negra'
-    && (src('assets/pagasi-app.js').match(/'users','cumplimiento','listanegra','catalogo'\]\}/g) || []).length === 2 && /'listanegra'/.test(src('logic/movil-navegacion.js')) && !!dentro('PG_NAVICONS.listanegra'));
+    && (src('assets/pagasi-app.js').match(/'users','cumplimiento','listanegra','catalogo'(,'inventario')?\]\}/g) || []).length === 2 && /'listanegra'/.test(src('logic/movil-navegacion.js')) && !!dentro('PG_NAVICONS.listanegra'));
   ok('los administradores nuevos lo traen; los demás roles no', dentro('ROL_PERMISOS').Administrador.includes('listanegra') && ['Gerente', 'Cobrador', 'Vendedor', 'Contador', 'Empleado'].every(r => !(dentro('ROL_PERMISOS')[r] || []).includes('listanegra')));
   ok('la página se carga: la lógica antes que la pantalla', admin.indexOf('logic/lista-negra.js') > 0 && admin.indexOf('modules/listanegra.js') > admin.indexOf('logic/lista-negra.js'));
   como('Vendedor', ['dash', 'clientes', 'creditos']);

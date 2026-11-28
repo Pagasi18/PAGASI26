@@ -58,9 +58,9 @@ const fila = (h, nombre) => (h.match(new RegExp('<tr[^>]*><th class="qv-n" scope
   ok('al abrirla sale el buscador, el filtro «¿Quién ve…?» y la tabla', /id="qv-buscar"/.test(tab) && /id="qv-modulo"/.test(tab) && /¿Quién ve Cobranza\?/.test(tab) && /class="qv-t"/.test(tab));
   ok('cuando llega la lista de usuarios se vuelve a pintar', /if\(S\.usersTab==='permisos'\) _qvPintar\(\);/.test(src('logic/usuarios.js')));
   // La Lista negra solo existe en la compañía que vende: en PAGASI 18 esa columna no sale
-  const NCOL = run("typeof lnAqui === 'function' && lnAqui()") ? 26 : 25;
+  const NCOL = run("typeof lnAqui === 'function' && lnAqui()") ? 27 : 26;
   const cols = run('_qvColumnas()').map(c => c.id);
-  ok('las columnas: los módulos del menú y los dos permisos especiales (25 con AI desde el 21-nov; 26 con Lista negra donde se vende)', cols.length === NCOL && cols.includes('listanegra') === (NCOL === 26) && cols[0] === 'dash' && cols.includes('grupo') && cols.includes('ai') && cols.includes('redescob') && cols.slice(-2).join() === 'perm_delete,perm_condiciones');
+  ok('las columnas: los módulos del menú y los dos permisos especiales (26 con AI desde el 21-nov e Inventario de oficina desde el 28-nov; 27 con Lista negra donde se vende)', cols.length === NCOL && cols.includes('inventario') && cols.includes('listanegra') === (NCOL === 27) && cols[0] === 'dash' && cols.includes('grupo') && cols.includes('ai') && cols.includes('redescob') && cols.slice(-2).join() === 'perm_delete,perm_condiciones');
   ok('...sin Centro (escondido), Aprobaciones (sale sola con Créditos) ni Files (lo ven todos)', !cols.includes('centro') && !cols.includes('aprobaciones') && !cols.includes('recursos'));
 
   // ══ 2. Lo que se ve ══

@@ -3,6 +3,8 @@ PG.reportes = function(){
   // Tab interno: 'resumen' (default), 'proyecciones', 'egresos', 'exportar'
   // "Libro SENIAT" pasó a ser "Libro de Ventas" (desde las facturas) el 21-oct-2026
   if(S.reportesTab === 'libroseniat') S.reportesTab = 'libroventas';
+  // 28-nov-2026: el inventario de oficina salió de Finanzas; ahora es el módulo «Inventario de oficina» (modules/inventario.js)
+  if(S.reportesTab === 'inventario') S.reportesTab = 'dashfin';
   var tab = S.reportesTab || 'dashfin';
 
   // Variables filtradas por concesionario activo
@@ -188,7 +190,6 @@ PG.reportes = function(){
     {k:'periodicos', lbl:'Reportes', sub:'Diario · Semanal · Quincenal · Mensual'},
     {k:'proyecciones', lbl:'Proyecciones', sub:'Flujo futuro · 12 meses'},
     {k:'egresos', lbl:'Egresos', sub:'Gastos · categorías'},
-    {k:'inventario', lbl:'Inventario de oficina', sub:'Activos · equipos · mobiliario'},
     {k:'exportar', lbl:'Exportar', sub:'Reportes · CSV · Backup'},
     {k:'libroventas', lbl:'Libro de Ventas', sub:'IVA · facturas emitidas'},
     {k:'librocompras', lbl:'Libro de Compras', sub:'IVA · facturas de proveedores'},
@@ -958,8 +959,6 @@ PG.reportes = function(){
 
   ${tab==='periodicos' ? _renderTabReportesPeriodicos() : ''}
 
-  ${tab==='inventario' ? '<div id="fin-inventario">'+pgBotonesExportar('fin-inventario','Inventario de oficina')+_renderTabInventario()+'</div>' : ''}
-
   ${tab==='metodologia' ? '<div id="fin-metodologia">'+pgBotonesExportar('fin-metodologia','Nueva metodología')+(typeof _renderNuevaMetodologia==='function' ? _renderNuevaMetodologia() : '')+'</div>' : ''}
 
   ${tab==='libroventas' ? _renderLibroVentas() : ''}
@@ -1072,125 +1071,6 @@ function _repRebuildDias(){
   var y=parseInt(ms.value.slice(0,4),10), m=parseInt(ms.value.slice(5,7),10)-1;
   var n=new Date(y,m+1,0).getDate(); if(cur>n) cur=n;
   ds.innerHTML=_repDiaOpts(ms.value, cur);
-}
-
-// ══════════════════════════════════════════════════════════════
-// TAB: INVENTARIO DE OFICINA — activos / equipos / mobiliario
-// Se guarda en config/inventarioOficina (permitido por las reglas)
-// ══════════════════════════════════════════════════════════════
-var INV_CATS=['Computadora','Laptop','Monitor','Impresora','Teléfono / Celular','Tablet','Silla','Escritorio','Mueble / Mobiliario','Aire acondicionado','Cámara / Seguridad','Router / Red','UPS / Batería','Herramienta','Vehículo','Otro'];
-var INV_ESTADOS=['Nuevo','Bueno','Regular','Para reparar','Dañado'];
-
-function _renderTabInventario(){
-  var items = Array.isArray(S.inventarioOficina) ? S.inventarioOficina : [];
-  var ed = window._invEdit ? items.find(function(x){return x.id===window._invEdit;}) : null;
-  var v = function(s){ return (s==null?'':String(s)).replace(/"/g,'&quot;'); };
-  var hoyISO = (typeof fechaLocalISO==='function') ? fechaLocalISO(new Date()) : new Date().toISOString().slice(0,10);
-  var lineN = function(x){ return parseInt(x.cantidad,10)||0; };
-  var lineV = function(x){ return (parseFloat(x.valorUnit)||0)*lineN(x); };
-  var valorTotal = items.reduce(function(a,x){return a+lineV(x);},0);
-  var unidades = items.reduce(function(a,x){return a+lineN(x);},0);
-
-  var porCat={}; items.forEach(function(x){var c=x.categoria||'Otro'; if(!porCat[c])porCat[c]={n:0,val:0}; porCat[c].n+=lineN(x); porCat[c].val+=lineV(x);});
-  var catKeys=Object.keys(porCat).sort(function(a,b){return porCat[b].val-porCat[a].val;});
-  var catChips=catKeys.map(function(c){return '<span style="display:inline-flex;align-items:center;gap:7px;background:var(--surf2);border:1px solid var(--rim);border-radius:50px;padding:5px 12px;font-size:11px;font-weight:700;color:var(--ink2)">'+c+' <b style="color:var(--p1);font-family:var(--fd)">'+porCat[c].n+'</b> · <span style="font-family:var(--fd);color:var(--green)">'+fmt(porCat[c].val)+'</span></span>';}).join('');
-
-  var optsCat = INV_CATS.map(function(c){return '<option value="'+c+'"'+((ed&&ed.categoria===c)?' selected':'')+'>'+c+'</option>';}).join('');
-  var optsEst = INV_ESTADOS.map(function(s){var sel=ed?(ed.estado===s):(s==='Bueno'); return '<option value="'+s+'"'+(sel?' selected':'')+'>'+s+'</option>';}).join('');
-  var ubicList = ['Oficina'];
-  (S.concesionarios||[]).filter(function(c){return !c.eliminado;}).forEach(function(c){ ubicList.push('Concesionario: '+(c.nombre||c.id)); });
-  ubicList.push('Otro lugar');
-  if(ed && ed.ubicacion && ubicList.indexOf(ed.ubicacion)<0) ubicList.unshift(ed.ubicacion);
-  var optsUbic = ubicList.map(function(u){var sel=ed?(ed.ubicacion===u):(u==='Oficina'); return '<option value="'+v(u)+'"'+(sel?' selected':'')+'>'+u+'</option>';}).join('');
-
-  var rows = items.slice().sort(function(a,b){return lineV(b)-lineV(a);}).map(function(x){
-    var cant=lineN(x), vu=parseFloat(x.valorUnit)||0, vt=lineV(x);
-    var estCol=(x.estado==='Dañado'||x.estado==='Para reparar')?'var(--red)':(x.estado==='Regular'?'var(--amber)':'var(--green)');
-    return '<tr>'
-      +'<td class="tdm" style="font-weight:700">'+(x.nombre||'—')+(x.nota?'<div style="font-size:10px;color:var(--ink3);font-weight:500;white-space:normal;margin-top:2px">'+x.nota+'</div>':'')+'</td>'
-      +'<td><span style="display:inline-block;background:var(--gs);color:var(--p1);font-size:10px;font-weight:700;padding:2px 9px;border-radius:50px;white-space:nowrap">'+(x.categoria||'Otro')+'</span></td>'
-      +'<td class="tds" style="font-size:11px;color:var(--ink2)">'+(x.ubicacion||'—')+'</td>'
-      +'<td style="text-align:center;font-family:var(--fd);font-weight:700">'+cant+'</td>'
-      +'<td style="text-align:right;font-family:var(--fd);color:var(--ink2)">'+fmt(vu)+'</td>'
-      +'<td style="text-align:right;font-family:var(--fd);font-weight:900;color:var(--ink)">'+fmt(vt)+'</td>'
-      +'<td><span style="font-size:11px;font-weight:700;color:'+estCol+'">'+(x.estado||'—')+'</span></td>'
-      +'<td class="tds" style="font-size:11px;color:var(--ink3);white-space:nowrap">'+(x.fecha||'—')+'</td>'
-      +'<td style="white-space:nowrap;text-align:right"><div style="display:inline-flex;gap:4px"><button class="btn btn-g btn-xs" onclick="invEditar(\''+x.id+'\')">Editar</button><button class="btn btn-d btn-xs" onclick="invEliminar(\''+x.id+'\')" style="padding:4px 8px">✕</button></div></td>'
-    +'</tr>';
-  }).join('');
-
-  return '<div>'
-    // Resumen
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">'
-      +'<div class="stat"><div class="st-v" style="color:var(--p1);font-size:24px">'+items.length+'</div><div class="st-l">Artículos</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">Registros distintos</div></div>'
-      +'<div class="stat"><div class="st-v" style="color:var(--ink);font-size:24px">'+unidades+'</div><div class="st-l">Unidades</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">Suma de cantidades</div></div>'
-      +'<div class="stat"><div class="st-v" style="color:var(--green);font-size:24px">'+fmt(valorTotal)+'</div><div class="st-l">Valor total</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">Inventario valorizado</div></div>'
-      +'<div class="stat"><div class="st-v" style="color:var(--amber);font-size:24px">'+catKeys.length+'</div><div class="st-l">Categorías</div><div style="font-size:10px;color:var(--ink3);margin-top:2px">En uso</div></div>'
-    +'</div>'
-    +(catChips?'<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">'+catChips+'</div>':'')
-    // Formulario agregar / editar
-    +'<div class="card" style="margin-bottom:14px;border:'+(ed?'1.5px solid var(--p1)':'1px solid var(--rim)')+'">'
-      +'<div class="ch"><div><div class="ct">'+(ed?'Editar artículo':'Agregar artículo')+'</div><div class="cs">'+(ed?'Modificá los datos y guardá los cambios':'Computadoras, impresoras, sillas, monitores, escritorios y más')+'</div></div></div>'
-      +'<div class="fgr" style="grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px">'
-        +'<div class="fg"><label>Artículo</label><input class="fi" id="inv-nombre" placeholder="Ej: Laptop Dell Latitude" value="'+(ed?v(ed.nombre):'')+'"></div>'
-        +'<div class="fg"><label>Categoría</label><select class="fs" id="inv-cat">'+optsCat+'</select></div>'
-        +'<div class="fg"><label>Ubicación · dónde está</label><select class="fs" id="inv-ubicacion">'+optsUbic+'</select></div>'
-        +'<div class="fg"><label>Cantidad</label><input class="fi" id="inv-cant" type="number" min="1" step="1" value="'+(ed?(parseInt(ed.cantidad,10)||1):1)+'"></div>'
-        +'<div class="fg"><label>Valor unitario (USD)</label><input class="fi" id="inv-valor" type="number" min="0" step="0.01" placeholder="0.00" value="'+(ed?(parseFloat(ed.valorUnit)||''):'')+'"></div>'
-        +'<div class="fg"><label>Estado</label><select class="fs" id="inv-estado">'+optsEst+'</select></div>'
-        +'<div class="fg"><label>Fecha de adquisición</label><input class="fi" id="inv-fecha" type="date" value="'+(ed&&ed.fecha?v(ed.fecha):hoyISO)+'"></div>'
-        +'<div class="fg" style="grid-column:2/-1"><label>Nota / serial (opcional)</label><input class="fi" id="inv-nota" placeholder="Ej: Serial ABC123 · responsable" value="'+(ed?v(ed.nota):'')+'"></div>'
-      +'</div>'
-      +'<div style="display:flex;gap:8px;margin-top:12px">'
-        +'<button class="btn btn-p btn-sm" onclick="invAgregar()" style="font-weight:800">'+(ed?'Guardar cambios':'＋ Agregar al inventario')+'</button>'
-        +(ed?'<button class="btn btn-g btn-sm" onclick="invCancelarEdicion()">Cancelar</button>':'')
-      +'</div>'
-    +'</div>'
-    // Tabla
-    +'<div class="card">'
-      +'<div class="ch"><div><div class="ct">Artículos registrados</div><div class="cs">'+items.length+' artículo'+(items.length!==1?'s':'')+' · valor total '+fmt(valorTotal)+'</div></div></div>'
-      +(items.length
-        ? '<div class="tw tw-compact" style="margin-top:6px"><table><thead><tr><th>Artículo</th><th>Categoría</th><th>Ubicación</th><th style="text-align:center">Cant.</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Valor total</th><th>Estado</th><th>Adquirido</th><th></th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td colspan="5" style="padding-top:10px;font-weight:800;border-top:2px solid var(--ink)">TOTAL INVENTARIO</td><td style="padding-top:10px;text-align:right;font-weight:900;font-family:var(--fd);color:var(--green);font-size:15px;border-top:2px solid var(--ink)">'+fmt(valorTotal)+'</td><td colspan="3" style="border-top:2px solid var(--ink)"></td></tr></tfoot></table></div>'
-        : '<div style="text-align:center;padding:34px 12px;color:var(--ink3)"><div style="font-size:13px;font-weight:700;margin-bottom:4px">Aún no hay artículos registrados</div><div style="font-size:12px">Agregá tu primer activo de oficina con el formulario de arriba.</div></div>')
-    +'</div>'
-  +'</div>';
-}
-
-function invAgregar(){
-  var g=function(id){var el=document.getElementById(id);return el?el.value:'';};
-  var nombre=(g('inv-nombre')||'').trim();
-  if(!nombre){ if(typeof toast==='function') toast('Ponle un nombre al artículo','warn'); return; }
-  var cant=parseInt(g('inv-cant'),10); if(!cant||cant<1) cant=1;
-  var valor=parseFloat(g('inv-valor'))||0;
-  var fecha=g('inv-fecha')|| ((typeof fechaLocalISO==='function')?fechaLocalISO(new Date()):new Date().toISOString().slice(0,10));
-  var obj={categoria:g('inv-cat')||'Otro', ubicacion:g('inv-ubicacion')||'Oficina', cantidad:cant, valorUnit:valor, fecha:fecha, estado:g('inv-estado')||'Bueno', nota:(g('inv-nota')||'').trim(), nombre:nombre};
-  if(!Array.isArray(S.inventarioOficina)) S.inventarioOficina=[];
-  if(window._invEdit){
-    var it=S.inventarioOficina.find(function(x){return x.id===window._invEdit;});
-    if(it){ it.nombre=obj.nombre; it.categoria=obj.categoria; it.ubicacion=obj.ubicacion; it.cantidad=obj.cantidad; it.valorUnit=obj.valorUnit; it.fecha=obj.fecha; it.estado=obj.estado; it.nota=obj.nota; }
-    window._invEdit=null;
-    if(typeof toast==='function') toast('Artículo actualizado','success');
-  } else {
-    obj.id='inv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    obj.creado=new Date().toISOString();
-    S.inventarioOficina.push(obj);
-    if(typeof toast==='function') toast('Artículo agregado al inventario','success');
-  }
-  if(typeof DB!=='undefined' && DB.saveInventarioOficina) DB.saveInventarioOficina();
-  try{ localStorage.setItem('pagasi_inv_oficina', JSON.stringify(S.inventarioOficina)); }catch(e){}
-  if(typeof logActividad==='function') logActividad('inventario','finanzas',nombre,'Inventario de oficina');
-  S.reportesTab='inventario'; nav('reportes');
-}
-function invEditar(id){ window._invEdit=id; S.reportesTab='inventario'; nav('reportes'); setTimeout(function(){var el=document.getElementById('inv-nombre'); if(el){el.focus(); try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}}},120); }
-function invCancelarEdicion(){ window._invEdit=null; S.reportesTab='inventario'; nav('reportes'); }
-function invEliminar(id){
-  if(!confirm('¿Eliminar este artículo del inventario de oficina?')) return;
-  S.inventarioOficina=(S.inventarioOficina||[]).filter(function(x){return x.id!==id;});
-  if(window._invEdit===id) window._invEdit=null;
-  if(typeof DB!=='undefined' && DB.saveInventarioOficina) DB.saveInventarioOficina();
-  try{ localStorage.setItem('pagasi_inv_oficina', JSON.stringify(S.inventarioOficina)); }catch(e){}
-  if(typeof toast==='function') toast('Artículo eliminado','success');
-  S.reportesTab='inventario'; nav('reportes');
 }
 
 // ══════════════════════════════════════════════════════════════
